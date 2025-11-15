@@ -1,0 +1,204 @@
+import { NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
+import { getServerSupabase } from '@/lib/supabase-server'
+import webpush from 'web-push'
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  { auth: { autoRefreshToken: false, persistSession: false } }
+)
+export async function GET(req: Request) {
+  try {
+    const supabase = await getServerSupabase()
+    const { data: me } = await supabase.auth.getUser()
+    const uid = me?.user?.id
+    if (!uid) return NextResponse.json({ success: false, code: 'NOT_AUTHENTICATED' }, { status: 401 })
+
+    const { data: roleRow } = await supabase.from('users').select('role').eq('id', uid).maybeSingle()
+    if (!roleRow || roleRow.role !== 'admin') {
+      return NextResponse.json({ success: false, code: 'FORBIDDEN' }, { status: 403 })
+    }
+
+    const url = new URL(req.url)
+    const volunteerId = url.searchParams.get('volunteer_id')
+
+    let query = supabaseAdmin
+      .from('schedules')
+      .select(`
+        *,
+        volunteer:users!schedules_volunteer_id_fkey (
+          id, first_name, last_name, email
+        ),
+        creator:users!schedules_created_by_fkey (
+          id, first_name, last_name
+        )
+      `)
+      .order('start_time', { ascending: true })
+
+    if (volunteerId) {
+      query = query.eq('volunteer_id', volunteerId)
+    }
+
+    const { data, error } = await query
+    if (error) return NextResponse.json({ success: false, message: error.message }, { status: 400 })
+    return NextResponse.json({ success: true, data: data || [] })
+  } catch (e: any) {
+    return NextResponse.json({ success: false, message: e?.message || 'Internal error' }, { status: 500 })
+  }
+}
+
+function configureWebPush() {
+  const pub = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+  const priv = process.env.VAPID_PRIVATE_KEY
+  const contact = process.env.WEB_PUSH_CONTACT || 'mailto:admin@example.com'
+  if (pub && priv) {
+    try { webpush.setVapidDetails(contact, pub, priv) } catch {}
+  }
+  return Boolean(pub && priv)
+}
+
+async function sendPushToUser(userId: string, payload: any) {
+  try {
+    const { data: subs, error } = await supabaseAdmin
+      .from('push_subscriptions')
+      .select('endpoint, subscription')
+      .eq('user_id', userId)
+    if (error || !subs?.length) return
+    const configured = configureWebPush()
+    if (!configured) return
+    await Promise.allSettled(
+      subs.map(async (s: any) => {
+        try { await webpush.sendNotification(s.subscription as any, JSON.stringify(payload)) } catch {}
+      })
+    )
+  } catch {}
+}
+
+export async function POST(req: Request) {
+  try {
+    const supabase = await getServerSupabase()
+    const { data: me } = await supabase.auth.getUser()
+    const uid = me?.user?.id
+    if (!uid) return NextResponse.json({ success: false, code: 'NOT_AUTHENTICATED' }, { status: 401 })
+
+    const { data: roleRow } = await supabase.from('users').select('role').eq('id', uid).maybeSingle()
+    if (!roleRow || roleRow.role !== 'admin') {
+      return NextResponse.json({ success: false, code: 'FORBIDDEN' }, { status: 403 })
+    }
+
+    const body = await req.json()
+    const { volunteer_id, title, description, start_time, end_time, location, barangay } = body || {}
+
+    const { data, error } = await supabaseAdmin
+      .from('schedules')
+      .insert({
+        volunteer_id,
+        title,
+        description: description ?? null,
+        start_time,
+        end_time,
+        location: location ?? null,
+        barangay: barangay ?? null,
+        created_by: uid,
+      })
+      .select(`
+        *,
+        volunteer:users!schedules_volunteer_id_fkey (
+          id, first_name, last_name, email, phone_number
+        ),
+        creator:users!schedules_created_by_fkey (
+          id, first_name, last_name
+        )
+      `)
+      .single()
+
+    if (error) return NextResponse.json({ success: false, message: error.message }, { status: 400 })
+
+    // Fire-and-forget push notification to assigned volunteer
+    const url = '/volunteer/schedules'
+    await sendPushToUser(volunteer_id, {
+      title: 'New Scheduled Activity',
+      body: `${title} • ${new Date(start_time).toLocaleString()} - ${new Date(end_time).toLocaleString()}`,
+      url,
+    })
+
+    return NextResponse.json({ success: true, data })
+  } catch (e: any) {
+    return NextResponse.json({ success: false, message: e?.message || 'Internal error' }, { status: 500 })
+  }
+}
+
+export async function PATCH(req: Request) {
+  try {
+    const supabase = await getServerSupabase()
+    const { data: me } = await supabase.auth.getUser()
+    const uid = me?.user?.id
+    if (!uid) return NextResponse.json({ success: false, code: 'NOT_AUTHENTICATED' }, { status: 401 })
+
+    const { data: roleRow } = await supabase.from('users').select('role').eq('id', uid).maybeSingle()
+    if (!roleRow || roleRow.role !== 'admin') {
+      return NextResponse.json({ success: false, code: 'FORBIDDEN' }, { status: 403 })
+    }
+
+    const body = await req.json()
+    const { id, ...updates } = body || {}
+    if (!id) return NextResponse.json({ success: false, message: 'Missing schedule id' }, { status: 400 })
+
+    const { data, error } = await supabaseAdmin
+      .from('schedules')
+      .update(updates)
+      .eq('id', id)
+      .select(`
+        *,
+        volunteer:users!schedules_volunteer_id_fkey (
+          id, first_name, last_name, email, phone_number
+        ),
+        creator:users!schedules_created_by_fkey (
+          id, first_name, last_name
+        )
+      `)
+      .single()
+
+    if (error) return NextResponse.json({ success: false, message: error.message }, { status: 400 })
+
+    // Notify volunteer about schedule update if volunteer_id present in updates or returned row
+    const volunteerId = (updates as any)?.volunteer_id || (data as any)?.volunteer_id
+    if (volunteerId) {
+      await sendPushToUser(volunteerId, {
+        title: 'Schedule Updated',
+        body: `${data?.title || 'Activity'} • ${new Date(data?.start_time).toLocaleString()} - ${new Date(data?.end_time).toLocaleString()}`,
+        url: '/volunteer/schedules',
+      })
+    }
+
+    return NextResponse.json({ success: true, data })
+  } catch (e: any) {
+    return NextResponse.json({ success: false, message: e?.message || 'Internal error' }, { status: 500 })
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const supabase = await getServerSupabase()
+    const { data: me } = await supabase.auth.getUser()
+    const uid = me?.user?.id
+    if (!uid) return NextResponse.json({ success: false, code: 'NOT_AUTHENTICATED' }, { status: 401 })
+
+    const { data: roleRow } = await supabase.from('users').select('role').eq('id', uid).maybeSingle()
+    if (!roleRow || roleRow.role !== 'admin') {
+      return NextResponse.json({ success: false, code: 'FORBIDDEN' }, { status: 403 })
+    }
+
+    const url = new URL(req.url)
+    const id = url.searchParams.get('id')
+    if (!id) return NextResponse.json({ success: false, message: 'Missing id' }, { status: 400 })
+
+    const { error } = await supabaseAdmin.from('schedules').delete().eq('id', id)
+    if (error) return NextResponse.json({ success: false, message: error.message }, { status: 400 })
+
+    return NextResponse.json({ success: true })
+  } catch (e: any) {
+    return NextResponse.json({ success: false, message: e?.message || 'Internal error' }, { status: 500 })
+  }
+}
