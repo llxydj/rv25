@@ -9,7 +9,7 @@
  *   npx ts-node scripts/geolocation-load-test.ts
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+const API_BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://rvois-jet.vercel.app'
 const VOLUNTEER_TOKEN = process.env.TEST_VOLUNTEER_TOKEN || ''
 
 interface SimulationConfig {

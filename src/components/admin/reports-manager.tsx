@@ -44,8 +44,8 @@ export function ReportsManager() {
   const fetchReports = async () => {
     try {
       const params = new URLSearchParams()
-      if (filters.report_type) params.append('report_type', filters.report_type)
-      if (filters.status) params.append('status', filters.status)
+      if (filters.report_type && filters.report_type !== 'all') params.append('report_type', filters.report_type)
+      if (filters.status && filters.status !== 'all') params.append('status', filters.status)
       if (filters.created_by) params.append('created_by', filters.created_by)
 
       const response = await fetch(`/api/reports?${params.toString()}`)
@@ -136,7 +136,7 @@ export function ReportsManager() {
                   <SelectValue placeholder="All Types" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Types</SelectItem>
+                  <SelectItem value="all">All Types</SelectItem>
                   <SelectItem value="INCIDENT_REPORT">Incident Report</SelectItem>
                   <SelectItem value="ACTIVITY_REPORT">Activity Report</SelectItem>
                   <SelectItem value="SITUATION_REPORT">Situation Report</SelectItem>
@@ -153,7 +153,7 @@ export function ReportsManager() {
                   <SelectValue placeholder="All Statuses" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Statuses</SelectItem>
+                  <SelectItem value="all">All Statuses</SelectItem>
                   <SelectItem value="SUBMITTED">Submitted</SelectItem>
                   <SelectItem value="REVIEWED">Reviewed</SelectItem>
                   <SelectItem value="REJECTED">Rejected</SelectItem>

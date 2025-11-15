@@ -207,7 +207,7 @@ export function PDFReportGenerator() {
                       <SelectValue placeholder="All statuses" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Statuses</SelectItem>
+                      <SelectItem value="all">All Statuses</SelectItem>
                       <SelectItem value="PENDING">Pending</SelectItem>
                       <SelectItem value="ASSIGNED">Assigned</SelectItem>
                       <SelectItem value="RESPONDING">Responding</SelectItem>
@@ -227,7 +227,7 @@ export function PDFReportGenerator() {
                       <SelectValue placeholder="All severity levels" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Severity Levels</SelectItem>
+                      <SelectItem value="all">All Severity Levels</SelectItem>
                       <SelectItem value="1">Level 1 (Critical)</SelectItem>
                       <SelectItem value="2">Level 2 (High)</SelectItem>
                       <SelectItem value="3">Level 3 (Medium)</SelectItem>

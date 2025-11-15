@@ -31,7 +31,7 @@ async function autoArchiveReports() {
     }
 
     // Make request to the auto-archive API endpoint
-    const response = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/admin/reports/auto-archive`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://rvois-jet.vercel.app'}/api/admin/reports/auto-archive`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -41,8 +41,8 @@ export function CallLogsManager() {
   const fetchCallLogs = async () => {
     try {
       const params = new URLSearchParams()
-      if (filters.call_type) params.append('call_type', filters.call_type)
-      if (filters.status) params.append('status', filters.status)
+      if (filters.call_type && filters.call_type !== 'all') params.append('call_type', filters.call_type)
+      if (filters.status && filters.status !== 'all') params.append('status', filters.status)
       if (filters.user_id) params.append('user_id', filters.user_id)
 
       const response = await fetch(`/api/call-logs?${params.toString()}`)
@@ -119,7 +119,7 @@ export function CallLogsManager() {
                   <SelectValue placeholder="All Types" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Types</SelectItem>
+                  <SelectItem value="all">All Types</SelectItem>
                   <SelectItem value="emergency">Emergency</SelectItem>
                   <SelectItem value="incident">Incident</SelectItem>
                   <SelectItem value="volunteer">Volunteer</SelectItem>
@@ -138,7 +138,7 @@ export function CallLogsManager() {
                   <SelectValue placeholder="All Statuses" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Statuses</SelectItem>
+                  <SelectItem value="all">All Statuses</SelectItem>
                   <SelectItem value="initiated">Initiated</SelectItem>
                   <SelectItem value="connected">Connected</SelectItem>
                   <SelectItem value="missed">Missed</SelectItem>

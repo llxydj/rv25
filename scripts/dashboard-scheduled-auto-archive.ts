@@ -16,7 +16,7 @@ import { createClient } from '@supabase/supabase-js'
 const CONFIG = {
   supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || 'your_supabase_url',
   supabaseKey: process.env.SUPABASE_SERVICE_ROLE_KEY || 'your_service_role_key',
-  siteUrl: process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000',
+  siteUrl: process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://rvois-jet.vercel.app',
   cronAuthToken: process.env.CRON_AUTH_TOKEN || 'your_cron_auth_token'
 }
 

@@ -7,7 +7,7 @@
  * - Valid volunteer user token
  */
 
-const API_BASE = 'http://localhost:3000'
+const API_BASE = 'https://rvois-jet.vercel.app'
 let AUTH_TOKEN = '' // Replace with actual token after login
 
 // Helper function to make API calls
@@ -62,7 +62,7 @@ async function runTests() {
   console.log(`
 To test authenticated endpoints:
 
-1. Login to your app at http://localhost:3000
+1. Login to your app at https://rvois-jet.vercel.app
 2. Open browser DevTools → Application → Local Storage
 3. Find the Supabase auth token
 4. Update AUTH_TOKEN variable in this script
