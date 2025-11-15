@@ -47,8 +47,8 @@ export default function AdminReports() {
   const [error, setError] = useState<string | null>(null)
   const [reportType, setReportType] = useState<"incidents" | "volunteers" | "schedules">("incidents")
   const [dateRange, setDateRange] = useState<"week" | "month" | "year" | "custom">("week")
-  const [dateFrom, setDateFrom] = useState<Date | null>(null)
-  const [dateTo, setDateTo] = useState<Date | null>(null)
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(new Date(new Date().setDate(new Date().getDate() - 7)))
+  const [dateTo, setDateTo] = useState<Date | undefined>(new Date())
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false)
   const [archiveLoading, setArchiveLoading] = useState(false)
   const [exportLoading, setExportLoading] = useState(false)
@@ -56,6 +56,37 @@ export default function AdminReports() {
   const [generatingReport, setGeneratingReport] = useState(false)
   const [templateNotes, setTemplateNotes] = useState("")
   const [scheduleConfig, setScheduleConfig] = useState<any>(null)
+  const [incidents, setIncidents] = useState<any[]>([])
+  const [volunteers, setVolunteers] = useState<any[]>([])
+  const [schedules, setSchedules] = useState<any[]>([])
+  const [incidentsByBarangay, setIncidentsByBarangay] = useState<any[]>([])
+  const [incidentsByType, setIncidentsByType] = useState<any[]>([])
+  const [incidentsByStatus, setIncidentsByStatus] = useState<any[]>([])
+  
+  // Year-based reports state
+  const [years, setYears] = useState<any[]>([])
+  const [selectedYear, setSelectedYear] = useState<number | null>(null)
+  const [yearData, setYearData] = useState<any>(null)
+  const [expandedQuarters, setExpandedQuarters] = useState<Record<string, boolean>>({})
+  const [expandedMonths, setExpandedMonths] = useState<Record<string, boolean>>({})
+  
+  // Drill-down states
+  const [selectedQuarter, setSelectedQuarter] = useState<string | null>(null)
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null)
+  const [dateRangeFilter, setDateRangeFilter] = useState<{start: Date | null, end: Date | null}>({start: null, end: null})
+  
+  // Custom date range states
+  const [dateRangeType, setDateRangeType] = useState<"daily" | "weekly" | "monthly" | "custom">("monthly")
+  
+  // Filter states
+  const [incidentTypeFilter, setIncidentTypeFilter] = useState<string>("")
+  const [barangayFilter, setBarangayFilter] = useState<string>("")
+  const [priorityFilter, setPriorityFilter] = useState<string>("")
+  const [statusFilter, setStatusFilter] = useState<string>("")
+  
+  // Archive states
+  const [showArchived, setShowArchived] = useState(false)
+  const [archivedYears, setArchivedYears] = useState<number[]>([])
 
   // Fetch schedule configuration
   useEffect(() => {
@@ -74,48 +105,6 @@ export default function AdminReports() {
     
     fetchScheduleConfig()
   }, [])
-
-  const [incidents, setIncidents] = useState<any[]>([])
-  const [volunteers, setVolunteers] = useState<any[]>([])
-  const [schedules, setSchedules] = useState<any[]>([])
-  const [incidentsByBarangay, setIncidentsByBarangay] = useState<any[]>([])
-  const [incidentsByType, setIncidentsByType] = useState<any[]>([])
-  const [incidentsByStatus, setIncidentsByStatus] = useState<any[]>([])
-  const [generatingReport, setGeneratingReport] = useState(false)
-  const [submittingMonthly, setSubmittingMonthly] = useState(false)
-  
-  // Year-based reports state
-  const [years, setYears] = useState<any[]>([])
-  const [selectedYear, setSelectedYear] = useState<number | null>(null)
-  const [yearData, setYearData] = useState<any>(null)
-  const [expandedQuarters, setExpandedQuarters] = useState<Record<string, boolean>>({})
-  const [expandedMonths, setExpandedMonths] = useState<Record<string, boolean>>({})
-  const [archiveLoading, setArchiveLoading] = useState(false)
-  const [exportLoading, setExportLoading] = useState(false)
-  
-  // Drill-down states
-  const [selectedQuarter, setSelectedQuarter] = useState<string | null>(null)
-  const [selectedMonth, setSelectedMonth] = useState<string | null>(null)
-  const [dateRangeFilter, setDateRangeFilter] = useState<{start: Date | null, end: Date | null}>({start: null, end: null})
-  
-  // Custom date range states
-  const [dateRangeType, setDateRangeType] = useState<"daily" | "weekly" | "monthly" | "custom">("monthly")
-  const [dateFrom, setDateFrom] = useState<Date | undefined>(new Date(new Date().setDate(new Date().getDate() - 7)))
-  const [dateTo, setDateTo] = useState<Date | undefined>(new Date())
-  
-  // Filter states
-  const [incidentTypeFilter, setIncidentTypeFilter] = useState<string>("")
-  const [barangayFilter, setBarangayFilter] = useState<string>("")
-  const [priorityFilter, setPriorityFilter] = useState<string>("")
-  const [statusFilter, setStatusFilter] = useState<string>("")
-  
-  // Archive states
-  const [showArchived, setShowArchived] = useState(false)
-  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false)
-  const [archivedYears, setArchivedYears] = useState<number[]>([])
-  
-  // Template states
-  const [templateNotes, setTemplateNotes] = useState("")
 
   // Convert date range to actual dates for the reports API
   const getDateRangeParams = () => {
