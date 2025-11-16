@@ -24,6 +24,8 @@ import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/components/ui/use-toast"
 import { LocationTrackingToggle } from "@/components/volunteer/location-tracking-toggle"
 import { PushNotificationToggle } from "@/components/push-notification-toggle"
+import { PinPad } from "@/components/pin-pad"
+import { useRouter } from "next/navigation"
 
 interface Schedule {
   id: string;
@@ -78,7 +80,7 @@ const AvailabilityToggle = ({ isAvailable, onToggle, disabled }: { isAvailable: 
 }
 
 export default function VolunteerDashboard() {
-  const { user } = useAuth()
+  const { user, requiresPin, pinVerified, verifyPin, checkHasPin } = useAuth()
   const { toast } = useToast()
   const [incidents, setIncidents] = useState<any[]>([])
   const [schedules, setSchedules] = useState<any[]>([])
@@ -88,6 +90,64 @@ export default function VolunteerDashboard() {
   const [isAvailable, setIsAvailable] = useState(false)
   const [updatingAvailability, setUpdatingAvailability] = useState(false)
   const [volunteerInfo, setVolunteerInfo] = useState<any>(null)
+  const [pinError, setPinError] = useState("")
+  const [pinAttempts, setPinAttempts] = useState(0)
+  const router = useRouter()
+
+  // Check if user needs to set up or verify PIN
+  useEffect(() => {
+    if (!user) {
+      router.push('/login')
+      return
+    }
+
+    // If user doesn't require PIN (shouldn't happen for volunteer), redirect appropriately
+    if (!requiresPin) {
+      // This shouldn't happen for volunteer users, but just in case
+      router.push('/')
+      return
+    }
+
+    // Check if user has a PIN
+    const initializePinCheck = async () => {
+      const hasPin = await checkHasPin()
+      if (!hasPin) {
+        // Redirect to PIN setup if no PIN is set
+        router.push('/pin-setup')
+      }
+    }
+
+    initializePinCheck()
+  }, [user, requiresPin, router, checkHasPin])
+
+  // Handle PIN verification
+  const handlePinVerify = async (pin: string) => {
+    if (!user) return
+    
+    setPinError("")
+    
+    try {
+      const isValid = await verifyPin(pin)
+      if (!isValid) {
+        const newAttempts = pinAttempts + 1
+        setPinAttempts(newAttempts)
+        
+        if (newAttempts >= 3) {
+          // Sign out user after 3 failed attempts
+          alert('Too many failed attempts. You have been logged out.')
+          router.push('/login')
+        } else {
+          setPinError(`Incorrect PIN. ${3 - newAttempts} attempts remaining.`)
+        }
+      }
+    } catch (err) {
+      setPinError('An error occurred. Please try again.')
+    }
+  }
+
+  const clearPinError = () => {
+    setPinError("")
+  }
 
   // Handle availability toggle
   const handleAvailabilityToggle = async (checked: boolean) => {
@@ -198,84 +258,118 @@ export default function VolunteerDashboard() {
             };
           });
         }
-      } catch (profileError) {
-        console.error("Profile query error:", profileError);
+      } catch (profileQueryError) {
+        console.error("Error querying profile:", profileQueryError);
       }
-      
-      // Force reload incidents with cache busting parameter
-      const incidentsResult = await getVolunteerIncidents(user.id + '?t=' + new Date().getTime());
-      
-      if (incidentsResult.success) {
-        // Log the incidents and status counts for debugging
-        console.log("FRESH INCIDENTS DATA:", incidentsResult.data);
-        
-        const freshAssignedCount = incidentsResult.data.filter((i: any) => i.status === "ASSIGNED").length;
-        const freshRespondingCount = incidentsResult.data.filter((i: any) => i.status === "RESPONDING").length;
-        const freshResolvedCount = incidentsResult.data.filter((i: any) => i.status === "RESOLVED").length;
-        
-        console.log("FRESH STATUS COUNTS:", {
-          assigned: freshAssignedCount,
-          responding: freshRespondingCount,
-          resolved: freshResolvedCount
-        });
-        
-        // Update state with fresh data
+
+      // Refresh all data
+      const [incidentsResult, schedulesResult, profileResult, infoResult] = await Promise.all([
+        getVolunteerIncidents(user.id),
+        getVolunteerSchedules(user.id),
+        getVolunteerProfile(user.id),
+        getVolunteerInformation(user.id)
+      ]);
+
+      if (incidentsResult?.success) {
         setIncidents(incidentsResult.data || []);
       }
       
-      toast({
-        title: "Dashboard refreshed",
-        description: "Latest data loaded directly from database",
-        variant: "default"
-      });
-    } catch (err) {
-      console.error("Error in force refresh:", err);
-      toast({
-        title: "Error refreshing data",
-        description: "Please try again",
-        variant: "destructive"
-      });
+      if (schedulesResult?.success) {
+        setSchedules(schedulesResult.data || []);
+      }
+      
+      if (profileResult?.success) {
+        setProfile(profileResult.data);
+        setIsAvailable(profileResult.data?.volunteer_profiles?.is_available ?? false);
+      }
+      
+      if (infoResult?.success) {
+        setVolunteerInfo(infoResult.data);
+      }
+    } catch (err: any) {
+      console.error('Error refreshing data:', err);
+      setError(err.message || "Failed to refresh data");
     } finally {
       setLoading(false);
     }
   };
 
-  // Call the force refresh when component mounts, but with a slight delay 
-  // to ensure the page renders first
+  // Initial data fetch
   useEffect(() => {
-    if (user) {
-      setLoading(true);
-      
-      // First render basic UI with minimal data
-      const quickLoad = async () => {
-        try {
-          // Get minimal profile data first
-          const { data: basicProfile } = await supabase
-            .from('users')
-            .select('first_name, last_name, email')
-            .eq('id', user.id)
-            .single();
-            
-          if (basicProfile) {
-            // Set minimal profile data so UI can render
-            setProfile((prev: any) => ({
-              ...prev,
-              ...basicProfile
-            }));
-          }
-        } catch (err) {
-          console.error("Error in quick load:", err);
-        } finally {
-          // After basic UI is rendered, load full data with a slight delay
-          setTimeout(() => {
-            forceRefreshData();
-          }, 100);
-        }
-      };
-      
-      quickLoad();
+    // Only fetch data if PIN is verified
+    if (pinVerified) {
+      forceRefreshData();
     }
-  }, [user]);
+  }, [pinVerified]);
+
+  // Real-time subscription for incidents
+  useEffect(() => {
+    if (!user || !pinVerified) return;
+
+    const subscription = supabase
+      .channel('incidents')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'incidents',
+        },
+        (payload) => {
+          console.log('New incident:', payload.new);
+          // Refresh incidents when a new one is added
+          forceRefreshData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'incidents',
+        },
+        (payload) => {
+          console.log('Incident updated:', payload.new);
+          // Refresh incidents when one is updated
+          forceRefreshData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [user, pinVerified]);
+
+  // Show PIN verification if required and not yet verified
+  if (requiresPin && !pinVerified) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-6">
+            <h1 className="text-2xl font-bold text-gray-900">Volunteer Dashboard</h1>
+            <p className="text-gray-600 mt-2">Enter your PIN to access the dashboard</p>
+          </div>
+          
+          <PinPad 
+            onPinComplete={handlePinVerify} 
+            title="Enter Volunteer PIN"
+            error={pinError}
+            clearError={clearPinError}
+          />
+          
+          <div className="mt-6 text-center">
+            <button 
+              onClick={() => router.push('/login')}
+              className="text-sm text-gray-500 hover:text-gray-700"
+            >
+              Use Different Account
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   // Add button click handler
   const handleRefreshClick = () => {

@@ -1,10 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+// Create a server client with timeout configuration
+const createServerClient = () => {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      },
+      global: {
+        fetch: (input, init) => {
+          // Set a reasonable timeout (30 seconds)
+          const controller = new AbortController()
+          const timeoutId = setTimeout(() => controller.abort(), 30000)
+          
+          return fetch(input, {
+            ...init,
+            signal: controller.signal
+          }).finally(() => clearTimeout(timeoutId))
+        }
+      }
+    }
+  )
+}
 
 type IncidentRow = {
   id: string
@@ -21,6 +42,9 @@ type UpdateRow = {
 
 export async function GET(request: NextRequest) {
   try {
+    // Use server client instead of browser client
+    const supabase = createServerClient()
+    
     const { searchParams } = new URL(request.url)
     const days = Math.max(1, Math.min(365, parseInt(searchParams.get('days') || '30', 10)))
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
@@ -77,9 +101,3 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, message: e?.message || 'Failed to compute response times' }, { status: 500 })
   }
 }
-
-
-
-
-
-

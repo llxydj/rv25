@@ -517,7 +517,7 @@ export class SMSService {
               }
             }
           }
-        } catch (error) {
+        } catch (error: any) {
           lastError = error
           
           // If this is the last attempt, return the error
@@ -601,7 +601,7 @@ export class SMSService {
           isActive: data.is_active
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching template from DB:', error)
     }
 
@@ -741,7 +741,7 @@ export class SMSService {
         .limit(1)
 
       return !error && data && data.length > 0
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error checking duplicate send:', error)
       return false
     }
@@ -757,7 +757,7 @@ export class SMSService {
 
       if (error) throw error
       return data
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating SMS log:', error)
       throw error
     }
@@ -771,7 +771,7 @@ export class SMSService {
         .eq('id', logId)
 
       if (error) throw error
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating SMS log:', error)
     }
   }
@@ -815,7 +815,7 @@ export class SMSService {
         failureRate: totalSent > 0 ? (failureCount / totalSent) * 100 : 0,
         recentActivity: this.groupLogsByDate(logs)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error getting SMS stats:', error)
       return {
         totalSent: 0,
@@ -904,7 +904,7 @@ export class SMSService {
         retried: failedLogs.length,
         results: processedResults
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error retrying failed SMS:', error)
       return { success: false, retried: 0, results: [] }
     }

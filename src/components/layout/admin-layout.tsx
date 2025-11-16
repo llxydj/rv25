@@ -4,7 +4,7 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { AlertTriangle, Phone, User, X, Home, FileText, MapPin, Calendar, BarChart3, Settings, Bell, Menu } from "lucide-react"
+import { AlertTriangle, Phone, User, X, Home, FileText, MapPin, Calendar, BarChart3, Settings, Bell, PanelLeft } from "lucide-react"
 import { useNotificationsChannel } from '@/lib/use-notifications'
 import { signOut } from "@/lib/auth"
 import { AuthLayout } from "./auth-layout"
@@ -209,6 +209,17 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
             </Link>
 
             <Link
+              href="/admin/users"
+              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 ${
+                isActive("/admin/users") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md"
+              }`}
+              onClick={() => setSidebarOpen(false)}
+            >
+              <User className="h-5 w-5 flex-shrink-0" />
+              <span className="font-medium truncate">User Management</span>
+            </Link>
+
+            <Link
               href="/admin/lgu-contacts"
               className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 ${
                 isActive("/admin/lgu-contacts") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md"
@@ -269,6 +280,17 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
               <span className="font-medium truncate">Settings</span>
             </Link>
 
+            <Link
+              href="/pin-management"
+              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 ${
+                isActive("/pin-management") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md"
+              }`}
+              onClick={() => setSidebarOpen(false)}
+            >
+              <Settings className="h-5 w-5 flex-shrink-0" />
+              <span className="font-medium truncate">PIN Management</span>
+            </Link>
+
             <button
               onClick={() => {
                 setSidebarOpen(false);
@@ -300,7 +322,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
               onClick={() => setSidebarOpen(true)}
               aria-label="Open sidebar menu"
             >
-              <Menu className="h-6 w-6" />
+              <PanelLeft className="h-6 w-6" />
             </button>
             <div className="flex items-center space-x-3">
               {/* <RealtimeStatusIndicator status="connected" /> */}

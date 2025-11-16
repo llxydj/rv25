@@ -34,6 +34,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { supabase } from "@/lib/supabase"
 
 // Define user types
 type UserRole = "admin" | "volunteer" | "resident" | "barangay"
@@ -84,7 +85,15 @@ export default function UserManagementPage() {
     const fetchUsers = async () => {
       try {
         setLoading(true)
-        const response = await fetch(`/api/admin/users?page=${pagination.current_page}&limit=${pagination.per_page}`)
+        // Get access token for authenticated requests
+        const { data: { session } } = await supabase.auth.getSession()
+        const accessToken = session?.access_token
+        
+        const response = await fetch(`/api/admin/users?page=${pagination.current_page}&limit=${pagination.per_page}`, {
+          headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+          credentials: 'include',
+          cache: 'no-store'
+        })
         const result = await response.json()
         
         if (!result.success) throw new Error(result.message)
@@ -119,9 +128,17 @@ export default function UserManagementPage() {
     
     const fetchBarangays = async () => {
       try {
+        // Get access token for authenticated requests
+        const { data: { session } } = await supabase.auth.getSession()
+        const accessToken = session?.access_token
+        
         // For simplicity, we'll fetch all users to get barangays
         // In a production app, you might want a separate endpoint for this
-        const response = await fetch("/api/admin/users")
+        const response = await fetch("/api/admin/users", {
+          headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+          credentials: 'include',
+          cache: 'no-store'
+        })
         const result = await response.json()
         
         if (!result.success) throw new Error(result.message)
@@ -134,6 +151,11 @@ export default function UserManagementPage() {
         setBarangays(uniqueBarangays)
       } catch (error: any) {
         console.error("Error fetching barangays:", error)
+        toast({
+          title: "Error",
+          description: "Failed to fetch barangays",
+          variant: "destructive"
+        })
       }
     }
     
@@ -194,15 +216,22 @@ export default function UserManagementPage() {
     if (!userToDeactivate) return
     
     try {
+      // Get access token for authenticated requests
+      const { data: { session } } = await supabase.auth.getSession()
+      const accessToken = session?.access_token
+      
       const response = await fetch("/api/admin/users", {
         method: "PUT",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {})
         },
         body: JSON.stringify({
           userId: userToDeactivate.id,
           action: "deactivate"
-        })
+        }),
+        credentials: 'include',
+        cache: 'no-store'
       })
       
       const result = await response.json()
@@ -233,15 +262,22 @@ export default function UserManagementPage() {
   
   const handleActivateUser = async (userId: string) => {
     try {
+      // Get access token for authenticated requests
+      const { data: { session } } = await supabase.auth.getSession()
+      const accessToken = session?.access_token
+      
       const response = await fetch("/api/admin/users", {
         method: "PUT",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {})
         },
         body: JSON.stringify({
           userId,
           action: "activate"
-        })
+        }),
+        credentials: 'include',
+        cache: 'no-store'
       })
       
       const result = await response.json()
@@ -279,14 +315,21 @@ export default function UserManagementPage() {
     if (!userToDelete) return
     
     try {
+      // Get access token for authenticated requests
+      const { data: { session } } = await supabase.auth.getSession()
+      const accessToken = session?.access_token
+      
       const response = await fetch("/api/admin/users", {
         method: "DELETE",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {})
         },
         body: JSON.stringify({
           userId: userToDelete.id
-        })
+        }),
+        credentials: 'include',
+        cache: 'no-store'
       })
       
       const result = await response.json()

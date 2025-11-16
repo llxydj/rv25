@@ -3,6 +3,8 @@
 import { supabase } from "./supabase"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import { PinService } from "./pin-service"
+import { getOrigin } from "./utils"
 
 export type UserRole = "admin" | "volunteer" | "resident" | "barangay"
 
@@ -21,7 +23,10 @@ export interface UserSession {
 export const useAuth = () => {
   const [user, setUser] = useState<UserSession | null>(null)
   const [loading, setLoading] = useState(true)
+  const [requiresPin, setRequiresPin] = useState(false)
+  const [pinVerified, setPinVerified] = useState(false)
   const router = useRouter()
+  const pinService = new PinService()
 
   const fetchUserData = async (userId: string) => {
     try {
@@ -72,6 +77,28 @@ export const useAuth = () => {
     }
   }
 
+  // Function to verify PIN
+  const verifyPin = async (pin: string) => {
+    if (!user) return false
+    const isValid = await pinService.verifyPin(user.id, pin)
+    if (isValid) {
+      setPinVerified(true)
+    }
+    return isValid
+  }
+
+  // Function to set PIN
+  const setPin = async (pin: string) => {
+    if (!user) return false
+    return await pinService.setPin(user.id, pin)
+  }
+
+  // Function to check if user has PIN
+  const checkHasPin = async () => {
+    if (!user) return false
+    return await pinService.hasPin(user.id)
+  }
+
   useEffect(() => {
     // Get initial session
     const getInitialSession = async () => {
@@ -98,7 +125,7 @@ export const useAuth = () => {
             }
 
             if (userData) {
-              setUser({
+              const userSession = {
                 id: session.user.id,
                 email: session.user.email || "",
                 role: (userData as any).role,
@@ -107,7 +134,19 @@ export const useAuth = () => {
                 phone_number: (userData as any).phone_number,
                 address: (userData as any).address,
                 barangay: (userData as any).barangay,
-              })
+              }
+              
+              setUser(userSession)
+              
+              // Check if PIN is required (all roles except barangay)
+              if ((userData as any).role !== "barangay") {
+                const hasPin = await pinService.hasPin(session.user.id)
+                setRequiresPin(true)
+                // If user doesn't have a PIN, they need to set one
+                if (!hasPin) {
+                  setPinVerified(true) // Allow them to set PIN without verification first
+                }
+              }
             } else {
               // Just set basic user info if profile data isn't available
               setUser({
@@ -183,14 +222,34 @@ export const useAuth = () => {
 
           setUser(userSession)
 
-          // Redirect based on role
-          if ((userData as any).role === "admin") {
-            router.push("/admin/dashboard")
-          } else if ((userData as any).role === "volunteer") {
-            router.push("/volunteer/dashboard")
-          } else if ((userData as any).role === "resident") {
-            router.push("/resident/dashboard")
-          } else if ((userData as any).role === "barangay") {
+          // Check if PIN is required (all roles except barangay)
+          if ((userData as any).role !== "barangay") {
+            const hasPin = await pinService.hasPin(session.user.id)
+            setRequiresPin(true)
+            // If user doesn't have a PIN, they need to set one
+            if (!hasPin) {
+              setPinVerified(true) // Allow them to set PIN without verification first
+            }
+            
+            // Redirect to PIN setup if needed
+            if (!hasPin) {
+              // Stay on current page to allow PIN setup
+            } else {
+              // Redirect based on role
+              if ((userData as any).role === "admin") {
+                // Don't redirect automatically if PIN verification is needed
+              } else if ((userData as any).role === "volunteer") {
+                // Don't redirect automatically if PIN verification is needed
+              } else if ((userData as any).role === "resident") {
+                // Don't redirect automatically if PIN verification is needed
+              } else if ((userData as any).role === "barangay") {
+                router.push("/barangay/dashboard")
+              }
+            }
+          } else {
+            // Barangay users don't need PIN
+            setRequiresPin(false)
+            setPinVerified(true)
             router.push("/barangay/dashboard")
           }
         } else {
@@ -202,11 +261,11 @@ export const useAuth = () => {
             firstName: "",
             lastName: "",
           })
-          // Default redirect for users without profile
-          router.push("/resident/dashboard")
         }
       } else if (event === "SIGNED_OUT") {
         setUser(null)
+        setRequiresPin(false)
+        setPinVerified(false)
         router.push("/login")
       }
     })
@@ -217,7 +276,16 @@ export const useAuth = () => {
     }
   }, [router])
 
-  return { user, loading, refreshUser }
+  return { 
+    user, 
+    loading, 
+    requiresPin, 
+    pinVerified, 
+    setPinVerified,
+    verifyPin,
+    setPin,
+    checkHasPin
+  }
 }
 
 // Sign up a new resident
@@ -246,7 +314,7 @@ export const signUpResident = async (
             confirmation_phrase: confirmationPhrase, // Add in user_metadata as well
           }
         },
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: `${getOrigin()}/auth/callback`,
       },
     })
 
@@ -358,7 +426,7 @@ export const signOut = async () => {
 export const sendPasswordResetEmail = async (email: string) => {
   try {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: `${getOrigin()}/reset-password`,
     })
     
     if (error) throw error

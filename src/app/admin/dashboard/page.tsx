@@ -19,9 +19,10 @@ import { MetricsChart } from "@/components/admin/metrics-chart"
 import { StatWidget } from "@/components/admin/stat-widget"
 import { AdminMetrics } from "@/src/types/admin-metrics"
 import { BackupMonitor } from "@/components/admin/backup-monitor"
+import { PinPad } from "@/components/pin-pad"
 
 export default function AdminDashboard() {
-  const { user } = useAuth()
+  const { user, requiresPin, pinVerified, verifyPin, checkHasPin } = useAuth()
   const [incidents, setIncidents] = useState<any[]>([])
   const [volunteers, setVolunteers] = useState<any[]>([])
   const [schedules, setSchedules] = useState<any[]>([])
@@ -44,7 +45,64 @@ export default function AdminDashboard() {
   // New state for admin metrics
   const [adminMetrics, setAdminMetrics] = useState<AdminMetrics | null>(null)
   const [metricsLoading, setMetricsLoading] = useState(true)
+  const [pinError, setPinError] = useState("")
+  const [pinAttempts, setPinAttempts] = useState(0)
   const router = useRouter()
+
+  // Check if user needs to set up or verify PIN
+  useEffect(() => {
+    if (!user) {
+      router.push('/login')
+      return
+    }
+
+    // If user doesn't require PIN (shouldn't happen for admin), redirect appropriately
+    if (!requiresPin) {
+      // This shouldn't happen for admin users, but just in case
+      router.push('/')
+      return
+    }
+
+    // Check if user has a PIN
+    const initializePinCheck = async () => {
+      const hasPin = await checkHasPin()
+      if (!hasPin) {
+        // Redirect to PIN setup if no PIN is set
+        router.push('/pin-setup')
+      }
+    }
+
+    initializePinCheck()
+  }, [user, requiresPin, router, checkHasPin])
+
+  // Handle PIN verification
+  const handlePinVerify = async (pin: string) => {
+    if (!user) return
+    
+    setPinError("")
+    
+    try {
+      const isValid = await verifyPin(pin)
+      if (!isValid) {
+        const newAttempts = pinAttempts + 1
+        setPinAttempts(newAttempts)
+        
+        if (newAttempts >= 3) {
+          // Sign out user after 3 failed attempts
+          alert('Too many failed attempts. You have been logged out.')
+          router.push('/login')
+        } else {
+          setPinError(`Incorrect PIN. ${3 - newAttempts} attempts remaining.`)
+        }
+      }
+    } catch (err) {
+      setPinError('An error occurred. Please try again.')
+    }
+  }
+
+  const clearPinError = () => {
+    setPinError("")
+  }
 
   // Memoize the click handler to keep it stable
   const handleIncidentClick = useCallback((id: string) => {
@@ -79,12 +137,15 @@ export default function AdminDashboard() {
 
   // Initial data fetch
   useEffect(() => {
-    fetchData()
-  }, [fetchData])
+    // Only fetch data if PIN is verified
+    if (pinVerified) {
+      fetchData()
+    }
+  }, [fetchData, pinVerified])
 
   // Real-time subscription for incidents
   useEffect(() => {
-    if (!user) return
+    if (!user || !pinVerified) return
 
     const subscription = subscribeToIncidents((payload) => {
       console.log('Real-time incident update:', payload.eventType)
@@ -95,7 +156,7 @@ export default function AdminDashboard() {
     return () => {
       subscription.unsubscribe()
     }
-  }, [user, fetchData])
+  }, [user, fetchData, pinVerified])
 
   // Format incidents for map markers
   // FIXED: Removed router from dependencies, use memoized click handler instead
@@ -128,6 +189,36 @@ export default function AdminDashboard() {
   // Get today's schedules
   const today = new Date().toISOString().split("T")[0]
   const todaySchedules = schedules.filter((s) => s.start_time.startsWith(today)).length
+
+  // Show PIN verification if required and not yet verified
+  if (requiresPin && !pinVerified) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-6">
+            <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
+            <p className="text-gray-600 mt-2">Enter your PIN to access the dashboard</p>
+          </div>
+          
+          <PinPad 
+            onPinComplete={handlePinVerify} 
+            title="Enter Admin PIN"
+            error={pinError}
+            clearError={clearPinError}
+          />
+          
+          <div className="mt-6 text-center">
+            <button 
+              onClick={() => router.push('/login')}
+              className="text-sm text-gray-500 hover:text-gray-700"
+            >
+              Use Different Account
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <AdminLayout>

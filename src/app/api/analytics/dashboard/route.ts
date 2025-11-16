@@ -2,15 +2,39 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { rateKeyFromRequest, rateLimitAllowed } from '@/lib/rate-limit'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+// Create a server client with timeout configuration
+const createServerClient = () => {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      },
+      global: {
+        fetch: (input, init) => {
+          // Set a reasonable timeout (30 seconds)
+          const controller = new AbortController()
+          const timeoutId = setTimeout(() => controller.abort(), 30000)
+          
+          return fetch(input, {
+            ...init,
+            signal: controller.signal
+          }).finally(() => clearTimeout(timeoutId))
+        }
+      }
+    }
+  )
+}
 
 export async function GET(request: Request) {
   try {
     const rate = rateLimitAllowed(rateKeyFromRequest(request, 'analytics:dashboard:get'), 60)
     if (!rate.allowed) return NextResponse.json({ success: false, code: 'RATE_LIMITED', message: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(rate.retryAfter) } as any })
+
+    // Use server client instead of browser client
+    const supabase = createServerClient()
 
     const todayStart = new Date()
     todayStart.setHours(0, 0, 0, 0)

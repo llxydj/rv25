@@ -8,6 +8,7 @@ import { AlertTriangle, User } from "lucide-react"
 import { signIn } from "@/lib/auth"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import { supabase } from "@/lib/supabase"
+import { getOrigin } from "@/lib/utils"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -64,7 +65,7 @@ export default function LoginPage() {
               try {
                 await supabase.auth.signInWithOAuth({
                   provider: 'google' as any,
-                  options: { redirectTo: `${window.location.origin}/auth/callback` }
+                  options: { redirectTo: `${getOrigin()}/auth/callback` }
                 })
               } catch (e: any) {
                 setError(e?.message || 'Failed to start Google sign-in')

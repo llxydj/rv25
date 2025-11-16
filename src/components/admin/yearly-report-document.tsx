@@ -126,6 +126,46 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#6b7280"
   },
+  simpleBarChart: {
+    flexDirection: "column",
+    marginVertical: 10
+  },
+  chartTitle: {
+    fontSize: 12,
+    fontWeight: "bold",
+    marginBottom: 5
+  },
+  chartRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 3
+  },
+  chartLabel: {
+    fontSize: 8,
+    width: 80,
+    marginRight: 5
+  },
+  chartBar: {
+    height: 10,
+    backgroundColor: "#3b82f6",
+    marginRight: 5
+  },
+  chartValue: {
+    fontSize: 8,
+    width: 30
+  },
+  chartAxis: {
+    flexDirection: "row",
+    borderTopWidth: 1,
+    borderTopColor: "#000",
+    marginTop: 5,
+    paddingTop: 2
+  },
+  axisLabel: {
+    fontSize: 6,
+    width: 80,
+    textAlign: "center"
+  },
   footer: {
     position: "absolute",
     bottom: 30,
@@ -176,6 +216,27 @@ export default function YearlyReportDocument({ yearData, year, templateNotes = "
   // Get status distribution for the table
   const statusDistribution = Object.entries(yearData.status_summary)
     .map(([status, count]) => ({ status, count: count as number }))
+
+  // Get max value for chart scaling
+  const maxIncidentTypeCount = Math.max(...topIncidentTypes.map(item => item.count), 1)
+  const maxStatusCount = Math.max(...statusDistribution.map(item => item.count), 1)
+
+  // Simple bar chart component
+  const SimpleBarChart = ({ data, maxValue, title }: { data: { label: string; value: number }[]; maxValue: number; title: string }) => (
+    <View style={styles.simpleBarChart}>
+      <Text style={styles.chartTitle}>{title}</Text>
+      {data.map((item, index) => {
+        const barWidth = (item.value / maxValue) * 100
+        return (
+          <View key={index} style={styles.chartRow}>
+            <Text style={styles.chartLabel}>{item.label.length > 10 ? item.label.substring(0, 10) + '...' : item.label}</Text>
+            <View style={[styles.chartBar, { width: `${barWidth}%` }]} />
+            <Text style={styles.chartValue}>{item.value}</Text>
+          </View>
+        )
+      })}
+    </View>
+  )
 
   return (
     <Document>
@@ -276,6 +337,11 @@ export default function YearlyReportDocument({ yearData, year, templateNotes = "
         {/* Incident Types */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Top Incident Types</Text>
+          <SimpleBarChart 
+            data={topIncidentTypes.map(item => ({ label: item.type, value: item.count }))}
+            maxValue={maxIncidentTypeCount}
+            title="Incident Types Distribution"
+          />
           <View style={styles.table}>
             <View style={styles.tableRow}>
               <View style={styles.tableColHeader}>
@@ -286,9 +352,6 @@ export default function YearlyReportDocument({ yearData, year, templateNotes = "
               </View>
               <View style={styles.tableColHeader}>
                 <Text style={styles.tableCellHeader}>Percentage</Text>
-              </View>
-              <View style={styles.tableColHeader}>
-                <Text style={styles.tableCellHeader}>Chart</Text>
               </View>
             </View>
             {topIncidentTypes.map((item) => (
@@ -304,11 +367,6 @@ export default function YearlyReportDocument({ yearData, year, templateNotes = "
                     {((item.count / yearData.total_incidents) * 100).toFixed(1)}%
                   </Text>
                 </View>
-                <View style={styles.tableCol}>
-                  <View style={styles.chartPlaceholder}>
-                    <Text style={styles.chartPlaceholderText}>Chart Visualization</Text>
-                  </View>
-                </View>
               </View>
             ))}
           </View>
@@ -317,6 +375,11 @@ export default function YearlyReportDocument({ yearData, year, templateNotes = "
         {/* Status Distribution */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Status Distribution</Text>
+          <SimpleBarChart 
+            data={statusDistribution.map(item => ({ label: item.status, value: item.count }))}
+            maxValue={maxStatusCount}
+            title="Status Distribution"
+          />
           <View style={styles.table}>
             <View style={styles.tableRow}>
               <View style={styles.tableColHeader}>
@@ -327,9 +390,6 @@ export default function YearlyReportDocument({ yearData, year, templateNotes = "
               </View>
               <View style={styles.tableColHeader}>
                 <Text style={styles.tableCellHeader}>Percentage</Text>
-              </View>
-              <View style={styles.tableColHeader}>
-                <Text style={styles.tableCellHeader}>Chart</Text>
               </View>
             </View>
             {statusDistribution.map((item) => (
@@ -344,11 +404,6 @@ export default function YearlyReportDocument({ yearData, year, templateNotes = "
                   <Text style={styles.tableCell}>
                     {((item.count / yearData.total_incidents) * 100).toFixed(1)}%
                   </Text>
-                </View>
-                <View style={styles.tableCol}>
-                  <View style={styles.chartPlaceholder}>
-                    <Text style={styles.chartPlaceholderText}>Chart Visualization</Text>
-                  </View>
                 </View>
               </View>
             ))}

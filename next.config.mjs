@@ -14,6 +14,9 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  experimental: {
+    // Removed optimizeFonts as it's deprecated in newer Next.js versions
+  },
   webpack: (config, { isServer }) => {
     if (isServer) {
       config.ignoreWarnings = [

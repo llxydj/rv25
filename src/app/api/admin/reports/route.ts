@@ -70,6 +70,7 @@ export async function GET(request: Request) {
         `Report Type: Yearly Incidents Report`,
         `Year: ${yearNum}`,
         `Generated Date: ${currentDate}`,
+        `Logo: Refer to PDF version for logo visualization`,
         '',
         ''
       ].join('\n')

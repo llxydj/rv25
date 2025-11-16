@@ -38,6 +38,7 @@ export default function ResidentLayout({ children }: ResidentLayoutProps) {
     { name: "Report History", href: "/resident/history", icon: AlertTriangle },
     { name: "Announcements", href: "/announcements", icon: AlertTriangle },
     { name: "Profile", href: "/resident/profile", icon: User },
+    { name: "PIN Management", href: "/pin-management", icon: User },
   ], [])
 
   // Prefetch all navigation routes on mount

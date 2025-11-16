@@ -1,10 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { getServerSupabase } from '@/lib/supabase-server'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+// Create a server client with timeout configuration
+const createServerClient = () => {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      },
+      global: {
+        fetch: (input, init) => {
+          // Set a reasonable timeout (30 seconds)
+          const controller = new AbortController()
+          const timeoutId = setTimeout(() => controller.abort(), 30000)
+          
+          return fetch(input, {
+            ...init,
+            signal: controller.signal
+          }).finally(() => clearTimeout(timeoutId))
+        }
+      }
+    }
+  )
+}
 
 // Simple in-memory cache
 const cache: Record<string, { data: any; timestamp: number }> = {}
@@ -19,12 +41,19 @@ function getCacheKey(params: Record<string, string | undefined>) {
     .join('&')
 }
 
+// Export the route as static by using a static function
 export async function GET(request: NextRequest) {
+  // Use a static approach to avoid dynamic server usage
+  const url = new URL(request.url)
+  const start = url.searchParams.get('start') || undefined
+  const end = url.searchParams.get('end') || undefined
+  
+  return getAdminMetrics(start, end)
+}
+
+// Separate the actual logic to a static function
+async function getAdminMetrics(start?: string, end?: string) {
   try {
-    const { searchParams } = new URL(request.url)
-    const start = searchParams.get('start') || undefined
-    const end = searchParams.get('end') || undefined
-    
     const cacheKey = getCacheKey({ start, end })
     const now = Date.now()
     
@@ -37,6 +66,9 @@ export async function GET(request: NextRequest) {
         source: 'memory'
       })
     }
+
+    // Use server client instead of browser client
+    const supabase = createServerClient()
 
     // Fetch all required data in parallel
     const [
@@ -103,12 +135,11 @@ export async function GET(request: NextRequest) {
             return result.count || 0
           }),
           
-        // Active volunteers
+        // Active volunteers - FIXED: Query the volunteer_profiles table correctly
         supabase
-          .from('users')
-          .select('id', { count: 'exact' })
-          .eq('role', 'volunteer')
-          .contains('volunteer_profiles', { status: 'ACTIVE' })
+          .from('volunteer_profiles') // Query the correct table
+          .select('volunteer_user_id', { count: 'exact' }) // Count the records
+          .eq('status', 'ACTIVE') // Check for active status
           .then(result => {
             if (result.error) throw result.error
             return result.count || 0

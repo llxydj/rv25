@@ -4,7 +4,11 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import { AppClient } from "@/components/providers/app-client"
 
-const inter = Inter({ subsets: ["latin"] })
+// Self-hosted at build time with display swap for better performance
+const inter = Inter({ 
+  subsets: ["latin"],
+  display: 'swap' // ensures fallback font while loading
+})
 
 export const metadata: Metadata = {
   title: "RVOIS - Rescue Volunteers Operations Information System",

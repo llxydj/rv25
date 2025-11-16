@@ -9,36 +9,99 @@ import { getResidentIncidents } from "@/lib/incidents"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import { MapComponent } from "@/components/ui/map-component"
 import { PushNotificationToggle } from "@/components/push-notification-toggle"
+import { PinPad } from "@/components/pin-pad"
+import { useRouter } from "next/navigation"
 
 export default function ResidentDashboard() {
-  const { user } = useAuth()
+  const { user, requiresPin, pinVerified, verifyPin, checkHasPin } = useAuth()
   const [incidents, setIncidents] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [pinError, setPinError] = useState("")
+  const [pinAttempts, setPinAttempts] = useState(0)
+  const router = useRouter()
 
+  // Check if user needs to set up or verify PIN
   useEffect(() => {
-    const fetchIncidents = async () => {
-      if (!user) return
+    if (!user) {
+      router.push('/login')
+      return
+    }
 
-      try {
-        setLoading(true)
-        const result = await getResidentIncidents(user.id)
+    // If user doesn't require PIN (shouldn't happen for resident), redirect appropriately
+    if (!requiresPin) {
+      // This shouldn't happen for resident users, but just in case
+      router.push('/')
+      return
+    }
 
-        if (!result.success) {
-          setError(result.message || "Failed to fetch incidents")
-          return
-        }
-
-        setIncidents(result.data || [])
-      } catch (err: any) {
-        setError(err.message || "An unexpected error occurred")
-      } finally {
-        setLoading(false)
+    // Check if user has a PIN
+    const initializePinCheck = async () => {
+      const hasPin = await checkHasPin()
+      if (!hasPin) {
+        // Redirect to PIN setup if no PIN is set
+        router.push('/pin-setup')
       }
     }
 
-    fetchIncidents()
-  }, [user])
+    initializePinCheck()
+  }, [user, requiresPin, router, checkHasPin])
+
+  // Handle PIN verification
+  const handlePinVerify = async (pin: string) => {
+    if (!user) return
+    
+    setPinError("")
+    
+    try {
+      const isValid = await verifyPin(pin)
+      if (!isValid) {
+        const newAttempts = pinAttempts + 1
+        setPinAttempts(newAttempts)
+        
+        if (newAttempts >= 3) {
+          // Sign out user after 3 failed attempts
+          alert('Too many failed attempts. You have been logged out.')
+          router.push('/login')
+        } else {
+          setPinError(`Incorrect PIN. ${3 - newAttempts} attempts remaining.`)
+        }
+      }
+    } catch (err) {
+      setPinError('An error occurred. Please try again.')
+    }
+  }
+
+  const clearPinError = () => {
+    setPinError("")
+  }
+
+  useEffect(() => {
+    // Only fetch data if PIN is verified
+    if (pinVerified) {
+      const fetchIncidents = async () => {
+        if (!user) return
+
+        try {
+          setLoading(true)
+          const result = await getResidentIncidents(user.id)
+
+          if (!result.success) {
+            setError(result.message || "Failed to fetch incidents")
+            return
+          }
+
+          setIncidents(result.data || [])
+        } catch (err: any) {
+          setError(err.message || "An unexpected error occurred")
+        } finally {
+          setLoading(false)
+        }
+      }
+
+      fetchIncidents()
+    }
+  }, [user, pinVerified])
 
   // Format incidents for map markers
   const mapMarkers = incidents.map((incident) => ({
@@ -54,6 +117,36 @@ export default function ResidentDashboard() {
   const assignedCount = incidents.filter((i) => i.status === "ASSIGNED").length
   const respondingCount = incidents.filter((i) => i.status === "RESPONDING").length
   const resolvedCount = incidents.filter((i) => i.status === "RESOLVED").length
+
+  // Show PIN verification if required and not yet verified
+  if (requiresPin && !pinVerified) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-6">
+            <h1 className="text-2xl font-bold text-gray-900">Resident Dashboard</h1>
+            <p className="text-gray-600 mt-2">Enter your PIN to access the dashboard</p>
+          </div>
+          
+          <PinPad 
+            onPinComplete={handlePinVerify} 
+            title="Enter Resident PIN"
+            error={pinError}
+            clearError={clearPinError}
+          />
+          
+          <div className="mt-6 text-center">
+            <button 
+              onClick={() => router.push('/login')}
+              className="text-sm text-gray-500 hover:text-gray-700"
+            >
+              Use Different Account
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <ResidentLayout>
@@ -85,10 +178,10 @@ export default function ResidentDashboard() {
               <div className="flex">
                 <div className="flex-shrink-0">
                   <AlertTriangle className="h-5 w-5 text-red-500" />
-          </div>
+                </div>
                 <div className="ml-3">
                   <p className="text-sm text-red-700">{error}</p>
-              </div>
+                </div>
               </div>
             </div>
           ) : incidents.length === 0 ? (
@@ -163,9 +256,9 @@ export default function ResidentDashboard() {
                       >
                         View Details
                       </Link>
-              </div>
-            </div>
-          </div>
+                    </div>
+                  </div>
+                </div>
               ))}
               {incidents.length > 3 && (
                 <div className="text-center pt-4">

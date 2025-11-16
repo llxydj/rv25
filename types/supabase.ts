@@ -119,6 +119,42 @@ export type Database = {
           },
         ]
       }
+      auto_archive_schedule: {
+        Row: {
+          created_at: string | null
+          enabled: boolean | null
+          id: string
+          last_run: string | null
+          next_run: string | null
+          schedule_frequency: string | null
+          schedule_time: string | null
+          updated_at: string | null
+          years_old: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          enabled?: boolean | null
+          id?: string
+          last_run?: string | null
+          next_run?: string | null
+          schedule_frequency?: string | null
+          schedule_time?: string | null
+          updated_at?: string | null
+          years_old?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          enabled?: boolean | null
+          id?: string
+          last_run?: string | null
+          next_run?: string | null
+          schedule_frequency?: string | null
+          schedule_time?: string | null
+          updated_at?: string | null
+          years_old?: number | null
+        }
+        Relationships: []
+      }
       barangays: {
         Row: {
           boundaries: Json | null
@@ -412,6 +448,35 @@ export type Database = {
         }
         Relationships: []
       }
+      incident_reference_ids: {
+        Row: {
+          created_at: string | null
+          id: string
+          incident_id: string
+          reference_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          incident_id: string
+          reference_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          incident_id?: string
+          reference_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_incident_reference_ids_incident_id"
+            columns: ["incident_id"]
+            isOneToOne: true
+            referencedRelation: "incidents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       incident_updates: {
         Row: {
           created_at: string | null
@@ -462,6 +527,52 @@ export type Database = {
           {
             foreignKeyName: "incident_updates_updated_by_fkey"
             columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      incident_views: {
+        Row: {
+          created_at: string | null
+          id: string
+          incident_id: string
+          user_id: string
+          viewed_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          incident_id: string
+          user_id: string
+          viewed_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          incident_id?: string
+          user_id?: string
+          viewed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_incident_views_incident_id"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "incidents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_incident_views_user_id"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "active_volunteers_with_location"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_incident_views_user_id"
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]

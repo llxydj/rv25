@@ -28,6 +28,18 @@ CREATE TABLE public.announcements (
   CONSTRAINT announcements_pkey PRIMARY KEY (id),
   CONSTRAINT announcements_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
 );
+CREATE TABLE public.auto_archive_schedule (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  enabled boolean DEFAULT false,
+  schedule_frequency text DEFAULT 'daily'::text,
+  schedule_time time without time zone DEFAULT '02:00:00'::time without time zone,
+  last_run timestamp with time zone,
+  next_run timestamp with time zone,
+  years_old integer DEFAULT 2,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT auto_archive_schedule_pkey PRIMARY KEY (id)
+);
 CREATE TABLE public.barangays (
   id integer GENERATED ALWAYS AS IDENTITY NOT NULL,
   name text NOT NULL,
@@ -119,6 +131,14 @@ CREATE TABLE public.incident_handoffs (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT incident_handoffs_pkey PRIMARY KEY (id)
 );
+CREATE TABLE public.incident_reference_ids (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  incident_id uuid NOT NULL UNIQUE,
+  reference_id text NOT NULL UNIQUE,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT incident_reference_ids_pkey PRIMARY KEY (id),
+  CONSTRAINT fk_incident_reference_ids_incident_id FOREIGN KEY (incident_id) REFERENCES public.incidents(id)
+);
 CREATE TABLE public.incident_updates (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   incident_id uuid,
@@ -130,6 +150,16 @@ CREATE TABLE public.incident_updates (
   CONSTRAINT incident_updates_pkey PRIMARY KEY (id),
   CONSTRAINT incident_updates_incident_id_fkey FOREIGN KEY (incident_id) REFERENCES public.incidents(id),
   CONSTRAINT incident_updates_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.incident_views (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  incident_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  viewed_at timestamp with time zone DEFAULT now(),
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT incident_views_pkey PRIMARY KEY (id),
+  CONSTRAINT fk_incident_views_incident_id FOREIGN KEY (incident_id) REFERENCES public.incidents(id),
+  CONSTRAINT fk_incident_views_user_id FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
 CREATE TABLE public.incidents (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),

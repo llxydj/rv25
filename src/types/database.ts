@@ -18,6 +18,7 @@ export interface Database {
           created_at: string;
           updated_at: string;
           status: 'active' | 'inactive';
+          pin_hash: string | null;
         }
         Insert: {
           id: string;
@@ -35,6 +36,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
           status?: 'active' | 'inactive';
+          pin_hash?: string | null;
         }
         Update: {
           id?: string;
@@ -43,6 +45,7 @@ export interface Database {
           last_name?: string;
           role?: 'admin' | 'volunteer' | 'resident' | 'barangay';
           phone_number?: string | null;
+          pin_hash?: string | null;
           address?: string | null;
           barangay?: string | null;
           city?: string;

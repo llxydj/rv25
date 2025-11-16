@@ -57,7 +57,6 @@ declare module 'lucide-react' {
   export const TrendingUp: ComponentType<IconProps>
   export const Upload: ComponentType<IconProps>
   export const UserPlus: ComponentType<IconProps>
-  export const Save: ComponentType<IconProps>
   export const Trash2: ComponentType<IconProps>
   export const User: ComponentType<IconProps>
   export const X: ComponentType<IconProps>
@@ -68,5 +67,5 @@ declare module 'lucide-react' {
   export const Building2: ComponentType<IconProps>
   export const Users: ComponentType<IconProps>
   export const BarChart3: ComponentType<IconProps>
+  export const Loader2: ComponentType<IconProps>
 }
- 

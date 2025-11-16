@@ -37,6 +37,7 @@ export const VolunteerLayout: React.FC<VolunteerLayoutProps> = ({ children }) =>
     { name: "Documents", href: "/volunteer/documents", icon: Calendar },
     { name: "Live Location", href: "/volunteer/location", icon: Calendar },
     { name: "Profile", href: "/volunteer/profile", icon: User },
+    { name: "PIN Management", href: "/pin-management", icon: User },
     { name: "Emergency Contacts", href: "/volunteer/lgu-directory", icon: Bell },
   ], [])
 
