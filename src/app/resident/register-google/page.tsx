@@ -9,11 +9,11 @@ import { Card } from '@/components/ui/card'
 import { AuthLayout } from '@/components/layout/auth-layout'
 import { useAuth as useAuthCtx } from '@/hooks/use-auth'
 import { TermsModal } from '@/components/ui/terms-modal'
-import { AlertCircle } from 'lucide-react'
+import { clearUserCache } from '@/lib/user-data-cache'
 
 export default function RegisterGoogleResidentPage() {
   const router = useRouter()
-  const { refreshSession } = useAuthCtx()
+  const { refreshSession, refreshUser } = useAuthCtx()
   const [email, setEmail] = useState('')
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -109,8 +109,16 @@ export default function RegisterGoogleResidentPage() {
       const json = await res.json()
       if (!res.ok || !json.success) throw new Error(json?.message || 'Failed to save profile')
       setSuccess('Profile saved. Redirecting...')
+
+      const userId = session?.user?.id
+      if (userId) {
+        clearUserCache(userId)
+      }
+
       await refreshSession()
-      // Immediately redirect to dashboard without waiting for role update
+      await refreshUser()
+
+      // Immediately redirect to dashboard after auth context updates
       router.replace('/resident/dashboard')
     } catch (e: any) {
       setError(e?.message || 'Failed to save profile')
