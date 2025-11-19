@@ -150,32 +150,49 @@ export default function IncidentDetailPage() {
     fetchData()
 
     // Subscribe to real-time updates for this incident
-    const subscription = subscribeToIncidents((payload) => {
-      if (payload.new && payload.new.id === id) {
-        // Update incident data
-        setIncident(payload.new)
+    let subscription: any = null
+    try {
+      subscription = subscribeToIncidents((payload) => {
+        try {
+          if (payload?.new && payload.new.id === id) {
+            // Update incident data
+            setIncident(payload.new)
 
-        // Show notification
-        setNotificationMessage("Incident has been updated")
-        setShowNotification(true)
+            // Show notification
+            setNotificationMessage("Incident has been updated")
+            setShowNotification(true)
 
-        // Hide notification after 3 seconds
-        setTimeout(() => {
-          setShowNotification(false)
-        }, 3000)
+            // Hide notification after 3 seconds
+            setTimeout(() => {
+              setShowNotification(false)
+            }, 3000)
 
-        // Refresh incident updates
-        getIncidentUpdates(id as string).then((result) => {
-          if (result.success) {
-            safelySetUpdates(result.data)
+            // Refresh incident updates
+            getIncidentUpdates(id as string).then((result) => {
+              if (result.success) {
+                safelySetUpdates(result.data)
+              }
+            }).catch((err) => {
+              console.error("Error refreshing incident updates:", err)
+            })
           }
-        })
-      }
-    })
+        } catch (err) {
+          console.error("Error in subscription callback:", err)
+        }
+      })
+    } catch (err) {
+      console.error("Error setting up subscription:", err)
+    }
 
     return () => {
       // Unsubscribe when component unmounts
-      subscription.unsubscribe()
+      try {
+        if (subscription && typeof subscription.unsubscribe === 'function') {
+          subscription.unsubscribe()
+        }
+      } catch (err) {
+        console.error("Error unsubscribing:", err)
+      }
     }
   }, [id, user])
 

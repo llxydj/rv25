@@ -1628,7 +1628,10 @@ Years Old: ${yearsOld}`)
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
                           {reportType === "incidents" && 
-                            filterDataByDateRange(incidents).slice(0, 5).map((incident) => (
+                            filterDataByDateRange(incidents)
+                              .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                              .slice(0, 5)
+                              .map((incident) => (
                               <tr key={incident.id}>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{incident.incident_type}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(incident.created_at).toLocaleDateString()}</td>

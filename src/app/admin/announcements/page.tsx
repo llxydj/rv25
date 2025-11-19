@@ -1,9 +1,10 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Link from "next/link"
 import { AdminLayout } from "@/components/layout/admin-layout"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
-import { AlertTriangle, Calendar, CheckCircle, Edit3, MapPin, Plus, Trash2, X } from "lucide-react"
+import { AlertTriangle, Calendar, CheckCircle, Edit3, MapPin, Plus, Trash2, X, ArrowLeft } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 
 type Announcement = {
@@ -147,9 +148,18 @@ export default function AdminAnnouncementsPage() {
     <AdminLayout>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-black">Announcements</h1>
-            <p className="text-gray-600">Create and manage system announcements.</p>
+          <div className="flex items-center gap-4">
+            <Link
+              href="/admin/dashboard"
+              className="inline-flex items-center text-gray-600 hover:text-gray-900 transition-colors"
+              title="Back to Dashboard"
+            >
+              <ArrowLeft className="h-5 w-5 mr-2" />
+            </Link>
+            <div>
+              <h1 className="text-2xl font-bold text-black">Announcements</h1>
+              <p className="text-gray-600">Create and manage system announcements.</p>
+            </div>
           </div>
           <button
             onClick={openCreate}
