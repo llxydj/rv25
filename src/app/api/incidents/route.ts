@@ -6,6 +6,7 @@ import { isWithinTalisayCity } from '@/lib/geo-utils'
 import { mapPriorityToSeverity } from '@/lib/incident-utils'
 import { normalizeBarangay } from '@/lib/barangay-mapping'
 import { getServerSupabase } from '@/lib/supabase-server'
+import { analyticsCache } from '@/app/api/volunteers/analytics/cache'
 
 // Helper function to get required skills for incident type
 function getRequiredSkillsForIncidentType(incidentType: string): string[] {
@@ -193,6 +194,7 @@ export async function PUT(request: Request) {
       .single()
 
     if (error) throw error
+    
     // If status changed, record incident_updates
     if (status && (existing as any)?.status && (existing as any).status !== status) {
       try {
@@ -208,6 +210,11 @@ export async function PUT(request: Request) {
       } catch (err) {
         console.error('Failed to record incident_updates:', err)
       }
+    }
+
+    // Invalidate cache for assigned volunteer when incident is updated
+    if ((data as any)?.assigned_to) {
+      analyticsCache.invalidateForVolunteer((data as any).assigned_to)
     }
 
     return NextResponse.json({ success: true, data })

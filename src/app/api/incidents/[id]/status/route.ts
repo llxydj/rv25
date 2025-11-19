@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerSupabase } from '@/lib/supabase-server'
 import { z } from 'zod'
+import { analyticsCache } from '@/app/api/volunteers/analytics/cache'
 
 const StatusUpdateSchema = z.object({
   status: z.enum(['PENDING', 'ASSIGNED', 'RESPONDING', 'ARRIVED', 'RESOLVED', 'CANCELLED']),
@@ -124,6 +125,40 @@ export async function PATCH(request: Request, { params }: { params: { id: string
         }
       } catch (err) {
         console.error('Failed to calculate response time:', err)
+      }
+    }
+
+    // Invalidate cache for the assigned volunteer when status changes
+    // This ensures analytics reflect the latest incident data
+    if (currentIncident.assigned_to) {
+      analyticsCache.invalidateForVolunteer(currentIncident.assigned_to)
+    }
+
+    // Log admin action for audit trail
+    const { data: userData } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', updated_by || '')
+      .maybeSingle()
+
+    if (userData?.role === 'admin') {
+      try {
+        await supabase
+          .from('system_logs')
+          .insert({
+            action: 'incident_status_updated',
+            user_id: updated_by || null,
+            details: {
+              incident_id: params.id,
+              previous_status: currentIncident.status,
+              new_status: status,
+              assigned_to: currentIncident.assigned_to
+            },
+            created_at: new Date().toISOString()
+          } as any)
+      } catch (auditError) {
+        console.error('Failed to log admin action:', auditError)
+        // Don't fail the request if audit logging fails
       }
     }
     

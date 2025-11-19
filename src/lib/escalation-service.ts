@@ -107,7 +107,7 @@ export class EscalationService {
         const minutesSinceCreation = this.getMinutesSinceCreation(incident.created_at)
         
         for (const rule of rules) {
-          if (this.shouldTriggerEscalation(incident, rule, minutesSinceCreation)) {
+          if (await this.shouldTriggerEscalation(incident, rule, minutesSinceCreation)) {
             await this.triggerEscalation(incident, rule)
           }
         }
@@ -123,30 +123,33 @@ export class EscalationService {
   private async getEscalationRules(): Promise<EscalationRule[]> {
     try {
       // For now, return default rules. In production, these would be stored in database
+      // NOTE: 5-minute threshold is aggressive and applies ONLY to critical incidents (severity 1-2)
+      // Non-critical incidents use longer thresholds (30min for high, 60min for medium)
+      // Confirm with stakeholders if 5 minutes is acceptable for critical incidents
       return [
         {
-          id: 'critical-15min',
-          name: 'Critical Incident - 15 Minutes',
-          severity: [1, 2],
-          timeThresholdMinutes: 15,
+          id: 'critical-5min',
+          name: 'Critical Incident - 5 Minutes',
+          severity: [1, 2], // ONLY applies to critical/emergency incidents
+          timeThresholdMinutes: 5, // ⚠️ AGGRESSIVE: Confirm with stakeholders
           escalationActions: [
             {
               type: 'NOTIFY_ADMIN',
               target: 'all',
-              message: 'Critical incident unassigned for 15 minutes',
+              message: 'Critical incident unassigned for 5 minutes',
               delayMinutes: 0
             },
             {
               type: 'SMS_ALERT',
               target: 'admin',
-              message: `URGENT: ${incident.incident_type} in ${incident.barangay} needs immediate attention`,
+              message: 'URGENT: Incident needs immediate attention',
               delayMinutes: 0
             },
             {
               type: 'AUTO_ASSIGN',
               target: 'any',
               message: 'Attempting automatic assignment',
-              delayMinutes: 2
+              delayMinutes: 1
             }
           ],
           isActive: true
@@ -197,7 +200,7 @@ export class EscalationService {
   /**
    * Check if escalation should be triggered
    */
-  private shouldTriggerEscalation(incident: any, rule: EscalationRule, minutesSinceCreation: number): boolean {
+  private async shouldTriggerEscalation(incident: any, rule: EscalationRule, minutesSinceCreation: number): Promise<boolean> {
     if (!rule.isActive) return false
     
     // Check if incident severity matches rule
@@ -207,7 +210,7 @@ export class EscalationService {
     if (minutesSinceCreation < rule.timeThresholdMinutes) return false
     
     // Check if escalation was already triggered for this incident and rule
-    return this.hasEscalationBeenTriggered(incident.id, rule.id)
+    return await this.hasEscalationBeenTriggered(incident.id, rule.id)
   }
 
   /**
@@ -250,11 +253,40 @@ export class EscalationService {
       // Store escalation event
       await this.storeEscalationEvent(escalationEvent)
 
+      // Log escalation to audit trail
+      await this.supabaseAdmin.from('system_logs').insert({
+        action: 'ESCALATION_TRIGGERED',
+        details: JSON.stringify({
+          incident_id: incident.id,
+          incident_type: incident.incident_type,
+          severity: incident.severity,
+          rule_id: rule.id,
+          rule_name: rule.name,
+          threshold_minutes: rule.timeThresholdMinutes,
+          triggered_at: escalationEvent.triggeredAt,
+          barangay: incident.barangay
+        }),
+        user_id: null // System-triggered
+      }).then(() => {}).catch((err: any) => {
+        console.error('Failed to log escalation to audit trail:', err)
+      })
+
       // Execute escalation actions
       await this.executeEscalationActions(incident, escalationEvent)
 
     } catch (error) {
       console.error('Error triggering escalation:', error)
+      // Log escalation failure
+      await this.supabaseAdmin.from('system_logs').insert({
+        action: 'ESCALATION_FAILED',
+        details: JSON.stringify({
+          incident_id: incident.id,
+          rule_id: rule.id,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          timestamp: new Date().toISOString()
+        }),
+        user_id: null
+      }).catch(() => {})
     }
   }
 

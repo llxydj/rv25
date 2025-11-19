@@ -34,12 +34,12 @@ async function testSMSAPI() {
       const json = JSON.parse(text)
       console.log('✅ API returned valid JSON:', JSON.stringify(json, null, 2))
       return true
-    } catch (parseError) {
-      console.log('❌ ERROR: API returned non-JSON response:', parseError.message)
+    } catch (parseError: unknown) {
+      console.log('❌ ERROR: API returned non-JSON response:', parseError instanceof Error ? parseError.message : String(parseError))
       return false
     }
-  } catch (error) {
-    console.log('❌ ERROR: Failed to reach API:', error.message)
+  } catch (error: unknown) {
+    console.log('❌ ERROR: Failed to reach API:', error instanceof Error ? error.message : String(error))
     return false
   }
 }
@@ -67,8 +67,8 @@ async function testSupabase() {
     
     console.log('✅ Supabase connection successful')
     return true
-  } catch (error) {
-    console.log('❌ Supabase connection failed:', error.message)
+  } catch (error: unknown) {
+    console.log('❌ Supabase connection failed:', error instanceof Error ? error.message : String(error))
     return false
   }
 }

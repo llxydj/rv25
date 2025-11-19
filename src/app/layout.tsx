@@ -1,10 +1,17 @@
-import type React from "react"
-import type { Metadata, Viewport } from "next"
-import { Inter } from "next/font/google"
-import "./globals.css"
-import { AppClient } from "@/components/providers/app-client"
+// src/app/layout.tsx
+import type React from "react";
+import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
+import "./globals.css";
+import { AppClient } from "@/components/providers/app-client";
 
-const inter = Inter({ subsets: ["latin"] })
+// ✅ Use display: "swap" to prevent layout shift, prefetch font to self-host
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",   // avoids FOIT (flash of invisible text)
+  preload: true,     // preloads font at build time
+  variable: "--font-inter",
+});
 
 export const metadata: Metadata = {
   title: "RVOIS - Rescue Volunteers Operations Information System",
@@ -21,7 +28,7 @@ export const metadata: Metadata = {
       { url: "/icons/icon-512x512.png", sizes: "512x512", type: "image/png" },
     ],
   },
-}
+};
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -31,7 +38,7 @@ export const viewport: Viewport = {
     { media: "(prefers-color-scheme: light)", color: "#ffffff" },
     { media: "(prefers-color-scheme: dark)", color: "#111827" },
   ],
-}
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -42,5 +49,5 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </AppClient>
       </body>
     </html>
-  )
+  );
 }

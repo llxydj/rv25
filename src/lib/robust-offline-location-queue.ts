@@ -156,7 +156,7 @@ class RobustOfflineLocationQueueService {
       console.error('Error saving offline queue to localStorage:', error)
       
       // If localStorage is full, try to clear old items
-      if (error.name === 'QuotaExceededError') {
+      if (error instanceof Error && error.name === 'QuotaExceededError') {
         this.clearOldItems()
         try {
           localStorage.setItem(QUEUE_KEY, JSON.stringify(this.queue))
@@ -468,7 +468,9 @@ export function useOfflineLocationQueue() {
   
   useEffect(() => {
     const unsubscribe = robustOfflineLocationQueueService.subscribe(setStats)
-    return unsubscribe
+    return () => {
+      unsubscribe()
+    }
   }, [])
   
   return {

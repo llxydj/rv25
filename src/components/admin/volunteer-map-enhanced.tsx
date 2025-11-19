@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
-import { MapPin, Navigation, Clock, Radio, Eye, EyeOff, TrendingUp as RouteIcon, User, ListIcon, MapIcon, Filter, AlertCircle, ArrowRight } from "lucide-react"
+import { MapPin, Navigation, Clock, Radio, Eye, EyeOff, TrendingUp as RouteIcon, User, List, Map, Filter, AlertCircle, ArrowRight } from "lucide-react"
 import { GEOLOCATION_CONFIG } from "@/lib/geolocation-config"
 import Link from "next/link"
 
@@ -473,7 +473,7 @@ export function VolunteerMapEnhanced({
               onClick={() => setViewMode('map')}
               className="h-9"
             >
-              <MapIcon className="h-4 w-4 mr-2" />
+              <Map className="h-4 w-4 mr-2" />
               Map
             </Button>
             <Button

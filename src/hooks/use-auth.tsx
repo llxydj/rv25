@@ -116,7 +116,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const signOut = async () => {
-    await supabase.auth.signOut()
+    try {
+      // Sign out from Supabase
+      await supabase.auth.signOut()
+      
+      // Clear all Supabase-related storage
+      if (typeof window !== 'undefined') {
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith('sb-') || key.includes('supabase')) {
+            localStorage.removeItem(key)
+          }
+        })
+        
+        Object.keys(sessionStorage).forEach(key => {
+          if (key.startsWith('sb-') || key.includes('supabase')) {
+            sessionStorage.removeItem(key)
+          }
+        })
+        
+        // Force redirect to login to ensure clean state
+        window.location.href = '/login'
+      }
+    } catch (error) {
+      console.error('Error during sign out:', error)
+      // Even on error, try to redirect
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login'
+      }
+    }
   }
 
   const refreshSession = async () => {

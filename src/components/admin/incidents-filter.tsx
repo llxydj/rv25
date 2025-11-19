@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { Calendar, Filter, X } from "lucide-react"
+import { Calendar, Filter, X, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -105,20 +105,21 @@ export function IncidentsFilter({ onFilterChange, barangays, incidentTypes }: In
   ]
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col md:flex-row gap-4">
-        <div className="flex-1">
+    <div className="space-y-4 p-4">
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex-1 min-w-0">
           <div className="relative">
             <Input
               placeholder="Search incidents..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pr-10"
+              className="w-full pr-10 text-sm sm:text-base"
             />
             {searchTerm && (
               <button
                 onClick={() => clearFilter('searchTerm')}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 touch-manipulation"
+                aria-label="Clear search"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -131,34 +132,36 @@ export function IncidentsFilter({ onFilterChange, barangays, incidentTypes }: In
             <Button
               variant="outline"
               className={cn(
-                "w-full md:w-auto justify-start text-left font-normal",
+                "w-full sm:w-auto justify-start text-left font-normal text-sm sm:text-base min-h-[2.5rem]",
                 !dateRange.from && !dateRange.to && "text-muted-foreground"
               )}
             >
-              <Calendar className="mr-2 h-4 w-4" />
-              {formatDateRange()}
+              <Calendar className="mr-2 h-4 w-4 flex-shrink-0" />
+              <span className="truncate">{formatDateRange()}</span>
               {(dateRange.from || dateRange.to) ? (
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
                     clearFilter('dateRange')
                   }}
-                  className="ml-2 text-gray-400 hover:text-gray-600"
+                  className="ml-2 text-gray-400 hover:text-gray-600 touch-manipulation flex-shrink-0"
+                  aria-label="Clear date range"
                 >
                   <X className="h-4 w-4" />
                 </button>
               ) : null}
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
+          <PopoverContent className="w-auto p-0" align="start" sideOffset={5}>
             <div className="p-3 border-b">
-              <div className="flex gap-2 mb-2">
+              <div className="flex flex-wrap gap-2">
                 {presetRanges.map((preset) => (
                   <Button
                     key={preset.label}
                     variant="outline"
                     size="sm"
                     onClick={() => handleDateRangeSelect(preset.range)}
+                    className="text-xs sm:text-sm"
                   >
                     {preset.label}
                   </Button>
@@ -171,34 +174,42 @@ export function IncidentsFilter({ onFilterChange, barangays, incidentTypes }: In
               defaultMonth={dateRange.from}
               selected={dateRange}
               onSelect={handleDateRangeSelect}
-              numberOfMonths={2}
+              numberOfMonths={typeof window !== 'undefined' && window.innerWidth < 768 ? 1 : 2}
             />
           </PopoverContent>
         </Popover>
         
         {hasActiveFilters && (
-          <Button variant="outline" onClick={clearFilters}>
+          <Button 
+            variant="outline" 
+            onClick={clearFilters}
+            className="w-full sm:w-auto text-sm sm:text-base min-h-[2.5rem]"
+          >
             Clear All
           </Button>
         )}
       </div>
       
-      <div className="flex flex-wrap gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="relative">
           <select
             value={barangay}
             onChange={(e) => setBarangay(e.target.value)}
-            className="block w-full md:w-auto pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md appearance-none bg-white"
+            className="block w-full pl-3 pr-10 py-2.5 text-sm sm:text-base border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded-md appearance-none bg-white min-h-[2.5rem] touch-manipulation"
           >
             <option value="">All Barangays</option>
             {barangays.map((b) => (
               <option key={b} value={b}>{b}</option>
             ))}
           </select>
+          <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+            <ChevronDown className="h-4 w-4 text-gray-400" />
+          </div>
           {barangay && (
             <button
               onClick={() => clearFilter('barangay')}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              className="absolute right-8 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 touch-manipulation z-10"
+              aria-label="Clear barangay filter"
             >
               <X className="h-4 w-4" />
             </button>
@@ -209,7 +220,7 @@ export function IncidentsFilter({ onFilterChange, barangays, incidentTypes }: In
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value)}
-            className="block w-full md:w-auto pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md appearance-none bg-white"
+            className="block w-full pl-3 pr-10 py-2.5 text-sm sm:text-base border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded-md appearance-none bg-white min-h-[2.5rem] touch-manipulation"
           >
             <option value="ALL">All Statuses</option>
             <option value="PENDING">Pending</option>
@@ -219,10 +230,14 @@ export function IncidentsFilter({ onFilterChange, barangays, incidentTypes }: In
             <option value="RESOLVED">Resolved</option>
             <option value="CANCELLED">Cancelled</option>
           </select>
+          <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+            <ChevronDown className="h-4 w-4 text-gray-400" />
+          </div>
           {status !== "ALL" && (
             <button
               onClick={() => clearFilter('status')}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              className="absolute right-8 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 touch-manipulation z-10"
+              aria-label="Clear status filter"
             >
               <X className="h-4 w-4" />
             </button>
@@ -233,17 +248,21 @@ export function IncidentsFilter({ onFilterChange, barangays, incidentTypes }: In
           <select
             value={incidentType}
             onChange={(e) => setIncidentType(e.target.value)}
-            className="block w-full md:w-auto pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md appearance-none bg-white"
+            className="block w-full pl-3 pr-10 py-2.5 text-sm sm:text-base border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded-md appearance-none bg-white min-h-[2.5rem] touch-manipulation"
           >
             <option value="">All Types</option>
             {incidentTypes.map((type) => (
               <option key={type} value={type}>{type}</option>
             ))}
           </select>
+          <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+            <ChevronDown className="h-4 w-4 text-gray-400" />
+          </div>
           {incidentType && (
             <button
               onClick={() => clearFilter('incidentType')}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              className="absolute right-8 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 touch-manipulation z-10"
+              aria-label="Clear incident type filter"
             >
               <X className="h-4 w-4" />
             </button>
@@ -254,7 +273,7 @@ export function IncidentsFilter({ onFilterChange, barangays, incidentTypes }: In
           <select
             value={priority}
             onChange={(e) => setPriority(e.target.value)}
-            className="block w-full md:w-auto pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md appearance-none bg-white"
+            className="block w-full pl-3 pr-10 py-2.5 text-sm sm:text-base border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded-md appearance-none bg-white min-h-[2.5rem] touch-manipulation"
           >
             <option value="">All Priorities</option>
             <option value="1">Critical</option>
@@ -263,10 +282,14 @@ export function IncidentsFilter({ onFilterChange, barangays, incidentTypes }: In
             <option value="4">Low</option>
             <option value="5">Info</option>
           </select>
+          <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+            <ChevronDown className="h-4 w-4 text-gray-400" />
+          </div>
           {priority && (
             <button
               onClick={() => clearFilter('priority')}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              className="absolute right-8 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 touch-manipulation z-10"
+              aria-label="Clear priority filter"
             >
               <X className="h-4 w-4" />
             </button>

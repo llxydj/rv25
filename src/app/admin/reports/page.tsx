@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { AdminLayout } from "@/components/layout/admin-layout"
-import { Filter, MapPin, FileText, Download, BarChart3, Calendar as CalendarIcon, ChevronDown, ChevronRight, X, Eye, EyeOff } from "lucide-react"
+import { Filter, MapPin, FileText, Download, BarChart3, Calendar as CalendarIcon, ChevronDown, ChevronRight, X, Eye, EyeOff, Clock, Archive } from "lucide-react"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import { getAllIncidents } from "@/lib/incidents"
 import { getAllVolunteers } from "@/lib/volunteers"

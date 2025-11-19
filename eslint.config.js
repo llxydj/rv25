@@ -6,27 +6,11 @@ import reactHooks from "eslint-plugin-react-hooks";
 import nextPlugin from "@next/eslint-plugin-next";
 
 export default [
-  js.configs.recommended,
+  js.configs.recommended, // instead of "extends: 'eslint:recommended'"
   tsPlugin.configs.recommended,
   {
     files: ["**/*.{ts,tsx}"],
-    ignores: [
-      "node_modules/",
-      ".next/",
-      "dist/",
-      "build/",
-      "out/",
-      "src/lib/__tests__/**",
-      "public/sw.js",
-      "public/sw-enhanced.js",
-      "public/service-worker.js",
-      "public/workbox-*.js",
-      "jest.config.cjs",
-      "jest.setup.js",
-      "next.config.mjs",
-      "postcss.config.cjs",
-      "types/supabase.ts"
-    ],
+    ignores: ["node_modules/", ".next/", "dist/", "build/", "out/"],
     languageOptions: {
       parser: tsParser,
       parserOptions: {
@@ -36,9 +20,9 @@ export default [
       },
     },
     plugins: {
+      "@typescript-eslint": tsPlugin,
       "react-hooks": reactHooks,
       "@next/next": nextPlugin,
-      "@typescript-eslint": tsPlugin,
     },
     rules: {
       "no-unused-vars": "off",

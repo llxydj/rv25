@@ -8,22 +8,43 @@ export async function GET(request: Request) {
 
   if (code) {
     const supabase = createRouteHandlerClient({ cookies })
-    await supabase.auth.exchangeCodeForSession(code)
+    
+    // Exchange the code for a session
+    const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+    
+    if (exchangeError) {
+      console.error('Error exchanging code for session:', exchangeError)
+      return NextResponse.redirect(new URL("/login?error=auth_failed", requestUrl.origin))
+    }
 
     // After session exchange, decide where to send the user
     try {
-      const { data: sessionRes } = await supabase.auth.getSession()
+      const { data: sessionRes, error: sessionError } = await supabase.auth.getSession()
+      
+      if (sessionError) {
+        console.error('Error getting session:', sessionError)
+        return NextResponse.redirect(new URL("/login?error=session_error", requestUrl.origin))
+      }
+      
       const session = sessionRes?.session
       const userId = session?.user?.id
+      const userEmail = session?.user?.email
 
       if (session && userId) {
-        // If no users row exists, send to resident Google registration
-        const { data: userRow } = await supabase
+        // Check if this is a new user (no users row exists)
+        const { data: userRow, error: userError } = await supabase
           .from('users')
-          .select('id, role')
+          .select('id, role, email')
           .eq('id', userId)
           .maybeSingle()
 
+        if (userError) {
+          console.error('Error checking user row:', userError)
+          // If there's an error checking, assume new user and send to registration
+          return NextResponse.redirect(new URL("/resident/register-google", requestUrl.origin))
+        }
+
+        // If no users row exists, send to resident Google registration
         if (!userRow) {
           return NextResponse.redirect(new URL("/resident/register-google", requestUrl.origin))
         }
@@ -49,9 +70,14 @@ export async function GET(request: Request) {
               return NextResponse.redirect(new URL("/login", requestUrl.origin))
           }
         }
+      } else {
+        // No session after exchange - this shouldn't happen, but handle it
+        console.warn('No session after code exchange')
+        return NextResponse.redirect(new URL("/login?error=no_session", requestUrl.origin))
       }
-    } catch {
+    } catch (error) {
       // Fallback to default redirect below
+      console.error('Unexpected error in callback:', error)
     }
   }
 

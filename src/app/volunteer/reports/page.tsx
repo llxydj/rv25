@@ -149,7 +149,9 @@ export default function VolunteerReportsPage() {
       setFormSuccess(true)
       
       // Add new report to list
-      setReports(prev => [result.data, ...prev])
+      if (result.data) {
+        setReports(prev => [result.data, ...prev])
+      }
       
       // Hide form after 2 seconds
       setTimeout(() => {

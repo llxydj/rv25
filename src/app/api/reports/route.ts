@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { rateKeyFromRequest, rateLimitAllowed } from '@/lib/rate-limit'
 import { z } from 'zod'
+import { analyticsCache } from '@/app/api/volunteers/analytics/cache'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -77,6 +78,25 @@ export async function POST(request: Request) {
       .single()
 
     if (error) throw error
+
+    // If report is linked to an incident, invalidate cache for assigned volunteer
+    if (parsed.data.incident_id) {
+      try {
+        const { data: incident } = await supabase
+          .from('incidents')
+          .select('assigned_to')
+          .eq('id', parsed.data.incident_id)
+          .maybeSingle()
+        
+        if (incident?.assigned_to) {
+          analyticsCache.invalidateForVolunteer(incident.assigned_to)
+        }
+      } catch (cacheError) {
+        console.error('Failed to invalidate cache:', cacheError)
+        // Don't fail the request if cache invalidation fails
+      }
+    }
+
     return NextResponse.json({ success: true, data })
   } catch (e: any) {
     return NextResponse.json({ success: false, code: 'INTERNAL_ERROR', message: e?.message || 'Failed to create report' }, { status: 500 })

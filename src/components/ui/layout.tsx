@@ -293,7 +293,7 @@ const Header: React.FC<HeaderProps> = ({
     right: 'text-right'
   }
 
-  const Component = `h${level}` as keyof JSX.IntrinsicElements
+  const Component = `h${level}` as keyof React.JSX.IntrinsicElements
 
   return (
     <Component

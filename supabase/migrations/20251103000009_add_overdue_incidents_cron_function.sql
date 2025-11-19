@@ -8,9 +8,12 @@ RETURNS void AS $$
 DECLARE
   incident_record RECORD;
   admin_record RECORD;
+  volunteer_record RECORD;
   minutes_overdue INTEGER;
   notification_title TEXT;
   notification_body TEXT;
+  critical_notification_title TEXT;
+  critical_notification_body TEXT;
 BEGIN
   -- Loop through all overdue incidents
   FOR incident_record IN 
@@ -20,7 +23,8 @@ BEGIN
       barangay,
       status,
       created_at,
-      assigned_to
+      assigned_to,
+      priority
     FROM incidents 
     WHERE is_overdue = TRUE
   LOOP
@@ -37,28 +41,65 @@ BEGIN
       minutes_overdue
     );
     
-    -- Send notifications to all admins
-    FOR admin_record IN 
-      SELECT id FROM users WHERE role = 'admin'
-    LOOP
-      -- Insert notification for admin
-      INSERT INTO notifications (
-        user_id,
-        title,
-        body,
-        type,
-        data
-      ) VALUES (
-        admin_record.id,
-        notification_title,
-        notification_body,
-        'SYSTEM_ALERT',
-        jsonb_build_object(
-          'incident_id', incident_record.id,
-          'type', 'overdue_incident'
-        )
+    -- Special handling for priority 1 incidents overdue by 5+ minutes
+    IF incident_record.priority = 1 AND minutes_overdue >= 5 THEN
+      critical_notification_title := '🚨 CRITICAL: 5-Minute Response Time Exceeded!';
+      critical_notification_body := format(
+        '🚨 CRITICAL INCIDENT #%s (%s) in %s requires IMMEDIATE attention! Response time exceeded 5 minutes (%s minutes overdue). Please assign volunteer immediately!',
+        LEFT(incident_record.id::TEXT, 8),
+        incident_record.incident_type,
+        incident_record.barangay,
+        minutes_overdue
       );
-    END LOOP;
+      
+      -- Send critical alerts to all admins
+      FOR admin_record IN 
+        SELECT id FROM users WHERE role = 'admin'
+      LOOP
+        -- Insert critical notification for admin
+        INSERT INTO notifications (
+          user_id,
+          title,
+          body,
+          type,
+          data
+        ) VALUES (
+          admin_record.id,
+          critical_notification_title,
+          critical_notification_body,
+          'SYSTEM_ALERT',
+          jsonb_build_object(
+            'incident_id', incident_record.id,
+            'type', 'overdue_incident',
+            'priority', incident_record.priority,
+            'minutes_overdue', minutes_overdue
+          )
+        );
+      END LOOP;
+    ELSE
+      -- Send regular notifications to all admins
+      FOR admin_record IN 
+        SELECT id FROM users WHERE role = 'admin'
+      LOOP
+        -- Insert notification for admin
+        INSERT INTO notifications (
+          user_id,
+          title,
+          body,
+          type,
+          data
+        ) VALUES (
+          admin_record.id,
+          notification_title,
+          notification_body,
+          'SYSTEM_ALERT',
+          jsonb_build_object(
+            'incident_id', incident_record.id,
+            'type', 'overdue_incident'
+          )
+        );
+      END LOOP;
+    END IF;
     
     -- If incident is assigned to a volunteer, also notify them
     IF incident_record.assigned_to IS NOT NULL THEN
@@ -98,3 +139,4 @@ $$ LANGUAGE plpgsql;
 -- 1. A scheduled API endpoint
 -- 2. A serverless function triggered by a scheduler
 -- 3. A background worker process
+-- 4. The check-overdue-incidents.ts script in the scripts directory

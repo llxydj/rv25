@@ -2,8 +2,8 @@
 
 import type React from "react"
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { AlertTriangle, Camera, MapPin, Upload, X } from "lucide-react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { AlertTriangle, Camera, MapPin, Upload, X, Clock } from "lucide-react"
 import ResidentLayout from "@/components/layout/resident-layout"
 import { useAuth } from "@/lib/auth"
 import { createIncident } from "@/lib/incidents"
@@ -32,12 +32,16 @@ export default function ReportIncidentPage() {
   const { toast } = useToast()
   const { user } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const reportType = searchParams?.get('type') // 'emergency' or 'non-emergency'
+  const isEmergency = reportType === 'emergency'
+  
   const [formData, setFormData] = useState({
     incidentType: "",
     description: "",
     address: "",
     barangay: "",
-    priority: "3",
+    priority: isEmergency ? "1" : "3", // Auto-assign: Emergency = 1, Non-emergency = 3
   })
   const [location, setLocation] = useState<[number, number] | null>(null)
   const [photoFile, setPhotoFile] = useState<File | null>(null)
@@ -50,6 +54,30 @@ export default function ReportIncidentPage() {
   const [pendingReports, setPendingReports] = useState<any[]>([])
   const [autoGeoLock, setAutoGeoLock] = useState<{ address: boolean; barangay: boolean }>({ address: false, barangay: false })
   const [geoMessage, setGeoMessage] = useState<string | null>(null)
+  const [locationCaptured, setLocationCaptured] = useState(false)
+  const [photoCaptured, setPhotoCaptured] = useState(false)
+  const [emergencyTimer, setEmergencyTimer] = useState<number | null>(null)
+
+  useEffect(() => {
+    // Redirect if no report type specified
+    if (!reportType) {
+      router.push('/resident/dashboard')
+      return
+    }
+
+    // Start emergency timer (30 seconds)
+    if (isEmergency) {
+      const startTime = Date.now()
+      const timer = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - startTime) / 1000)
+        setEmergencyTimer(30 - elapsed)
+        if (elapsed >= 30) {
+          clearInterval(timer)
+        }
+      }, 1000)
+      return () => clearInterval(timer)
+    }
+  }, [reportType, isEmergency, router])
 
   useEffect(() => {
     // Check if online
@@ -260,7 +288,17 @@ export default function ReportIncidentPage() {
       (position) => {
         const lat = position.coords.latitude
         const lng = position.coords.longitude
+        const accuracy = position.coords.accuracy // in meters
+        
+        // Check accuracy (target: 5-10 meters)
+        if (accuracy > 20) {
+          setError(`Location accuracy is ${Math.round(accuracy)}m. Please wait for better GPS signal or move to an open area.`)
+        } else {
+          setError(null)
+        }
+        
         setLocation([lat, lng])
+        setLocationCaptured(true)
         setGettingLocation(false)
 
         // Check if location is within Talisay City
@@ -273,6 +311,7 @@ export default function ReportIncidentPage() {
         setGettingLocation(false)
         // Default to Talisay City center if location access is denied
         setLocation(TALISAY_CENTER)
+        setLocationCaptured(true)
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
     )
@@ -367,6 +406,8 @@ export default function ReportIncidentPage() {
           // Add location name if available
           const locationText = formData.barangay 
             ? `${formData.barangay}, Talisay City`
+            : location 
+            ? `Lat: ${location[0].toFixed(6)}, Lng: ${location[1].toFixed(6)}`
             : 'Talisay City'
           
           // Draw text with shadow for better visibility
@@ -388,6 +429,7 @@ export default function ReportIncidentPage() {
             const watermarkedFile = new File([blob], 'incident_photo.jpg', { type: 'image/jpeg' })
             setPhotoFile(watermarkedFile)
             setPhotoPreview(canvas.toDataURL('image/jpeg', 0.7)) // 70% quality preview
+            setPhotoCaptured(true)
           }
         }, 'image/jpeg', 0.7)
       }
@@ -412,24 +454,37 @@ export default function ReportIncidentPage() {
   }
 
   const validateForm = () => {
-    console.log("Validating form data:", formData)
-    console.log("Available barangays:", barangays)
-    
+    // Step 1: Location must be captured first
+    if (!location || !locationCaptured) {
+      setError("Please capture your location first")
+      return false
+    }
+
+    // Step 2: Photo must be captured
+    if (!photoFile || !photoCaptured) {
+      setError("Please take a photo of the incident")
+      return false
+    }
+
+    // Step 3: Incident type required
     if (!formData.incidentType) {
       setError("Please select an incident type")
       return false
     }
 
+    // Step 4: Description required
     if (!formData.description || formData.description.trim().length < 10) {
       setError("Please provide a detailed description (at least 10 characters)")
       return false
     }
 
+    // Step 5: Barangay required
     if (!formData.barangay) {
       setError("Please select a barangay")
       return false
     }
 
+    // Step 6: Address required
     if (!formData.address || formData.address.trim().length < 5) {
       setError("Please provide a valid address (at least 5 characters)")
       return false
@@ -471,16 +526,8 @@ export default function ReportIncidentPage() {
       return
     }
 
-    // Validate photo if required
-    if (!photoFile) {
-      setError("Please take a photo of the incident")
-      toast({
-        variant: "destructive",
-        title: "Photo Required",
-        description: "Please take a photo of the incident"
-      })
-      return
-    }
+    // Priority is auto-assigned based on emergency type (already set in state)
+    // No need to validate priority - it's hidden from user
 
     setLoading(true)
 
@@ -626,8 +673,26 @@ export default function ReportIncidentPage() {
     <ResidentLayout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Report an Incident</h1>
-          <p className="text-gray-600 mt-1">Please provide as much detail as possible to help emergency responders.</p>
+          <h1 className="text-2xl font-bold text-foreground">
+            {isEmergency ? "🚨 EMERGENCY REPORT" : "📋 Non-Emergency Report"}
+          </h1>
+          <p className="text-gray-600 mt-1">
+            {isEmergency 
+              ? "Life-threatening situation - Complete this report quickly (within 30 seconds)"
+              : "Please provide as much detail as possible to help emergency responders."}
+          </p>
+          {isEmergency && emergencyTimer !== null && emergencyTimer > 0 && (
+            <div className="mt-2 flex items-center justify-center gap-2 text-red-600 font-semibold bg-red-50 border-2 border-red-300 rounded-lg p-3 shadow-sm">
+              <Clock className="h-6 w-6 animate-pulse" />
+              <span className="text-lg">Time remaining: <span className="text-2xl font-bold">{emergencyTimer}s</span></span>
+            </div>
+          )}
+          {isEmergency && emergencyTimer !== null && emergencyTimer <= 0 && (
+            <div className="mt-2 flex items-center justify-center gap-2 text-red-700 font-semibold bg-red-100 border-2 border-red-400 rounded-lg p-3">
+              <AlertTriangle className="h-6 w-6" />
+              <span className="text-lg">Time's up! Please submit your report immediately.</span>
+            </div>
+          )}
         </div>
 
         {isOffline && (
@@ -671,95 +736,29 @@ export default function ReportIncidentPage() {
             </div>
           )}
 
+          {/* STEP 1: Automatic Location Capture */}
           <div className="bg-white p-6 rounded-lg shadow-md">
-            <h2 className="text-lg font-semibold mb-4">Incident Details</h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label htmlFor="incidentType" className="block text-sm font-medium text-gray-700">
-                  Incident Type *
-                </label>
-                <select
-                  id="incidentType"
-                  name="incidentType"
-                  required
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 sm:text-sm text-gray-900 bg-white"
-                  value={formData.incidentType}
-                  onChange={handleChange}
-                  disabled={loading}
-                >
-                  <option value="">Select Incident Type</option>
-                  {INCIDENT_TYPES.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="priority" className="block text-sm font-medium text-gray-700">
-                  Severity Level *
-                </label>
-                <select
-                  id="priority"
-                  name="priority"
-                  required
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 sm:text-sm text-gray-900 bg-white"
-                  value={formData.priority}
-                  onChange={handleChange}
-                  disabled={loading}
-                >
-                  <option value="">Select Severity</option>
-                  <option value="1">🔴 Critical - Life-threatening emergency</option>
-                  <option value="2">🟠 High - Urgent assistance needed</option>
-                  <option value="3">🟡 Medium - Standard response required</option>
-                  <option value="4">🟢 Low - Non-urgent situation</option>
-                  <option value="5">ℹ️ Information - Report only</option>
-                </select>
-                <p className="mt-1 text-xs text-gray-600">
-                  Higher severity levels trigger faster response times and notifications
-                </p>
-              </div>
-
-              <div className="md:col-span-2">
-                <label htmlFor="description" className="block text-sm font-medium text-gray-700">
-                  Description *
-                </label>
-                <textarea
-                  id="description"
-                  name="description"
-                  rows={3}
-                  required
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 sm:text-sm text-gray-900 bg-white"
-                  placeholder="Please describe what happened..."
-                  value={formData.description}
-                  onChange={handleChange}
-                  disabled={loading}
-                ></textarea>
-              </div>
+            <h2 className="text-lg font-semibold mb-4">
+              Step 1: Location Capture {locationCaptured && "✅"}
+            </h2>
+            <p className="text-sm text-gray-600 mb-4">Your location will be automatically captured via GPS (target accuracy: 5-10 meters)</p>
+            
+            <div className="mb-6">
+              <LocationTracker
+                onLocationUpdate={(location) => {
+                  setLocation([location.latitude, location.longitude])
+                  setLocationCaptured(true)
+                  setError(null)
+                }}
+                showSettings={true}
+                className="mb-4"
+              />
             </div>
-          </div>
 
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <h2 className="text-lg font-semibold mb-4">Location</h2>
-
-          {/* Location Tracker */}
-          <div className="mb-6">
-            <LocationTracker
-              onLocationUpdate={(location) => {
-                setLocation([location.latitude, location.longitude])
-                setError(null)
-              }}
-              showSettings={true}
-              className="mb-4"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
               <div>
                 <label htmlFor="address" className="block text-sm font-medium text-gray-700">
-                  Address *
+                  Address * {autoGeoLock.address && "🔒"}
                 </label>
                 <input
                   type="text"
@@ -780,7 +779,7 @@ export default function ReportIncidentPage() {
 
               <div>
                 <label htmlFor="barangay" className="block text-sm font-medium text-gray-700">
-                  Barangay * {barangays.length > 0 && `(${barangays.length} available)`}
+                  Barangay * {barangays.length > 0 && `(${barangays.length} available)`} {autoGeoLock.barangay && "🔒"}
                 </label>
                 <select
                   id="barangay"
@@ -878,8 +877,12 @@ export default function ReportIncidentPage() {
             </div>
           </div>
 
+          {/* STEP 2: Mandatory Photo Upload */}
           <div className="bg-white p-6 rounded-lg shadow-md">
-            <h2 className="text-lg font-semibold mb-4">Photo Evidence (Required)</h2>
+            <h2 className="text-lg font-semibold mb-4">
+              Step 2: Photo Evidence (Required) {photoCaptured && "✅"}
+            </h2>
+            <p className="text-sm text-gray-600 mb-4">A picture says a thousand words - Photo proof is mandatory</p>
 
             <div className="space-y-4">
               {photoPreview ? (
@@ -929,6 +932,120 @@ export default function ReportIncidentPage() {
               )}
             </div>
           </div>
+
+          {/* STEP 3: Report Type Selection */}
+          <div className="bg-white p-6 rounded-lg shadow-md">
+            <h2 className="text-lg font-semibold mb-4">Step 3: Report Type Selection</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label htmlFor="incidentType" className="block text-sm font-medium text-gray-700">
+                  Incident Type *
+                </label>
+                <select
+                  id="incidentType"
+                  name="incidentType"
+                  required
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 sm:text-sm text-gray-900 bg-white"
+                  value={formData.incidentType}
+                  onChange={handleChange}
+                  disabled={loading}
+                >
+                  <option value="">Select Incident Type</option>
+                  {INCIDENT_TYPES.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* Hidden priority field - auto-assigned based on emergency type */}
+              <input type="hidden" name="priority" value={formData.priority} />
+              {isEmergency && (
+                <div className="bg-red-50 p-3 rounded-md">
+                  <p className="text-sm text-red-800 font-medium">
+                    ⚠️ Emergency Priority: Critical (Auto-assigned)
+                  </p>
+                </div>
+              )}
+              {!isEmergency && (
+                <div className="bg-green-50 p-3 rounded-md">
+                  <p className="text-sm text-green-800 font-medium">
+                    ℹ️ Non-Emergency Priority: Medium (Auto-assigned)
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* STEP 4: Auto-populated fields (user info, timestamp) - shown as read-only */}
+          <div className="bg-white p-6 rounded-lg shadow-md">
+            <h2 className="text-lg font-semibold mb-4">Step 4: Your Information (Auto-filled)</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Your Name</label>
+                <input
+                  type="text"
+                  value={user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email : ''}
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-gray-50 text-gray-500 sm:text-sm"
+                  readOnly
+                  disabled
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Contact Number</label>
+                <input
+                  type="text"
+                  value={user?.phone_number || 'Not provided'}
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-gray-50 text-gray-500 sm:text-sm"
+                  readOnly
+                  disabled
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Report Timestamp</label>
+                <input
+                  type="text"
+                  value={new Date().toLocaleString()}
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-gray-50 text-gray-500 sm:text-sm"
+                  readOnly
+                  disabled
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Report Type</label>
+                <input
+                  type="text"
+                  value={isEmergency ? "EMERGENCY" : "NON-EMERGENCY"}
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-gray-50 text-gray-500 sm:text-sm font-semibold"
+                  readOnly
+                  disabled
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* STEP 5: User inputs description */}
+          <div className="bg-white p-6 rounded-lg shadow-md">
+            <h2 className="text-lg font-semibold mb-4">Step 5: What Happened?</h2>
+            <div>
+              <label htmlFor="description" className="block text-sm font-medium text-gray-700">
+                Description * (Short, clear description)
+              </label>
+              <textarea
+                id="description"
+                name="description"
+                rows={3}
+                required
+                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 sm:text-sm text-gray-900 bg-white"
+                placeholder="Please describe what happened..."
+                value={formData.description}
+                onChange={handleChange}
+                disabled={loading}
+              ></textarea>
+            </div>
+          </div>
+
 
           <div className="flex justify-end space-x-4">
             <button

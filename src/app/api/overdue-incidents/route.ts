@@ -1,6 +1,25 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { getServerSupabase } from '@/lib/supabase-server'
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
+
+type OverdueIncident = {
+  id: string
+  incident_type: string
+  barangay: string
+  priority: number
+  minutes_since_last_update?: number
+  minutes_since_creation?: number
+  created_at: string
+}
+
+type AdminUser = {
+  id: string
+  phone_number: string | null
+}
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -8,8 +27,6 @@ export const dynamic = 'force-dynamic'
 // Check for overdue incidents and send alerts
 export async function GET(request: Request) {
   try {
-    const supabase = await getServerSupabase()
-    
     // Get overdue incidents that haven't been alerted about yet
     const { data: overdueIncidents, error } = await supabase
       .from('overdue_incidents')
@@ -31,10 +48,12 @@ export async function GET(request: Request) {
     for (const incident of overdueIncidents) {
       try {
         // Get admin users to notify
-        const { data: admins } = await supabase
+        const { data: admins, error: adminError } = await supabase
           .from('users')
-          .select('id')
+          .select('id, phone_number')
           .eq('role', 'admin')
+        
+        if (adminError) throw adminError
         
         if (admins && admins.length > 0) {
           // Create notification for each admin
@@ -46,7 +65,7 @@ export async function GET(request: Request) {
                 title: 'Overdue Incident Alert',
                 body: `Incident #${incident.id.substring(0, 8)} (${incident.incident_type}) in ${incident.barangay} has not been updated in ${Math.floor(incident.minutes_since_last_update || incident.minutes_since_creation)} minutes.`,
                 type: 'SYSTEM_ALERT',
-                data: { 
+                data: {
                   incident_id: incident.id,
                   type: 'overdue_incident'
                 }
@@ -54,6 +73,33 @@ export async function GET(request: Request) {
             
             if (notificationError) {
               console.error('Failed to create notification for admin:', admin.id, notificationError)
+            }
+          }
+          
+          // Send SMS alerts to admins for priority 1 incidents overdue by 5+ minutes
+          if (incident.priority === 1 && (incident.minutes_since_last_update >= 5 || incident.minutes_since_creation >= 5)) {
+            const { smsService } = await import('@/lib/sms-service')
+            
+            // Get admin phone numbers
+            const adminPhones = admins.filter((admin: AdminUser) => admin.phone_number).map((admin: AdminUser) => admin.phone_number) as string[]
+            const adminUserIds = admins.filter((admin: AdminUser) => admin.phone_number).map((admin: AdminUser) => admin.id)
+            
+            if (adminPhones.length > 0) {
+              await smsService.sendAdminCriticalAlert(
+                incident.id,
+                incident.id.substring(0, 8),
+                adminPhones,
+                adminUserIds,
+                {
+                  type: incident.incident_type,
+                  barangay: incident.barangay,
+                  time: new Date().toLocaleTimeString('en-US', { 
+                    hour: '2-digit', 
+                    minute: '2-digit',
+                    hour12: true 
+                  })
+                }
+              )
             }
           }
           
@@ -80,11 +126,9 @@ export async function GET(request: Request) {
   }
 }
 
-// Manual trigger for testing
+// Manual trigger for testing and scheduled execution
 export async function POST(request: Request) {
   try {
-    const supabase = await getServerSupabase()
-    
     // Get all overdue incidents (regardless of whether they've been alerted)
     const { data: overdueIncidents, error } = await supabase
       .from('incidents')
@@ -107,10 +151,12 @@ export async function POST(request: Request) {
     for (const incident of overdueIncidents) {
       try {
         // Get admin users to notify
-        const { data: admins } = await supabase
+        const { data: admins, error: adminError } = await supabase
           .from('users')
-          .select('id')
+          .select('id, phone_number')
           .eq('role', 'admin')
+        
+        if (adminError) throw adminError
         
         if (admins && admins.length > 0) {
           // Calculate minutes overdue
@@ -137,7 +183,7 @@ export async function POST(request: Request) {
                 title: alertTitle,
                 body: alertBody,
                 type: 'SYSTEM_ALERT',
-                data: { 
+                data: {
                   incident_id: incident.id,
                   type: 'overdue_incident',
                   priority: incident.priority,
@@ -147,6 +193,33 @@ export async function POST(request: Request) {
             
             if (notificationError) {
               console.error('Failed to create notification for admin:', admin.id, notificationError)
+            }
+          }
+          
+          // Send SMS alerts to admins for priority 1 incidents overdue by 5+ minutes
+          if (incident.priority === 1 && minutesOverdue >= 5) {
+            const { smsService } = await import('@/lib/sms-service')
+            
+            // Get admin phone numbers
+            const adminPhones = admins.filter((admin: AdminUser) => admin.phone_number).map((admin: AdminUser) => admin.phone_number) as string[]
+            const adminUserIds = admins.filter((admin: AdminUser) => admin.phone_number).map((admin: AdminUser) => admin.id)
+            
+            if (adminPhones.length > 0) {
+              await smsService.sendAdminCriticalAlert(
+                incident.id,
+                incident.id.substring(0, 8),
+                adminPhones,
+                adminUserIds,
+                {
+                  type: incident.incident_type,
+                  barangay: incident.barangay,
+                  time: new Date().toLocaleTimeString('en-US', { 
+                    hour: '2-digit', 
+                    minute: '2-digit',
+                    hour12: true 
+                  })
+                }
+              )
             }
           }
           

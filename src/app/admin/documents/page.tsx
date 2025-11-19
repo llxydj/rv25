@@ -17,6 +17,8 @@ export default function AdminDocumentsPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
+  const [renamingDoc, setRenamingDoc] = useState<string | null>(null)
+  const [newDisplayName, setNewDisplayName] = useState('')
 
   const load = async () => {
     try {
@@ -94,6 +96,43 @@ export default function AdminDocumentsPage() {
     }
   }
 
+  const startRename = (doc: any) => {
+    setRenamingDoc(doc.id)
+    setNewDisplayName(doc.display_name || doc.file_name)
+  }
+
+  const cancelRename = () => {
+    setRenamingDoc(null)
+    setNewDisplayName('')
+  }
+
+  const saveRename = async (id: string) => {
+    if (!newDisplayName.trim()) {
+      setError('Display name cannot be empty')
+      return
+    }
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      const res = await fetch('/api/admin-documents', {
+        method: 'PUT',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({ id, display_name: newDisplayName.trim() })
+      })
+      const json = await res.json()
+      if (!json.success) { setError(json.message || 'Rename failed'); return }
+      setRenamingDoc(null)
+      setNewDisplayName('')
+      await load()
+    } catch (e: any) {
+      setError(e?.message || 'Rename failed')
+    }
+  }
+
   // Get file type icon
   const getFileIcon = (fileName: string) => {
     const ext = fileName.split('.').pop()?.toLowerCase()
@@ -166,29 +205,76 @@ export default function AdminDocumentsPage() {
                         {getFileIcon(d.file_name)}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium truncate" title={d.file_name}>{d.file_name}</div>
-                        <div className="text-xs text-gray-600 mt-1">
-                          {formatFileSize(d.size_bytes)} • {new Date(d.created_at).toLocaleDateString()}
+                        {renamingDoc === d.id ? (
+                          <div className="space-y-2">
+                            <Input
+                              value={newDisplayName}
+                              onChange={(e) => setNewDisplayName(e.target.value)}
+                              className="h-8 text-sm"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') saveRename(d.id)
+                                if (e.key === 'Escape') cancelRename()
+                              }}
+                              autoFocus
+                            />
+                            <div className="flex gap-1">
+                              <Button
+                                size="sm"
+                                variant="default"
+                                onClick={() => saveRename(d.id)}
+                                className="h-6 text-xs px-2"
+                              >
+                                Save
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={cancelRename}
+                                className="h-6 text-xs px-2"
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="font-medium truncate" title={d.display_name || d.file_name}>
+                              {d.display_name || d.file_name}
+                            </div>
+                            <div className="text-xs text-gray-600 mt-1">
+                              {formatFileSize(d.size_bytes)} • {new Date(d.created_at).toLocaleDateString()}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                      {renamingDoc !== d.id && (
+                        <div className="flex flex-col gap-1">
+                          <Button 
+                            variant="secondary" 
+                            size="sm" 
+                            onClick={()=>viewDoc(d.id)}
+                            className="h-8 text-xs"
+                          >
+                            View
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={()=>startRename(d)}
+                            className="h-8 text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                          >
+                            Rename
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={()=>removeDoc(d.id)}
+                            className="h-8 text-xs text-red-600 hover:text-red-800 hover:bg-red-50"
+                          >
+                            Delete
+                          </Button>
                         </div>
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <Button 
-                          variant="secondary" 
-                          size="sm" 
-                          onClick={()=>viewDoc(d.id)}
-                          className="h-8 text-xs"
-                        >
-                          View
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          onClick={()=>removeDoc(d.id)}
-                          className="h-8 text-xs text-red-600 hover:text-red-800 hover:bg-red-50"
-                        >
-                          Delete
-                        </Button>
-                      </div>
+                      )}
                     </div>
                   </div>
                 ))}

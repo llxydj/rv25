@@ -517,14 +517,14 @@ export class SMSService {
               }
             }
           }
-        } catch (error) {
+        } catch (error: unknown) {
           lastError = error
           
           // If this is the last attempt, return the error
           if (attempt === this.config.retryAttempts) {
             return {
               success: false,
-              error: error.message,
+              error: error instanceof Error ? error.message : String(error),
               retryable: true // Network errors are typically retryable
             }
           }

@@ -93,11 +93,12 @@ export default function ResidentHistoryPage() {
         )}
 
         <div className="bg-white p-4 rounded-lg shadow-md">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
             <h2 className="text-lg font-semibold">Your Reports</h2>
-            <div className="relative">
+            <div className="relative w-full sm:w-auto">
+              <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
               <select
-                className="pl-8 pr-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-red-500 focus:border-red-500 text-sm"
+                className="w-full sm:w-auto pl-9 pr-10 py-2.5 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 text-sm sm:text-base bg-white min-h-[2.5rem] touch-manipulation appearance-none"
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
               >
@@ -108,7 +109,11 @@ export default function ResidentHistoryPage() {
                 <option value="RESOLVED">Resolved</option>
                 <option value="CANCELLED">Cancelled</option>
               </select>
-              <Filter className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
+              <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
             </div>
           </div>
 
@@ -135,60 +140,105 @@ export default function ResidentHistoryPage() {
               </div>
             </div>
           ) : (
-            <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
-              <table className="min-w-full divide-y divide-gray-300">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">
-                      Type
-                    </th>
-                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                      Date
-                    </th>
-                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                      Location
-                    </th>
-                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                      Status
-                    </th>
-                    <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
-                      <span className="sr-only">View</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 bg-white">
-                  {filteredIncidents.map((incident) => (
-                    <tr key={incident.id} className="hover:bg-gray-50">
-                      <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
-                        {incident.incident_type}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                        {formatDate(incident.created_at)}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{incident.barangay}</td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeClass(
-                            incident.status,
-                          )}`}
-                        >
-                          {incident.status}
-                        </span>
-                      </td>
-                      <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                        <Link
-                          href={`/resident/incident/${incident.id}`}
-                          className="text-red-600 hover:text-red-900 flex items-center justify-end"
-                        >
-                          View
-                          <ChevronRight className="ml-1 h-4 w-4" />
-                        </Link>
-                      </td>
+            <>
+              {/* Mobile Card View */}
+              <div className="md:hidden divide-y">
+                {filteredIncidents.map((incident) => (
+                  <div
+                    key={incident.id}
+                    className="p-4 hover:bg-gray-50 transition-colors touch-manipulation"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-sm font-semibold text-gray-900 truncate">{incident.incident_type}</h3>
+                      </div>
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium flex-shrink-0 ml-2 ${getStatusBadgeClass(
+                          incident.status,
+                        )}`}
+                      >
+                        {incident.status}
+                      </span>
+                    </div>
+                    <div className="space-y-2 text-xs text-gray-600">
+                      <div className="flex items-start">
+                        <span className="text-gray-500 w-20 flex-shrink-0">Date:</span>
+                        <div className="text-gray-900">{formatDate(incident.created_at)}</div>
+                      </div>
+                      <div className="flex items-start">
+                        <span className="text-gray-500 w-20 flex-shrink-0">Location:</span>
+                        <div className="text-gray-900">{incident.barangay}</div>
+                      </div>
+                    </div>
+                    <div className="mt-3 pt-3 border-t">
+                      <Link
+                        href={`/resident/incident/${incident.id}`}
+                        className="text-sm font-medium text-red-600 hover:text-red-500 inline-flex items-center touch-manipulation"
+                      >
+                        View Details
+                        <ChevronRight className="ml-1 h-4 w-4" />
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              {/* Desktop Table View */}
+              <div className="hidden md:block overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
+                <table className="min-w-full divide-y divide-gray-300">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">
+                        Type
+                      </th>
+                      <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                        Date
+                      </th>
+                      <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                        Location
+                      </th>
+                      <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                        Status
+                      </th>
+                      <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
+                        <span className="sr-only">View</span>
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 bg-white">
+                    {filteredIncidents.map((incident) => (
+                      <tr key={incident.id} className="hover:bg-gray-50">
+                        <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
+                          {incident.incident_type}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                          {formatDate(incident.created_at)}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{incident.barangay}</td>
+                        <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                          <span
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeClass(
+                              incident.status,
+                            )}`}
+                          >
+                            {incident.status}
+                          </span>
+                        </td>
+                        <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                          <Link
+                            href={`/resident/incident/${incident.id}`}
+                            className="text-red-600 hover:text-red-900 flex items-center justify-end touch-manipulation"
+                          >
+                            View
+                            <ChevronRight className="ml-1 h-4 w-4" />
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       </div>

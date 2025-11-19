@@ -88,7 +88,7 @@ export function YearlyPDFReportGenerator({ yearData, selectedYear, templateNotes
           {instance.error && (
             <div className="bg-red-50 border border-red-200 rounded-md p-4">
               <p className="text-sm text-red-700">
-                Error generating PDF: {instance.error.message}
+                Error generating PDF: {typeof instance.error === 'string' ? instance.error : instance.error?.message || 'Unknown error'}
               </p>
             </div>
           )}

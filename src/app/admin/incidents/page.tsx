@@ -325,25 +325,25 @@ export default function AdminIncidentsPage() {
                 onRowClick={(incident) => router.push(`/admin/incidents/${incident.id}`)}
               />
               {/* Pagination controls */}
-              <div className="flex items-center justify-between p-4 border-t border-gray-200">
-                <div className="text-sm text-gray-600">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t border-gray-200">
+                <div className="text-xs sm:text-sm text-gray-600 text-center sm:text-left">
                   Showing {filteredIncidents.length === 0 ? 0 : startIndex + 1}–{Math.min(startIndex + pageSize, filteredIncidents.length)} of {filteredIncidents.length}
                 </div>
                 <div className="flex items-center gap-2">
                   <button
                     disabled={currentPage <= 1}
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    className="px-3 py-1.5 rounded-md border text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-3 py-2 rounded-md border text-sm disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation min-h-[2.5rem] min-w-[5rem]"
                   >
                     Previous
                   </button>
-                  <span className="text-sm text-gray-700">
+                  <span className="text-xs sm:text-sm text-gray-700 px-2">
                     Page {currentPage} of {totalPages}
                   </span>
                   <button
                     disabled={currentPage >= totalPages}
                     onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    className="px-3 py-1.5 rounded-md border text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-3 py-2 rounded-md border text-sm disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation min-h-[2.5rem] min-w-[5rem]"
                   >
                     Next
                   </button>

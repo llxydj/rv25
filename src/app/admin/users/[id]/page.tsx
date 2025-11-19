@@ -1,4 +1,4 @@
-"use client"
+'use client';
 
 import { useState, useEffect } from "react"
 import { AdminLayout } from "@/components/layout/admin-layout"
@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, User, Mail, Phone, MapPin, Calendar, Activity } from "lucide-react"
+import { ArrowLeft, User, Mail, Phone, MapPin, Calendar, Bell, Trash2 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
 
@@ -64,21 +64,26 @@ export default function UserDetailsPage({ params }: { params: { id: string } }) 
         
         if (userError) throw userError
         
-        setUserData({
-          id: userData.id,
-          email: userData.email,
-          first_name: userData.first_name,
-          last_name: userData.last_name,
-          role: userData.role,
-          barangay: userData.barangay,
-          phone_number: userData.phone_number,
-          address: userData.address,
-          created_at: userData.created_at,
-          status: userData.status || "active"
-        })
+        // Fix TypeScript issues by explicitly typing the userData
+        const typedUserData: any = userData;
+        
+        const userObj: User = {
+          id: typedUserData.id,
+          email: typedUserData.email,
+          first_name: typedUserData.first_name,
+          last_name: typedUserData.last_name,
+          role: typedUserData.role,
+          barangay: typedUserData.barangay,
+          phone_number: typedUserData.phone_number,
+          address: typedUserData.address,
+          created_at: typedUserData.created_at,
+          status: typedUserData.status || "active"
+        }
+        
+        setUserData(userObj)
         
         // Fetch incidents if user is resident
-        if (userData.role === "resident") {
+        if (userObj.role === "resident") {
           const { data: incidentsData, error: incidentsError } = await supabase
             .from("incidents")
             .select("*")
@@ -118,6 +123,106 @@ export default function UserDetailsPage({ params }: { params: { id: string } }) 
       </AdminLayout>
     )
   }
+  
+  // Handle deactivate user
+  const handleDeactivateUser = async () => {
+    if (!userData) return;
+    
+    if (window.confirm(`Are you sure you want to deactivate user ${userData.first_name} ${userData.last_name}? They will no longer be able to access the system.`)) {
+      try {
+        const response = await fetch("/api/admin/users", {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            userId: userData.id,
+            action: "deactivate"
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (!result.success) throw new Error(result.message);
+        
+        // Update local state
+        setUserData({
+          ...userData,
+          status: "inactive"
+        });
+        
+        // Show success message
+        alert("User deactivated successfully");
+      } catch (error: any) {
+        console.error("Error deactivating user:", error);
+        alert("Failed to deactivate user: " + (error.message || "Unknown error"));
+      }
+    }
+  };
+  
+  // Handle activate user
+  const handleActivateUser = async () => {
+    if (!userData) return;
+    
+    try {
+      const response = await fetch("/api/admin/users", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          userId: userData.id,
+          action: "activate"
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (!result.success) throw new Error(result.message);
+      
+      // Update local state
+      setUserData({
+        ...userData,
+        status: "active"
+      });
+      
+      // Show success message
+      alert("User activated successfully");
+    } catch (error: any) {
+      console.error("Error activating user:", error);
+      alert("Failed to activate user: " + (error.message || "Unknown error"));
+    }
+  };
+  
+  // Handle delete user
+  const handleDeleteUser = async () => {
+    if (!userData) return;
+    
+    if (window.confirm(`Are you sure you want to deactivate and anonymize user ${userData.first_name} ${userData.last_name}? This action cannot be undone.`)) {
+      try {
+        const response = await fetch("/api/admin/users", {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            userId: userData.id
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (!result.success) throw new Error(result.message);
+        
+        // Show success message and redirect
+        alert("User deactivated and data anonymized successfully");
+        router.push("/admin/users");
+      } catch (error: any) {
+        console.error("Error deleting user:", error);
+        alert("Failed to delete user: " + (error.message || "Unknown error"));
+      }
+    }
+  };
   
   return (
     <AdminLayout>
@@ -192,12 +297,50 @@ export default function UserDetailsPage({ params }: { params: { id: string } }) 
                   
                   {userData.role === "resident" && (
                     <div className="flex items-center">
-                      <Activity className="h-4 w-4 mr-2 text-muted-foreground" />
+                      <Bell className="h-4 w-4 mr-2 text-muted-foreground" />
                       <span className="text-sm">
                         {incidents.length} incident{incidents.length !== 1 ? 's' : ''} reported
                       </span>
                     </div>
                   )}
+                </div>
+              </CardContent>
+            </Card>
+            
+            {/* User Actions Card */}
+            <Card className="mt-6">
+              <CardHeader>
+                <CardTitle>User Actions</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  {userData.status === "active" ? (
+                    <Button 
+                      variant="outline" 
+                      className="flex-1"
+                      onClick={handleDeactivateUser}
+                    >
+                      <User className="h-4 w-4 mr-2" />
+                      Deactivate User
+                    </Button>
+                  ) : (
+                    <Button 
+                      variant="outline" 
+                      className="flex-1"
+                      onClick={handleActivateUser}
+                    >
+                      <User className="h-4 w-4 mr-2" />
+                      Activate User
+                    </Button>
+                  )}
+                  <Button 
+                    variant="destructive" 
+                    className="flex-1"
+                    onClick={handleDeleteUser}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete User
+                  </Button>
                 </div>
               </CardContent>
             </Card>

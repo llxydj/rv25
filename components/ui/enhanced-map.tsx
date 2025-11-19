@@ -55,12 +55,15 @@ const EnhancedMapComponent: React.FC<EnhancedMapProps> = ({
         style={{ height: "100%", width: "100%" }}
         zoomControl={true}
         className="z-0"
-        whenCreated={(map) => {
+        whenReady={() => {
           // Set proper z-index for map controls
-          const controls = map.getContainer().querySelector(".leaflet-control-container")
-          if (controls) {
-            (controls as HTMLElement).style.zIndex = "400"
-          }
+          // Access map via ref or useMap hook if needed
+          setTimeout(() => {
+            const controls = document.querySelector(".leaflet-control-container")
+            if (controls) {
+              (controls as HTMLElement).style.zIndex = "400"
+            }
+          }, 100)
         }}
         eventHandlers={{
           click: handleMapClick,

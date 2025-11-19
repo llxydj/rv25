@@ -116,31 +116,199 @@ export function IncidentsTable({ incidents, onRowClick }: IncidentsTableProps) {
     )
   }
 
+  // Mobile card view component
+  const IncidentCard = ({ incident }: { incident: Incident }) => (
+    <div 
+      className={`border rounded-lg p-4 mb-3 bg-white hover:bg-gray-50 transition-colors ${incident.is_overdue ? 'border-l-4 border-l-red-500 bg-red-50' : ''}`}
+      onClick={() => onRowClick?.(incident)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onRowClick?.(incident);
+        }
+      }}
+    >
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap mb-1">
+            <h3 className="text-sm font-semibold text-gray-900 truncate">{incident.incident_type}</h3>
+            {incident.severity && getSeverityBadge(incident.severity)}
+            {incident._offline && <Badge variant="outline" className="text-xs">Offline</Badge>}
+            {incident.is_overdue && <Badge variant="destructive" className="text-xs">Overdue</Badge>}
+          </div>
+          <p className="text-xs text-gray-600 line-clamp-2 mb-2">{incident.description}</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            {getPriorityBadge(incident.priority)}
+            <IncidentReferenceId 
+              incidentId={incident.id} 
+              size="sm" 
+              variant="badge"
+              showLabel={false}
+            />
+          </div>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="p-1 h-6 w-6 flex-shrink-0 touch-manipulation"
+          onClick={(e) => {
+            e.stopPropagation()
+            toggleIncident(incident.id)
+          }}
+          aria-label={openIncidents[incident.id] ? `Collapse details` : `Expand details`}
+          aria-expanded={openIncidents[incident.id]}
+        >
+          {openIncidents[incident.id] ? (
+            <ChevronDown className="h-4 w-4" />
+          ) : (
+            <ChevronRight className="h-4 w-4" />
+          )}
+        </Button>
+      </div>
+      
+      <div className="space-y-2 text-xs">
+        <div className="flex items-start gap-2">
+          <MapPin className="h-3.5 w-3.5 text-gray-400 mt-0.5 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <div className="text-gray-900 font-medium">{incident.barangay}</div>
+            <div className="text-gray-500 truncate">{incident.address || "—"}</div>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <span className="text-gray-500">Reporter:</span>
+          <span className="text-gray-900">
+            {incident.reporter 
+              ? (incident.reporter.first_name && incident.reporter.last_name
+                  ? `${incident.reporter.first_name} ${incident.reporter.last_name}`
+                  : incident.reporter.first_name || incident.reporter.last_name || "Unknown")
+              : "Anonymous"}
+          </span>
+        </div>
+        
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-gray-500">Status:</span>
+            {getStatusBadge(incident.status)}
+          </div>
+          <div className="text-gray-500 text-right">
+            {formatDate(incident.created_at)}
+          </div>
+        </div>
+        
+        {incident.assignee && (
+          <div className="flex items-center gap-2">
+            <span className="text-gray-500">Assigned to:</span>
+            <span className="text-gray-900">
+              {incident.assignee.first_name && incident.assignee.last_name
+                ? `${incident.assignee.first_name} ${incident.assignee.last_name}`
+                : incident.assignee.first_name || incident.assignee.last_name || "Unknown"}
+            </span>
+          </div>
+        )}
+      </div>
+      
+      <Collapsible open={openIncidents[incident.id]} onOpenChange={() => {}}>
+        <CollapsibleContent className="mt-3 pt-3 border-t">
+          <div className="space-y-3 text-xs">
+            <div>
+              <h4 className="font-medium text-gray-900 mb-2">Timeline</h4>
+              <div className="space-y-2">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center">
+                    <AlertTriangle className="h-2.5 w-2.5 text-blue-600" />
+                  </div>
+                  <div className="ml-2">
+                    <p className="font-medium text-gray-900">Reported</p>
+                    <p className="text-gray-500">{formatDate(incident.created_at)}</p>
+                  </div>
+                </div>
+                {incident.assigned_at && (
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0 w-5 h-5 rounded-full bg-yellow-100 flex items-center justify-center">
+                      <User className="h-2.5 w-2.5 text-yellow-600" />
+                    </div>
+                    <div className="ml-2">
+                      <p className="font-medium text-gray-900">Assigned</p>
+                      <p className="text-gray-500">{formatDate(incident.assigned_at)}</p>
+                    </div>
+                  </div>
+                )}
+                {incident.responding_at && (
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0 w-5 h-5 rounded-full bg-orange-100 flex items-center justify-center">
+                      <Clock className="h-2.5 w-2.5 text-orange-600" />
+                    </div>
+                    <div className="ml-2">
+                      <p className="font-medium text-gray-900">Responding</p>
+                      <p className="text-gray-500">{formatDate(incident.responding_at)}</p>
+                    </div>
+                  </div>
+                )}
+                {incident.resolved_at && (
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0 w-5 h-5 rounded-full bg-green-100 flex items-center justify-center">
+                      <CheckCircle className="h-2.5 w-2.5 text-green-600" />
+                    </div>
+                    <div className="ml-2">
+                      <p className="font-medium text-gray-900">Resolved</p>
+                      <p className="text-gray-500">{formatDate(incident.resolved_at)}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div>
+              <h4 className="font-medium text-gray-900 mb-2">Location</h4>
+              <p className="text-gray-700">{incident.barangay}</p>
+              <p className="text-gray-500">{incident.address || "No address"}</p>
+              <p className="text-gray-500">{incident.city}, {incident.province}</p>
+            </div>
+            <div>
+              <h4 className="font-medium text-gray-900 mb-2">Description</h4>
+              <p className="text-gray-700">{incident.description}</p>
+            </div>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+    </div>
+  )
+
   return (
     <div className="border rounded-lg overflow-hidden">
-      <div className="overflow-x-auto">
+      {/* Mobile Card View */}
+      <div className="md:hidden p-3">
+        {incidents.map((incident) => (
+          <IncidentCard key={incident.id} incident={incident} />
+        ))}
+      </div>
+      
+      {/* Desktop Table View */}
+      <div className="hidden md:block overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12" aria-label="Expand details">
+              <th scope="col" className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12" aria-label="Expand details">
                 <span className="sr-only">Expand details</span>
               </th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th scope="col" className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Incident
               </th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th scope="col" className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Location
               </th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th scope="col" className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Reporter
               </th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th scope="col" className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Status
               </th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th scope="col" className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Assigned To
               </th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th scope="col" className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Reported
               </th>
             </tr>
@@ -158,11 +326,11 @@ export function IncidentsTable({ incidents, onRowClick }: IncidentsTableProps) {
                     }
                   } : undefined}
                 >
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="p-1 h-6 w-6"
+                      className="p-1 h-6 w-6 touch-manipulation"
                       onClick={(e) => {
                         e.stopPropagation()
                         toggleIncident(incident.id)
@@ -177,7 +345,7 @@ export function IncidentsTable({ incidents, onRowClick }: IncidentsTableProps) {
                       )}
                     </Button>
                   </td>
-                  <td className="px-6 py-4 cursor-pointer" onClick={() => onRowClick?.(incident)}>
+                  <td className="px-4 lg:px-6 py-4 cursor-pointer" onClick={() => onRowClick?.(incident)}>
                     <div>
                       <div className="flex items-center gap-2">
                         <div className="text-sm font-medium text-gray-900">{incident.incident_type}</div>
@@ -201,7 +369,7 @@ export function IncidentsTable({ incidents, onRowClick }: IncidentsTableProps) {
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 cursor-pointer" onClick={() => onRowClick?.(incident)}>
+                  <td className="px-4 lg:px-6 py-4 cursor-pointer" onClick={() => onRowClick?.(incident)}>
                     <div className="flex items-start">
                       <MapPin className="h-4 w-4 text-gray-400 mt-0.5 mr-1 flex-shrink-0" aria-hidden="true" />
                       <div>
@@ -210,7 +378,7 @@ export function IncidentsTable({ incidents, onRowClick }: IncidentsTableProps) {
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 cursor-pointer" onClick={() => onRowClick?.(incident)}>
+                  <td className="px-4 lg:px-6 py-4 cursor-pointer" onClick={() => onRowClick?.(incident)}>
                     {incident.reporter ? (
                       <div>
                         <div className="text-sm font-medium text-gray-900">
@@ -226,7 +394,7 @@ export function IncidentsTable({ incidents, onRowClick }: IncidentsTableProps) {
                       <span className="text-sm text-gray-500">Anonymous</span>
                     )}
                   </td>
-                  <td className="px-6 py-4 cursor-pointer" onClick={() => onRowClick?.(incident)}>
+                  <td className="px-4 lg:px-6 py-4 cursor-pointer" onClick={() => onRowClick?.(incident)}>
                     <div className="flex flex-col gap-1">
                       {getStatusBadge(incident.status)}
                       <div className="text-xs text-gray-500">
@@ -235,7 +403,7 @@ export function IncidentsTable({ incidents, onRowClick }: IncidentsTableProps) {
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 cursor-pointer" onClick={() => onRowClick?.(incident)}>
+                  <td className="px-4 lg:px-6 py-4 cursor-pointer" onClick={() => onRowClick?.(incident)}>
                     {incident.assignee ? (
                       <div className="text-sm">
                         {incident.assignee.first_name && incident.assignee.last_name
@@ -246,7 +414,7 @@ export function IncidentsTable({ incidents, onRowClick }: IncidentsTableProps) {
                       <span className="text-sm text-gray-500">Unassigned</span>
                     )}
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-500 cursor-pointer" onClick={() => onRowClick?.(incident)}>
+                  <td className="px-4 lg:px-6 py-4 text-sm text-gray-500 cursor-pointer" onClick={() => onRowClick?.(incident)}>
                     {formatDate(incident.created_at)}
                   </td>
                 </tr>
@@ -254,7 +422,7 @@ export function IncidentsTable({ incidents, onRowClick }: IncidentsTableProps) {
                   <td colSpan={7} className="p-0">
                     <Collapsible open={openIncidents[incident.id]} onOpenChange={() => {}}>
                       <CollapsibleContent className="border-t bg-gray-50">
-                        <div className="p-4 pl-16">
+                        <div className="p-4 pl-8 lg:pl-16">
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                             <div>
                               <h4 className="text-sm font-medium text-gray-900 mb-2">Timeline</h4>

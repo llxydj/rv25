@@ -7,7 +7,7 @@ import { Bell, X, Settings } from "lucide-react"
 import { subscribeToIncidents, getAllIncidents } from "@/lib/incidents"
 import { notificationService } from "@/lib/notifications"
 import { useRouter } from "next/navigation"
-import { NotificationPreferencesModal } from "@/components/notification-preferences"
+import { NotificationPreferencesComponent } from "@/components/notification-preferences"
 
 export const RealTimeNotifications = () => {
   const [notifications, setNotifications] = useState<any[]>([])
@@ -201,10 +201,9 @@ export const RealTimeNotifications = () => {
         </div>
       )}
 
-      <NotificationPreferencesModal
-        isOpen={showPreferences}
-        onClose={() => setShowPreferences(false)}
-      />
+      {showPreferences && (
+        <NotificationPreferencesComponent />
+      )}
     </div>
   )
 }

@@ -2,7 +2,7 @@
 
 import { AuthLayout } from '@/components/layout/auth-layout'
 import { LocationTrackingToggle } from '@/components/volunteer/location-tracking-toggle'
-import { MapPin, Info } from 'lucide-react'
+import { MapPin, Info } from 'lucide-react' // Fixed import
 
 export default function VolunteerLocationPage() {
   return (
@@ -22,7 +22,7 @@ export default function VolunteerLocationPage() {
         {/* Information Card */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <div className="flex items-start gap-3">
-            <Info className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+            <Info className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" /> {/* Fixed icon */}
             <div className="flex-1">
               <h3 className="font-semibold text-blue-900 mb-2">How Location Sharing Works</h3>
               <ul className="space-y-1 text-sm text-blue-800">

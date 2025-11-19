@@ -78,12 +78,13 @@ export async function POST(request: NextRequest) {
         )
     }
 
-    return new NextResponse(pdfBuffer, {
+    const buffer = Buffer.isBuffer(pdfBuffer) ? pdfBuffer : Buffer.from(pdfBuffer as ArrayBuffer)
+    return new NextResponse(buffer, {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="${reportType}-report-${new Date().toISOString().split('T')[0]}.pdf"`,
-        'Content-Length': pdfBuffer.length.toString(),
+        'Content-Length': buffer.length.toString(),
       },
     })
   } catch (error: any) {
@@ -419,7 +420,7 @@ async function generateAnalyticsReport(filters: ReportFilters): Promise<Buffer> 
 
   const statusData = Object.entries(statusDistribution).map(([status, count]) => [
     status,
-    count.toString(),
+    (count as number).toString(),
     `${((count as number) / totalIncidents * 100).toFixed(1)}%`
   ])
 
@@ -441,7 +442,7 @@ async function generateAnalyticsReport(filters: ReportFilters): Promise<Buffer> 
 
   const typeData = Object.entries(typeDistribution).map(([type, count]) => [
     type,
-    count.toString(),
+    (count as number).toString(),
     `${((count as number) / totalIncidents * 100).toFixed(1)}%`
   ])
 
@@ -466,7 +467,7 @@ async function generateAnalyticsReport(filters: ReportFilters): Promise<Buffer> 
     .slice(0, 10) // Top 10 barangays
     .map(([barangay, count]) => [
       barangay,
-      count.toString(),
+      (count as number).toString(),
       `${((count as number) / totalIncidents * 100).toFixed(1)}%`
     ])
 

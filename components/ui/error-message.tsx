@@ -1,5 +1,5 @@
 import * as React from "react"
-import { AlertCircle, CheckCircle, Info, AlertTriangle } from "lucide-react"
+import { AlertCircle, CheckCircle, CircleInfo, AlertTriangle } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface ErrorMessageProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -32,7 +32,7 @@ const ErrorMessage = React.forwardRef<HTMLDivElement, ErrorMessageProps>(
       error: AlertCircle,
       success: CheckCircle,
       warning: AlertTriangle,
-      info: Info,
+      info: CircleInfo,
     }
     
     const IconComponent = variantIcons[variant]

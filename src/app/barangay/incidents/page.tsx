@@ -109,49 +109,20 @@ export default function BarangayIncidentsPage() {
               </Link>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Type
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Date
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Location
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Reporter
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Assigned To
-                    </th>
-                    <th scope="col" className="relative px-6 py-3">
-                      <span className="sr-only">Actions</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {incidents.map((incident) => (
-                    <tr key={incident.id}>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{incident.incident_type}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-500">
-                          {new Date(incident.created_at).toLocaleDateString()}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-500">{incident.address}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+            <>
+              {/* Mobile Card View */}
+              <div className="md:hidden divide-y">
+                {incidents.map((incident) => (
+                  <div
+                    key={incident.id}
+                    className="p-4 hover:bg-gray-50 transition-colors touch-manipulation"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-sm font-semibold text-gray-900 truncate">{incident.incident_type}</h3>
+                      </div>
+                      <span
+                        className={`px-2 py-1 inline-flex text-xs leading-4 font-semibold rounded-full flex-shrink-0 ml-2 ${
                           incident.status === "PENDING"
                             ? "bg-yellow-100 text-yellow-800"
                             : incident.status === "ASSIGNED"
@@ -159,45 +130,143 @@ export default function BarangayIncidentsPage() {
                               : incident.status === "RESPONDING"
                                 ? "bg-orange-100 text-orange-800"
                                 : "bg-green-100 text-green-800"
-                        }`}>
-                          {incident.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {incident.reporter && (incident.reporter.first_name || incident.reporter.last_name) ? (
-                          <div className="text-sm text-gray-500">
+                        }`}
+                      >
+                        {incident.status}
+                      </span>
+                    </div>
+                    <div className="space-y-2 text-xs text-gray-600">
+                      <div className="flex items-start">
+                        <span className="text-gray-500 w-20 flex-shrink-0">Date:</span>
+                        <div className="text-gray-900">{new Date(incident.created_at).toLocaleDateString()}</div>
+                      </div>
+                      <div className="flex items-start">
+                        <span className="text-gray-500 w-20 flex-shrink-0">Location:</span>
+                        <div className="text-gray-900 truncate">{incident.address}</div>
+                      </div>
+                      {incident.reporter && (incident.reporter.first_name || incident.reporter.last_name) && (
+                        <div className="flex items-start">
+                          <span className="text-gray-500 w-20 flex-shrink-0">Reporter:</span>
+                          <div className="text-gray-900 truncate">
                             {incident.reporter.first_name && incident.reporter.last_name
                               ? `${incident.reporter.first_name} ${incident.reporter.last_name}`
-                              : incident.reporter.first_name || incident.reporter.last_name
-                              ? (incident.reporter.first_name || incident.reporter.last_name)
-                              : "Anonymous Reporter"}
-                            <br />
-                            <span className="text-xs text-gray-400">
-                              ({incident.reporter.role || 'Resident'})
-                            </span>
+                              : incident.reporter.first_name || incident.reporter.last_name}
+                            {incident.reporter.role && ` (${incident.reporter.role})`}
                           </div>
-                        ) : (
-                          <div className="text-sm text-gray-500">Anonymous Reporter</div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {incident.assigned_to
-                          ? `${incident.assigned_to.first_name} ${incident.assigned_to.last_name}`
-                          : "Unassigned"}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <Link
-                          href={`/barangay/incident/${incident.id}`}
-                          className="text-blue-600 hover:text-blue-900"
-                        >
-                          View Details
-                        </Link>
-                      </td>
+                        </div>
+                      )}
+                      {incident.assigned_to && (
+                        <div className="flex items-start">
+                          <span className="text-gray-500 w-20 flex-shrink-0">Assigned:</span>
+                          <div className="text-gray-900">
+                            {incident.assigned_to.first_name} {incident.assigned_to.last_name}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-3 pt-3 border-t">
+                      <Link
+                        href={`/barangay/incident/${incident.id}`}
+                        className="text-sm font-medium text-blue-600 hover:text-blue-500 touch-manipulation inline-block"
+                      >
+                        View Details →
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              {/* Desktop Table View */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th scope="col" className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Type
+                      </th>
+                      <th scope="col" className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Date
+                      </th>
+                      <th scope="col" className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Location
+                      </th>
+                      <th scope="col" className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th scope="col" className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Reporter
+                      </th>
+                      <th scope="col" className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Assigned To
+                      </th>
+                      <th scope="col" className="relative px-4 lg:px-6 py-3">
+                        <span className="sr-only">Actions</span>
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {incidents.map((incident) => (
+                      <tr key={incident.id} className="hover:bg-gray-50">
+                        <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">{incident.incident_type}</div>
+                        </td>
+                        <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-500">
+                            {new Date(incident.created_at).toLocaleDateString()}
+                          </div>
+                        </td>
+                        <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-500">{incident.address}</div>
+                        </td>
+                        <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
+                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            incident.status === "PENDING"
+                              ? "bg-yellow-100 text-yellow-800"
+                              : incident.status === "ASSIGNED"
+                                ? "bg-blue-100 text-blue-800"
+                                : incident.status === "RESPONDING"
+                                  ? "bg-orange-100 text-orange-800"
+                                  : "bg-green-100 text-green-800"
+                          }`}>
+                            {incident.status}
+                          </span>
+                        </td>
+                        <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
+                          {incident.reporter && (incident.reporter.first_name || incident.reporter.last_name) ? (
+                            <div className="text-sm text-gray-500">
+                              {incident.reporter.first_name && incident.reporter.last_name
+                                ? `${incident.reporter.first_name} ${incident.reporter.last_name}`
+                                : incident.reporter.first_name || incident.reporter.last_name
+                                ? (incident.reporter.first_name || incident.reporter.last_name)
+                                : "Anonymous Reporter"}
+                              <br />
+                              <span className="text-xs text-gray-400">
+                                ({incident.reporter.role || 'Resident'})
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="text-sm text-gray-500">Anonymous Reporter</div>
+                          )}
+                        </td>
+                        <td className="px-4 lg:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {incident.assigned_to
+                            ? `${incident.assigned_to.first_name} ${incident.assigned_to.last_name}`
+                            : "Unassigned"}
+                        </td>
+                        <td className="px-4 lg:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <Link
+                            href={`/barangay/incident/${incident.id}`}
+                            className="text-blue-600 hover:text-blue-900 touch-manipulation"
+                          >
+                            View Details
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       </div>

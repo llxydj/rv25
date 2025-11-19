@@ -373,9 +373,9 @@ export class VolunteerFallbackService {
         }
       }
 
-      const totalFallbacks = logs.filter(log => log.event_type === 'SMS_FALLBACK_SENT').length
-      const successfulFallbacks = logs.filter(log => log.event_type === 'SMS_FALLBACK_SENT').length
-      const failedFallbacks = logs.filter(log => log.event_type === 'SMS_FALLBACK_FAILED').length
+      const totalFallbacks = logs.filter((log: any) => log.event_type === 'SMS_FALLBACK_SENT').length
+      const successfulFallbacks = logs.filter((log: any) => log.event_type === 'SMS_FALLBACK_SENT').length
+      const failedFallbacks = logs.filter((log: any) => log.event_type === 'SMS_FALLBACK_FAILED').length
 
       return {
         totalFallbacks,

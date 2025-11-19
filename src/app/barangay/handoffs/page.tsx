@@ -150,7 +150,7 @@ export default function BarangayHandoffsPage() {
         </select>
         <button
           className="ml-auto border rounded px-3 py-1 text-sm hover:bg-gray-50"
-          onClick={load}
+          onClick={() => load()}
         >Refresh</button>
       </div>
 

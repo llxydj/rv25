@@ -62,9 +62,24 @@ export default function LoginPage() {
               setLoading(true)
               setError(null)
               try {
+                // Ensure we start with a clean state - sign out any existing session first
+                const { data: { session } } = await supabase.auth.getSession()
+                if (session) {
+                  await supabase.auth.signOut()
+                  // Wait a moment for sign out to complete
+                  await new Promise(resolve => setTimeout(resolve, 100))
+                }
+                
+                // Now start fresh OAuth flow
                 await supabase.auth.signInWithOAuth({
                   provider: 'google' as any,
-                  options: { redirectTo: `${window.location.origin}/auth/callback` }
+                  options: { 
+                    redirectTo: `${window.location.origin}/auth/callback`,
+                    queryParams: {
+                      access_type: 'offline',
+                      prompt: 'consent', // Force Google to show account selection
+                    }
+                  }
                 })
               } catch (e: any) {
                 setError(e?.message || 'Failed to start Google sign-in')

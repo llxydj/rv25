@@ -393,7 +393,62 @@ export default function AdminDashboard() {
                     View all →
                   </Link>
                 </div>
-                <div className="overflow-x-auto">
+                {/* Mobile Card View */}
+                <div className="md:hidden space-y-3">
+                  {incidents.slice(0, 5).map((incident) => (
+                    <div
+                      key={incident.id}
+                      className="border rounded-lg p-3 bg-white hover:bg-gray-50 transition-colors cursor-pointer touch-manipulation"
+                      onClick={() => router.push(`/admin/incidents/${incident.id}`)}
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-sm font-semibold text-gray-900 truncate">{incident.incident_type}</h3>
+                          <IncidentReferenceId 
+                            incidentId={incident.id} 
+                            size="sm" 
+                            variant="inline"
+                            showLabel={false}
+                            showCopyButton={false}
+                          />
+                        </div>
+                        <span
+                          className={`px-2 py-1 inline-flex text-xs leading-4 font-semibold rounded-full flex-shrink-0 ml-2 ${
+                            incident.status === "PENDING"
+                              ? "bg-yellow-100 text-yellow-800"
+                              : incident.status === "ASSIGNED"
+                                ? "bg-blue-100 text-blue-800"
+                                : incident.status === "RESPONDING"
+                                  ? "bg-orange-100 text-orange-800"
+                                  : incident.status === "RESOLVED"
+                                    ? "bg-green-100 text-green-800"
+                                    : "bg-gray-100 text-gray-800"
+                          }`}
+                        >
+                          {incident.status}
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-500 space-y-1">
+                        <div>Date: {new Date(incident.created_at).toLocaleDateString()}</div>
+                        <div>
+                          Reporter: {incident.reporter && incident.reporter.first_name && incident.reporter.last_name
+                            ? `${incident.reporter.first_name} ${incident.reporter.last_name}`
+                            : incident.reporter && (incident.reporter.first_name || incident.reporter.last_name)
+                            ? (incident.reporter.first_name || incident.reporter.last_name)
+                            : "Anonymous"}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {incidents.length === 0 && (
+                    <div className="text-center py-8">
+                      <div className="text-gray-400 text-sm">No incidents found</div>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Desktop Table View */}
+                <div className="hidden md:block overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>

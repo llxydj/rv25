@@ -367,19 +367,46 @@ export const signOut = async () => {
     const { error: signOutError } = await supabase.auth.signOut()
     if (signOutError) throw signOutError
 
-    // Clear any local storage
+    // Clear any local storage and session storage
     if (typeof window !== 'undefined') {
+      // Clear PIN session
+      sessionStorage.removeItem('pin_unlocked_session')
+      
+      // Clear Supabase auth tokens
       localStorage.removeItem('supabase.auth.token')
+      
+      // Clear all Supabase-related storage
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('sb-') || key.includes('supabase')) {
+          localStorage.removeItem(key)
+        }
+      })
+      
+      Object.keys(sessionStorage).forEach(key => {
+        if (key.startsWith('sb-') || key.includes('supabase')) {
+          sessionStorage.removeItem(key)
+        }
+      })
       
       // Remove any realtime subscriptions
       const subscriptions = supabase.channel('custom-all-channel').unsubscribe()
       // Also remove any presence subscriptions
       supabase.removeAllChannels()
+      
+      // Force a page reload to clear any remaining state
+      // This ensures all React state and hooks are reset
+      window.location.href = '/login'
     }
     
     return { success: true }
   } catch (error: any) {
     console.error('Sign out error:', error)
+    // Even if there's an error, try to clear storage and redirect
+    if (typeof window !== 'undefined') {
+      localStorage.clear()
+      sessionStorage.clear()
+      window.location.href = '/login'
+    }
     return { success: false, message: error.message }
   }
 }

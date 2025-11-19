@@ -228,12 +228,30 @@ export default function ActivitySchedulesPage() {
     setShowForm(true)
   }
 
+  const fetchSchedules = async () => {
+    try {
+      const schedulesResult = await getSchedules()
+      if (schedulesResult.success) {
+        setSchedules(schedulesResult.data || [])
+      } else {
+        setError(schedulesResult.message || "Failed to fetch schedules")
+      }
+    } catch (err: any) {
+      setError(err.message || "An unexpected error occurred")
+    }
+  }
+
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to delete this schedule?")) {
       return
     }
 
-    const result = await deleteSchedule(id)
+    if (!user?.id) {
+      setError("User not authenticated")
+      return
+    }
+
+    const result = await deleteSchedule(user.id, id)
     if (result.success) {
       fetchSchedules()
     } else {

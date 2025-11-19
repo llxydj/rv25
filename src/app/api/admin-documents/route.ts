@@ -71,13 +71,42 @@ export async function POST(request: Request) {
 
     const { data, error } = await supabase
       .from('admin_documents')
-      .insert({ user_id: userId, path: objectName, file_name: file.name, mime_type: file.type, size_bytes: file.size, folder_id: folder_id || null })
+      .insert({ user_id: userId, path: objectName, file_name: file.name, display_name: file.name, mime_type: file.type, size_bytes: file.size, folder_id: folder_id || null })
       .select()
       .single()
     if (error) throw error
     return NextResponse.json({ success: true, data })
   } catch (e: any) {
     return NextResponse.json({ success: false, code: 'INTERNAL_ERROR', message: e?.message || 'Failed to upload document' }, { status: 500 })
+  }
+}
+
+export async function PUT(request: Request) {
+  try {
+    const supabase = await getServerSupabase()
+    const { data: userRes, error: userErr } = await supabase.auth.getUser()
+    if (userErr || !userRes?.user?.id) return NextResponse.json({ success: false, code: 'NOT_AUTHENTICATED', message: 'Not authenticated' }, { status: 401 })
+    const userId = userRes.user.id
+    // Admin-only
+    const { data: me } = await supabase.from('users').select('role').eq('id', userId).maybeSingle()
+    if (!me || me.role !== 'admin') return NextResponse.json({ success: false, code: 'FORBIDDEN' }, { status: 403 })
+
+    const body = await request.json()
+    const { id, display_name } = body
+    if (!id) return NextResponse.json({ success: false, code: 'VALIDATION_ERROR', message: 'Missing id' }, { status: 400 })
+    if (!display_name || display_name.trim() === '') return NextResponse.json({ success: false, code: 'VALIDATION_ERROR', message: 'Display name is required' }, { status: 400 })
+
+    const { data, error } = await supabase
+      .from('admin_documents')
+      .update({ display_name: display_name.trim() })
+      .eq('id', id)
+      .select()
+      .single()
+    
+    if (error) throw error
+    return NextResponse.json({ success: true, data })
+  } catch (e: any) {
+    return NextResponse.json({ success: false, code: 'INTERNAL_ERROR', message: e?.message || 'Failed to update document' }, { status: 500 })
   }
 }
 
