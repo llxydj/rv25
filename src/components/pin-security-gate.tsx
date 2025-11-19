@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Lock, X, Loader2 } from "lucide-react"
-import { useAuth } from "@/lib/auth"
+import { useAuth } from "@/hooks/use-auth"
 
 const SESSION_UNLOCK_KEY = "pin_unlocked_session"
 
@@ -17,58 +17,54 @@ export function PinSecurityGate({ children }: { children: React.ReactNode }) {
   const [showSettings, setShowSettings] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  
-// Inside PinSecurityGate, near the top
-const bypassPin = true; // TEMPORARY: disable PIN
 
-if (bypassPin) {
-  setIsUnlocked(true)
-  setLoading(false)
-  return <>{children}</>
-}
+  const bypassPin = true // TEMPORARY: disable PIN
+
+  // Handle bypass in useEffect to avoid re-render loop
+  useEffect(() => {
+    if (bypassPin) {
+      setIsUnlocked(true)
+      setLoading(false)
+    }
+  }, [bypassPin])
 
   // Check PIN status on mount
   useEffect(() => {
-    const checkPinStatus = async () => {
-      if (!user) {
-        setLoading(false)
-        return
-      }
+    if (bypassPin) return // skip if bypassed
+    if (!user) {
+      setLoading(false)
+      return
+    }
 
+    const checkPinStatus = async () => {
       try {
-        const response = await fetch('/api/pin/status')
-        const result = await response.json()
+        const res = await fetch("/api/pin/status")
+        const result = await res.json()
 
         if (result.success) {
           setPinEnabled(result.enabled)
           setHasPin(result.hasPin)
           setNeedsSetup(result.needsSetup)
 
-          // Check if already unlocked in this session
           if (typeof window !== "undefined") {
             const sessionUnlocked = sessionStorage.getItem(SESSION_UNLOCK_KEY)
-            if (sessionUnlocked === "true" && result.enabled) {
-              setIsUnlocked(true)
-            } else if (!result.enabled || result.excluded) {
-              // PIN disabled or user excluded (barangay)
+            if ((sessionUnlocked === "true" && result.enabled) || !result.enabled || result.excluded) {
               setIsUnlocked(true)
             } else if (result.needsSetup) {
-              // First-time user needs to set PIN
               setShowSettings(true)
             }
           }
         }
       } catch (err) {
-        console.error('Error checking PIN status:', err)
-        // On error, allow access (fail open for UX)
-        setIsUnlocked(true)
+        console.error("Error checking PIN status:", err)
+        setIsUnlocked(true) // fail open for UX
       } finally {
         setLoading(false)
       }
     }
 
     checkPinStatus()
-  }, [user])
+  }, [user, bypassPin])
 
   // Clear PIN unlock on logout
   useEffect(() => {
@@ -81,80 +77,62 @@ if (bypassPin) {
   const handlePinSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
-    
+
     if (inputPin.length !== 4) {
       setError("PIN must be 4 digits")
       return
     }
 
     try {
-      const response = await fetch('/api/pin/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pin: inputPin })
+      const res = await fetch("/api/pin/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin: inputPin }),
       })
-
-      const result = await response.json()
+      const result = await res.json()
 
       if (result.success && result.unlocked) {
         setIsUnlocked(true)
-        if (typeof window !== "undefined") {
-          sessionStorage.setItem(SESSION_UNLOCK_KEY, "true")
-        }
+        sessionStorage.setItem(SESSION_UNLOCK_KEY, "true")
         setInputPin("")
         setError("")
       } else {
         setError(result.message || "Incorrect PIN. Please try again.")
         setInputPin("")
       }
-    } catch (err) {
+    } catch {
       setError("Failed to verify PIN. Please try again.")
       setInputPin("")
     }
   }
 
   const handleTogglePin = async (enabled: boolean) => {
-    // Edge case: If toggling PIN ON mid-session, require re-verification
     if (enabled && isUnlocked) {
-      // User is currently unlocked but wants to enable PIN
-      // This means they need to verify PIN again to stay unlocked
       setError("Enabling PIN security requires re-verification. Please enter your PIN.")
       setIsUnlocked(false)
-      if (typeof window !== "undefined") {
-        sessionStorage.removeItem(SESSION_UNLOCK_KEY)
-      }
+      sessionStorage.removeItem(SESSION_UNLOCK_KEY)
     }
 
     setSaving(true)
     try {
-      const response = await fetch('/api/pin/set', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled })
+      const res = await fetch("/api/pin/set", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled }),
       })
-
-      const result = await response.json()
-
+      const result = await res.json()
       if (result.success) {
         setPinEnabled(enabled)
         if (!enabled) {
-          // Disabling PIN: unlock immediately
           setIsUnlocked(true)
-          if (typeof window !== "undefined") {
-            sessionStorage.setItem(SESSION_UNLOCK_KEY, "true")
-          }
+          sessionStorage.setItem(SESSION_UNLOCK_KEY, "true")
         } else {
-          // Enabling PIN: lock and require verification
           setIsUnlocked(false)
-          if (typeof window !== "undefined") {
-            sessionStorage.removeItem(SESSION_UNLOCK_KEY)
-          }
+          sessionStorage.removeItem(SESSION_UNLOCK_KEY)
         }
-        setError("") // Clear any previous errors
-      } else {
-        setError(result.message || "Failed to update PIN settings")
-      }
-    } catch (err) {
+        setError("")
+      } else setError(result.message || "Failed to update PIN settings")
+    } catch {
       setError("Failed to update PIN settings. Please try again.")
     } finally {
       setSaving(false)
@@ -162,43 +140,36 @@ if (bypassPin) {
   }
 
   const handleSetPin = async (newPin: string) => {
-    if (newPin.length !== 4 || !/^\d{4}$/.test(newPin)) {
+    if (!/^\d{4}$/.test(newPin)) {
       setError("PIN must be exactly 4 digits")
       return
     }
 
     setSaving(true)
     try {
-      const response = await fetch('/api/pin/set', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pin: newPin })
+      const res = await fetch("/api/pin/set", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin: newPin }),
       })
-
-      const result = await response.json()
-
+      const result = await res.json()
       if (result.success) {
         setHasPin(true)
         setNeedsSetup(false)
         setShowSettings(false)
         setInputPin("")
-        setError("")
-        // Auto-unlock after setting PIN
         setIsUnlocked(true)
-        if (typeof window !== "undefined") {
-          sessionStorage.setItem(SESSION_UNLOCK_KEY, "true")
-        }
-      } else {
-        setError(result.message || "Failed to set PIN")
-      }
-    } catch (err) {
+        sessionStorage.setItem(SESSION_UNLOCK_KEY, "true")
+        setError("")
+      } else setError(result.message || "Failed to set PIN")
+    } catch {
       setError("Failed to set PIN. Please try again.")
     } finally {
       setSaving(false)
     }
   }
 
-  // Show loading state
+  // Loading screen
   if (loading) {
     return (
       <div className="fixed inset-0 bg-gray-900 flex items-center justify-center z-50">
@@ -210,17 +181,9 @@ if (bypassPin) {
     )
   }
 
-  // If PIN is disabled or user excluded, show children immediately
-  if (!pinEnabled || !user) {
-    return <>{children}</>
-  }
+  if (bypassPin || !pinEnabled || !user || isUnlocked) return <>{children}</>
 
-  // If unlocked, show children
-  if (isUnlocked) {
-    return <>{children}</>
-  }
-
-  // Show PIN entry screen
+  // PIN entry screen
   return (
     <div className="fixed inset-0 bg-gray-900 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full mx-4">
@@ -257,9 +220,7 @@ if (bypassPin) {
                   const val = e.target.value.replace(/\D/g, "")
                   setInputPin(val)
                   setError("")
-                  if (val.length === 4) {
-                    handleSetPin(val)
-                  }
+                  if (val.length === 4) handleSetPin(val)
                 }}
                 className="w-full px-4 py-2 border border-gray-300 rounded-md text-center text-2xl tracking-widest focus:outline-none focus:ring-2 focus:ring-red-500"
                 placeholder="0000"
@@ -307,50 +268,34 @@ if (bypassPin) {
             )}
           </div>
         ) : (
-          <>
-            <p className="text-gray-600 mb-6 text-center">
-              Enter your 4-digit PIN to access the app
-            </p>
-            
-            <form onSubmit={handlePinSubmit} className="space-y-4">
-              <div>
-                <input
-                  type="password"
-                  inputMode="numeric"
-                  maxLength={4}
-                  value={inputPin}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, "")
-                    setInputPin(val)
-                    setError("")
-                  }}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md text-center text-3xl tracking-widest focus:outline-none focus:ring-2 focus:ring-red-500"
-                  placeholder="0000"
-                  autoFocus
-                />
-                {error && (
-                  <p className="mt-2 text-sm text-red-600 text-center">{error}</p>
-                )}
-              </div>
-              
-              <button
-                type="submit"
-                className="w-full px-4 py-3 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={inputPin.length !== 4}
-              >
-                Unlock
-              </button>
-            </form>
-
-            <div className="mt-4 text-center">
-              <button
-                onClick={() => setShowSettings(true)}
-                className="text-sm text-gray-500 hover:text-gray-700"
-              >
-                Settings
-              </button>
-            </div>
-          </>
+          <form onSubmit={handlePinSubmit} className="space-y-4 text-center">
+            <p className="text-gray-600 mb-6">Enter your 4-digit PIN to access the app</p>
+            <input
+              type="password"
+              inputMode="numeric"
+              maxLength={4}
+              value={inputPin}
+              onChange={(e) => setInputPin(e.target.value.replace(/\D/g, ""))}
+              className="w-full px-4 py-2 border border-gray-300 rounded-md text-center text-3xl tracking-widest focus:outline-none focus:ring-2 focus:ring-red-500"
+              placeholder="0000"
+              autoFocus
+            />
+            {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+            <button
+              type="submit"
+              disabled={inputPin.length !== 4}
+              className="w-full px-4 py-3 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Unlock
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowSettings(true)}
+              className="mt-4 text-sm text-gray-500 hover:text-gray-700"
+            >
+              Settings
+            </button>
+          </form>
         )}
       </div>
     </div>
