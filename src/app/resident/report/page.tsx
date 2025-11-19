@@ -1,12 +1,12 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { AlertTriangle, Camera, MapPin, Upload, X, Clock } from "lucide-react"
+import { AlertTriangle, Camera, MapPin, Upload, X } from "lucide-react"
 import ResidentLayout from "@/components/layout/resident-layout"
 import { useAuth } from "@/lib/auth"
-import { createIncident } from "@/lib/incidents"
+import { createIncident, type CreateIncidentStage } from "@/lib/incidents"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import { MapComponent } from "@/components/ui/map-component"
 import { LocationTracker } from "@/components/location-tracker"
@@ -14,34 +14,24 @@ import { isWithinTalisayCity, TALISAY_CENTER } from "@/lib/geo-utils"
 import { useToast } from "@/components/ui/use-toast"
 import { supabase } from "@/lib/supabase"
 
-const INCIDENT_TYPES = [
-  "FIRE",
-  "FLOOD",
-  "EARTHQUAKE",
-  "MEDICAL EMERGENCY",
-  "CRIME",
-  "TRAFFIC ACCIDENT",
-  "FALLEN TREE",
-  "POWER OUTAGE",
-  "WATER OUTAGE",
-  "LANDSLIDE",
-  "OTHER",
-]
-
 export default function ReportIncidentPage() {
   const { toast } = useToast()
   const { user } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const reportType = searchParams?.get('type') // 'emergency' or 'non-emergency'
-  const isEmergency = reportType === 'emergency'
-  
+  const reportType = searchParams?.get("type")
+  const isEmergency = reportType === "emergency"
+  const autoIncidentType = useMemo(
+    () => (isEmergency ? "EMERGENCY INCIDENT" : "COMMUNITY INCIDENT"),
+    [isEmergency],
+  )
+
   const [formData, setFormData] = useState({
-    incidentType: "",
+    incidentType: autoIncidentType,
     description: "",
     address: "",
     barangay: "",
-    priority: isEmergency ? "1" : "3", // Auto-assign: Emergency = 1, Non-emergency = 3
+    priority: isEmergency ? "1" : "3",
   })
   const [location, setLocation] = useState<[number, number] | null>(null)
   const [photoFile, setPhotoFile] = useState<File | null>(null)
@@ -56,28 +46,19 @@ export default function ReportIncidentPage() {
   const [geoMessage, setGeoMessage] = useState<string | null>(null)
   const [locationCaptured, setLocationCaptured] = useState(false)
   const [photoCaptured, setPhotoCaptured] = useState(false)
-  const [emergencyTimer, setEmergencyTimer] = useState<number | null>(null)
+  const [submitStage, setSubmitStage] = useState<string | null>(null)
 
   useEffect(() => {
-    // Redirect if no report type specified
     if (!reportType) {
-      router.push('/resident/dashboard')
+      router.push("/resident/dashboard")
       return
     }
-
-    // Start emergency timer (30 seconds)
-    if (isEmergency) {
-      const startTime = Date.now()
-      const timer = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - startTime) / 1000)
-        setEmergencyTimer(30 - elapsed)
-        if (elapsed >= 30) {
-          clearInterval(timer)
-        }
-      }, 1000)
-      return () => clearInterval(timer)
-    }
-  }, [reportType, isEmergency, router])
+    setFormData((prev) => ({
+      ...prev,
+      incidentType: autoIncidentType,
+      priority: isEmergency ? "1" : "3",
+    }))
+  }, [reportType, router, autoIncidentType, isEmergency])
 
   useEffect(() => {
     // Check if online
@@ -331,9 +312,6 @@ export default function ReportIncidentPage() {
       if (sanitizedValue.length > 0) {
         sanitizedValue = sanitizedValue.charAt(0).toUpperCase() + sanitizedValue.slice(1).toLowerCase()
       }
-    } else if (name === "incidentType") {
-      // Keep incident type in uppercase
-      sanitizedValue = value.toUpperCase()
     } else if (name === "barangay") {
       // Keep the exact option value (only trim). Do NOT change case, or the <select> value won't match an option.
       sanitizedValue = value.trim()
@@ -466,13 +444,7 @@ export default function ReportIncidentPage() {
       return false
     }
 
-    // Step 3: Incident type required
-    if (!formData.incidentType) {
-      setError("Please select an incident type")
-      return false
-    }
-
-    // Step 4: Description required
+    // Step 3: Description required
     if (!formData.description || formData.description.trim().length < 10) {
       setError("Please provide a detailed description (at least 10 characters)")
       return false
@@ -492,6 +464,7 @@ export default function ReportIncidentPage() {
 
     // Clear any previous errors
     setError(null)
+    setSubmitStage(null)
     return true
   }
 
@@ -530,6 +503,7 @@ export default function ReportIncidentPage() {
     // No need to validate priority - it's hidden from user
 
     setLoading(true)
+    setSubmitStage(isOffline ? "Saving report for offline delivery…" : "Preparing your report…")
 
     // If offline, store the report locally
     if (isOffline) {
@@ -577,6 +551,7 @@ export default function ReportIncidentPage() {
         })
       } finally {
         setLoading(false)
+        setSubmitStage(null)
       }
       return
     }
@@ -608,6 +583,13 @@ export default function ReportIncidentPage() {
         throw new Error("Your session has expired. Please log in again.")
       }
 
+      const stageMessages: Record<CreateIncidentStage, string> = {
+        "verify-session": "Verifying your session…",
+        "upload-photo": "Uploading photo evidence…",
+        "create-record": "Sending report to command center…",
+        done: "Finalizing…",
+      }
+
       const result = await createIncident(
         user.id,
         formData.incidentType,
@@ -618,6 +600,15 @@ export default function ReportIncidentPage() {
         formData.barangay,
         photoFile,
         Number.parseInt(formData.priority),
+        false,
+        undefined,
+        {
+          sessionUserId: session.user.id,
+          accessToken: session.access_token || undefined,
+          onStageChange: (stage) => {
+            setSubmitStage(stageMessages[stage] || null)
+          },
+        },
       )
 
       if (!result.success) {
@@ -666,6 +657,7 @@ export default function ReportIncidentPage() {
       })
     } finally {
       setLoading(false)
+      setSubmitStage(null)
     }
   }
 
@@ -677,22 +669,10 @@ export default function ReportIncidentPage() {
             {isEmergency ? "🚨 EMERGENCY REPORT" : "📋 Non-Emergency Report"}
           </h1>
           <p className="text-gray-600 mt-1">
-            {isEmergency 
-              ? "Life-threatening situation - Complete this report quickly (within 30 seconds)"
+            {isEmergency
+              ? "Life-threatening situation – focus on the essentials and submit as soon as you can."
               : "Please provide as much detail as possible to help emergency responders."}
           </p>
-          {isEmergency && emergencyTimer !== null && emergencyTimer > 0 && (
-            <div className="mt-2 flex items-center justify-center gap-2 text-red-600 font-semibold bg-red-50 border-2 border-red-300 rounded-lg p-3 shadow-sm">
-              <Clock className="h-6 w-6 animate-pulse" />
-              <span className="text-lg">Time remaining: <span className="text-2xl font-bold">{emergencyTimer}s</span></span>
-            </div>
-          )}
-          {isEmergency && emergencyTimer !== null && emergencyTimer <= 0 && (
-            <div className="mt-2 flex items-center justify-center gap-2 text-red-700 font-semibold bg-red-100 border-2 border-red-400 rounded-lg p-3">
-              <AlertTriangle className="h-6 w-6" />
-              <span className="text-lg">Time's up! Please submit your report immediately.</span>
-            </div>
-          )}
         </div>
 
         {isOffline && (
@@ -933,45 +913,54 @@ export default function ReportIncidentPage() {
             </div>
           </div>
 
-          {/* STEP 3: Report Type Selection */}
+          {/* STEP 3: Incident Classification */}
           <div className="bg-white p-6 rounded-lg shadow-md">
-            <h2 className="text-lg font-semibold mb-4">Step 3: Report Type Selection</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label htmlFor="incidentType" className="block text-sm font-medium text-gray-700">
-                  Incident Type *
-                </label>
-                <select
-                  id="incidentType"
-                  name="incidentType"
-                  required
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 sm:text-sm text-gray-900 bg-white"
-                  value={formData.incidentType}
-                  onChange={handleChange}
-                  disabled={loading}
-                >
-                  <option value="">Select Incident Type</option>
-                  {INCIDENT_TYPES.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
-                </select>
+            <h2 className="text-lg font-semibold mb-4">Step 3: Incident Classification</h2>
+            <div className="space-y-4">
+              <div className="p-4 border border-gray-200 rounded-md bg-gray-50">
+                <p className="text-sm text-gray-600">Current incident type</p>
+                <p className="text-base font-semibold text-gray-900">{formData.incidentType}</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Pick the option that matches what is happening. You can switch below if you tapped the wrong entry point.
+                </p>
               </div>
-              
+
+              <div className="p-4 border border-yellow-200 rounded-md bg-yellow-50">
+                <p className="text-sm font-medium text-gray-800">Who sets the classification?</p>
+                <p className="text-xs text-gray-700 mt-1">
+                  The system uses the button you tapped (Emergency or Non-Emergency) to route responders. If you selected the
+                  wrong path, cancel below and re-open the correct report type so our team receives the proper alert.
+                </p>
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    onClick={() => router.push("/resident/dashboard")}
+                    className="text-sm font-semibold text-red-600 hover:text-red-500 underline"
+                  >
+                    Cancel and choose another option
+                  </button>
+                </div>
+              </div>
+
               {/* Hidden priority field - auto-assigned based on emergency type */}
               <input type="hidden" name="priority" value={formData.priority} />
-              {isEmergency && (
-                <div className="bg-red-50 p-3 rounded-md">
+
+              {isEmergency ? (
+                <div className="bg-red-50 p-3 rounded-md border border-red-200">
                   <p className="text-sm text-red-800 font-medium">
-                    ⚠️ Emergency Priority: Critical (Auto-assigned)
+                    ⚠️ Emergency Priority: Critical (auto-assigned)
+                  </p>
+                  <p className="text-xs text-red-700 mt-1">
+                    Responders are alerted immediately with highest urgency.
                   </p>
                 </div>
-              )}
-              {!isEmergency && (
-                <div className="bg-green-50 p-3 rounded-md">
+              ) : (
+                <div className="bg-green-50 p-3 rounded-md border border-green-200">
                   <p className="text-sm text-green-800 font-medium">
-                    ℹ️ Non-Emergency Priority: Medium (Auto-assigned)
+                    ℹ️ Non-Emergency Priority: Standard (auto-assigned)
+                  </p>
+                  <p className="text-xs text-green-700 mt-1">
+                    The team reviews and dispatches responders based on availability.
                   </p>
                 </div>
               )}
@@ -1072,6 +1061,9 @@ export default function ReportIncidentPage() {
               )}
             </button>
           </div>
+          {loading && submitStage && (
+            <p className="text-right text-xs text-gray-500">{submitStage}</p>
+          )}
         </form>
       </div>
     </ResidentLayout>

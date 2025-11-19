@@ -248,6 +248,16 @@ export const getIncidentById = async (incidentId: string) => {
   }
 }
 
+type CreateIncidentStage = "verify-session" | "upload-photo" | "create-record" | "done"
+
+type CreateIncidentOptions = {
+  sessionUserId?: string
+  accessToken?: string
+  onStageChange?: (stage: CreateIncidentStage) => void
+}
+
+export type { CreateIncidentStage }
+
 // Create new incident
 export const createIncident = async (
   reporterId: string,
@@ -261,16 +271,26 @@ export const createIncident = async (
   priority = 3,
   isOffline = false,
   createdAtLocal?: string,
+  options?: CreateIncidentOptions,
 ) => {
   try {
     console.time('createIncident.total')
-    // Debug: Log the reporter ID and auth status
-    const { data: { user } } = await supabase.auth.getUser()
-    console.log("Current auth user:", user?.id)
-    console.log("Provided reporter ID:", reporterId)
 
-    // Verify the user is authenticated and IDs match
-    if (!user || user.id !== reporterId) {
+    const notifyStage = (stage: CreateIncidentStage) => {
+      if (options?.onStageChange) {
+        options.onStageChange(stage)
+      }
+    }
+
+    notifyStage("verify-session")
+    let authUserId = options?.sessionUserId
+    if (!authUserId) {
+      const { data: { user } } = await supabase.auth.getUser()
+      console.log("Current auth user:", user?.id)
+      authUserId = user?.id || null
+    }
+
+    if (!authUserId || authUserId !== reporterId) {
       throw new Error("Authentication mismatch. Please try logging in again.")
     }
 
@@ -286,6 +306,7 @@ export const createIncident = async (
 
     // Server-managed upload: send file to /api/incidents/upload to ensure atomicity
     if (photoFile) {
+      notifyStage("upload-photo")
       console.log("Attempting server-managed photo upload:", {
         fileName: photoFile.name,
         fileSize: photoFile.size,
@@ -296,10 +317,14 @@ export const createIncident = async (
       form.append('reporter_id', reporterId)
       
       // Get session token to pass in Authorization header
-      const { data: { session } } = await supabase.auth.getSession()
+      let accessToken = options?.accessToken
+      if (!accessToken) {
+        const { data: { session } } = await supabase.auth.getSession()
+        accessToken = session?.access_token || undefined
+      }
       const headers: Record<string, string> = {}
-      if (session?.access_token) {
-        headers['Authorization'] = `Bearer ${session.access_token}`
+      if (accessToken) {
+        headers['Authorization'] = `Bearer ${accessToken}`
       }
       
       console.time('createIncident.upload')
@@ -319,6 +344,7 @@ export const createIncident = async (
     }
 
     // Send to API to perform server-side verification and normalization
+    notifyStage("create-record")
     console.time('createIncident.api')
     const apiRes = await fetch('/api/incidents', {
       method: 'POST',
@@ -347,6 +373,7 @@ export const createIncident = async (
 
     console.log('Incident created via API:', apiJson.data)
     console.timeEnd('createIncident.total')
+    notifyStage("done")
     return { success: true, data: apiJson.data }
   } catch (error: any) {
     console.error("Error creating incident:", error)

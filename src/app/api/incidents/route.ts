@@ -238,6 +238,30 @@ export async function POST(request: Request) {
     if (!parsed.success) return NextResponse.json({ success: false, code: 'VALIDATION_ERROR', message: 'Invalid payload', issues: parsed.error.flatten() }, { status: 400 })
 
     const { reporter_id, incident_type, description, location_lat, location_lng, address, barangay, priority, photo_url, is_offline, created_at_local } = parsed.data
+    const normalizedIncidentType = incident_type.trim().toUpperCase()
+    const normalizedPriority = Number(priority)
+
+    if (normalizedIncidentType === "EMERGENCY INCIDENT" && normalizedPriority !== 1) {
+      return NextResponse.json(
+        {
+          success: false,
+          code: "CLASSIFICATION_MISMATCH",
+          message: "Emergency incidents must be submitted with critical priority.",
+        },
+        { status: 400 },
+      )
+    }
+
+    if (normalizedIncidentType === "COMMUNITY INCIDENT" && normalizedPriority !== 3) {
+      return NextResponse.json(
+        {
+          success: false,
+          code: "CLASSIFICATION_MISMATCH",
+          message: "Community / non-emergency incidents must use the standard priority level.",
+        },
+        { status: 400 },
+      )
+    }
 
     // Debug: log coordinates being checked
     console.log('Checking coordinates:', { location_lat, location_lng })
@@ -371,7 +395,7 @@ export async function POST(request: Request) {
 
     const payload = {
       reporter_id,
-      incident_type: incident_type.toUpperCase(),
+      incident_type: normalizedIncidentType,
       description: description.trim(),
       location_lat,
       location_lng,
@@ -380,8 +404,8 @@ export async function POST(request: Request) {
       city: 'TALISAY CITY',
       province: 'NEGROS OCCIDENTAL',
       status: 'PENDING',
-      priority,
-      severity: mapPriorityToSeverity(Number(priority)),
+      priority: normalizedPriority,
+      severity: mapPriorityToSeverity(normalizedPriority),
       photo_url: finalPhotoPath,
     }
 
