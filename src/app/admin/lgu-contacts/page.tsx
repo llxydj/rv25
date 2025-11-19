@@ -15,7 +15,6 @@ interface LguContact {
 }
 
 export default function AdminLguContactsPage() {
-  const FEATURE_ENABLED = process.env.NEXT_PUBLIC_FEATURE_INTER_LGU_ENABLED === 'true'
   const { user } = useAuth()
   const [loading, setLoading] = useState(false)
   const [contacts, setContacts] = useState<LguContact[]>([])
@@ -45,22 +44,8 @@ export default function AdminLguContactsPage() {
   }
 
   useEffect(() => {
-    if (!FEATURE_ENABLED) return
     loadContacts()
   }, [])
-
-  if (!FEATURE_ENABLED) {
-    return (
-      <AdminLayout>
-        <div className="p-6">
-          <h1 className="text-2xl font-bold">LGU Contacts</h1>
-          <div className="mt-4 bg-yellow-50 border-l-4 border-yellow-500 p-3 text-sm text-yellow-800">
-            Inter-LGU coordination is disabled. Enable NEXT_PUBLIC_FEATURE_INTER_LGU_ENABLED to use this page.
-          </div>
-        </div>
-      </AdminLayout>
-    )
-  }
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()

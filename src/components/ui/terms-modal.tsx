@@ -162,7 +162,7 @@ export const TermsModal: React.FC<TermsModalProps> = ({
         {/* Content */}
         <div 
           ref={scrollContainerRef}
-          className="p-6 overflow-y-auto flex-1 bg-gray-50 scroll-smooth"
+          className="relative p-6 overflow-y-auto flex-1 bg-gray-50 scroll-smooth"
           onScroll={handleScroll}
         >
           <div ref={termsSectionRef} id="terms-section" className="bg-white rounded-lg p-6 shadow-sm mb-6">

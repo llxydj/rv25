@@ -733,38 +733,6 @@ export interface Database {
           created_at?: string
         }
       }
-      incident_handoffs: {
-        Row: {
-          id: number
-          incident_id: string
-          from_lgu: string
-          to_lgu: string
-          status: "PENDING" | "ACCEPTED" | "REJECTED" | "COMPLETED"
-          notes: string | null
-          created_by: string
-          created_at: string
-        }
-        Insert: {
-          id?: number
-          incident_id: string
-          from_lgu: string
-          to_lgu: string
-          status?: "PENDING" | "ACCEPTED" | "REJECTED" | "COMPLETED"
-          notes?: string | null
-          created_by: string
-          created_at?: string
-        }
-        Update: {
-          id?: number
-          incident_id?: string
-          from_lgu?: string
-          to_lgu?: string
-          status?: "PENDING" | "ACCEPTED" | "REJECTED" | "COMPLETED"
-          notes?: string | null
-          created_by?: string
-          created_at?: string
-        }
-      }
       feedback: {
         Row: {
           id: number

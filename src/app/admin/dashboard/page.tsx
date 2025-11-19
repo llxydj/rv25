@@ -437,6 +437,12 @@ export default function AdminDashboard() {
                             ? (incident.reporter.first_name || incident.reporter.last_name)
                             : "Anonymous"}
                         </div>
+                        <div>
+                          Contact:{" "}
+                          {incident.reporter && incident.reporter.phone_number
+                            ? incident.reporter.phone_number
+                            : "Not provided"}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -475,6 +481,12 @@ export default function AdminDashboard() {
                           className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                         >
                           Reporter
+                        </th>
+                        <th
+                          scope="col"
+                          className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                        >
+                          Contact
                         </th>
                       </tr>
                     </thead>
@@ -525,6 +537,11 @@ export default function AdminDashboard() {
                               : incident.reporter && (incident.reporter.first_name || incident.reporter.last_name)
                               ? (incident.reporter.first_name || incident.reporter.last_name)
                               : "Anonymous Reporter"}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {incident.reporter && incident.reporter.phone_number
+                              ? incident.reporter.phone_number
+                              : "Not provided"}
                           </td>
                         </tr>
                       ))}

@@ -31,8 +31,6 @@ export default function IncidentDetailPage() {
   const [updates, setUpdates] = useState<any[]>([])
   const [resolutionNotes, setResolutionNotes] = useState("")
   const [updatingStatus, setUpdatingStatus] = useState(false)
-  const [handoffTo, setHandoffTo] = useState("")
-  const [handoffSubmitting, setHandoffSubmitting] = useState(false)
   const [showNotification, setShowNotification] = useState(false)
   const [notificationMessage, setNotificationMessage] = useState("")
 
@@ -828,48 +826,6 @@ export default function IncidentDetailPage() {
                   </p>
                 )}
 
-                {process.env.NEXT_PUBLIC_FEATURE_INTER_LGU_ENABLED === 'true' && (
-                  <div className="mt-6 border-t pt-4">
-                    <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center"><span className="mr-2">↗</span> Inter-LGU Handoff</h4>
-                    <div className="flex gap-2">
-                      <input
-                        className="flex-1 border rounded px-3 py-2 text-gray-900"
-                        placeholder="Target LGU (e.g., Brgy XYZ)"
-                        value={handoffTo}
-                        onChange={(e)=>setHandoffTo(e.target.value)}
-                      />
-                      <button
-                        className="px-4 py-2 rounded bg-indigo-600 text-white disabled:opacity-50"
-                        disabled={!handoffTo || handoffSubmitting}
-                        onClick={async ()=>{
-                          if (!user) return
-                          setHandoffSubmitting(true)
-                          try {
-                            const res = await fetch('/api/incident-handoffs', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ incident_id: incident.id, from_lgu: incident.barangay, to_lgu: handoffTo, created_by: user.id })
-                            })
-                            const json = await res.json()
-                            if (res.ok && json.success) {
-                              setNotificationMessage('Handoff requested')
-                              setShowNotification(true)
-                              setHandoffTo("")
-                            } else {
-                              setError(json.message || 'Failed to create handoff')
-                            }
-                          } catch (e: any) {
-                            setError(e?.message || 'Failed to create handoff')
-                          } finally {
-                            setHandoffSubmitting(false)
-                          }
-                        }}
-                      >
-                        Request Handoff
-                      </button>
-                    </div>
-                  </div>
-                )}
               </div>
             )}
           </div>

@@ -33,7 +33,6 @@ const CRITICAL_TABLES = [
   'incidents',
   'incident_updates',
   'incident_feedback',
-  'incident_handoffs',
   'reports',
   'sms_logs',
   'sms_deliveries',

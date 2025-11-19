@@ -239,39 +239,6 @@ export type Database = {
           },
         ]
       }
-      incident_handoffs: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          from_lgu: string
-          id: number
-          incident_id: string
-          notes: string | null
-          status: string
-          to_lgu: string
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          from_lgu: string
-          id?: number
-          incident_id: string
-          notes?: string | null
-          status?: string
-          to_lgu: string
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          from_lgu?: string
-          id?: number
-          incident_id?: string
-          notes?: string | null
-          status?: string
-          to_lgu?: string
-        }
-        Relationships: []
-      }
       incident_updates: {
         Row: {
           created_at: string | null

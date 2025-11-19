@@ -256,19 +256,6 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
               </>
             )}
 
-            {process.env.NEXT_PUBLIC_FEATURE_INTER_LGU_ENABLED === 'true' && (
-              <Link
-                href="/admin/handoffs"
-                className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 ${
-                  isActive("/admin/handoffs") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md"
-                }`}
-                onClick={() => setSidebarOpen(false)}
-              >
-                <AlertTriangle className="h-5 w-5 flex-shrink-0" />
-                <span className="font-medium truncate">Inter-LGU Handoffs</span>
-              </Link>
-            )}
-
             <Link
               href="/admin/settings"
               className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 ${
