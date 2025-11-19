@@ -246,7 +246,7 @@ export const signUpResident = async (
             confirmation_phrase: confirmationPhrase, // Add in user_metadata as well
           }
         },
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : '/auth/callback',
       },
     })
 
@@ -358,7 +358,7 @@ export const signOut = async () => {
 export const sendPasswordResetEmail = async (email: string) => {
   try {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: typeof window !== 'undefined' ? `${window.location.origin}/reset-password` : '/reset-password',
     })
     
     if (error) throw error
