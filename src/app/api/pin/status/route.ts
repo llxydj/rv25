@@ -5,17 +5,13 @@ export async function GET() {
   try {
     const supabase = await getServerSupabase()
     const { data: userRes, error: userErr } = await supabase.auth.getUser()
-    
+
     if (userErr || !userRes?.user?.id) {
-      return NextResponse.json(
-        { success: false, message: 'Not authenticated' },
-        { status: 401 }
-      )
+      return NextResponse.json({ success: false, message: 'Not authenticated' }, { status: 401 })
     }
 
     const userId = userRes.user.id
 
-    // Get user's PIN status
     const { data: userData, error: userError } = await supabase
       .from('users')
       .select('role, pin_hash, pin_enabled')
@@ -23,23 +19,14 @@ export async function GET() {
       .single()
 
     if (userError || !userData) {
-      return NextResponse.json(
-        { success: false, message: 'User not found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ success: false, message: 'User not found' }, { status: 404 })
     }
 
-    // Barangay users are excluded
+    // Exclude barangay users
     if (userData.role === 'barangay') {
-      return NextResponse.json({
-        success: true,
-        enabled: false,
-        hasPin: false,
-        excluded: true
-      })
+      return NextResponse.json({ success: true, enabled: false, hasPin: false, excluded: true })
     }
 
-    // Default to enabled if not set
     const pinEnabled = userData.pin_enabled !== false
     const hasPin = !!userData.pin_hash
 
@@ -51,10 +38,6 @@ export async function GET() {
     })
   } catch (error: any) {
     console.error('PIN status error:', error)
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ success: false, message: 'Internal server error' }, { status: 500 })
   }
 }
-
