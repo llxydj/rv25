@@ -1,8 +1,8 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
-import { X, FileText, Shield, Check } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { X, FileText, Shield, Check, ArrowDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 interface TermsModalProps {
@@ -12,7 +12,7 @@ interface TermsModalProps {
   requireAcceptance?: boolean
 }
 
-type TabType = 'terms' | 'privacy'
+type SectionType = 'terms' | 'privacy'
 
 export const TermsModal: React.FC<TermsModalProps> = ({ 
   isOpen, 
@@ -20,25 +20,77 @@ export const TermsModal: React.FC<TermsModalProps> = ({
   onAccept,
   requireAcceptance = false 
 }) => {
-  const [activeTab, setActiveTab] = useState<TabType>('terms')
+  const [activeSection, setActiveSection] = useState<SectionType>('terms')
   const [termsAccepted, setTermsAccepted] = useState(false)
   const [privacyAccepted, setPrivacyAccepted] = useState(false)
   const [hasScrolledTerms, setHasScrolledTerms] = useState(false)
   const [hasScrolledPrivacy, setHasScrolledPrivacy] = useState(false)
 
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const termsSectionRef = useRef<HTMLDivElement>(null)
+  const privacySectionRef = useRef<HTMLDivElement>(null)
+  const bottomRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!isOpen) {
+      setActiveSection('terms')
+      setTermsAccepted(false)
+      setPrivacyAccepted(false)
+      setHasScrolledTerms(false)
+      setHasScrolledPrivacy(false)
+    }
+  }, [isOpen])
+
   if (!isOpen) return null
 
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const target = e.target as HTMLDivElement
-    const scrolledToBottom = target.scrollHeight - target.scrollTop <= target.clientHeight + 50
-    
-    if (scrolledToBottom) {
-      if (activeTab === 'terms') {
+  const setSectionProgress = (section: SectionType) => {
+    const container = scrollContainerRef.current
+    const sectionRef = section === 'terms' ? termsSectionRef.current : privacySectionRef.current
+
+    if (!container || !sectionRef) return
+
+    const { scrollTop, clientHeight } = container
+    const sectionBottom = sectionRef.offsetTop + sectionRef.offsetHeight
+
+    if (scrollTop + clientHeight >= sectionBottom - 24) {
+      if (section === 'terms') {
         setHasScrolledTerms(true)
       } else {
         setHasScrolledPrivacy(true)
       }
     }
+  }
+
+  const handleScroll = () => {
+    const container = scrollContainerRef.current
+    if (!container) return
+
+    const { scrollTop } = container
+    const privacyTop = privacySectionRef.current?.offsetTop ?? Number.MAX_SAFE_INTEGER
+
+    if (scrollTop >= privacyTop - 120) {
+      setActiveSection('privacy')
+    } else {
+      setActiveSection('terms')
+    }
+
+    setSectionProgress('terms')
+    setSectionProgress('privacy')
+  }
+
+  const scrollToSection = (section: SectionType | 'bottom') => {
+    const container = scrollContainerRef.current
+    if (!container) return
+
+    if (section === 'bottom') {
+      container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' })
+      return
+    }
+
+    const sectionRef = section === 'terms' ? termsSectionRef.current : privacySectionRef.current
+    if (!sectionRef) return
+
+    container.scrollTo({ top: sectionRef.offsetTop - 12, behavior: 'smooth' })
   }
 
   const handleAccept = () => {
@@ -70,46 +122,50 @@ export const TermsModal: React.FC<TermsModalProps> = ({
           )}
         </div>
 
-        {/* Tabs */}
-        <div className="flex border-b bg-gray-50">
+        {/* Quick navigation */}
+        <div className="flex flex-wrap gap-3 items-center justify-between px-6 py-4 border-b bg-white/80">
+          <div className="flex gap-2">
+            <button
+              onClick={() => scrollToSection('terms')}
+              className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-all ${
+                activeSection === 'terms'
+                  ? 'bg-red-600 text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <FileText className="h-4 w-4" />
+              Terms & Conditions
+              {termsAccepted && requireAcceptance && <Check className="h-4 w-4 text-white" />}
+            </button>
+            <button
+              onClick={() => scrollToSection('privacy')}
+              className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-all ${
+                activeSection === 'privacy'
+                  ? 'bg-red-600 text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <Shield className="h-4 w-4" />
+              Privacy Policy
+              {privacyAccepted && requireAcceptance && <Check className="h-4 w-4 text-white" />}
+            </button>
+          </div>
           <button
-            onClick={() => setActiveTab('terms')}
-            className={`flex-1 px-6 py-4 font-semibold transition-all flex items-center justify-center gap-2 ${
-              activeTab === 'terms'
-                ? 'bg-white text-red-600 border-b-2 border-red-600'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-            }`}
+            onClick={() => scrollToSection('bottom')}
+            className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold bg-gray-900 text-white hover:bg-black transition-colors"
           >
-            <FileText className="h-5 w-5" />
-            Terms & Conditions
-            {termsAccepted && requireAcceptance && (
-              <Check className="h-4 w-4 text-green-600" />
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab('privacy')}
-            className={`flex-1 px-6 py-4 font-semibold transition-all flex items-center justify-center gap-2 ${
-              activeTab === 'privacy'
-                ? 'bg-white text-red-600 border-b-2 border-red-600'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-            }`}
-          >
-            <Shield className="h-5 w-5" />
-            Privacy Policy
-            {privacyAccepted && requireAcceptance && (
-              <Check className="h-4 w-4 text-green-600" />
-            )}
+            Jump to Bottom
+            <ArrowDown className="h-4 w-4" />
           </button>
         </div>
 
         {/* Content */}
         <div 
-          className="p-6 overflow-y-auto flex-1 bg-gray-50" 
+          ref={scrollContainerRef}
+          className="p-6 overflow-y-auto flex-1 bg-gray-50 scroll-smooth"
           onScroll={handleScroll}
-          style={{ scrollBehavior: 'smooth' }}
         >
-          {activeTab === 'terms' ? (
-            <div className="bg-white rounded-lg p-6 shadow-sm">
+          <div ref={termsSectionRef} id="terms-section" className="bg-white rounded-lg p-6 shadow-sm mb-6">
               <p className="text-sm text-gray-500 mb-6 italic">Last revised: May 1, 2025</p>
 
               <h3 className="font-bold text-xl mb-3 text-gray-900 border-b pb-2">1. Introduction</h3>
@@ -211,9 +267,9 @@ export const TermsModal: React.FC<TermsModalProps> = ({
                 <p className="mb-2 text-gray-800"><strong>☎️ Landline:</strong> 712-3118</p>
                 <p className="text-gray-800"><strong>🏢 Address:</strong> Talisay City, Negros Occidental, Philippines</p>
               </div>
-            </div>
-          ) : (
-            <div className="bg-white rounded-lg p-6 shadow-sm">
+          </div>
+
+          <div ref={privacySectionRef} id="privacy-section" className="bg-white rounded-lg p-6 shadow-sm">
               <p className="text-sm text-gray-500 mb-2 italic">Last Updated: May 1, 2025</p>
               <p className="text-sm text-gray-500 mb-6 italic">Effective Date: May 5, 2025</p>
 
@@ -367,15 +423,16 @@ export const TermsModal: React.FC<TermsModalProps> = ({
                 <li>SEC Memorandum Circular No. 10, Series of 2014 on the protection of stakeholder information</li>
               </ul>
             </div>
-          )}
+
+          <div ref={bottomRef} />
 
           {/* Scroll indicator */}
           {requireAcceptance && (
             <div className="mt-4 text-center">
-              {((activeTab === 'terms' && !hasScrolledTerms) || (activeTab === 'privacy' && !hasScrolledPrivacy)) && (
+              {(!hasScrolledTerms || !hasScrolledPrivacy) && (
                 <p className="text-sm text-amber-600 flex items-center justify-center gap-2">
                   <span className="animate-bounce">↓</span>
-                  Please scroll to the bottom to continue
+                  Please review both sections (use quick jumps if needed) to continue
                   <span className="animate-bounce">↓</span>
                 </p>
               )}
