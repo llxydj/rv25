@@ -314,6 +314,36 @@ export const createVolunteer = async (
   }
 }
 
+// Create an admin account (admin only)
+export const createAdminAccount = async (
+  adminId: string,
+  email: string,
+  password: string,
+  firstName: string,
+  lastName: string,
+  phoneNumber: string,
+) => {
+  try {
+    const response = await fetch("/api/admin/users/admins", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        adminId,
+        email,
+        password,
+        firstName,
+        lastName,
+        phoneNumber
+      })
+    })
+
+    const result = await response.json()
+    return result
+  } catch (error: any) {
+    return { success: false, message: error?.message || "Failed to create admin account" }
+  }
+}
+
 // Sign in
 export const signIn = async (email: string, password: string) => {
   try {

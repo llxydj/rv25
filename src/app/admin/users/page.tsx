@@ -34,6 +34,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import Link from "next/link"
 
 // Define user types
 type UserRole = "admin" | "volunteer" | "resident" | "barangay"
@@ -387,10 +388,24 @@ export default function UserManagementPage() {
       <div className="space-y-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between">
           <h1 className="text-2xl font-bold text-black">User Management</h1>
-          <Button className="mt-4 md:mt-0" onClick={handleExportCSV}>
-            <Download className="mr-2 h-4 w-4" />
-            Export to CSV
-          </Button>
+          <div className="flex space-x-2 mt-4 md:mt-0">
+            <Link href="/admin/users/new">
+              <Button>
+                <User className="mr-2 h-4 w-4" />
+                New User
+              </Button>
+            </Link>
+            <Link href="/admin/users/new-admin">
+              <Button variant="secondary">
+                <User className="mr-2 h-4 w-4" />
+                New Admin
+              </Button>
+            </Link>
+            <Button onClick={handleExportCSV}>
+              <Download className="mr-2 h-4 w-4" />
+              Export to CSV
+            </Button>
+          </div>
         </div>
         
         <Card>
@@ -399,19 +414,19 @@ export default function UserManagementPage() {
           </CardHeader>
           <CardContent>
             {/* Filters */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-              <div className="relative">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+              <div className="relative sm:col-span-2 lg:col-span-1">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search by name or email"
-                  className="pl-8"
+                  className="pl-8 text-sm sm:text-base min-h-[2.5rem]"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
               
               <Select value={roleFilter} onValueChange={(value: UserRole | "all") => setRoleFilter(value)}>
-                <SelectTrigger>
+                <SelectTrigger className="text-sm sm:text-base min-h-[2.5rem] touch-manipulation">
                   <SelectValue placeholder="Filter by role" />
                 </SelectTrigger>
                 <SelectContent>
@@ -424,7 +439,7 @@ export default function UserManagementPage() {
               </Select>
               
               <Select value={barangayFilter} onValueChange={(value: string | "all") => setBarangayFilter(value)}>
-                <SelectTrigger>
+                <SelectTrigger className="text-sm sm:text-base min-h-[2.5rem] touch-manipulation">
                   <SelectValue placeholder="Filter by barangay" />
                 </SelectTrigger>
                 <SelectContent>
@@ -435,103 +450,196 @@ export default function UserManagementPage() {
                 </SelectContent>
               </Select>
               
-              <Button variant="outline">
+              <Button variant="outline" className="text-sm sm:text-base min-h-[2.5rem] touch-manipulation">
                 <Filter className="mr-2 h-4 w-4" />
-                Apply Filters
+                <span className="hidden sm:inline">Apply Filters</span>
+                <span className="sm:hidden">Filters</span>
               </Button>
             </div>
             
             {/* User Table */}
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Barangay</TableHead>
-                    <TableHead>Registration Date</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredUsers.length > 0 ? (
-                    filteredUsers.map((user) => (
-                      <TableRow key={user.id}>
-                        <TableCell className="font-medium">
-                          {user.first_name} {user.last_name}
-                        </TableCell>
-                        <TableCell>{user.email}</TableCell>
-                        <TableCell>
+            <div className="rounded-md border overflow-hidden">
+              {/* Mobile Card View */}
+              <div className="md:hidden divide-y">
+                {filteredUsers.length > 0 ? (
+                  filteredUsers.map((user) => (
+                    <div key={user.id} className="p-4 space-y-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-sm font-semibold text-gray-900 truncate">
+                            {user.first_name} {user.last_name}
+                          </h3>
+                          <p className="text-xs text-gray-500 truncate mt-1">{user.email}</p>
+                        </div>
+                        <div className="flex items-center gap-2 ml-2">
                           <Badge variant={
                             user.role === "admin" ? "default" :
                             user.role === "volunteer" ? "secondary" :
                             user.role === "barangay" ? "outline" : "destructive"
-                          }>
+                          } className="text-xs">
                             {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
                           </Badge>
-                        </TableCell>
-                        <TableCell>{user.barangay || "-"}</TableCell>
-                        <TableCell>
-                          {new Date(user.created_at).toLocaleDateString()}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={user.status === "active" ? "default" : "destructive"}>
+                          <Badge variant={user.status === "active" ? "default" : "destructive"} className="text-xs">
                             {user.status.charAt(0).toUpperCase() + user.status.slice(1)}
                           </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end space-x-2">
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => handleViewUser(user.id)}
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            {user.status === "active" ? (
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <span className="text-gray-500">Barangay:</span>
+                          <span className="text-gray-900 ml-1">{user.barangay || "-"}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Registered:</span>
+                          <span className="text-gray-900 ml-1">{new Date(user.created_at).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 pt-2 border-t">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleViewUser(user.id)}
+                          className="flex-1 touch-manipulation min-h-[2.5rem]"
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          View
+                        </Button>
+                        {user.status === "active" ? (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleDeactivateUser(user)}
+                            className="flex-1 touch-manipulation min-h-[2.5rem]"
+                          >
+                            <User className="h-4 w-4 mr-1" />
+                            Deactivate
+                          </Button>
+                        ) : (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleActivateUser(user.id)}
+                            className="flex-1 touch-manipulation min-h-[2.5rem]"
+                          >
+                            <User className="h-4 w-4 mr-1" />
+                            Activate
+                          </Button>
+                        )}
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleDeleteUser(user)}
+                          className="flex-1 touch-manipulation min-h-[2.5rem]"
+                        >
+                          <Trash2 className="h-4 w-4 mr-1" />
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-gray-500 text-sm">
+                    No users found
+                  </div>
+                )}
+              </div>
+              
+              {/* Desktop Table View */}
+              <div className="hidden md:block overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Barangay</TableHead>
+                      <TableHead>Registration Date</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredUsers.length > 0 ? (
+                      filteredUsers.map((user) => (
+                        <TableRow key={user.id}>
+                          <TableCell className="font-medium">
+                            {user.first_name} {user.last_name}
+                          </TableCell>
+                          <TableCell>{user.email}</TableCell>
+                          <TableCell>
+                            <Badge variant={
+                              user.role === "admin" ? "default" :
+                              user.role === "volunteer" ? "secondary" :
+                              user.role === "barangay" ? "outline" : "destructive"
+                            }>
+                              {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{user.barangay || "-"}</TableCell>
+                          <TableCell>
+                            {new Date(user.created_at).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={user.status === "active" ? "default" : "destructive"}>
+                              {user.status.charAt(0).toUpperCase() + user.status.slice(1)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end space-x-2">
                               <Button 
                                 variant="outline" 
                                 size="sm"
-                                onClick={() => handleDeactivateUser(user)}
+                                onClick={() => handleViewUser(user.id)}
+                                className="touch-manipulation"
                               >
-                                <User className="h-4 w-4" />
+                                <Eye className="h-4 w-4" />
                               </Button>
-                            ) : (
+                              {user.status === "active" ? (
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={() => handleDeactivateUser(user)}
+                                  className="touch-manipulation"
+                                >
+                                  <User className="h-4 w-4" />
+                                </Button>
+                              ) : (
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={() => handleActivateUser(user.id)}
+                                  className="touch-manipulation"
+                                >
+                                  <User className="h-4 w-4" />
+                                </Button>
+                              )}
                               <Button 
                                 variant="outline" 
                                 size="sm"
-                                onClick={() => handleActivateUser(user.id)}
+                                onClick={() => handleDeleteUser(user)}
+                                className="touch-manipulation"
                               >
-                                <User className="h-4 w-4" />
+                                <Trash2 className="h-4 w-4" />
                               </Button>
-                            )}
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => handleDeleteUser(user)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-8">
+                          No users found
                         </TableCell>
                       </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8">
-                        No users found
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
             
             {/* Pagination */}
-            <div className="flex items-center justify-between mt-4">
-              <div className="text-sm text-muted-foreground">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4">
+              <div className="text-xs sm:text-sm text-muted-foreground text-center sm:text-left">
                 Showing {(pagination.current_page - 1) * pagination.per_page + 1} to {Math.min(pagination.current_page * pagination.per_page, pagination.total_count)} of {pagination.total_count} entries
               </div>
               <div className="flex items-center space-x-2">
@@ -540,11 +648,12 @@ export default function UserManagementPage() {
                   size="sm"
                   onClick={() => handlePageChange(pagination.current_page - 1)}
                   disabled={pagination.current_page === 1}
+                  className="touch-manipulation min-h-[2.5rem] min-w-[5rem]"
                 >
                   <ChevronLeft className="h-4 w-4" />
-                  Previous
+                  <span className="hidden sm:inline">Previous</span>
                 </Button>
-                <div className="text-sm">
+                <div className="text-xs sm:text-sm px-2">
                   Page {pagination.current_page} of {pagination.total_pages}
                 </div>
                 <Button
@@ -552,8 +661,9 @@ export default function UserManagementPage() {
                   size="sm"
                   onClick={() => handlePageChange(pagination.current_page + 1)}
                   disabled={pagination.current_page === pagination.total_pages}
+                  className="touch-manipulation min-h-[2.5rem] min-w-[5rem]"
                 >
-                  Next
+                  <span className="hidden sm:inline">Next</span>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
