@@ -17,6 +17,15 @@ export function PinSecurityGate({ children }: { children: React.ReactNode }) {
   const [showSettings, setShowSettings] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  
+// Inside PinSecurityGate, near the top
+const bypassPin = true; // TEMPORARY: disable PIN
+
+if (bypassPin) {
+  setIsUnlocked(true)
+  setLoading(false)
+  return <>{children}</>
+}
 
   // Check PIN status on mount
   useEffect(() => {
