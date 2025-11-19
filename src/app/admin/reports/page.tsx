@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { AdminLayout } from "@/components/layout/admin-layout"
 import { Filter, MapPin, FileText, Download, BarChart3, Calendar as CalendarIcon, ChevronDown, ChevronRight, X, Eye, EyeOff, Clock, Archive } from "lucide-react"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
@@ -604,6 +604,16 @@ Years Old: ${yearsOld}`)
 
   const filteredYearData = getFilteredYearData()
 
+  const monthlyBreakdown = filteredYearData?.monthly_breakdown ?? yearData?.monthly_breakdown ?? []
+  const monthlyBreakdownMap = useMemo(() => {
+    const map = new Map<number, any>()
+    monthlyBreakdown?.forEach((entry: any) => {
+      const monthIndex = entry.month_index ?? entry.month ?? 0
+      map.set(monthIndex, entry)
+    })
+    return map
+  }, [monthlyBreakdown])
+
   const getReportData = () => {
     if (reportType === "incidents") {
       // Use the specialized analytics data if available
@@ -665,12 +675,18 @@ Years Old: ${yearsOld}`)
     }
     
     const months = quarterMap[quarter] || []
-    return months.map(month => ({
-      month: format(new Date(year, month, 1), 'MMM yyyy'),
-      monthNum: month,
-      startDate: new Date(year, month, 1),
-      endDate: new Date(year, month + 1, 0)
-    }))
+    return months.map(month => {
+      const stats = monthlyBreakdownMap.get(month)
+      const startDate = new Date(year, month, 1)
+      return {
+        month,
+        monthLabel: format(startDate, 'MMM yyyy'),
+        incident_count: stats?.incident_count ?? 0,
+        week_counts: stats?.week_counts ?? [0, 0, 0, 0, 0],
+        startDate,
+        endDate: new Date(year, month + 1, 0),
+      }
+    })
   }
 
   // Format date range for display
@@ -717,7 +733,7 @@ Years Old: ${yearsOld}`)
         </div>
 
         <Tabs defaultValue="yearly" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="w-full flex flex-col gap-2 md:grid md:grid-cols-3">
             <TabsTrigger value="yearly" className="flex items-center gap-2">
               <CalendarIcon className="h-4 w-4" />
               Yearly Reports
@@ -1049,6 +1065,10 @@ Years Old: ${yearsOld}`)
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                   {getMonthsForQuarter(quarter.quarter, selectedYear).map((monthData) => {
                                     const monthKey = `${quarter.quarter}-${monthData.month}`
+                                    const weeklySeries = (monthData.week_counts || []).map((count: number, index: number) => ({
+                                      name: `Week ${index + 1}`,
+                                      incidents: count
+                                    }))
                                     return (
                                       <div 
                                         key={monthKey} 
@@ -1056,7 +1076,10 @@ Years Old: ${yearsOld}`)
                                         onClick={() => toggleMonth(monthKey)}
                                       >
                                         <div className="flex justify-between items-center">
-                                          <span className="font-medium">{monthData.month}</span>
+                                          <div>
+                                            <span className="font-medium">{monthData.monthLabel}</span>
+                                            <p className="text-xs text-gray-500">{monthData.incident_count} incidents</p>
+                                          </div>
                                           <div className="flex items-center">
                                             {expandedMonths[monthKey] ? (
                                               <ChevronDown className="h-4 w-4 text-gray-500" />
@@ -1069,22 +1092,21 @@ Years Old: ${yearsOld}`)
                                         {expandedMonths[monthKey] && (
                                           <div className="mt-2 pt-2 border-t">
                                             <div className="h-32">
-                                              <ResponsiveContainer width="100%" height="100%">
-                                                <AreaChart
-                                                  data={[
-                                                    { name: 'Week 1', incidents: Math.floor(Math.random() * 20) },
-                                                    { name: 'Week 2', incidents: Math.floor(Math.random() * 20) },
-                                                    { name: 'Week 3', incidents: Math.floor(Math.random() * 20) },
-                                                    { name: 'Week 4', incidents: Math.floor(Math.random() * 20) }
-                                                  ]}
-                                                >
-                                                  <CartesianGrid strokeDasharray="3 3" />
-                                                  <XAxis dataKey="name" />
-                                                  <YAxis />
-                                                  <Tooltip />
-                                                  <Area type="monotone" dataKey="incidents" stroke="#8884d8" fill="#8884d8" />
-                                                </AreaChart>
-                                              </ResponsiveContainer>
+                                              {weeklySeries.some(point => point.incidents > 0) ? (
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                  <AreaChart data={weeklySeries}>
+                                                    <CartesianGrid strokeDasharray="3 3" />
+                                                    <XAxis dataKey="name" />
+                                                    <YAxis />
+                                                    <Tooltip />
+                                                    <Area type="monotone" dataKey="incidents" stroke="#8884d8" fill="#8884d8" />
+                                                  </AreaChart>
+                                                </ResponsiveContainer>
+                                              ) : (
+                                                <div className="h-full flex items-center justify-center text-xs text-gray-500">
+                                                  No weekly data for this month
+                                                </div>
+                                              )}
                                             </div>
                                           </div>
                                         )}
@@ -1503,6 +1525,63 @@ Years Old: ${yearsOld}`)
                           </div>
                         ))}
                       </div>
+                    </div>
+                  )}
+
+                  {reportType === "incidents" && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-base">Status Overview</CardTitle>
+                        </CardHeader>
+                        <CardContent className="h-64">
+                          {incidentsByStatus.length ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                              <BarChart data={incidentsByStatus.map((item) => ({ name: item.status, value: Number(item.count) }))}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="name" />
+                                <YAxis allowDecimals={false} />
+                                <Tooltip />
+                                <Bar dataKey="value" fill="#2563eb" />
+                              </BarChart>
+                            </ResponsiveContainer>
+                          ) : (
+                            <div className="flex h-full items-center justify-center text-sm text-gray-500">
+                              No status data for this range
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-base">Type Distribution</CardTitle>
+                        </CardHeader>
+                        <CardContent className="h-64">
+                          {incidentsByType.length ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                              <PieChart>
+                                <Pie
+                                  data={incidentsByType.map((item) => ({ name: item.incident_type, value: Number(item.count) }))}
+                                  dataKey="value"
+                                  nameKey="name"
+                                  outerRadius={80}
+                                  label
+                                >
+                                  {incidentsByType.map((_, index) => (
+                                    <Cell key={index} fill={COLORS[index % COLORS.length]} />
+                                  ))}
+                                </Pie>
+                                <Legend />
+                                <Tooltip />
+                              </PieChart>
+                            </ResponsiveContainer>
+                          ) : (
+                            <div className="flex h-full items-center justify-center text-sm text-gray-500">
+                              No type data for this range
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
                     </div>
                   )}
 

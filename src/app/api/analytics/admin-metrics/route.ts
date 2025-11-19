@@ -6,6 +6,17 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  },
+)
+
 // Simple in-memory cache
 const cache: Record<string, { data: any; timestamp: number }> = {}
 const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
@@ -104,11 +115,10 @@ export async function GET(request: NextRequest) {
           }),
           
         // Active volunteers
-        supabase
-          .from('users')
-          .select('id', { count: 'exact' })
-          .eq('role', 'volunteer')
-          .contains('volunteer_profiles', { status: 'ACTIVE' })
+        supabaseAdmin
+          .from('volunteer_profiles')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'ACTIVE')
           .then(result => {
             if (result.error) throw result.error
             return result.count || 0

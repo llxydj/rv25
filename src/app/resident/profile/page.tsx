@@ -1,5 +1,4 @@
 "use client"
-
 import { useEffect, useState } from "react"
 import ResidentLayout from "@/components/layout/resident-layout"
 import { useAuth } from "@/lib/auth"
@@ -16,6 +15,7 @@ export default function ResidentProfilePage() {
   const [passwordError, setPasswordError] = useState<string | null>(null)
   const [passwordSuccess, setPasswordSuccess] = useState(false)
   const [activeTab, setActiveTab] = useState<"personal" | "security">("personal")
+  const [barangaysLoading, setBarangaysLoading] = useState(true)
   
   // Form state
   const [firstName, setFirstName] = useState("")
@@ -24,6 +24,7 @@ export default function ResidentProfilePage() {
   const [phoneNumber, setPhoneNumber] = useState("")
   const [address, setAddress] = useState("")
   const [barangay, setBarangay] = useState("")
+  const [barangays, setBarangays] = useState<{ id: number; name: string }[]>([])
   
   // Password state
   const [currentPassword, setCurrentPassword] = useState("")
@@ -31,21 +32,75 @@ export default function ResidentProfilePage() {
   const [confirmPassword, setConfirmPassword] = useState("")
   const [passwordLoading, setPasswordLoading] = useState(false)
 
+  // ✅ FETCH BARANGAYS - EXACTLY LIKE REGISTRATION PAGE
   useEffect(() => {
-    if (user) {
-      setFirstName(user.firstName || "")
-      setLastName(user.lastName || "")
+    const fetchBarangays = async () => {
+      try {
+        setBarangaysLoading(true)
+        const res = await fetch('/api/barangays')
+        
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`)
+        }
+        
+        const json = await res.json()
+        
+        // Handle both response formats: {data: [...]} or direct array
+        const barangayList = Array.isArray(json?.data) ? json.data : []
+        
+        if (barangayList.length === 0) {
+          console.warn("No barangays returned from API")
+        }
+        
+        setBarangays(barangayList)
+        console.log("✅ Barangays loaded successfully:", barangayList.length, "items")
+      } catch (error) {
+        console.error("❌ Failed to fetch barangays:", error)
+        setBarangays([])
+      } finally {
+        setBarangaysLoading(false)
+      }
+    }
+    
+    fetchBarangays()
+  }, [])
+
+  // ✅ LOAD USER DATA - ONLY AFTER BARANGAYS ARE LOADED
+  useEffect(() => {
+    if (user && barangays.length > 0) {
+      setFirstName(user.first_name || "")
+      setLastName(user.last_name || "")
       setEmail(user.email || "")
       setPhoneNumber(user.phone_number || "")
       setAddress(user.address || "")
-      setBarangay(user.barangay || "")
+      
+      // ✅ CRITICAL: Match the exact name from barangays list
+      const userBarangay = user.barangay || ""
+      const validBarangay = barangays.find(b => b.name === userBarangay)
+      
+      if (validBarangay) {
+        setBarangay(validBarangay.name)
+        console.log("✅ User barangay found and set:", validBarangay.name)
+      } else if (userBarangay) {
+        console.warn("⚠️ User barangay not in list:", userBarangay)
+        setBarangay(userBarangay) // Still set it, but warn
+      } else {
+        setBarangay("")
+      }
     }
-  }, [user])
+  }, [user, barangays])
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault()
     
     if (!user) return
+    
+    // ✅ VALIDATION: Ensure selected barangay exists in database
+    const selectedBarangay = barangays.find(b => b.name === barangay)
+    if (!selectedBarangay && barangay) {
+      setSaveError("Invalid barangay selected. Please choose from the list.")
+      return
+    }
     
     try {
       setSaveLoading(true)
@@ -59,14 +114,16 @@ export default function ResidentProfilePage() {
           last_name: lastName,
           phone_number: phoneNumber,
           address: address,
-          barangay: barangay
+          barangay: barangay // ✅ Store exactly as displayed (matches DB)
         })
         .eq('id', user.id)
       
       if (error) {
+        console.error("Supabase update error:", error)
         throw new Error(error.message)
       }
       
+      console.log("✅ Profile saved successfully")
       await refreshUser()
       setSaveSuccess(true)
       
@@ -75,6 +132,7 @@ export default function ResidentProfilePage() {
         setSaveSuccess(false)
       }, 3000)
     } catch (error: any) {
+      console.error("❌ Save error:", error)
       setSaveError(error.message || "Failed to save profile")
     } finally {
       setSaveLoading(false)
@@ -127,31 +185,8 @@ export default function ResidentProfilePage() {
       setPasswordLoading(false)
     }
   }
-  
-  const barangays = [
-    "Biasong",
-    "Bulacao",
-    "Cansojong",
-    "Dumlog",
-    "Jaclupan",
-    "Lagtang",
-    "Lawaan I",
-    "Lawaan II",
-    "Lawaan III",
-    "Linao",
-    "Maghaway",
-    "Manipis",
-    "Mohon",
-    "Poblacion",
-    "Pooc",
-    "San Isidro",
-    "San Roque",
-    "Tabunok",
-    "Tangke",
-    "Tapul"
-  ]
 
-  if (!user) {
+  if (!user || barangaysLoading) {
     return (
       <ResidentLayout>
         <div className="flex justify-center items-center min-h-[50vh]">
@@ -167,7 +202,6 @@ export default function ResidentProfilePage() {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between">
           <h1 className="text-2xl font-bold text-black">My Profile</h1>
         </div>
-
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="flex border-b">
             <button
@@ -194,7 +228,6 @@ export default function ResidentProfilePage() {
               Security
             </button>
           </div>
-
           <div className="p-6">
             {activeTab === "personal" && (
               <form onSubmit={handleSaveProfile} className="space-y-6">
@@ -351,8 +384,8 @@ export default function ResidentProfilePage() {
                     >
                       <option value="">Select Barangay</option>
                       {barangays.map((b) => (
-                        <option key={b} value={b}>
-                          {b}
+                        <option key={b.id} value={b.name}>
+                          {b.name}
                         </option>
                       ))}
                     </select>
@@ -480,4 +513,4 @@ export default function ResidentProfilePage() {
       </div>
     </ResidentLayout>
   )
-} 
+}

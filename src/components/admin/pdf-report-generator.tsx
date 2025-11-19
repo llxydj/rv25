@@ -201,7 +201,12 @@ export function PDFReportGenerator() {
                   <Label>Status</Label>
                   <Select
                     value={filters.status?.[0] || ''}
-                    onValueChange={(value) => setFilters(prev => ({ ...prev, status: value ? [value] : undefined }))}
+                    onValueChange={(value) =>
+                      setFilters((prev) => ({
+                        ...prev,
+                        status: value && value !== 'all' ? [value] : undefined,
+                      }))
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="All statuses" />
@@ -221,7 +226,12 @@ export function PDFReportGenerator() {
                   <Label>Severity Level</Label>
                   <Select
                     value={filters.severity?.[0]?.toString() || ''}
-                    onValueChange={(value) => setFilters(prev => ({ ...prev, severity: value ? [parseInt(value)] : undefined }))}
+                    onValueChange={(value) =>
+                      setFilters((prev) => ({
+                        ...prev,
+                        severity: value && value !== 'all' ? [parseInt(value)] : undefined,
+                      }))
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="All severity levels" />

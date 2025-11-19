@@ -8,6 +8,10 @@ import { getAllVolunteers, updateVolunteerStatus } from "@/lib/volunteers"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import { AlertTriangle, CheckCircle, Filter, Plus, User } from "lucide-react"
 import { UserWithVolunteerProfile, VolunteerStatus } from "@/types/volunteer"
+import { getVolunteerIncidents } from "@/lib/incidents"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 
 export default function AdminVolunteersPage() {
   const { user } = useAuth()
@@ -21,6 +25,11 @@ export default function AdminVolunteersPage() {
   const [availabilityFilter, setAvailabilityFilter] = useState<string>("ALL")
   const [searchTerm, setSearchTerm] = useState("")
   const [creatingProfile, setCreatingProfile] = useState<string | null>(null)
+  const [detailOpen, setDetailOpen] = useState(false)
+  const [detailVolunteer, setDetailVolunteer] = useState<UserWithVolunteerProfile | null>(null)
+  const [detailIncidents, setDetailIncidents] = useState<any[]>([])
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [detailError, setDetailError] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchVolunteers = async () => {
@@ -207,6 +216,27 @@ export default function AdminVolunteersPage() {
     }
   };
 
+  const openVolunteerDetails = async (volunteer: UserWithVolunteerProfile) => {
+    setDetailVolunteer(volunteer)
+    setDetailOpen(true)
+    setDetailLoading(true)
+    setDetailError(null)
+    try {
+      const history = await getVolunteerIncidents(volunteer.id)
+      if (!history.success) {
+        setDetailError(history.message || "Failed to load volunteer history")
+        setDetailIncidents([])
+      } else {
+        setDetailIncidents(history.data || [])
+      }
+    } catch (err: any) {
+      setDetailError(err?.message || "Failed to load volunteer history")
+      setDetailIncidents([])
+    } finally {
+      setDetailLoading(false)
+    }
+  }
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "ACTIVE":
@@ -375,6 +405,18 @@ export default function AdminVolunteersPage() {
                                 Suspended
                               </span>
                             )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-xs"
+                              onClick={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                openVolunteerDetails(volunteer)
+                              }}
+                            >
+                              Quick View
+                            </Button>
                           </div>
                         </div>
                       </div>
@@ -385,6 +427,103 @@ export default function AdminVolunteersPage() {
             </ul>
           )}
         </div>
+
+        <Dialog
+          open={detailOpen}
+          onOpenChange={(open) => {
+            setDetailOpen(open)
+            if (!open) {
+              setDetailVolunteer(null)
+              setDetailIncidents([])
+              setDetailError(null)
+            }
+          }}
+        >
+          <DialogContent className="max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>
+                {detailVolunteer ? `${detailVolunteer.first_name} ${detailVolunteer.last_name}` : "Volunteer Details"}
+              </DialogTitle>
+              <DialogDescription>
+                {detailVolunteer?.email} · {detailVolunteer?.volunteer_profiles?.status || "No profile"}
+              </DialogDescription>
+            </DialogHeader>
+
+            {detailVolunteer && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <p className="text-xs text-gray-500">Contact</p>
+                    <p className="text-sm text-gray-900">{detailVolunteer.email}</p>
+                    <p className="text-sm text-gray-900">{detailVolunteer.phone_number || "No number"}</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <p className="text-xs text-gray-500">Barangay</p>
+                    <p className="text-sm text-gray-900">{detailVolunteer.barangay || "Unassigned"}</p>
+                    <p className="text-xs text-gray-500 mt-2">Availability</p>
+                    <Badge variant={detailVolunteer.volunteer_profiles?.is_available ? "secondary" : "outline"}>
+                      {detailVolunteer.volunteer_profiles?.is_available ? "Available" : "Unavailable"}
+                    </Badge>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <p className="text-xs text-gray-500">Resolved Incidents</p>
+                    <p className="text-3xl font-semibold text-gray-900">
+                      {detailVolunteer.volunteer_profiles?.total_incidents_resolved || 0}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center">
+                  <p className="text-sm font-medium text-gray-900">Recent Assignments</p>
+                  <Link href={`/admin/volunteers/${detailVolunteer.id}`}>
+                    <Button variant="outline" size="sm">
+                      View full profile
+                    </Button>
+                  </Link>
+                </div>
+
+                <div className="border rounded-lg">
+                  {detailLoading ? (
+                    <div className="py-10 flex justify-center">
+                      <LoadingSpinner />
+                    </div>
+                  ) : detailError ? (
+                    <div className="py-4 text-center text-sm text-red-600">{detailError}</div>
+                  ) : detailIncidents.length === 0 ? (
+                    <div className="py-4 text-center text-sm text-gray-500">No incident history yet</div>
+                  ) : (
+                    <div className="max-h-72 overflow-y-auto">
+                      <table className="min-w-full divide-y divide-gray-200 text-sm">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-2 text-left font-medium text-gray-500">Incident</th>
+                            <th className="px-4 py-2 text-left font-medium text-gray-500">Barangay</th>
+                            <th className="px-4 py-2 text-left font-medium text-gray-500">Status</th>
+                            <th className="px-4 py-2 text-left font-medium text-gray-500">Date</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {detailIncidents.slice(0, 10).map((incident) => (
+                            <tr key={incident.id}>
+                              <td className="px-4 py-2">{incident.incident_type || "Unnamed"}</td>
+                              <td className="px-4 py-2">{incident.barangay || "—"}</td>
+                              <td className="px-4 py-2">
+                                <Badge variant="outline">{incident.status}</Badge>
+                              </td>
+                              <td className="px-4 py-2">
+                                {new Date(incident.created_at).toLocaleString()}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </AdminLayout>
   )

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
 import { createClient } from '@supabase/supabase-js'
+
+export const runtime = "nodejs"
 
 // PDF Generation using jsPDF
 import jsPDF from 'jspdf'

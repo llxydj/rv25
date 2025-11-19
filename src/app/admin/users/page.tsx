@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { AdminLayout } from "@/components/layout/admin-layout"
 import { useAuth } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
@@ -44,6 +44,8 @@ interface User {
   email: string
   first_name: string
   last_name: string
+  phone_number: string | null
+  address: string | null
   role: UserRole
   barangay: string | null
   created_at: string
@@ -66,6 +68,7 @@ export default function UserManagementPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [roleFilter, setRoleFilter] = useState<UserRole | "all">("all")
   const [barangayFilter, setBarangayFilter] = useState<string | "all">("all")
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all")
   const [barangays, setBarangays] = useState<string[]>([])
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [userToDelete, setUserToDelete] = useState<User | null>(null)
@@ -77,6 +80,20 @@ export default function UserManagementPage() {
     per_page: 20,
     total_pages: 1
   })
+
+  const userStats = useMemo(() => {
+    const total = users.length
+    const active = users.filter((u) => u.status === "active").length
+    const inactive = total - active
+    const byRole = users.reduce(
+      (acc, u) => {
+        acc[u.role] = (acc[u.role] || 0) + 1
+        return acc
+      },
+      { admin: 0, barangay: 0, resident: 0, volunteer: 0 } as Record<UserRole, number>,
+    )
+    return { total, active, inactive, byRole }
+  }, [users])
 
   // Fetch users and barangays
   useEffect(() => {
@@ -96,6 +113,8 @@ export default function UserManagementPage() {
           email: user.email,
           first_name: user.first_name,
           last_name: user.last_name,
+          phone_number: user.phone_number,
+          address: user.address,
           role: user.role,
           barangay: user.barangay,
           created_at: user.created_at,
@@ -161,13 +180,17 @@ export default function UserManagementPage() {
       result = result.filter(user => user.role === roleFilter)
     }
     
+    if (statusFilter !== "all") {
+      result = result.filter(user => user.status === statusFilter)
+    }
+    
     // Apply barangay filter
     if (barangayFilter !== "all") {
       result = result.filter(user => user.barangay === barangayFilter)
     }
     
     setFilteredUsers(result)
-  }, [searchTerm, roleFilter, barangayFilter, users])
+  }, [searchTerm, roleFilter, barangayFilter, statusFilter, users])
   
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= pagination.total_pages) {
@@ -407,6 +430,39 @@ export default function UserManagementPage() {
             </Button>
           </div>
         </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Total Users</CardDescription>
+              <CardTitle className="text-3xl">{userStats.total}</CardTitle>
+            </CardHeader>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Active</CardDescription>
+              <CardTitle className="text-3xl text-green-600">{userStats.active}</CardTitle>
+            </CardHeader>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Inactive</CardDescription>
+              <CardTitle className="text-3xl text-yellow-600">{userStats.inactive}</CardTitle>
+            </CardHeader>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>By Role</CardDescription>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {(["admin", "barangay", "volunteer", "resident"] as UserRole[]).map((role) => (
+                  <Badge key={role} variant="secondary">
+                    {role.charAt(0).toUpperCase() + role.slice(1)} · {userStats.byRole[role] || 0}
+                  </Badge>
+                ))}
+              </div>
+            </CardHeader>
+          </Card>
+        </div>
         
         <Card>
           <CardHeader>
@@ -414,7 +470,7 @@ export default function UserManagementPage() {
           </CardHeader>
           <CardContent>
             {/* Filters */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
               <div className="relative sm:col-span-2 lg:col-span-1">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -447,6 +503,17 @@ export default function UserManagementPage() {
                   {barangays.map(barangay => (
                     <SelectItem key={barangay} value={barangay}>{barangay}</SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+              
+              <Select value={statusFilter} onValueChange={(value: "all" | "active" | "inactive") => setStatusFilter(value)}>
+                <SelectTrigger className="text-sm sm:text-base min-h-[2.5rem] touch-manipulation">
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
                 </SelectContent>
               </Select>
               
@@ -492,6 +559,14 @@ export default function UserManagementPage() {
                         <div>
                           <span className="text-gray-500">Registered:</span>
                           <span className="text-gray-900 ml-1">{new Date(user.created_at).toLocaleDateString()}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Phone:</span>
+                          <span className="text-gray-900 ml-1">{user.phone_number || "N/A"}</span>
+                        </div>
+                        <div className="col-span-2">
+                          <span className="text-gray-500">Address:</span>
+                          <span className="text-gray-900 ml-1">{user.address || "—"}</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-2 pt-2 border-t">
@@ -551,6 +626,8 @@ export default function UserManagementPage() {
                     <TableRow>
                       <TableHead>Name</TableHead>
                       <TableHead>Email</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Address</TableHead>
                       <TableHead>Role</TableHead>
                       <TableHead>Barangay</TableHead>
                       <TableHead>Registration Date</TableHead>
@@ -566,6 +643,8 @@ export default function UserManagementPage() {
                             {user.first_name} {user.last_name}
                           </TableCell>
                           <TableCell>{user.email}</TableCell>
+                          <TableCell>{user.phone_number || "N/A"}</TableCell>
+                          <TableCell>{user.address || "—"}</TableCell>
                           <TableCell>
                             <Badge variant={
                               user.role === "admin" ? "default" :
@@ -627,7 +706,7 @@ export default function UserManagementPage() {
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center py-8">
+                        <TableCell colSpan={9} className="text-center py-8">
                           No users found
                         </TableCell>
                       </TableRow>

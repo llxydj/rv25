@@ -171,10 +171,40 @@ export async function GET(request: Request) {
       { quarter: 'Q3', start: new Date(yearNum, 6, 1), end: new Date(yearNum, 9, 1), incident_count: 0 },
       { quarter: 'Q4', start: new Date(yearNum, 9, 1), end: new Date(yearNum + 1, 0, 1), incident_count: 0 }
     ]
+
+    const monthlyBreakdown = new Map<number, {
+      month_index: number
+      label: string
+      incident_count: number
+      week_counts: number[]
+      start: string
+      end: string
+    }>()
     
     // Count incidents per quarter
     incidents.forEach(incident => {
       const incidentDate = new Date(incident.created_at)
+
+      const monthIndex = incidentDate.getMonth()
+      if (!monthlyBreakdown.has(monthIndex)) {
+        const start = new Date(yearNum, monthIndex, 1)
+        const end = new Date(yearNum, monthIndex + 1, 0)
+        monthlyBreakdown.set(monthIndex, {
+          month_index: monthIndex,
+          label: start.toLocaleString('en-US', { month: 'short', year: 'numeric' }),
+          incident_count: 0,
+          week_counts: [0, 0, 0, 0, 0],
+          start: start.toISOString(),
+          end: end.toISOString()
+        })
+      }
+
+      const monthEntry = monthlyBreakdown.get(monthIndex)!
+      monthEntry.incident_count += 1
+
+      const weekIndex = Math.min(4, Math.floor((incidentDate.getDate() - 1) / 7))
+      monthEntry.week_counts[weekIndex] += 1
+
       for (const quarter of quarters) {
         if (incidentDate >= quarter.start && incidentDate < quarter.end) {
           quarter.incident_count++
@@ -220,6 +250,7 @@ export async function GET(request: Request) {
         status_summary: statusSummary,
         type_breakdown: typeBreakdown,
         barangay_breakdown: barangayBreakdown,
+        monthly_breakdown: Array.from(monthlyBreakdown.values()).sort((a, b) => a.month_index - b.month_index),
         reports: reports,
         archived
       }
