@@ -13,7 +13,7 @@ import { clearUserCache } from '@/lib/user-data-cache'
 
 export default function RegisterGoogleResidentPage() {
   const router = useRouter()
-  const { refreshSession, refreshUser } = useAuthCtx()
+  const { refreshUser } = useAuthCtx()
   const [email, setEmail] = useState('')
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -115,10 +115,12 @@ export default function RegisterGoogleResidentPage() {
         clearUserCache(userId)
       }
 
-      await refreshSession()
-      await refreshUser()
+      // Refresh auth context in the background so navigation isn't blocked
+      refreshUser().catch((err) =>
+        console.warn("Failed to refresh auth state after Google registration:", err),
+      )
 
-      // Immediately redirect to dashboard after auth context updates
+      // Immediately route to the resident dashboard
       router.replace('/resident/dashboard')
     } catch (e: any) {
       setError(e?.message || 'Failed to save profile')

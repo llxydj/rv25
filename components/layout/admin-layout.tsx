@@ -4,7 +4,7 @@ import type React from "react"
 import { useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { AlertTriangle, Phone, User, X } from "lucide-react"
+import { AlertTriangle, User, Users, X } from "lucide-react"
 import { signOut } from "@/lib/auth"
 import { AuthLayout } from "./auth-layout"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
@@ -31,7 +31,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   }
 
   const isActive = (path: string) => {
-    return pathname === path
+    if (!pathname) return false
+    return pathname === path || pathname.startsWith(`${path}/`)
   }
 
   return (
@@ -98,6 +99,16 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
             >
               <User className="h-5 w-5" />
               <span>Volunteers</span>
+            </Link>
+
+            <Link
+              href="/admin/users"
+              className={`flex items-center space-x-2 p-2 rounded-md ${
+                isActive("/admin/users") ? "bg-blue-700 text-white" : "hover:bg-blue-700"
+              }`}
+            >
+              <Users className="h-5 w-5" />
+              <span>User Management</span>
             </Link>
 
             <Link
