@@ -366,7 +366,13 @@ export default function IncidentDetailPage() {
       'Description:',
       `${incident?.description || ''}`,
       '',
-      `Photo: ${incident?.photo_url || 'None'}`,
+      `Photos: ${
+        incident?.photo_urls?.length
+          ? `${incident.photo_urls.length} attached`
+          : incident?.photo_url
+            ? '1 attached'
+            : 'None'
+      }`,
       '',
       '— Generated via RVOIS',
     ].filter(Boolean as any).join('\n'))
@@ -622,16 +628,30 @@ export default function IncidentDetailPage() {
               </div>
             </div>
 
-            {incident.photo_url && (
-              <div className="bg-white p-6 rounded-lg shadow-md">
-                <h3 className="text-sm font-medium text-gray-500 mb-4">Photo Evidence</h3>
-                <ImageLightbox
-                  src={incident.photo_url || "/placeholder.svg"}
-                  alt="Incident photo"
-                  className="w-full h-auto max-h-96 object-contain rounded-md"
-                />
-              </div>
-            )}
+            {(() => {
+              const photoGallery =
+                Array.isArray(incident.photo_urls) && incident.photo_urls.length > 0
+                  ? incident.photo_urls
+                  : incident.photo_url
+                    ? [incident.photo_url]
+                    : []
+              if (photoGallery.length === 0) return null
+              return (
+                <div className="bg-white p-6 rounded-lg shadow-md">
+                  <h3 className="text-sm font-medium text-gray-500 mb-4">Photo Evidence</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {photoGallery.map((photo, idx) => (
+                      <ImageLightbox
+                        key={`${photo}-${idx}`}
+                        src={photo}
+                        alt={`Incident photo ${idx + 1}`}
+                        className="w-full h-auto max-h-72 object-contain rounded-md"
+                      />
+                    ))}
+                  </div>
+                </div>
+              )
+            })()}
 
             <div className="bg-white p-6 rounded-lg shadow-md">
               <h3 className="text-sm font-medium text-gray-500 mb-4">Incident Location</h3>

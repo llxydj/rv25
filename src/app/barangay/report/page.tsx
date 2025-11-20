@@ -477,7 +477,7 @@ export default function BarangayReportPage() {
         reportLocation[1],
         formData.address,
         formData.barangay,
-        photoFile,
+        photoFile ? [photoFile] : [],
         Number.parseInt(formData.priority),
       )
 

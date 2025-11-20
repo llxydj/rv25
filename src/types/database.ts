@@ -160,6 +160,7 @@ export interface Database {
           status: 'PENDING' | 'ASSIGNED' | 'RESPONDING' | 'RESOLVED' | 'CANCELLED';
           priority: number;
           photo_url: string | null;
+          photo_urls: string[] | null;
           assigned_to: string | null;
           assigned_at: string | null;
           resolved_at: string | null;
@@ -181,6 +182,7 @@ export interface Database {
           status?: 'PENDING' | 'ASSIGNED' | 'RESPONDING' | 'RESOLVED' | 'CANCELLED';
           priority?: number;
           photo_url?: string | null;
+          photo_urls?: string[] | null;
           assigned_to?: string | null;
           assigned_at?: string | null;
           resolved_at?: string | null;
@@ -202,6 +204,7 @@ export interface Database {
           status?: 'PENDING' | 'ASSIGNED' | 'RESPONDING' | 'RESOLVED' | 'CANCELLED';
           priority?: number;
           photo_url?: string | null;
+          photo_urls?: string[] | null;
           assigned_to?: string | null;
           assigned_at?: string | null;
           resolved_at?: string | null;

@@ -11,6 +11,7 @@ export interface OfflineIncident {
   barangay: string
   priority: number
   photo_url: string | null
+  photo_urls?: string[] | null
   created_at: string
   synced: boolean
 }

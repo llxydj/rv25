@@ -488,7 +488,7 @@ export default function VolunteerReportIncidentPage() {
         reportLocation[1],
         formData.address,
         formData.barangay,
-        photoFile,
+        photoFile ? [photoFile] : [],
         Number.parseInt(formData.priority),
       )
 

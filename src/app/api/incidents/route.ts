@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { IncidentCreateSchema } from '@/lib/validation'
 import { rateKeyFromRequest, rateLimitAllowed } from '@/lib/rate-limit'
 import { isWithinTalisayCity } from '@/lib/geo-utils'
@@ -39,10 +39,34 @@ function generateReferenceId(uuid: string): string {
 
 export const runtime = 'nodejs'
 
-const supabasePublic = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+const BARANGAY_CACHE_TTL = 10 * 60 * 1000 // 10 minutes
+let barangayCache: { data: string[]; expiresAt: number } = { data: [], expiresAt: 0 }
+
+async function getKnownBarangaysCached(client: SupabaseClient): Promise<string[]> {
+  const now = Date.now()
+  if (barangayCache.data.length && barangayCache.expiresAt > now) {
+    return barangayCache.data
+  }
+
+  try {
+    const { data, error } = await client.from('barangays').select('name')
+    if (!error && Array.isArray(data)) {
+      const names = data.map((b: any) => b.name).filter(Boolean)
+      barangayCache = {
+        data: names,
+        expiresAt: now + BARANGAY_CACHE_TTL,
+      }
+      return names
+    }
+    if (error) {
+      console.warn('Failed to refresh barangay cache:', error)
+    }
+  } catch (err) {
+    console.warn('Barangay cache refresh threw:', err)
+  }
+
+  return barangayCache.data
+}
 
 
 export async function GET(request: Request) {
@@ -237,7 +261,20 @@ export async function POST(request: Request) {
     const parsed = IncidentCreateSchema.safeParse(await request.json())
     if (!parsed.success) return NextResponse.json({ success: false, code: 'VALIDATION_ERROR', message: 'Invalid payload', issues: parsed.error.flatten() }, { status: 400 })
 
-    const { reporter_id, incident_type, description, location_lat, location_lng, address, barangay, priority, photo_url, is_offline, created_at_local } = parsed.data
+    const {
+      reporter_id,
+      incident_type,
+      description,
+      location_lat,
+      location_lng,
+      address,
+      barangay,
+      priority,
+      photo_url,
+      photo_urls,
+      is_offline,
+      created_at_local
+    } = parsed.data
     const normalizedIncidentType = incident_type.trim().toUpperCase()
     const normalizedPriority = Number(priority)
 
@@ -275,25 +312,32 @@ export async function POST(request: Request) {
     // Reverse-geocode via internal proxy and normalize barangay
     let resolvedAddress = address ?? null
     let resolvedBarangay = barangay?.toUpperCase() ?? ''
-    let nominatimDisplayName: string | null = null
     try {
       const origin = new URL(request.url).origin
-      const geoRes = await fetch(`${origin}/api/geocode/reverse?lat=${encodeURIComponent(String(location_lat))}&lon=${encodeURIComponent(String(location_lng))}&zoom=16&addressdetails=1`, { cache: 'no-store' })
-      if (geoRes.ok) {
-        const geo = await geoRes.json()
-        const addr = geo?.address || {}
+      const reverseUrl = `${origin}/api/geocode/reverse?lat=${encodeURIComponent(String(location_lat))}&lon=${encodeURIComponent(String(location_lng))}&zoom=16&addressdetails=1`
+
+      const [geoData, knownBarangays] = await Promise.all([
+        (async () => {
+          try {
+            const geoRes = await fetch(reverseUrl, { cache: 'no-store' })
+            if (!geoRes.ok) return null
+            return geoRes.json()
+          } catch {
+            return null
+          }
+        })(),
+        getKnownBarangaysCached(supabase),
+      ])
+
+      if (geoData) {
+        const addr = geoData?.address || {}
         const candidate = addr?.suburb || addr?.village || addr?.neighbourhood || addr?.city_district || addr?.quarter || addr?.town || addr?.county
-        // Load known barangays from DB
-        let knownList: string[] = []
-        try {
-          const { data: brgys } = await supabase.from('barangays').select('name')
-          knownList = Array.isArray(brgys) ? brgys.map((b: any) => b.name) : []
-        } catch {}
-        const normalized = normalizeBarangay(candidate, knownList)
+        const normalized = normalizeBarangay(candidate, knownBarangays)
         if (normalized) resolvedBarangay = normalized
-        const display = geo?.display_name
-        if (display) { resolvedAddress = display; nominatimDisplayName = display }
-        else if (addr) {
+        const display = geoData?.display_name
+        if (display) {
+          resolvedAddress = display
+        } else if (addr) {
           const line = [addr.road, addr.suburb || addr.village || addr.neighbourhood, addr.city || addr.town || 'Talisay City'].filter(Boolean).join(', ')
           if (line) resolvedAddress = line
         }
@@ -302,96 +346,57 @@ export async function POST(request: Request) {
       console.warn('Geocoding failed, using provided data:', geoError)
     }
 
-    // If a photo was uploaded, watermark it with verified fields and store processed version
-    let finalPhotoPath: string | null = photo_url ?? null
-    if (photo_url) {
-      // Verify the referenced object exists and is accessible. If not, reject the request.
-      const { data: signed, error: signErr } = await supabase
+    // If photos were uploaded, ensure they exist and move them under processed/ for consistency
+    const incomingPhotoPaths: string[] = Array.isArray(photo_urls) && photo_urls.length > 0
+      ? photo_urls
+      : (photo_url ? [photo_url] : [])
+
+    const processedPhotoPaths: string[] = []
+
+    const ensurePhotoPath = async (storedPath: string): Promise<string> => {
+      const cleanedPath = storedPath.trim()
+      if (!cleanedPath) return ''
+
+      const { error: signErr } = await supabase
         .storage
         .from('incident-photos')
-        .createSignedUrl(photo_url, 60)
+        .createSignedUrl(cleanedPath, 60)
 
-      if (signErr || !signed?.signedUrl) {
-        return NextResponse.json({ success: false, code: 'INVALID_PHOTO', message: 'Uploaded photo not found or inaccessible' }, { status: 400 })
+      if (signErr) {
+        throw new Error('Uploaded photo not found or inaccessible')
       }
 
+      if (cleanedPath.startsWith('processed/')) {
+        return cleanedPath
+      }
+
+      const baseName = cleanedPath.split('/').pop() || `${reporter_id}-${Date.now()}.jpg`
+      const processedPath = `processed/${baseName}`
+      const { error: copyErr } = await supabase
+        .storage
+        .from('incident-photos')
+        .copy(cleanedPath, processedPath)
+
+      if (copyErr) {
+        console.warn('Photo copy failed, keeping original path:', copyErr?.message)
+        return cleanedPath
+      }
+
+      return processedPath
+    }
+
+    for (const path of incomingPhotoPaths.slice(0, 3)) {
       try {
-        console.log('Starting photo watermarking with Sharp...')
-        const sharp = (await import('sharp')).default
-        
-        const imgRes = await fetch(signed.signedUrl)
-        const arrayBuf = await imgRes.arrayBuffer()
-        const imageBuffer = Buffer.from(arrayBuf)
-        
-        // Get image metadata
-        const metadata = await sharp(imageBuffer).metadata()
-        const width = metadata.width || 800
-        const height = metadata.height || 600
-
-        // Compose watermark text
-        const timestamp = created_at_local ? new Date(created_at_local).toLocaleString() : new Date().toLocaleString()
-        const watermarkText = [
-          `Barangay: ${resolvedBarangay || 'N/A'}`,
-          `Address: ${nominatimDisplayName || resolvedAddress || 'N/A'}`,
-          `Lat: ${location_lat} | Lng: ${location_lng}`,
-          `Date & Time: ${timestamp}`,
-        ].join('\n')
-
-        console.log('Creating watermark overlay...')
-        
-        // Create SVG watermark overlay
-        const padding = 20
-        const fontSize = 16
-        const lineHeight = 22
-        const lines = watermarkText.split('\n')
-        const svgHeight = lines.length * lineHeight + padding * 2
-        const svgWidth = Math.min(width - 40, 700)
-        
-        const svgWatermark = `
-          <svg width="${svgWidth}" height="${svgHeight}">
-            <rect width="${svgWidth}" height="${svgHeight}" fill="black" opacity="0.7"/>
-            ${lines.map((line, i) => `
-              <text x="${padding}" y="${padding + (i + 1) * lineHeight}" 
-                    font-family="Arial, sans-serif" font-size="${fontSize}" 
-                    fill="white" font-weight="bold">
-                ${line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}
-              </text>
-            `).join('')}
-          </svg>
-        `
-
-        console.log('Compositing watermark onto image...')
-        
-        // Composite watermark onto image
-        const processedBuffer = await sharp(imageBuffer)
-          .composite([{
-            input: Buffer.from(svgWatermark),
-            top: height - svgHeight - 20,
-            left: 20
-          }])
-          .jpeg({ quality: 85 })
-          .toBuffer()
-        
-        console.log('Watermark applied successfully!')
-
-        // Build processed path under processed/ with similar filename
-        const baseName = photo_url.split('/').pop() || `${reporter_id}-${Date.now()}.jpg`
-        const processedPath = `processed/${baseName.replace(/\.[^.]+$/, '')}.jpg`
-
-        // Upload processed image
-        const { error: upErr } = await supabase
-          .storage
-          .from('incident-photos')
-          .upload(processedPath, processedBuffer, { contentType: 'image/jpeg', upsert: true })
-        if (!upErr) {
-          finalPhotoPath = processedPath
+        const ensured = await ensurePhotoPath(path)
+        if (ensured) {
+          processedPhotoPaths.push(ensured)
         }
-      } catch (procErr) {
-        console.error('Failed to process uploaded photo:', procErr)
-        // Don't fail the incident creation if photo processing fails
-        console.warn('Photo processing failed, using original photo')
+      } catch (photoError: any) {
+        console.warn('Failed to process uploaded photo:', photoError?.message || photoError)
       }
     }
+
+    const primaryPhotoPath = processedPhotoPaths[0] ?? null
 
     const payload = {
       reporter_id,
@@ -406,7 +411,8 @@ export async function POST(request: Request) {
       status: 'PENDING',
       priority: normalizedPriority,
       severity: mapPriorityToSeverity(normalizedPriority),
-      photo_url: finalPhotoPath,
+      photo_url: primaryPhotoPath,
+      photo_urls: processedPhotoPaths.length ? processedPhotoPaths : null,
     }
 
     const { data, error } = await supabase.from('incidents').insert(payload).select().single()

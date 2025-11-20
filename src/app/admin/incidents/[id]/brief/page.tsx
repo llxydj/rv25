@@ -79,7 +79,13 @@ export default function IncidentBriefPage() {
       "Description:",
       `${incident?.description || ""}`,
       "",
-      `Photo: ${incident?.photo_url || 'None'}`,
+      `Photos: ${
+        incident?.photo_urls?.length
+          ? `${incident.photo_urls.length} attached`
+          : incident?.photo_url
+            ? '1 attached'
+            : 'None'
+      }`,
       "",
       "— Generated via RVOIS",
     ].filter(Boolean).join("\n"))
@@ -136,12 +142,30 @@ export default function IncidentBriefPage() {
                 </div>
               </div>
 
-              {incident.photo_url && (
-                <div className="mt-4">
-                  <h2 className="font-semibold mb-2">Photo</h2>
-                  <img src={incident.photo_url} alt="Incident photo" className="max-w-full rounded border" />
-                </div>
-              )}
+              {(() => {
+                const photoGallery =
+                  Array.isArray(incident.photo_urls) && incident.photo_urls.length > 0
+                    ? incident.photo_urls
+                    : incident.photo_url
+                      ? [incident.photo_url]
+                      : []
+                if (!photoGallery.length) return null
+                return (
+                  <div className="mt-4">
+                    <h2 className="font-semibold mb-2">Photo Evidence</h2>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {photoGallery.map((photo, idx) => (
+                        <img
+                          key={`${photo}-${idx}`}
+                          src={photo}
+                          alt={`Incident photo ${idx + 1}`}
+                          className="max-w-full rounded border object-contain"
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )
+              })()}
 
               {updates.length > 0 && (
                 <div className="mt-4">

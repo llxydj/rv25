@@ -594,6 +594,7 @@ export type Database = {
           location_lat: number
           location_lng: number
           photo_url: string | null
+          photo_urls: string[] | null
           priority: number | null
           province: string | null
           reporter_id: string | null
@@ -618,6 +619,7 @@ export type Database = {
           location_lat: number
           location_lng: number
           photo_url?: string | null
+          photo_urls?: string[] | null
           priority?: number | null
           province?: string | null
           reporter_id?: string | null
@@ -642,6 +644,7 @@ export type Database = {
           location_lat?: number
           location_lng?: number
           photo_url?: string | null
+          photo_urls?: string[] | null
           priority?: number | null
           province?: string | null
           reporter_id?: string | null

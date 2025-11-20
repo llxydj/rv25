@@ -577,20 +577,33 @@ export default function VolunteerIncidentDetailPage() {
               </div>
             </div>
 
-            {incident.photo_url && (
-              <div className="bg-white p-6 rounded-lg shadow-md">
-                <h2 className="text-lg font-semibold text-black mb-4">Photo</h2>
-                <div className="rounded-md overflow-hidden">
-                  <img
-                    src={incident.photo_url}
-                    alt={`Photo of ${incident.incident_type} reported on ${new Date(
-                      incident.created_at
-                    ).toLocaleDateString()}`}
-                    className="w-full object-cover"
-                  />
+            {(() => {
+              const photoGallery =
+                Array.isArray(incident.photo_urls) && incident.photo_urls.length > 0
+                  ? incident.photo_urls
+                  : incident.photo_url
+                    ? [incident.photo_url]
+                    : []
+              if (!photoGallery.length) return null
+              return (
+                <div className="bg-white p-6 rounded-lg shadow-md">
+                  <h2 className="text-lg font-semibold text-black mb-4">Photo Evidence</h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {photoGallery.map((photo, idx) => (
+                      <div key={`${photo}-${idx}`} className="rounded-md overflow-hidden">
+                        <img
+                          src={photo}
+                          alt={`Photo of ${incident.incident_type} reported on ${new Date(
+                            incident.created_at
+                          ).toLocaleDateString()}`}
+                          className="w-full object-cover"
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )
+            })()}
           </div>
 
           <div className="space-y-6">

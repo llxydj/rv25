@@ -140,7 +140,7 @@ export default function AdminCreateIncidentPage() {
         location[1],
         formData.address,
         formData.barangay,
-        null, // No photo for admin-created incidents
+        [],
         Number.parseInt(formData.priority),
       )
 

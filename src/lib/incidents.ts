@@ -56,6 +56,7 @@ export interface Incident {
   status: 'PENDING' | 'ASSIGNED' | 'RESPONDING' | 'RESOLVED' | 'CANCELLED';
   priority: number;
   photo_url: string | null;
+  photo_urls?: string[] | null;
   assigned_to: string | null;
   assigned_at: string | null;
   resolved_at: string | null;
@@ -204,28 +205,42 @@ export const getIncidentById = async (incidentId: string) => {
       hasPhotoUrl: !!(incidentWithReporter as any).photo_url
     });
 
-    // If there's a photo_url, generate a signed URL
-    if ((incidentWithReporter as any).photo_url) {
+    const signPhotoPath = async (path: string) => {
+      const cleanPath = path?.trim?.()
+      if (!cleanPath) return null
       try {
-        const storagePath = (incidentWithReporter as any).photo_url // keep directory prefix like raw/
-        console.log("Generating signed URL for photo:", storagePath);
-        // Create a signed URL that expires in 1 hour
+        console.log("Generating signed URL for photo:", cleanPath);
         const { data: signedUrlData, error: signedUrlError } = await supabase
           .storage
           .from(BUCKET_NAME)
-          .createSignedUrl(storagePath, 3600)
+          .createSignedUrl(cleanPath, 3600)
 
         if (!signedUrlError && signedUrlData) {
-          (incidentWithReporter as any).photo_url = signedUrlData.signedUrl;
           console.log("Successfully generated signed URL");
-        } else {
-          console.error("Error generating signed URL:", signedUrlError);
-          // Don't throw here - just log and continue with the original URL
+          return signedUrlData.signedUrl
         }
+        console.error("Error generating signed URL:", signedUrlError);
+        return null
       } catch (urlError) {
         console.error("Error processing photo URL:", urlError);
-        // Don't throw here - just log and continue with the original URL
+        return null
       }
+    }
+
+    if ((incidentWithReporter as any).photo_url) {
+      const signedPrimary = await signPhotoPath((incidentWithReporter as any).photo_url)
+      if (signedPrimary) {
+        (incidentWithReporter as any).photo_url = signedPrimary
+      }
+    }
+
+    if (Array.isArray((incidentWithReporter as any).photo_urls) && (incidentWithReporter as any).photo_urls.length > 0) {
+      const signedGallery: string[] = []
+      for (const rawPath of (incidentWithReporter as any).photo_urls) {
+        const signed = await signPhotoPath(rawPath)
+        if (signed) signedGallery.push(signed)
+      }
+      ;(incidentWithReporter as any).photo_urls = signedGallery
     }
 
     // Return the incident data
@@ -267,7 +282,7 @@ export const createIncident = async (
   locationLng: number,
   address: string,
   barangay: string,
-  photoFile: File | null,
+  photoFiles: File[] = [],
   priority = 3,
   isOffline = false,
   createdAtLocal?: string,
@@ -302,21 +317,19 @@ export const createIncident = async (
       }
     }
 
-    let photoUrl = null
+    const filesToUpload = Array.isArray(photoFiles) ? photoFiles.slice(0, 3) : []
+    const uploadedPhotoPaths: string[] = []
 
-    // Server-managed upload: send file to /api/incidents/upload to ensure atomicity
-    if (photoFile) {
-      notifyStage("upload-photo")
+    const uploadSinglePhoto = async (file: File): Promise<string> => {
       console.log("Attempting server-managed photo upload:", {
-        fileName: photoFile.name,
-        fileSize: photoFile.size,
-        fileType: photoFile.type
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type
       })
       const form = new FormData()
-      form.append('file', photoFile)
+      form.append('file', file)
       form.append('reporter_id', reporterId)
-      
-      // Get session token to pass in Authorization header
+
       let accessToken = options?.accessToken
       if (!accessToken) {
         const { data: { session } } = await supabase.auth.getSession()
@@ -326,10 +339,10 @@ export const createIncident = async (
       if (accessToken) {
         headers['Authorization'] = `Bearer ${accessToken}`
       }
-      
+
       console.time('createIncident.upload')
-      const uploadRes = await fetch('/api/incidents/upload', { 
-        method: 'POST', 
+      const uploadRes = await fetch('/api/incidents/upload', {
+        method: 'POST',
         body: form,
         headers
       })
@@ -339,8 +352,16 @@ export const createIncident = async (
         console.error('Upload endpoint failed:', uploadJson)
         throw new Error(uploadJson?.message || 'Failed to upload photo')
       }
-      photoUrl = uploadJson.path as string
-      console.log('Photo uploaded successfully via server endpoint, path:', photoUrl)
+      console.log('Photo uploaded successfully via server endpoint, path:', uploadJson.path)
+      return uploadJson.path as string
+    }
+
+    if (filesToUpload.length > 0) {
+      notifyStage("upload-photo")
+      for (const file of filesToUpload) {
+        const path = await uploadSinglePhoto(file)
+        uploadedPhotoPaths.push(path)
+      }
     }
 
     // Send to API to perform server-side verification and normalization
@@ -358,7 +379,8 @@ export const createIncident = async (
         address: address ? address.trim() : null,
         barangay,
         priority,
-        photo_url: photoUrl,
+        photo_url: uploadedPhotoPaths[0] ?? null,
+        photo_urls: uploadedPhotoPaths,
         is_offline: !!isOffline,
         created_at_local: createdAtLocal,
       })

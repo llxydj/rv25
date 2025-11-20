@@ -35,6 +35,7 @@ interface Incident {
     phone_number: string
   }
   photo_url?: string
+  photo_urls?: string[]
 }
 
 export default function BarangayIncidentDetailPage({ params }: { params: { id: string } }) {
@@ -246,22 +247,35 @@ export default function BarangayIncidentDetailPage({ params }: { params: { id: s
         )}
 
         {/* Photo Evidence */}
-        {incident.photo_url && (
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <h2 className="text-lg font-semibold mb-4">Photo Evidence</h2>
-            <div className="flex justify-center">
-              <img 
-                src={incident.photo_url} 
-                alt="Incident photo" 
-                className="max-h-96 rounded-lg object-contain"
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  target.src = '/placeholder-image.png'; // Fallback image
-                }}
-              />
+        {(() => {
+          const photoGallery =
+            Array.isArray(incident.photo_urls) && incident.photo_urls.length > 0
+              ? incident.photo_urls
+              : incident.photo_url
+                ? [incident.photo_url]
+                : []
+          if (!photoGallery.length) return null
+          return (
+            <div className="bg-white p-6 rounded-lg shadow-md">
+              <h2 className="text-lg font-semibold mb-4">Photo Evidence</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {photoGallery.map((photo, idx) => (
+                  <div key={`${photo}-${idx}`} className="flex justify-center">
+                    <img
+                      src={photo}
+                      alt={`Incident photo ${idx + 1}`}
+                      className="max-h-96 rounded-lg object-contain"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement
+                        target.src = '/placeholder-image.png'
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )
+        })()}
 
         {/* Incident Map */}
         <div className="bg-white p-6 rounded-lg shadow-md">

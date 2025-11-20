@@ -61,10 +61,21 @@ export const getAllVolunteers = async () => {
 
 export const getVolunteerPerformance = async () => {
   try {
-    const { data, error } = await supabase.rpc('volunteer_performance_kpis')
-    if (error) throw error
-    return { success: true, data }
+    const { data: sessionData } = await supabase.auth.getSession()
+    const accessToken = sessionData?.session?.access_token
+    const response = await fetch('/api/admin/analytics/volunteers?section=performance', {
+      method: 'GET',
+      credentials: 'include',
+      cache: 'no-store',
+      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+    })
+    const json = await response.json()
+    if (!response.ok || !json?.success) {
+      throw new Error(json?.message || 'Failed to load volunteer performance')
+    }
+    return { success: true, data: json.data }
   } catch (e: any) {
+    console.error('Error fetching volunteer performance:', e)
     return { success: false, message: e?.message || 'Failed to load volunteer performance' }
   }
 }
@@ -741,43 +752,21 @@ export const createScheduledActivity = async (adminId: string, data: {
 }
 
 // Get volunteer metrics (admin only)
-export const getVolunteerMetrics = async (adminId: string) => {
+export const getVolunteerMetrics = async (_adminId: string) => {
   try {
-    // Check if admin
-    const { data: adminData, error: adminError } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', adminId)
-      .single()
-
-    if (adminError) throw adminError
-    if (adminData.role !== 'admin') {
-      throw new Error('Only admins can view volunteer metrics')
+    const { data: sessionData } = await supabase.auth.getSession()
+    const accessToken = sessionData?.session?.access_token
+    const response = await fetch('/api/admin/analytics/volunteers?section=metrics', {
+      method: 'GET',
+      credentials: 'include',
+      cache: 'no-store',
+      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+    })
+    const json = await response.json()
+    if (!response.ok || !json?.success) {
+      throw new Error(json?.message || 'Failed to fetch volunteer metrics')
     }
-
-    // Get various metrics
-    const { data: activeVolunteers, error: activeError } = await supabase
-      .from('volunteer_profiles')
-      .select('volunteer_user_id')
-      .eq('is_available', true)
-
-    if (activeError) throw activeError
-
-    const { data: totalActivities, error: activitiesError } = await supabase
-      .from('volunteeractivities')
-      .select('volunteer_user_id, participated, resolved_at')
-
-    if (activitiesError) throw activitiesError
-
-    // Calculate metrics
-    const metrics = {
-      active_volunteers: activeVolunteers.length,
-      total_activities: totalActivities.length,
-      completed_activities: totalActivities.filter(a => a.resolved_at !== null).length,
-      participating_activities: totalActivities.filter(a => a.participated && !a.resolved_at).length
-    }
-
-    return { success: true, data: metrics }
+    return { success: true, data: json.data }
   } catch (error: any) {
     console.error('Error fetching volunteer metrics:', error)
     return { success: false, message: error.message }

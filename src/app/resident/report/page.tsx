@@ -14,6 +14,8 @@ import { isWithinTalisayCity, TALISAY_CENTER } from "@/lib/geo-utils"
 import { useToast } from "@/components/ui/use-toast"
 import { supabase } from "@/lib/supabase"
 
+const MAX_PHOTOS = 3
+
 export default function ReportIncidentPage() {
   const { toast } = useToast()
   const { user } = useAuth()
@@ -34,8 +36,18 @@ export default function ReportIncidentPage() {
     priority: isEmergency ? "1" : "3",
   })
   const [location, setLocation] = useState<[number, number] | null>(null)
-  const [photoFile, setPhotoFile] = useState<File | null>(null)
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  const [photoFiles, setPhotoFiles] = useState<File[]>([])
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([])
+  const previewUrlsRef = useRef<string[]>([])
+  useEffect(() => {
+    previewUrlsRef.current = photoPreviews
+  }, [photoPreviews])
+
+  useEffect(() => {
+    return () => {
+      previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url))
+    }
+  }, [])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [barangays, setBarangays] = useState<string[]>([])
@@ -45,7 +57,6 @@ export default function ReportIncidentPage() {
   const [autoGeoLock, setAutoGeoLock] = useState<{ address: boolean; barangay: boolean }>({ address: false, barangay: false })
   const [geoMessage, setGeoMessage] = useState<string | null>(null)
   const [locationCaptured, setLocationCaptured] = useState(false)
-  const [photoCaptured, setPhotoCaptured] = useState(false)
   const [submitStage, setSubmitStage] = useState<string | null>(null)
 
   useEffect(() => {
@@ -321,129 +332,140 @@ export default function ReportIncidentPage() {
     setFormData((prev) => ({ ...prev, [name]: sanitizedValue }))
   }
 
-  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0]
-      
-      // Check file type
-      if (!file.type.startsWith('image/')) {
-        setError('Please capture a photo using your camera')
-        return
-      }
-
-      // Check file size (max 3MB)
-      if (file.size > 3 * 1024 * 1024) {
-        setError('Photo size must be less than 3MB')
-        return
-      }
-      
-      // Convert image to watermarked blob - properly await completion
-      const watermarkedFile = await new Promise<File | null>((resolve) => {
-        const canvas = document.createElement('canvas')
-        const ctx = canvas.getContext('2d')
-        const img = new Image()
-        
-        img.onload = () => {
-          // Downscale large images to reduce file size and upload time
-          const MAX_DIM = 1280
-          let targetW = img.width
-          let targetH = img.height
-          if (Math.max(img.width, img.height) > MAX_DIM) {
-            const scale = MAX_DIM / Math.max(img.width, img.height)
-            targetW = Math.round(img.width * scale)
-            targetH = Math.round(img.height * scale)
-          }
-
-          // Set canvas size to target
-          canvas.width = targetW
-          canvas.height = targetH
-          
-          // Draw the (possibly downscaled) image
-          ctx?.drawImage(img, 0, 0, targetW, targetH)
-          
-          // Add watermark background
-          if (ctx) {
-            // Semi-transparent black background for better readability
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'
-            ctx.fillRect(0, canvas.height - 80, canvas.width, 80)
-            
-            // Add watermark text
-            ctx.font = 'bold 24px Arial'
-            ctx.fillStyle = '#FFFFFF'
-            
-            const date = new Date().toLocaleDateString('en-US', {
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric'
-            })
-            const time = new Date().toLocaleTimeString('en-US', {
-              hour: '2-digit',
-              minute: '2-digit',
-              hour12: true
-            })
-            
-            // Add location name if available
-            const locationText = formData.barangay 
-              ? `${formData.barangay}, Talisay City`
-              : location 
-              ? `Lat: ${location[0].toFixed(6)}, Lng: ${location[1].toFixed(6)}`
-              : 'Talisay City'
-            
-            // Draw text with shadow for better visibility
-            ctx.shadowColor = 'rgba(0, 0, 0, 0.5)'
-            ctx.shadowBlur = 4
-            ctx.shadowOffsetX = 2
-            ctx.shadowOffsetY = 2
-            
-            ctx.fillText(`📍 ${locationText}`, 20, canvas.height - 50)
-            ctx.fillText(`📅 ${date} ${time}`, 20, canvas.height - 20)
-            
-            // Reset shadow
-            ctx.shadowColor = 'transparent'
-          }
-          
-          // Convert canvas to JPEG file with lower quality to reduce size
-          // Properly await the blob conversion
-          canvas.toBlob((blob) => {
-            if (blob) {
-              const watermarkedFile = new File([blob], 'incident_photo.jpg', { type: 'image/jpeg' })
-              resolve(watermarkedFile)
-            } else {
-              resolve(null)
-            }
-          }, 'image/jpeg', 0.7)
-        }
-        
-        img.onerror = () => {
-          resolve(null)
-        }
-        
-        img.src = URL.createObjectURL(file)
-      })
-
-      if (watermarkedFile) {
-        setPhotoFile(watermarkedFile)
-        const previewURL = URL.createObjectURL(watermarkedFile)
-        setPhotoPreview(previewURL)
-        setPhotoCaptured(true)
-        setError(null)
-      } else {
-        setError('Failed to process photo. Please try again.')
-        setPhotoFile(null)
-        setPhotoPreview(null)
-        setPhotoCaptured(false)
-      }
+  const processPhotoFile = (file: File): Promise<{ processed: File; previewUrl: string } | null> => {
+    if (!file.type.startsWith('image/')) {
+      setError('Please capture a photo using your camera')
+      return Promise.resolve(null)
     }
+
+    if (file.size > 3 * 1024 * 1024) {
+      setError('Photo size must be less than 3MB')
+      return Promise.resolve(null)
+    }
+
+    return new Promise((resolve) => {
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+      const img = new Image()
+      const objectUrl = URL.createObjectURL(file)
+
+      img.onload = () => {
+        const MAX_DIM = 1280
+        let targetW = img.width
+        let targetH = img.height
+        if (Math.max(img.width, img.height) > MAX_DIM) {
+          const scale = MAX_DIM / Math.max(img.width, img.height)
+          targetW = Math.round(img.width * scale)
+          targetH = Math.round(img.height * scale)
+        }
+
+        canvas.width = targetW
+        canvas.height = targetH
+        ctx?.drawImage(img, 0, 0, targetW, targetH)
+
+        if (ctx) {
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'
+          ctx.fillRect(0, canvas.height - 80, canvas.width, 80)
+
+          ctx.font = 'bold 24px Arial'
+          ctx.fillStyle = '#FFFFFF'
+
+          const date = new Date().toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          })
+          const time = new Date().toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+          })
+
+          const locationText = formData.barangay
+            ? `${formData.barangay}, Talisay City`
+            : location
+            ? `Lat: ${location[0].toFixed(6)}, Lng: ${location[1].toFixed(6)}`
+            : 'Talisay City'
+
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.5)'
+          ctx.shadowBlur = 4
+          ctx.shadowOffsetX = 2
+          ctx.shadowOffsetY = 2
+
+          ctx.fillText(`📍 ${locationText}`, 20, canvas.height - 50)
+          ctx.fillText(`📅 ${date} ${time}`, 20, canvas.height - 20)
+
+          ctx.shadowColor = 'transparent'
+        }
+
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const watermarkedFile = new File([blob], `incident_photo_${Date.now()}.jpg`, { type: 'image/jpeg' })
+            const previewUrl = URL.createObjectURL(watermarkedFile)
+            resolve({ processed: watermarkedFile, previewUrl })
+          } else {
+            resolve(null)
+          }
+          URL.revokeObjectURL(objectUrl)
+        }, 'image/jpeg', 0.7)
+      }
+
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl)
+        resolve(null)
+      }
+      img.src = objectUrl
+    })
   }
 
-  const removePhoto = () => {
-    // Revoke object URL to free memory
-    if (photoPreview) {
-      URL.revokeObjectURL(photoPreview)
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return
+
+    const availableSlots = MAX_PHOTOS - photoFiles.length
+    if (availableSlots <= 0) {
+      setError(`You can upload up to ${MAX_PHOTOS} photos.`)
+      e.target.value = ''
+      return
     }
-    setPhotoFile(null)
-    setPhotoPreview(null)
-    setPhotoCaptured(false)
+
+    const selectedFiles = Array.from(e.target.files).slice(0, availableSlots)
+    const newFiles: File[] = []
+    const newPreviews: string[] = []
+
+    for (const file of selectedFiles) {
+      const processed = await processPhotoFile(file)
+      if (processed) {
+        newFiles.push(processed.processed)
+        newPreviews.push(processed.previewUrl)
+      }
+    }
+
+    if (newFiles.length) {
+      setPhotoFiles((prev) => [...prev, ...newFiles])
+      setPhotoPreviews((prev) => [...prev, ...newPreviews])
+      setError(null)
+    }
+
+    e.target.value = ''
+  }
+
+  const removePhoto = (index: number) => {
+    setPhotoFiles((prev) => prev.filter((_, idx) => idx !== index))
+    setPhotoPreviews((prev) => {
+      const next = [...prev]
+      const [removed] = next.splice(index, 1)
+      if (removed) {
+        URL.revokeObjectURL(removed)
+      }
+      return next
+    })
+  }
+
+  const clearPhotos = () => {
+    previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url))
+    previewUrlsRef.current = []
+    setPhotoFiles([])
+    setPhotoPreviews([])
   }
 
   const handleMapClick = (lat: number, lng: number) => {
@@ -460,12 +482,6 @@ export default function ReportIncidentPage() {
     // Step 1: Location must be captured first
     if (!location || !locationCaptured) {
       setError("Please capture your location first")
-      return false
-    }
-
-    // Step 2: Photo must be captured
-    if (!photoFile || !photoCaptured) {
-      setError("Please take a photo of the incident")
       return false
     }
 
@@ -504,17 +520,6 @@ export default function ReportIncidentPage() {
         variant: "destructive",
         title: "Authentication Error",
         description: errorMsg
-      })
-      return
-    }
-
-    // Wait for photo to be ready before submitting
-    if (!photoFile || !photoCaptured) {
-      setError("Please take a photo of the incident")
-      toast({
-        variant: "destructive",
-        title: "Validation Error",
-        description: "Please take a photo of the incident"
       })
       return
     }
@@ -568,8 +573,7 @@ export default function ReportIncidentPage() {
           priority: "3",
         })
         setLocation(null)
-        setPhotoFile(null)
-        setPhotoPreview(null)
+        clearPhotos()
 
         // Redirect to dashboard
         router.push("/resident/dashboard?offline=true")
@@ -600,12 +604,7 @@ export default function ReportIncidentPage() {
         address: formData.address,
         barangay: formData.barangay,
         priority: formData.priority,
-        hasPhoto: !!photoFile,
-        photoDetails: photoFile ? {
-          name: photoFile.name,
-          size: photoFile.size,
-          type: photoFile.type
-        } : null
+        photoCount: photoFiles.length
       })
 
       // Verify user session is still valid
@@ -629,7 +628,7 @@ export default function ReportIncidentPage() {
         reportLocation[1],
         formData.address,
         formData.barangay,
-        photoFile,
+        photoFiles,
         Number.parseInt(formData.priority),
         false,
         undefined,
@@ -667,13 +666,7 @@ export default function ReportIncidentPage() {
         priority: "3",
       })
       setLocation(null)
-      // Revoke object URL to free memory
-      if (photoPreview) {
-        URL.revokeObjectURL(photoPreview)
-      }
-      setPhotoFile(null)
-      setPhotoPreview(null)
-      setPhotoCaptured(false)
+      clearPhotos()
 
       // Redirect to dashboard with success message
       router.push("/resident/dashboard?success=Incident reported successfully")
@@ -896,60 +889,77 @@ export default function ReportIncidentPage() {
             </div>
           </div>
 
-          {/* STEP 2: Mandatory Photo Upload */}
+          {/* STEP 2: Optional Photo Upload */}
           <div className="bg-white p-6 rounded-lg shadow-md">
-            <h2 className="text-lg font-semibold mb-4">
-              Step 2: Photo Evidence (Required) {photoCaptured && "✅"}
-            </h2>
-            <p className="text-sm text-gray-600 mb-4">A picture says a thousand words - Photo proof is mandatory</p>
-
-            <div className="space-y-4">
-              {photoPreview ? (
-                <div className="relative">
-                  <img
-                    src={photoPreview}
-                    alt={formData.incidentType ? `Preview of ${formData.incidentType} photo` : `Photo preview`}
-                    className="max-h-64 rounded-lg mx-auto"
-                  />
-                  <button
-                    type="button"
-                    onClick={removePhoto}
-                    aria-label="Remove photo"
-                    className="absolute top-2 right-2 bg-red-600 text-white p-1 rounded-full hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center justify-center">
-                  <label
-                    htmlFor="photo-upload"
-                    className="cursor-pointer bg-background py-6 px-4 border-2 border-gray-300 border-dashed rounded-lg text-center hover:bg-accent w-full transition-colors"
-                  >
-                    <div className="space-y-2">
-                      <div className="mx-auto h-12 w-12 text-gray-400">
-                        <Camera className="h-12 w-12 mx-auto" />
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        <span className="font-medium text-red-600 hover:text-red-500">Take a photo</span>
-                      </div>
-                      <p className="text-xs text-gray-500">Use your device's camera to capture the incident</p>
-                    </div>
-                    <input
-                      id="photo-upload"
-                      name="photo"
-                      type="file"
-                      accept="image/jpeg"
-                      capture="environment"
-                      className="sr-only"
-                      onChange={handlePhotoChange}
-                      required
-                      disabled={loading}
-                    />
-                  </label>
-                </div>
-              )}
+            <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+              <div>
+                <h2 className="text-lg font-semibold">
+                  Step 2: Photo Evidence (Optional) {photoFiles.length > 0 && "✅"}
+                </h2>
+                <p className="text-sm text-gray-600">
+                  Add up to {MAX_PHOTOS} photos to help responders understand the situation faster.
+                </p>
+              </div>
+              <span className="text-sm text-gray-500">
+                {photoFiles.length}/{MAX_PHOTOS} added
+              </span>
             </div>
+
+            {photoPreviews.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                {photoPreviews.map((preview, index) => (
+                  <div key={preview} className="relative rounded-lg overflow-hidden border bg-gray-50">
+                    <img
+                      src={preview}
+                      alt={`Incident photo ${index + 1}`}
+                      className="h-40 w-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removePhoto(index)}
+                      aria-label={`Remove photo ${index + 1}`}
+                      className="absolute top-2 right-2 bg-red-600 text-white p-1 rounded-full hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {photoFiles.length < MAX_PHOTOS && (
+              <div className="flex items-center justify-center">
+                <label
+                  htmlFor="photo-upload"
+                  className="cursor-pointer bg-background py-6 px-4 border-2 border-dashed border-gray-300 rounded-lg text-center hover:bg-accent w-full transition-colors"
+                >
+                  <div className="space-y-2">
+                    <div className="mx-auto h-12 w-12 text-gray-400">
+                      <Camera className="h-12 w-12 mx-auto" />
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      <span className="font-medium text-red-600 hover:text-red-500">
+                        {photoFiles.length === 0 ? "Add a photo" : "Add another photo"}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      JPG only · up to 3MB per photo · best to capture clear evidence
+                    </p>
+                  </div>
+                  <input
+                    id="photo-upload"
+                    name="photo"
+                    type="file"
+                    accept="image/jpeg"
+                    capture="environment"
+                    multiple
+                    className="sr-only"
+                    onChange={handlePhotoChange}
+                    disabled={loading}
+                  />
+                </label>
+              </div>
+            )}
           </div>
 
           {/* STEP 3: Incident Classification */}

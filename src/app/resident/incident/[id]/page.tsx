@@ -245,16 +245,30 @@ export default function ResidentIncidentDetailPage() {
               </div>
             </div>
 
-            {incident.photo_url && (
-              <div className="bg-white p-6 rounded-lg shadow-md">
-                <h3 className="text-sm font-medium text-gray-500 mb-4">Photo Evidence</h3>
-                <img
-                  src={incident.photo_url || "/placeholder.svg"}
-                  alt="Incident photo"
-                  className="w-full h-auto max-h-96 object-contain rounded-md"
-                />
-              </div>
-            )}
+            {(() => {
+              const photoGallery =
+                Array.isArray(incident.photo_urls) && incident.photo_urls.length > 0
+                  ? incident.photo_urls
+                  : incident.photo_url
+                    ? [incident.photo_url]
+                    : []
+              if (!photoGallery.length) return null
+              return (
+                <div className="bg-white p-6 rounded-lg shadow-md">
+                  <h3 className="text-sm font-medium text-gray-500 mb-4">Photo Evidence</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {photoGallery.map((photo, idx) => (
+                      <img
+                        key={`${photo}-${idx}`}
+                        src={photo}
+                        alt={`Incident photo ${idx + 1}`}
+                        className="w-full h-auto max-h-72 object-contain rounded-md"
+                      />
+                    ))}
+                  </div>
+                </div>
+              )
+            })()}
 
             <div className="bg-white p-6 rounded-lg shadow-md">
               <h3 className="text-sm font-medium text-gray-500 mb-4">Incident Location</h3>
