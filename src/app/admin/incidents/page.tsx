@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { AdminLayout } from "@/components/layout/admin-layout"
@@ -194,9 +194,9 @@ export default function AdminIncidentsPage() {
     }
   }, [statusParam])
 
-  const handleFilterChange = (newFilters: any) => {
+  const handleFilterChange = useCallback((newFilters: Filters) => {
     setFilters(newFilters)
-  }
+  }, [])
 
   // Pagination derived values
   const pageSize = 25
