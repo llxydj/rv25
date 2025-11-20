@@ -4,7 +4,7 @@ import type React from "react"
 import { useState, useCallback, useMemo, useEffect, Suspense } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { Bell, Calendar, User, X, AlertTriangle } from "lucide-react"
+import { Bell, Calendar, User, X, AlertTriangle, Menu } from "lucide-react"
 import { useNotificationsChannel } from '@/lib/use-notifications'
 import { useAuth } from "@/hooks/use-auth"
 import { AuthLayout } from "./auth-layout"
@@ -23,7 +23,7 @@ export const VolunteerLayout: React.FC<VolunteerLayoutProps> = ({ children }) =>
   const [isNavigating, setIsNavigating] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
-  const { signOut } = useAuth()
+  const { signOut, user } = useAuth()
 
   // Initialize notifications realtime listener
   useNotificationsChannel()
@@ -153,10 +153,23 @@ export const VolunteerLayout: React.FC<VolunteerLayoutProps> = ({ children }) =>
 
           {/* Main content */}
           <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Mobile header */}
+            <div className="lg:hidden bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+              <button
+                className="text-gray-700 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500 rounded-md p-1"
+                onClick={() => setSidebarOpen(true)}
+                aria-label="Open menu"
+              >
+                <Menu className="h-6 w-6" />
+              </button>
+              <h1 className="text-lg font-semibold text-gray-800">RVOIS</h1>
+              <div className="w-8" /> {/* Spacer for centering */}
+            </div>
+            
             {/* Top bar with notifications */}
             <div className="bg-white border-b border-gray-200 px-4 py-2 flex justify-between items-center">
-              <h1 className="text-lg font-semibold text-gray-800">Volunteer Portal</h1>
-              <div className="flex items-center space-x-4">
+              <h1 className="text-lg font-semibold text-gray-800 hidden lg:block">Volunteer Portal</h1>
+              <div className="flex items-center space-x-4 ml-auto">
                 <SystemClock className="hidden md:block" />
                 <VolunteerNotificationsNew />
               </div>

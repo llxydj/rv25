@@ -12,6 +12,7 @@ import { supabase } from "@/lib/supabase"
 import { IncidentCallActions } from "@/components/incident-call-actions"
 import IncidentOTWButton from "@/components/incident-otw-button"
 import IncidentStatusDropdown from "@/components/incident-status-dropdown"
+import IncidentSeverityUpdater from "@/components/incident-severity-updater"
 
 export default function VolunteerIncidentDetailPage() {
   const params = useParams()
@@ -634,8 +635,27 @@ export default function VolunteerIncidentDetailPage() {
                   />
                 )}
                 
+                {/* Severity Update - Only when ARRIVED */}
+                {incident.status === "ARRIVED" && (
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <h3 className="text-sm font-medium text-gray-700 mb-3">Assess Severity Level</h3>
+                    <IncidentSeverityUpdater
+                      currentSeverity={incident.severity}
+                      incidentId={incident.id}
+                      incidentStatus={incident.status}
+                      onSeverityUpdate={(newSeverity) => {
+                        setIncident({
+                          ...incident,
+                          severity: newSeverity
+                        })
+                        setSuccessMessage(`Severity updated to ${newSeverity}`)
+                      }}
+                    />
+                  </div>
+                )}
+
                 {incident.status === "RESPONDING" || incident.status === "ARRIVED" ? (
-                  <div>
+                  <div className="mt-4">
                     <label htmlFor="resolutionNotes" className="block text-sm font-medium text-gray-700">
                       Resolution Notes
                     </label>

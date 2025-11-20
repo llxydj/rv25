@@ -104,7 +104,7 @@ class PushNotificationService {
       }
 
       // Register service worker
-      this.registration = await navigator.serviceWorker.register('/sw.js')
+      this.registration = await navigator.serviceWorker.register('/service-worker.js')
       console.log('[push] Service worker registered')
 
       // Wait for service worker to be ready
@@ -194,7 +194,7 @@ class PushNotificationService {
   /**
    * Send subscription to server for storage
    */
-  private async sendSubscriptionToServer(subscription: PushSubscription): Promise<void> {
+  async sendSubscriptionToServer(subscription: PushSubscription): Promise<void> {
     try {
       // Store the entire subscription object as JSONB (matches database schema)
       const subscriptionData = {

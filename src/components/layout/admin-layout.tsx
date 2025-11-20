@@ -4,7 +4,7 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { AlertTriangle, Phone, User, X, Home, FileText, MapPin, Calendar, BarChart3, Settings, Bell, PanelLeft } from "lucide-react"
+import { AlertTriangle, Phone, User, X, Home, FileText, MapPin, Calendar, BarChart3, Settings, Bell, Menu } from "lucide-react"
 import { useNotificationsChannel } from '@/lib/use-notifications'
 import { signOut } from "@/lib/auth"
 import { AuthLayout } from "./auth-layout"
@@ -123,12 +123,23 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
             <Link
               href="/admin/volunteers"
               className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 ${
-                isActive("/admin/volunteers") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md"
+                pathname.startsWith("/admin/volunteers") && !pathname.includes("/analytics") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md"
               }`}
               onClick={() => setSidebarOpen(false)}
             >
               <User className="h-5 w-5 flex-shrink-0" />
               <span className="font-medium truncate">Volunteers</span>
+            </Link>
+
+            <Link
+              href="/admin/volunteers/analytics"
+              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 ${
+                pathname.includes("/volunteers/analytics") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md"
+              }`}
+              onClick={() => setSidebarOpen(false)}
+            >
+              <BarChart3 className="h-5 w-5 flex-shrink-0" />
+              <span className="font-medium truncate">Volunteer Analytics</span>
             </Link>
 
             <Link
@@ -294,11 +305,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
           <header className="bg-white border-b border-gray-200 px-4 py-2 flex items-center justify-between">
             {/* Mobile: open sidebar */}
             <button
-              className="lg:hidden text-gray-600 hover:text-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 rounded-md p-1"
+              className="lg:hidden text-gray-600 hover:text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md p-1"
               onClick={() => setSidebarOpen(true)}
               aria-label="Open sidebar menu"
             >
-              <PanelLeft className="h-6 w-6" />
+              <Menu className="h-6 w-6" />
             </button>
             <div className="flex items-center space-x-3">
               {/* <RealtimeStatusIndicator status="connected" /> */}

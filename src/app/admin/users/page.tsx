@@ -95,14 +95,25 @@ export default function UserManagementPage() {
     return { total, active, inactive, byRole }
   }, [users])
 
-  // Fetch users and barangays
+  // Fetch users with filters
   useEffect(() => {
     if (!user) return
     
     const fetchUsers = async () => {
       try {
         setLoading(true)
-        const response = await fetch(`/api/admin/users?page=${pagination.current_page}&limit=${pagination.per_page}`)
+        
+        // Build query params
+        const params = new URLSearchParams({
+          page: pagination.current_page.toString(),
+          limit: pagination.per_page.toString(),
+          ...(roleFilter !== "all" ? { role: roleFilter } : {}),
+          ...(statusFilter !== "all" ? { status: statusFilter } : {}),
+          ...(barangayFilter !== "all" ? { barangay: barangayFilter } : {}),
+          ...(searchTerm ? { search: searchTerm } : {})
+        })
+        
+        const response = await fetch(`/api/admin/users?${params}`)
         const result = await response.json()
         
         if (!result.success) throw new Error(result.message)
@@ -137,11 +148,17 @@ export default function UserManagementPage() {
       }
     }
     
+    fetchUsers()
+  }, [user, pagination.current_page, pagination.per_page, roleFilter, statusFilter, barangayFilter, searchTerm])
+  
+  // Fetch barangays separately (only once)
+  useEffect(() => {
+    if (!user) return
+    
     const fetchBarangays = async () => {
       try {
-        // For simplicity, we'll fetch all users to get barangays
-        // In a production app, you might want a separate endpoint for this
-        const response = await fetch("/api/admin/users")
+        // Fetch all users to get unique barangays
+        const response = await fetch("/api/admin/users?all=true")
         const result = await response.json()
         
         if (!result.success) throw new Error(result.message)
@@ -151,55 +168,36 @@ export default function UserManagementPage() {
           new Set(result.data.map((user: User) => user.barangay).filter(Boolean))
         ).filter(Boolean) as string[]
         
-        setBarangays(uniqueBarangays)
+        setBarangays(uniqueBarangays.sort())
       } catch (error: any) {
         console.error("Error fetching barangays:", error)
       }
     }
     
-    fetchUsers()
     fetchBarangays()
-  }, [user, pagination.current_page, pagination.per_page])
+  }, [user])
   
-  // Apply filters
+  // Filters are now applied server-side, so filteredUsers = users
   useEffect(() => {
-    let result = [...users]
-    
-    // Apply search filter
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase()
-      result = result.filter(user => 
-        user.first_name.toLowerCase().includes(term) ||
-        user.last_name.toLowerCase().includes(term) ||
-        user.email.toLowerCase().includes(term)
-      )
-    }
-    
-    // Apply role filter
-    if (roleFilter !== "all") {
-      result = result.filter(user => user.role === roleFilter)
-    }
-    
-    if (statusFilter !== "all") {
-      result = result.filter(user => user.status === statusFilter)
-    }
-    
-    // Apply barangay filter
-    if (barangayFilter !== "all") {
-      result = result.filter(user => user.barangay === barangayFilter)
-    }
-    
-    setFilteredUsers(result)
-  }, [searchTerm, roleFilter, barangayFilter, statusFilter, users])
+    setFilteredUsers(users)
+  }, [users])
   
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= pagination.total_pages) {
-      setPagination({
-        ...pagination,
+      setPagination(prev => ({
+        ...prev,
         current_page: newPage
-      })
+      }))
     }
   }
+  
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setPagination(prev => ({
+      ...prev,
+      current_page: 1
+    }))
+  }, [roleFilter, statusFilter, barangayFilter, searchTerm])
   
   const handleViewUser = (userId: string) => {
     // Navigate to user details page

@@ -4,7 +4,7 @@ import type React from "react"
 import { useState, useCallback, useMemo, useEffect, Suspense } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { AlertTriangle, Phone, User, X } from "lucide-react"
+import { AlertTriangle, Phone, User, X, Menu } from "lucide-react"
 import { useNotificationsChannel } from '@/lib/use-notifications'
 import { signOut } from "@/lib/auth"
 import { AuthLayout } from "./auth-layout"
@@ -211,13 +211,16 @@ export default function ResidentLayout({ children }: ResidentLayoutProps) {
         {/* Main content */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Mobile header */}
-          <div className="lg:hidden bg-white border-b border-gray-200 px-4 py-2">
+          <div className="lg:hidden bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
             <button
-              className="text-gray-500 hover:text-gray-600"
+              className="text-gray-700 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500 rounded-md p-1"
               onClick={toggleSidebar}
+              aria-label="Open menu"
             >
-              <X className="h-6 w-6" />
+              <Menu className="h-6 w-6" />
             </button>
+            <h1 className="text-lg font-semibold text-gray-800">RVOIS</h1>
+            <div className="w-8" /> {/* Spacer for centering */}
           </div>
 
           {/* Top bar with notifications */}

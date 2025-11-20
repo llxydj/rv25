@@ -337,88 +337,113 @@ export default function ReportIncidentPage() {
         return
       }
       
-      // Create a canvas to add watermark
-      const canvas = document.createElement('canvas')
-      const ctx = canvas.getContext('2d')
-      const img = new Image()
-      
-      img.onload = () => {
-        // Downscale large images to reduce file size and upload time
-        const MAX_DIM = 1280
-        let targetW = img.width
-        let targetH = img.height
-        if (Math.max(img.width, img.height) > MAX_DIM) {
-          const scale = MAX_DIM / Math.max(img.width, img.height)
-          targetW = Math.round(img.width * scale)
-          targetH = Math.round(img.height * scale)
-        }
-
-        // Set canvas size to target
-        canvas.width = targetW
-        canvas.height = targetH
+      // Convert image to watermarked blob - properly await completion
+      const watermarkedFile = await new Promise<File | null>((resolve) => {
+        const canvas = document.createElement('canvas')
+        const ctx = canvas.getContext('2d')
+        const img = new Image()
         
-        // Draw the (possibly downscaled) image
-        ctx?.drawImage(img, 0, 0, targetW, targetH)
-        
-        // Add watermark background
-        if (ctx) {
-          // Semi-transparent black background for better readability
-          ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'
-          ctx.fillRect(0, canvas.height - 80, canvas.width, 80)
-          
-          // Add watermark text
-          ctx.font = 'bold 24px Arial'
-          ctx.fillStyle = '#FFFFFF'
-          
-          const date = new Date().toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-          })
-          const time = new Date().toLocaleTimeString('en-US', {
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: true
-          })
-          
-          // Add location name if available
-          const locationText = formData.barangay 
-            ? `${formData.barangay}, Talisay City`
-            : location 
-            ? `Lat: ${location[0].toFixed(6)}, Lng: ${location[1].toFixed(6)}`
-            : 'Talisay City'
-          
-          // Draw text with shadow for better visibility
-          ctx.shadowColor = 'rgba(0, 0, 0, 0.5)'
-          ctx.shadowBlur = 4
-          ctx.shadowOffsetX = 2
-          ctx.shadowOffsetY = 2
-          
-          ctx.fillText(`📍 ${locationText}`, 20, canvas.height - 50)
-          ctx.fillText(`📅 ${date} ${time}`, 20, canvas.height - 20)
-          
-          // Reset shadow
-          ctx.shadowColor = 'transparent'
-        }
-        
-        // Convert canvas to JPEG file with lower quality to reduce size
-        canvas.toBlob((blob) => {
-          if (blob) {
-            const watermarkedFile = new File([blob], 'incident_photo.jpg', { type: 'image/jpeg' })
-            setPhotoFile(watermarkedFile)
-            setPhotoPreview(canvas.toDataURL('image/jpeg', 0.7)) // 70% quality preview
-            setPhotoCaptured(true)
+        img.onload = () => {
+          // Downscale large images to reduce file size and upload time
+          const MAX_DIM = 1280
+          let targetW = img.width
+          let targetH = img.height
+          if (Math.max(img.width, img.height) > MAX_DIM) {
+            const scale = MAX_DIM / Math.max(img.width, img.height)
+            targetW = Math.round(img.width * scale)
+            targetH = Math.round(img.height * scale)
           }
-        }, 'image/jpeg', 0.7)
+
+          // Set canvas size to target
+          canvas.width = targetW
+          canvas.height = targetH
+          
+          // Draw the (possibly downscaled) image
+          ctx?.drawImage(img, 0, 0, targetW, targetH)
+          
+          // Add watermark background
+          if (ctx) {
+            // Semi-transparent black background for better readability
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'
+            ctx.fillRect(0, canvas.height - 80, canvas.width, 80)
+            
+            // Add watermark text
+            ctx.font = 'bold 24px Arial'
+            ctx.fillStyle = '#FFFFFF'
+            
+            const date = new Date().toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric'
+            })
+            const time = new Date().toLocaleTimeString('en-US', {
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: true
+            })
+            
+            // Add location name if available
+            const locationText = formData.barangay 
+              ? `${formData.barangay}, Talisay City`
+              : location 
+              ? `Lat: ${location[0].toFixed(6)}, Lng: ${location[1].toFixed(6)}`
+              : 'Talisay City'
+            
+            // Draw text with shadow for better visibility
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.5)'
+            ctx.shadowBlur = 4
+            ctx.shadowOffsetX = 2
+            ctx.shadowOffsetY = 2
+            
+            ctx.fillText(`📍 ${locationText}`, 20, canvas.height - 50)
+            ctx.fillText(`📅 ${date} ${time}`, 20, canvas.height - 20)
+            
+            // Reset shadow
+            ctx.shadowColor = 'transparent'
+          }
+          
+          // Convert canvas to JPEG file with lower quality to reduce size
+          // Properly await the blob conversion
+          canvas.toBlob((blob) => {
+            if (blob) {
+              const watermarkedFile = new File([blob], 'incident_photo.jpg', { type: 'image/jpeg' })
+              resolve(watermarkedFile)
+            } else {
+              resolve(null)
+            }
+          }, 'image/jpeg', 0.7)
+        }
+        
+        img.onerror = () => {
+          resolve(null)
+        }
+        
+        img.src = URL.createObjectURL(file)
+      })
+
+      if (watermarkedFile) {
+        setPhotoFile(watermarkedFile)
+        const previewURL = URL.createObjectURL(watermarkedFile)
+        setPhotoPreview(previewURL)
+        setPhotoCaptured(true)
+        setError(null)
+      } else {
+        setError('Failed to process photo. Please try again.')
+        setPhotoFile(null)
+        setPhotoPreview(null)
+        setPhotoCaptured(false)
       }
-      
-      img.src = URL.createObjectURL(file)
     }
   }
 
   const removePhoto = () => {
+    // Revoke object URL to free memory
+    if (photoPreview) {
+      URL.revokeObjectURL(photoPreview)
+    }
     setPhotoFile(null)
     setPhotoPreview(null)
+    setPhotoCaptured(false)
   }
 
   const handleMapClick = (lat: number, lng: number) => {
@@ -483,12 +508,16 @@ export default function ReportIncidentPage() {
       return
     }
 
-    // Debug: Log user information
-    console.log("Current user:", {
-      id: user.id,
-      email: user.email,
-      role: user.role
-    })
+    // Wait for photo to be ready before submitting
+    if (!photoFile || !photoCaptured) {
+      setError("Please take a photo of the incident")
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: "Please take a photo of the incident"
+      })
+      return
+    }
 
     if (!validateForm()) {
       toast({
@@ -499,14 +528,16 @@ export default function ReportIncidentPage() {
       return
     }
 
-    // Priority is auto-assigned based on emergency type (already set in state)
-    // No need to validate priority - it's hidden from user
+    // Check online status right before submission
+    if (!navigator.onLine) {
+      setIsOffline(true)
+    }
 
     setLoading(true)
     setSubmitStage(isOffline ? "Saving report for offline delivery…" : "Preparing your report…")
 
     // If offline, store the report locally
-    if (isOffline) {
+    if (!navigator.onLine || isOffline) {
       try {
         const newReport = {
           incidentType: formData.incidentType,
@@ -606,7 +637,10 @@ export default function ReportIncidentPage() {
           sessionUserId: session.user.id,
           accessToken: session.access_token || undefined,
           onStageChange: (stage) => {
-            setSubmitStage(stageMessages[stage] || null)
+            // Small debounce to prevent flickering
+            setTimeout(() => {
+              setSubmitStage(stageMessages[stage] || null)
+            }, 50)
           },
         },
       )
@@ -633,8 +667,13 @@ export default function ReportIncidentPage() {
         priority: "3",
       })
       setLocation(null)
+      // Revoke object URL to free memory
+      if (photoPreview) {
+        URL.revokeObjectURL(photoPreview)
+      }
       setPhotoFile(null)
       setPhotoPreview(null)
+      setPhotoCaptured(false)
 
       // Redirect to dashboard with success message
       router.push("/resident/dashboard?success=Incident reported successfully")
