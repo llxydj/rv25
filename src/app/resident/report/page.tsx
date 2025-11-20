@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { AlertTriangle, Camera, MapPin, Upload, X } from "lucide-react"
 import ResidentLayout from "@/components/layout/resident-layout"
