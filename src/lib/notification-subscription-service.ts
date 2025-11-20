@@ -48,11 +48,21 @@ export class NotificationSubscriptionService {
   private supabaseAdmin: any
 
   constructor() {
+    // Check if environment variables are available
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    
+    if (!supabaseUrl || !supabaseKey) {
+      console.warn('Supabase environment variables not configured, notifications will be disabled');
+      this.supabaseAdmin = null;
+      return;
+    }
+    
     this.supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      supabaseUrl,
+      supabaseKey,
       { auth: { persistSession: false } }
-    )
+    );
   }
 
   static getInstance(): NotificationSubscriptionService {

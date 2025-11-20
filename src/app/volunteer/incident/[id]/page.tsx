@@ -119,7 +119,7 @@ export default function VolunteerIncidentDetailPage() {
     }
   }, [params, user, authLoading, router]); // Added authLoading and router dependencies
 
-  const handleUpdateStatus = async (newStatus: "RESPONDING" | "RESOLVED") => {
+  const handleUpdateStatus = async (newStatus: "RESPONDING" | "RESOLVED" | "ARRIVED") => {
     if (!user || !incident) return
 
     try {
@@ -326,6 +326,8 @@ export default function VolunteerIncidentDetailPage() {
             setSuccessMessage("✅ Incident resolved successfully! Admins and the reporter have been notified.");
           } else if (newStatus === "RESPONDING") {
             setSuccessMessage("🚀 Status updated to responding! Admins and the reporter have been notified.");
+          } else if (newStatus === "ARRIVED") {
+            setSuccessMessage("📍 Status updated to arrived! Admins and the reporter have been notified.");
           }
         } else {
           console.error("Failed to update status:", result);

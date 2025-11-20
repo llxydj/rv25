@@ -712,6 +712,12 @@ async function sendStatusUpdateNotifications(
         adminTitle: '📋 Incident Status Update',
         adminBody: `${volunteerName} is responding to incident #${incident.id.slice(0, 8)}`
       },
+      'ARRIVED': {
+        title: '📍 Volunteer Arrived',
+        body: `${volunteerName} has arrived at the incident location`,
+        adminTitle: '📋 Incident Status Update',
+        adminBody: `${volunteerName} has arrived at incident #${incident.id.slice(0, 8)}`
+      },
       'RESOLVED': {
         title: '✅ Incident Resolved',
         body: `Your incident has been resolved by ${volunteerName}`,

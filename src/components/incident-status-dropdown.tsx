@@ -89,8 +89,8 @@ export default function IncidentStatusDropdown({
       return
     }
 
-    // Only pass valid statuses to updateIncidentStatus
-    if (newStatus !== 'RESPONDING' && newStatus !== 'RESOLVED') {
+    // Only pass valid statuses that the updateIncidentStatus function supports
+    if (newStatus !== 'RESPONDING' && newStatus !== 'RESOLVED' && newStatus !== 'ARRIVED') {
       toast({
         title: "Invalid Status",
         description: `Status ${newStatus} cannot be updated directly`,
