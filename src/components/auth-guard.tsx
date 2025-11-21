@@ -81,7 +81,7 @@ export function AuthGuard({ children, allowedRoles }: AuthGuardProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <LoadingSpinner size="lg" text="Checking authentication..." />
+        <LoadingSpinner size="lg" text="Please wait..." />
       </div>
     )
   }
