@@ -729,20 +729,23 @@ Years Old: ${yearsOld}`)
     <AdminLayout>
       <div className="space-y-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-          <h1 className="text-2xl font-bold">Reports</h1>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
+            <p className="text-gray-600 mt-1">Generate and view comprehensive system reports</p>
+          </div>
         </div>
 
         <Tabs defaultValue="yearly" className="space-y-6">
-          <TabsList className="w-full flex flex-col gap-2 md:grid md:grid-cols-3">
-            <TabsTrigger value="yearly" className="flex items-center gap-2">
+          <TabsList className="w-full flex flex-col gap-2 md:grid md:grid-cols-3 bg-gray-100">
+            <TabsTrigger value="yearly" className="flex items-center gap-2 text-gray-700 data-[state=active]:text-gray-900">
               <CalendarIcon className="h-4 w-4" />
               Yearly Reports
             </TabsTrigger>
-            <TabsTrigger value="analytics" className="flex items-center gap-2">
+            <TabsTrigger value="analytics" className="flex items-center gap-2 text-gray-700 data-[state=active]:text-gray-900">
               <BarChart3 className="h-4 w-4" />
               Analytics Dashboard
             </TabsTrigger>
-            <TabsTrigger value="pdf" className="flex items-center gap-2">
+            <TabsTrigger value="pdf" className="flex items-center gap-2 text-gray-700 data-[state=active]:text-gray-900">
               <FileText className="h-4 w-4" />
               PDF Reports
             </TabsTrigger>
@@ -750,34 +753,42 @@ Years Old: ${yearsOld}`)
 
           <TabsContent value="yearly" className="space-y-6">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-              <h2 className="text-xl font-semibold">Year-Based Reports</h2>
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">Year-Based Reports</h2>
+                <p className="text-sm text-gray-600 mt-1">View comprehensive reports organized by year</p>
+              </div>
               <div className="mt-4 md:mt-0 flex items-center space-x-2">
                 <Select value={selectedYear?.toString() || ""} onValueChange={(value) => setSelectedYear(parseInt(value))}>
-                  <SelectTrigger className="w-[180px]">
+                  <SelectTrigger className="w-[200px]">
                     <SelectValue placeholder="Select year" />
                   </SelectTrigger>
                   <SelectContent>
-                    {years.map((yearData) => (
-                      <SelectItem key={yearData.year} value={yearData.year.toString()}>
-                        {yearData.year} ({yearData.incident_count} incidents)
-                      </SelectItem>
-                    ))}
+                    {years.length === 0 ? (
+                      <SelectItem value="" disabled>No years available</SelectItem>
+                    ) : (
+                      years.map((yearData) => (
+                        <SelectItem key={yearData.year} value={yearData.year.toString()}>
+                          {yearData.year} ({yearData.incident_count || 0} incidents)
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
                 
                 <Button 
                   variant={showArchived ? "default" : "outline"} 
                   onClick={() => setShowArchived(!showArchived)}
+                  className="text-gray-700"
                 >
                   {showArchived ? (
                     <>
                       <EyeOff className="mr-2 h-4 w-4" />
-                      Showing Archived
+                      <span className="text-white">Showing Archived</span>
                     </>
                   ) : (
                     <>
                       <Eye className="mr-2 h-4 w-4" />
-                      Show Archived
+                      <span>Show Archived</span>
                     </>
                   )}
                 </Button>
@@ -870,23 +881,25 @@ Years Old: ${yearsOld}`)
                 {/* Filter Section */}
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
+                    <CardTitle className="flex items-center justify-between text-gray-900">
                       <span>Filters</span>
-                      <Button variant="outline" size="sm" onClick={resetFilters}>
+                      <Button variant="outline" size="sm" onClick={resetFilters} className="text-gray-700">
                         <X className="h-4 w-4 mr-2" />
                         Reset Filters
                       </Button>
                     </CardTitle>
+                    <CardDescription>Filter reports by type, location, status, or date range</CardDescription>
                   </CardHeader>
                   <CardContent className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
-                      <label className="text-sm font-medium">Incident Type</label>
+                      <label className="text-sm font-medium text-gray-700 mb-2 block">Incident Type</label>
                       <Select value={incidentTypeFilter} onValueChange={setIncidentTypeFilter}>
-                        <SelectTrigger>
+                        <SelectTrigger className="text-gray-900">
                           <SelectValue placeholder="All Types" />
                         </SelectTrigger>
                         <SelectContent>
-                          {Object.keys(yearData.type_breakdown).map(type => (
+                          <SelectItem value="">All Types</SelectItem>
+                          {Object.keys(yearData?.type_breakdown || {}).map(type => (
                             <SelectItem key={type} value={type}>{type}</SelectItem>
                           ))}
                         </SelectContent>
@@ -894,13 +907,14 @@ Years Old: ${yearsOld}`)
                     </div>
                     
                     <div>
-                      <label className="text-sm font-medium">Barangay</label>
+                      <label className="text-sm font-medium text-gray-700 mb-2 block">Barangay</label>
                       <Select value={barangayFilter} onValueChange={setBarangayFilter}>
-                        <SelectTrigger>
+                        <SelectTrigger className="text-gray-900">
                           <SelectValue placeholder="All Barangays" />
                         </SelectTrigger>
                         <SelectContent>
-                          {Object.keys(yearData.barangay_breakdown).map(barangay => (
+                          <SelectItem value="">All Barangays</SelectItem>
+                          {Object.keys(yearData?.barangay_breakdown || {}).map(barangay => (
                             <SelectItem key={barangay} value={barangay}>{barangay}</SelectItem>
                           ))}
                         </SelectContent>
@@ -908,13 +922,14 @@ Years Old: ${yearsOld}`)
                     </div>
                     
                     <div>
-                      <label className="text-sm font-medium">Status</label>
+                      <label className="text-sm font-medium text-gray-700 mb-2 block">Status</label>
                       <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger>
+                        <SelectTrigger className="text-gray-900">
                           <SelectValue placeholder="All Statuses" />
                         </SelectTrigger>
                         <SelectContent>
-                          {Object.keys(yearData.status_summary).map(status => (
+                          <SelectItem value="">All Statuses</SelectItem>
+                          {Object.keys(yearData?.status_summary || {}).map(status => (
                             <SelectItem key={status} value={status}>{status}</SelectItem>
                           ))}
                         </SelectContent>
@@ -922,9 +937,9 @@ Years Old: ${yearsOld}`)
                     </div>
                     
                     <div>
-                      <label className="text-sm font-medium">Date Range</label>
-                      <div className="text-sm text-gray-500 pt-2">
-                        Select a quarter or month to filter by date range
+                      <label className="text-sm font-medium text-gray-700 mb-2 block">Date Range</label>
+                      <div className="text-sm text-gray-600 pt-2">
+                        Select a quarter or month below to filter by date range
                       </div>
                     </div>
                   </CardContent>
@@ -932,57 +947,60 @@ Years Old: ${yearsOld}`)
 
                 {/* Active Filters Banner */}
                 {(incidentTypeFilter || barangayFilter || statusFilter) && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex flex-wrap gap-2">
-                        {incidentTypeFilter && (
-                          <Badge variant="secondary">
-                            Type: {incidentTypeFilter}
-                            <button 
+                  <Card className="bg-blue-50 border-blue-200">
+                    <CardContent className="pt-6">
+                      <div className="flex items-center justify-between">
+                        <div className="flex flex-wrap gap-2">
+                          <span className="text-sm font-medium text-blue-900 mr-2">Active Filters:</span>
+                          {incidentTypeFilter && (
+                            <Badge variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-200">
+                              Type: {incidentTypeFilter}
+                              <button 
                               onClick={() => setIncidentTypeFilter("")}
-                              className="ml-2 hover:bg-blue-200 rounded-full p-0.5"
+                              className="ml-2 hover:bg-blue-300 rounded-full p-0.5"
                             >
                               <X className="h-3 w-3" />
                             </button>
-                          </Badge>
-                        )}
-                        {barangayFilter && (
-                          <Badge variant="secondary">
-                            Barangay: {barangayFilter}
-                            <button 
+                            </Badge>
+                          )}
+                          {barangayFilter && (
+                            <Badge variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-200">
+                              Barangay: {barangayFilter}
+                              <button 
                               onClick={() => setBarangayFilter("")}
-                              className="ml-2 hover:bg-blue-200 rounded-full p-0.5"
+                              className="ml-2 hover:bg-blue-300 rounded-full p-0.5"
                             >
                               <X className="h-3 w-3" />
                             </button>
-                          </Badge>
-                        )}
-                        {statusFilter && (
-                          <Badge variant="secondary">
-                            Status: {statusFilter}
-                            <button 
+                            </Badge>
+                          )}
+                          {statusFilter && (
+                            <Badge variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-200">
+                              Status: {statusFilter}
+                              <button 
                               onClick={() => setStatusFilter("")}
-                              className="ml-2 hover:bg-blue-200 rounded-full p-0.5"
+                              className="ml-2 hover:bg-blue-300 rounded-full p-0.5"
                             >
                               <X className="h-3 w-3" />
                             </button>
-                          </Badge>
-                        )}
+                            </Badge>
+                          )}
+                        </div>
+                        <Button variant="ghost" size="sm" onClick={resetFilters} className="text-blue-900 hover:text-blue-700">
+                          Clear All
+                        </Button>
                       </div>
-                      <Button variant="ghost" size="sm" onClick={resetFilters}>
-                        Clear All
-                      </Button>
-                    </div>
-                  </div>
+                    </CardContent>
+                  </Card>
                 )}
 
                 {/* Year Summary Card */}
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
+                    <CardTitle className="flex items-center justify-between text-gray-900">
                       <span>{selectedYear} Report Summary</span>
-                      {yearData.archived && (
-                        <Badge variant="secondary">Archived</Badge>
+                      {yearData?.archived && (
+                        <Badge variant="secondary" className="bg-gray-200 text-gray-800">Archived</Badge>
                       )}
                     </CardTitle>
                     <CardDescription>
@@ -991,30 +1009,33 @@ Years Old: ${yearsOld}`)
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                      <div className="bg-blue-50 p-4 rounded-lg">
-                        <h3 className="text-lg font-medium text-blue-800">Total Incidents</h3>
-                        <p className="text-3xl font-bold text-blue-600">{filteredYearData?.total_incidents || 0}</p>
+                      <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                        <h3 className="text-sm font-medium text-blue-800 mb-1">Total Incidents</h3>
+                        <p className="text-3xl font-bold text-blue-600">{filteredYearData?.total_incidents || yearData?.total_incidents || 0}</p>
                       </div>
                       
-                      <div className="bg-green-50 p-4 rounded-lg">
-                        <h3 className="text-lg font-medium text-green-800">Reports Generated</h3>
-                        <p className="text-3xl font-bold text-green-600">{filteredYearData?.reports?.length || 0}</p>
+                      <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                        <h3 className="text-sm font-medium text-green-800 mb-1">Reports Generated</h3>
+                        <p className="text-3xl font-bold text-green-600">{filteredYearData?.reports?.length || yearData?.reports?.length || 0}</p>
                       </div>
                       
-                      <div className="bg-purple-50 p-4 rounded-lg">
-                        <h3 className="text-lg font-medium text-purple-800">Busiest Quarter</h3>
-                        <p className="text-3xl font-bold text-purple-600">
+                      <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                        <h3 className="text-sm font-medium text-purple-800 mb-1">Busiest Quarter</h3>
+                        <p className="text-2xl font-bold text-purple-600">
                           {filteredYearData?.quarters?.reduce((max: any, quarter: any) => 
                             quarter.incident_count > max.incident_count ? quarter : max, 
-                            filteredYearData?.quarters[0]
+                            filteredYearData?.quarters?.[0]
+                          )?.quarter || yearData?.quarters?.reduce((max: any, quarter: any) => 
+                            quarter.incident_count > max.incident_count ? quarter : max, 
+                            yearData?.quarters?.[0]
                           )?.quarter || "N/A"}
                         </p>
                       </div>
                       
-                      <div className="bg-orange-50 p-4 rounded-lg">
-                        <h3 className="text-lg font-medium text-orange-800">Most Common Type</h3>
-                        <p className="text-xl font-bold text-orange-600 truncate">
-                          {Object.entries(filteredYearData?.type_breakdown || {})
+                      <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
+                        <h3 className="text-sm font-medium text-orange-800 mb-1">Most Common Type</h3>
+                        <p className="text-lg font-bold text-orange-600 truncate">
+                          {Object.entries(filteredYearData?.type_breakdown || yearData?.type_breakdown || {})
                             .sort(([,a], [,b]) => (b as number) - (a as number))[0]?.[0] || "N/A"}
                         </p>
                       </div>
@@ -1025,34 +1046,40 @@ Years Old: ${yearsOld}`)
                 {/* Quarterly Breakdown */}
                 <Card>
                   <CardHeader>
-                    <CardTitle>Quarterly Breakdown</CardTitle>
+                    <CardTitle className="text-gray-900">Quarterly Breakdown</CardTitle>
                     <CardDescription>
                       Incident distribution across quarters for {selectedYear}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {yearData.quarters.map((quarter: any) => (
-                        <div key={quarter.quarter} className="border rounded-lg">
+                      {(yearData?.quarters || []).map((quarter: any) => (
+                        <div key={quarter.quarter} className="border border-gray-200 rounded-lg">
                           <div 
-                            className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50"
+                            className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors"
                             onClick={() => toggleQuarter(quarter.quarter)}
                           >
                             <div className="flex items-center">
                               {expandedQuarters[quarter.quarter] ? (
-                                <ChevronDown className="h-5 w-5 mr-2 text-gray-500" />
+                                <ChevronDown className="h-5 w-5 mr-2 text-gray-600" />
                               ) : (
-                                <ChevronRight className="h-5 w-5 mr-2 text-gray-500" />
+                                <ChevronRight className="h-5 w-5 mr-2 text-gray-600" />
                               )}
-                              <h3 className="text-lg font-medium">{quarter.quarter}</h3>
-                              <Badge variant="outline" className="ml-2">
-                                {quarter.incident_count} incidents
+                              <h3 className="text-lg font-semibold text-gray-900">{quarter.quarter}</h3>
+                              <Badge variant="outline" className="ml-2 text-gray-700 border-gray-300">
+                                {quarter.incident_count || 0} incidents
                               </Badge>
                             </div>
                             <div className="flex items-center space-x-2">
-                              <span className="text-sm text-gray-500">
-                                {new Date(quarter.start).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - 
-                                {' '}{new Date(quarter.end).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              <span className="text-sm text-gray-600">
+                                {quarter.start && quarter.end ? (
+                                  <>
+                                    {new Date(quarter.start).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - 
+                                    {' '}{new Date(quarter.end).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                  </>
+                                ) : (
+                                  'Date range not available'
+                                )}
                               </span>
                             </div>
                           </div>
@@ -1061,7 +1088,7 @@ Years Old: ${yearsOld}`)
                             <div className="p-4 border-t bg-gray-50">
                               {/* Month-by-Month Breakdown */}
                               <div className="mb-6">
-                                <h4 className="font-medium mb-3">Monthly Breakdown</h4>
+                                <h4 className="font-semibold text-gray-900 mb-3">Monthly Breakdown</h4>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                   {getMonthsForQuarter(quarter.quarter, selectedYear).map((monthData) => {
                                     const monthKey = `${quarter.quarter}-${monthData.month}`
@@ -1072,19 +1099,19 @@ Years Old: ${yearsOld}`)
                                     return (
                                       <div 
                                         key={monthKey} 
-                                        className="border rounded p-3 cursor-pointer hover:bg-white"
+                                        className="border border-gray-200 rounded p-3 cursor-pointer hover:bg-white transition-colors"
                                         onClick={() => toggleMonth(monthKey)}
                                       >
                                         <div className="flex justify-between items-center">
                                           <div>
-                                            <span className="font-medium">{monthData.monthLabel}</span>
-                                            <p className="text-xs text-gray-500">{monthData.incident_count} incidents</p>
+                                            <span className="font-semibold text-gray-900">{monthData.monthLabel}</span>
+                                            <p className="text-xs text-gray-600 mt-1">{monthData.incident_count || 0} incidents</p>
                                           </div>
                                           <div className="flex items-center">
                                             {expandedMonths[monthKey] ? (
-                                              <ChevronDown className="h-4 w-4 text-gray-500" />
+                                              <ChevronDown className="h-4 w-4 text-gray-600" />
                                             ) : (
-                                              <ChevronRight className="h-4 w-4 text-gray-500" />
+                                              <ChevronRight className="h-4 w-4 text-gray-600" />
                                             )}
                                           </div>
                                         </div>
@@ -1120,7 +1147,7 @@ Years Old: ${yearsOld}`)
                               <div className="h-64">
                                 <ResponsiveContainer width="100%" height="100%">
                                   <BarChart
-                                    data={Object.entries(yearData.type_breakdown)
+                                    data={Object.entries(yearData?.type_breakdown || {})
                                       .map(([type, count]) => ({ name: type, count: count as number }))
                                       .sort((a, b) => b.count - a.count)
                                       .slice(0, 5)}
@@ -1147,7 +1174,8 @@ Years Old: ${yearsOld}`)
                   {/* Incident Types */}
                   <Card>
                     <CardHeader>
-                      <CardTitle>Incident Types</CardTitle>
+                      <CardTitle className="text-gray-900">Incident Types</CardTitle>
+                      <CardDescription>Distribution of incidents by type</CardDescription>
                     </CardHeader>
                     <CardContent className="h-80">
                       <ResponsiveContainer width="100%" height="100%">
@@ -1178,7 +1206,8 @@ Years Old: ${yearsOld}`)
                   {/* Status Distribution */}
                   <Card>
                     <CardHeader>
-                      <CardTitle>Status Distribution</CardTitle>
+                      <CardTitle className="text-gray-900">Status Distribution</CardTitle>
+                      <CardDescription>Distribution of incidents by status</CardDescription>
                     </CardHeader>
                     <CardContent className="h-80">
                       <ResponsiveContainer width="100%" height="100%">
@@ -1201,7 +1230,7 @@ Years Old: ${yearsOld}`)
                 {/* PDF Template Editor */}
                 <Card>
                   <CardHeader>
-                    <CardTitle>PDF Report Template</CardTitle>
+                    <CardTitle className="text-gray-900">PDF Report Template</CardTitle>
                     <CardDescription>
                       Customize the executive summary for your PDF report
                     </CardDescription>
@@ -1209,11 +1238,11 @@ Years Old: ${yearsOld}`)
                   <CardContent>
                     <div className="space-y-4">
                       <div>
-                        <label className="text-sm font-medium">Executive Summary Notes</label>
+                        <label className="text-sm font-medium text-gray-700 mb-2 block">Executive Summary Notes</label>
                         <textarea
                           value={templateNotes}
                           onChange={(e) => setTemplateNotes(e.target.value)}
-                          className="w-full h-24 p-2 border rounded-md"
+                          className="w-full h-24 p-3 border border-gray-300 rounded-md text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                           placeholder="Add any additional notes or summary information for the PDF report..."
                         />
                       </div>
@@ -1229,74 +1258,115 @@ Years Old: ${yearsOld}`)
                 </Card>
 
                 {/* Action Buttons */}
-                <div className="flex justify-end space-x-2">
-                  {!showArchived && (
-                    <>
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex flex-wrap justify-end gap-2">
+                      {!showArchived && (
+                        <>
+                          <Button 
+                            onClick={scheduleAutoArchive} 
+                            variant="default"
+                            className="bg-purple-600 hover:bg-purple-700 text-white"
+                          >
+                            <Clock className="mr-2 h-4 w-4" />
+                            Schedule Auto Archive
+                          </Button>
+                          <Button 
+                            onClick={autoArchiveReports} 
+                            disabled={archiveLoading} 
+                            variant="default"
+                            className="bg-yellow-600 hover:bg-yellow-700 text-white"
+                          >
+                            {archiveLoading ? (
+                              <LoadingSpinner size="sm" />
+                            ) : (
+                              <>
+                                <Archive className="mr-2 h-4 w-4" />
+                                Auto Archive Old Years
+                              </>
+                            )}
+                          </Button>
+                          <Button 
+                            onClick={() => setArchiveDialogOpen(true)} 
+                            disabled={archiveLoading || !selectedYear} 
+                            variant="outline"
+                            className="text-gray-700 border-gray-300"
+                          >
+                            {archiveLoading ? (
+                              <LoadingSpinner size="sm" />
+                            ) : (
+                              <>
+                                <FileText className="mr-2 h-4 w-4" />
+                                Archive Year
+                              </>
+                            )}
+                          </Button>
+                        </>
+                      )}
                       <Button 
-                        onClick={scheduleAutoArchive} 
-                        variant="secondary"
-                        className="bg-purple-500 hover:bg-purple-600 text-white"
-                      >
-                        <Clock className="mr-2 h-4 w-4" />
-                        Schedule Auto Archive
-                      </Button>
-                      <Button 
-                        onClick={autoArchiveReports} 
-                        disabled={archiveLoading} 
-                        variant="secondary"
-                        className="bg-yellow-500 hover:bg-yellow-600 text-white"
-                      >
-                        {archiveLoading ? (
-                          <LoadingSpinner size="sm" />
-                        ) : (
-                          <>
-                            <Archive className="mr-2 h-4 w-4" />
-                            Auto Archive Old Years
-                          </>
-                        )}
-                      </Button>
-                      <Button 
-                        onClick={() => setArchiveDialogOpen(true)} 
-                        disabled={archiveLoading || !selectedYear} 
+                        onClick={exportYearCSV} 
+                        disabled={exportLoading || showArchived} 
                         variant="outline"
+                        className="text-gray-700 border-gray-300"
                       >
-                        {archiveLoading ? (
+                        {exportLoading ? (
                           <LoadingSpinner size="sm" />
                         ) : (
                           <>
-                            <FileText className="mr-2 h-4 w-4" />
-                            Archive Year
+                            <Download className="mr-2 h-4 w-4" />
+                            Export CSV
                           </>
                         )}
                       </Button>
-                    </>
-                  )}
-                  <Button onClick={exportYearCSV} disabled={exportLoading || showArchived} variant="outline">
-                    {exportLoading ? (
-                      <LoadingSpinner size="sm" />
-                    ) : (
-                      <>
-                        <Download className="mr-2 h-4 w-4" />
-                        Export CSV
-                      </>
-                    )}
-                  </Button>
-                </div>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             ) : (
-              <div className="text-center py-12">
-                <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No Year Selected</h3>
-                <p className="text-gray-600">
-                  Select a year from the dropdown to view reports.
-                </p>
-              </div>
+              <Card>
+                <CardContent className="py-12">
+                  <div className="text-center">
+                    <CalendarIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No Year Selected</h3>
+                    <p className="text-gray-600 mb-6">
+                      Select a year from the dropdown above to view reports.
+                    </p>
+                    {years.length === 0 && (
+                      <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <p className="text-sm text-yellow-800">
+                          No report data available. Reports will appear here once incidents are recorded.
+                        </p>
+                      </div>
+                    )}
+                    {years.length > 0 && (
+                      <div className="mt-6">
+                        <p className="text-sm text-gray-500 mb-3">Available years:</p>
+                        <div className="flex flex-wrap justify-center gap-2">
+                          {years.slice(0, 5).map((yearData) => (
+                            <Button
+                              key={yearData.year}
+                              variant="outline"
+                              onClick={() => setSelectedYear(yearData.year)}
+                              className="text-gray-700 hover:bg-blue-50 hover:text-blue-700"
+                            >
+                              {yearData.year}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
             )}
           </TabsContent>
 
           <TabsContent value="analytics" className="space-y-6">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-              <h2 className="text-xl font-semibold">Analytics Dashboard</h2>
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">Analytics Dashboard</h2>
+                <p className="text-sm text-gray-600 mt-1">Real-time analytics and insights</p>
+              </div>
               <div className="mt-4 md:mt-0 flex items-center space-x-2">
                 <div className="flex items-center space-x-1">
                   <Button 
@@ -1351,67 +1421,80 @@ Years Old: ${yearsOld}`)
                   </Popover>
                 </div>
                 
-                <button
+                <Button
                   onClick={generateReport}
                   disabled={loading || generatingReport}
-                  className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                  variant="default"
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
                 >
                   {generatingReport ? (
                     <LoadingSpinner size="sm" color="text-white" />
                   ) : (
                     <>
+                      <Download className="mr-2 h-4 w-4" />
                       Export Report
                     </>
                   )}
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={generateMonthlyIncidentsReport}
                   disabled={loading || submittingMonthly}
-                  className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50"
+                  variant="default"
+                  className="bg-purple-600 hover:bg-purple-700 text-white"
                 >
                   {submittingMonthly ? (
                     <LoadingSpinner size="sm" color="text-white" />
                   ) : (
-                    <>Generate Monthly Incidents Report</>
+                    <>
+                      <FileText className="mr-2 h-4 w-4" />
+                      Generate Monthly Report
+                    </>
                   )}
-                </button>
+                </Button>
               </div>
             </div>
 
-            <div className="bg-white p-6 rounded-lg shadow-md">
-              <div className="flex flex-col md:flex-row md:items-center space-y-4 md:space-y-0 md:space-x-4 mb-6">
-                <div>
-                  <label htmlFor="report-type" className="block text-sm font-medium text-gray-700 mb-1">
-                    Report Type
-                  </label>
-                  <select
-                    id="report-type"
-                    value={reportType}
-                    onChange={(e) => setReportType(e.target.value as any)}
-                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
-                    disabled={loading}
-                  >
-                    <option value="incidents">Incidents Report</option>
-                    <option value="volunteers">Volunteers Report</option>
-                    <option value="schedules">Schedules Report</option>
-                  </select>
-                </div>
+            <Card>
+              <CardHeader>
+                <CardTitle>Report Configuration</CardTitle>
+                <CardDescription>Select report type and date range</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col md:flex-row md:items-end space-y-4 md:space-y-0 md:space-x-4">
+                  <div className="flex-1">
+                    <label htmlFor="report-type" className="block text-sm font-medium text-gray-700 mb-2">
+                      Report Type
+                    </label>
+                    <Select value={reportType} onValueChange={(value: any) => setReportType(value)}>
+                      <SelectTrigger id="report-type" disabled={loading} className="text-gray-900">
+                        <SelectValue placeholder="Select report type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="incidents">Incidents Report</SelectItem>
+                        <SelectItem value="volunteers">Volunteers Report</SelectItem>
+                        <SelectItem value="schedules">Schedules Report</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                <div className="md:self-end">
-                  <button
-                    onClick={() => {
-                      // Refresh report data
-                      setLoading(true)
-                      setTimeout(() => setLoading(false), 500)
-                    }}
-                    className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                    disabled={loading}
-                  >
-                    <Filter className="mr-2 h-4 w-4" />
-                    Apply Filters
-                  </button>
+                  <div className="md:self-end">
+                    <Button
+                      onClick={() => {
+                        // Refresh report data
+                        setLoading(true)
+                        setTimeout(() => setLoading(false), 500)
+                      }}
+                      variant="outline"
+                      disabled={loading}
+                      className="text-gray-700"
+                    >
+                      <Filter className="mr-2 h-4 w-4" />
+                      Apply Filters
+                    </Button>
+                  </div>
                 </div>
-              </div>
+              </CardContent>
+            </Card>
 
               {loading ? (
                 <div className="flex justify-center py-12">
@@ -1427,105 +1510,125 @@ Years Old: ${yearsOld}`)
                 </div>
               ) : (
                 <div className="space-y-6">
-                  <div className="bg-blue-50 p-4 rounded-md">
-                    <div className="flex items-center">
-                      <h2 className="text-lg font-medium text-blue-800">
-                        {reportType === "incidents"
-                          ? "Incidents Report"
-                          : reportType === "volunteers"
-                          ? "Volunteers Report"
-                          : "Schedules Report"}
-                      </h2>
-                    </div>
-                    <p className="mt-1 text-sm text-blue-700">
-                      Showing data for {dateRangeType === "daily" ? "today" : 
-                                    dateRangeType === "weekly" ? "this week" : 
-                                    dateRangeType === "monthly" ? "this month" : 
-                                    dateFrom && dateTo ? formatDateRange() : "selected period"}
-                    </p>
-                  </div>
+                  <Card className="bg-blue-50 border-blue-200">
+                    <CardContent className="pt-6">
+                      <div className="flex items-center">
+                        <h2 className="text-lg font-semibold text-blue-900">
+                          {reportType === "incidents"
+                            ? "Incidents Report"
+                            : reportType === "volunteers"
+                            ? "Volunteers Report"
+                            : "Schedules Report"}
+                        </h2>
+                      </div>
+                      <p className="mt-2 text-sm text-blue-800">
+                        Showing data for {dateRangeType === "daily" ? "today" : 
+                                      dateRangeType === "weekly" ? "this week" : 
+                                      dateRangeType === "monthly" ? "this month" : 
+                                      dateFrom && dateTo ? formatDateRange() : "selected period"}
+                      </p>
+                    </CardContent>
+                  </Card>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-white border rounded-lg shadow p-4">
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">Total {reportType}</h3>
-                      <p className="text-3xl font-bold text-blue-600">{reportData?.total || 0}</p>
-                    </div>
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardDescription>Total {reportType}</CardDescription>
+                        <CardTitle className="text-3xl font-bold text-blue-600">{reportData?.total || 0}</CardTitle>
+                      </CardHeader>
+                    </Card>
 
                     {reportType === "incidents" && (
                       <>
-                        <div className="bg-white border rounded-lg shadow p-4">
-                          <h3 className="text-lg font-medium text-gray-900 mb-2">By Status</h3>
-                          <div className="space-y-2">
-                            {reportData?.byStatus?.map(([status, count]) => (
-                              <div key={status} className="flex justify-between items-center">
-                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                  status === "PENDING" ? "bg-yellow-100 text-yellow-800" :
-                                  status === "ASSIGNED" ? "bg-blue-100 text-blue-800" :
-                                  status === "RESPONDING" ? "bg-orange-100 text-orange-800" :
-                                  status === "RESOLVED" ? "bg-green-100 text-green-800" :
-                                  "bg-gray-100 text-gray-800"
-                                }`}>
-                                  {status}
-                                </span>
-                                <span className="text-sm font-bold">{count}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
+                        <Card>
+                          <CardHeader className="pb-2">
+                            <CardDescription>By Status</CardDescription>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="space-y-2">
+                              {reportData?.byStatus?.map(([status, count]) => (
+                                <div key={status} className="flex justify-between items-center">
+                                  <Badge className={`${
+                                    status === "PENDING" ? "bg-yellow-100 text-yellow-800 hover:bg-yellow-100" :
+                                    status === "ASSIGNED" ? "bg-blue-100 text-blue-800 hover:bg-blue-100" :
+                                    status === "RESPONDING" ? "bg-orange-100 text-orange-800 hover:bg-orange-100" :
+                                    status === "RESOLVED" ? "bg-green-100 text-green-800 hover:bg-green-100" :
+                                    "bg-gray-100 text-gray-800 hover:bg-gray-100"
+                                  }`}>
+                                    {status}
+                                  </Badge>
+                                  <span className="text-sm font-bold text-gray-900">{count as number}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </CardContent>
+                        </Card>
 
-                        <div className="bg-white border rounded-lg shadow p-4">
-                          <h3 className="text-lg font-medium text-gray-900 mb-2">By Type</h3>
-                          <div className="space-y-2">
-                            {reportData?.byType?.map(([type, count]) => (
-                              <div key={type} className="flex justify-between items-center">
-                                <span className="text-sm font-medium">
-                                  {type}
-                                </span>
-                                <span className="text-sm font-bold">{count}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
+                        <Card>
+                          <CardHeader className="pb-2">
+                            <CardDescription>By Type</CardDescription>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="space-y-2">
+                              {reportData?.byType?.map(([type, count]) => (
+                                <div key={type} className="flex justify-between items-center">
+                                  <span className="text-sm font-medium text-gray-900">
+                                    {type}
+                                  </span>
+                                  <span className="text-sm font-bold text-gray-900">{count as number}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </CardContent>
+                        </Card>
                       </>
                     )}
 
                     {reportType === "volunteers" && (
-                      <div className="bg-white border rounded-lg shadow p-4">
-                        <h3 className="text-lg font-medium text-gray-900 mb-2">By Status</h3>
-                        <div className="space-y-2">
-                          {reportData?.byStatus?.map(([status, count]) => (
-                            <div key={status} className="flex justify-between items-center">
-                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                status === "ACTIVE" ? "bg-green-100 text-green-800" :
-                                status === "INACTIVE" ? "bg-gray-100 text-gray-800" :
-                                status === "PENDING" ? "bg-yellow-100 text-yellow-800" :
-                                "bg-gray-100 text-gray-800"
-                              }`}>
-                                {status}
-                              </span>
-                              <span className="text-sm font-bold">{count}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardDescription>By Status</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-2">
+                            {reportData?.byStatus?.map(([status, count]) => (
+                              <div key={status} className="flex justify-between items-center">
+                                <Badge className={`${
+                                  status === "ACTIVE" ? "bg-green-100 text-green-800 hover:bg-green-100" :
+                                  status === "INACTIVE" ? "bg-gray-100 text-gray-800 hover:bg-gray-100" :
+                                  status === "PENDING" ? "bg-yellow-100 text-yellow-800 hover:bg-yellow-100" :
+                                  "bg-gray-100 text-gray-800 hover:bg-gray-100"
+                                }`}>
+                                  {status}
+                                </Badge>
+                                <span className="text-sm font-bold text-gray-900">{count as number}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
                     )}
                   </div>
 
                   {reportType === "incidents" && reportData?.byBarangay && reportData.byBarangay.length > 0 && (
-                    <div className="bg-white border rounded-lg shadow p-4 mt-4">
-                      <div className="flex items-center mb-2">
-                        <MapPin className="h-5 w-5 text-blue-500 mr-2" />
-                        <h3 className="text-lg font-medium text-gray-900">Incidents by Barangay</h3>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                        {reportData.byBarangay.map(([barangay, count]) => (
-                          <div key={barangay} className="flex justify-between bg-gray-50 p-3 rounded-md">
-                            <span className="text-sm font-medium">{barangay || "Unknown"}</span>
-                            <span className="text-sm font-bold">{count}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center">
+                          <MapPin className="h-5 w-5 text-blue-500 mr-2" />
+                          Incidents by Barangay
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                          {reportData.byBarangay.map(([barangay, count]) => (
+                            <div key={barangay} className="flex justify-between bg-gray-50 p-3 rounded-md border border-gray-200">
+                              <span className="text-sm font-medium text-gray-900">{barangay || "Unknown"}</span>
+                              <span className="text-sm font-bold text-gray-900">{count as number}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
                   )}
 
                   {reportType === "incidents" && (
@@ -1585,48 +1688,50 @@ Years Old: ${yearsOld}`)
                     </div>
                   )}
 
-                  <div className="mt-6">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">
-                      {reportType === "incidents"
-                        ? "Recent Incidents"
-                        : reportType === "volunteers"
-                        ? "Recent Volunteers"
-                        : "Recent Schedules"}
-                    </h3>
-                    
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            {reportType === "incidents" && (
-                              <>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
-                              </>
-                            )}
-                            
-                            {reportType === "volunteers" && (
-                              <>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Joined</th>
-                              </>
-                            )}
-                            
-                            {reportType === "schedules" && (
-                              <>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start Time</th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">End Time</th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Volunteers</th>
-                              </>
-                            )}
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
+                  <Card className="mt-6">
+                    <CardHeader>
+                      <CardTitle>
+                        {reportType === "incidents"
+                          ? "Recent Incidents"
+                          : reportType === "volunteers"
+                          ? "Recent Volunteers"
+                          : "Recent Schedules"}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              {reportType === "incidents" && (
+                                <>
+                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Type</th>
+                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Date</th>
+                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Status</th>
+                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Location</th>
+                                </>
+                              )}
+                              
+                              {reportType === "volunteers" && (
+                                <>
+                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Name</th>
+                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Email</th>
+                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Status</th>
+                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Joined</th>
+                                </>
+                              )}
+                              
+                              {reportType === "schedules" && (
+                                <>
+                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Title</th>
+                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Start Time</th>
+                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">End Time</th>
+                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Volunteers</th>
+                                </>
+                              )}
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
                           {reportType === "incidents" && 
                             filterDataByDateRange(incidents)
                               .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
@@ -1698,15 +1803,18 @@ Years Old: ${yearsOld}`)
                             (reportType === "schedules" && filterDataByDateRange(schedules).length === 0)
                           ) && (
                             <tr>
-                              <td colSpan={4} className="px-6 py-4 text-center text-sm text-gray-500">
-                                No data available for the selected date range
+                              <td colSpan={4} className="px-6 py-8 text-center">
+                                <div className="text-gray-500">
+                                  <p className="text-sm">No data available for the selected date range</p>
+                                </div>
                               </td>
                             </tr>
                           )}
                         </tbody>
                       </table>
                     </div>
-                  </div>
+                  </CardContent>
+                </Card>
                 </div>
               )}
             </div>
