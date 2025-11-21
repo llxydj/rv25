@@ -15,12 +15,30 @@ import { PDFReportGenerator } from "@/components/admin/pdf-report-generator"
 import { YearlyPDFReportGenerator } from "@/components/admin/yearly-pdf-report-generator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, AreaChart, Area } from "recharts"
 import { format, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from "date-fns"
+
 import { cn } from "@/lib/utils"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 
 export default function AdminReports() {
@@ -29,46 +47,46 @@ export default function AdminReports() {
   const [error, setError] = useState<string | null>(null)
   const [reportType, setReportType] = useState<"incidents" | "volunteers" | "schedules">("incidents")
   const [dateRange, setDateRange] = useState<"week" | "month" | "year" | "custom">("week")
-  const [dateFrom, setDateFrom] = useState(new Date(new Date().setDate(new Date().getDate() - 7)))
-  const [dateTo, setDateTo] = useState(new Date())
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(new Date(new Date().setDate(new Date().getDate() - 7)))
+  const [dateTo, setDateTo] = useState<Date | undefined>(new Date())
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false)
   const [archiveLoading, setArchiveLoading] = useState(false)
   const [exportLoading, setExportLoading] = useState(false)
   const [submittingMonthly, setSubmittingMonthly] = useState(false)
   const [generatingReport, setGeneratingReport] = useState(false)
   const [templateNotes, setTemplateNotes] = useState("")
-  const [scheduleConfig, setScheduleConfig] = useState(null)
-  const [incidents, setIncidents] = useState([])
-  const [volunteers, setVolunteers] = useState([])
-  const [schedules, setSchedules] = useState([])
-  const [incidentsByBarangay, setIncidentsByBarangay] = useState([])
-  const [incidentsByType, setIncidentsByType] = useState([])
-  const [incidentsByStatus, setIncidentsByStatus] = useState([])
+  const [scheduleConfig, setScheduleConfig] = useState<any>(null)
+  const [incidents, setIncidents] = useState<any[]>([])
+  const [volunteers, setVolunteers] = useState<any[]>([])
+  const [schedules, setSchedules] = useState<any[]>([])
+  const [incidentsByBarangay, setIncidentsByBarangay] = useState<any[]>([])
+  const [incidentsByType, setIncidentsByType] = useState<any[]>([])
+  const [incidentsByStatus, setIncidentsByStatus] = useState<any[]>([])
   
   // Year-based reports state
-  const [years, setYears] = useState([])
-  const [selectedYear, setSelectedYear] = useState(null)
-  const [yearData, setYearData] = useState(null)
+  const [years, setYears] = useState<any[]>([])
+  const [selectedYear, setSelectedYear] = useState<number | null>(null)
+  const [yearData, setYearData] = useState<any>(null)
   const [expandedQuarters, setExpandedQuarters] = useState<Record<string, boolean>>({})
   const [expandedMonths, setExpandedMonths] = useState<Record<string, boolean>>({})
   
   // Drill-down states
-  const [selectedQuarter, setSelectedQuarter] = useState(null)
-  const [selectedMonth, setSelectedMonth] = useState(null)
+  const [selectedQuarter, setSelectedQuarter] = useState<string | null>(null)
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null)
   const [dateRangeFilter, setDateRangeFilter] = useState<{start: Date | null, end: Date | null}>({start: null, end: null})
   
   // Custom date range states
   const [dateRangeType, setDateRangeType] = useState<"daily" | "weekly" | "monthly" | "custom">("monthly")
   
   // Filter states
-  const [incidentTypeFilter, setIncidentTypeFilter] = useState("")
-  const [barangayFilter, setBarangayFilter] = useState("")
-  const [priorityFilter, setPriorityFilter] = useState("")
-  const [statusFilter, setStatusFilter] = useState("")
+  const [incidentTypeFilter, setIncidentTypeFilter] = useState<string>("")
+  const [barangayFilter, setBarangayFilter] = useState<string>("")
+  const [priorityFilter, setPriorityFilter] = useState<string>("")
+  const [statusFilter, setStatusFilter] = useState<string>("")
   
   // Archive states
   const [showArchived, setShowArchived] = useState(false)
-  const [archivedYears, setArchivedYears] = useState([])
+  const [archivedYears, setArchivedYears] = useState<number[]>([])
 
   // Fetch schedule configuration
   useEffect(() => {
@@ -76,6 +94,7 @@ export default function AdminReports() {
       try {
         const response = await fetch("/api/admin/reports/auto-archive")
         const result = await response.json()
+        
         if (result.success) {
           setScheduleConfig(result.data)
         }
@@ -83,22 +102,28 @@ export default function AdminReports() {
         console.error("Error fetching schedule config:", err)
       }
     }
+    
     fetchScheduleConfig()
   }, [])
 
   // Convert date range to actual dates for the reports API
   const getDateRangeParams = () => {
-    const endDate = new Date().toISOString()
-    let startDate = new Date()
+    const endDate = new Date().toISOString();
+    let startDate = new Date();
+    
     if (dateRange === "week") {
-      startDate.setDate(startDate.getDate() - 7)
+      startDate.setDate(startDate.getDate() - 7);
     } else if (dateRange === "month") {
-      startDate.setMonth(startDate.getMonth() - 1)
+      startDate.setMonth(startDate.getMonth() - 1);
     } else if (dateRange === "year") {
-      startDate.setFullYear(startDate.getFullYear() - 1)
+      startDate.setFullYear(startDate.getFullYear() - 1);
     }
-    return { startDate: startDate.toISOString(), endDate }
-  }
+    
+    return {
+      startDate: startDate.toISOString(),
+      endDate
+    };
+  };
 
   // Fetch years data for year-based reports
   useEffect(() => {
@@ -106,6 +131,7 @@ export default function AdminReports() {
       try {
         const response = await fetch("/api/admin/reports")
         const result = await response.json()
+        
         if (result.success) {
           setYears(result.data)
           if (result.data.length > 0) {
@@ -116,6 +142,7 @@ export default function AdminReports() {
         console.error("Error fetching years:", err)
       }
     }
+    
     fetchYears()
   }, [])
 
@@ -123,8 +150,11 @@ export default function AdminReports() {
   useEffect(() => {
     const fetchArchivedYears = async () => {
       try {
-        const response = await fetch("/api/admin/reports", { method: "PUT" })
+        const response = await fetch("/api/admin/reports", {
+          method: "PUT"
+        })
         const result = await response.json()
+        
         if (result.success) {
           setArchivedYears(result.data)
         }
@@ -132,6 +162,7 @@ export default function AdminReports() {
         console.error("Error fetching archived years:", err)
       }
     }
+    
     fetchArchivedYears()
   }, [])
 
@@ -139,10 +170,12 @@ export default function AdminReports() {
   useEffect(() => {
     const fetchYearData = async () => {
       if (!selectedYear) return
+      
       try {
         setLoading(true)
         const response = await fetch(`/api/admin/reports?year=${selectedYear}&archived=${showArchived}`)
         const result = await response.json()
+        
         if (result.success) {
           setYearData(result.data)
         }
@@ -152,6 +185,7 @@ export default function AdminReports() {
         setLoading(false)
       }
     }
+    
     fetchYearData()
   }, [selectedYear, showArchived])
 
@@ -160,38 +194,42 @@ export default function AdminReports() {
       try {
         setLoading(true)
         setError(null)
-
-        let startDate, endDate
+        
+        // Use custom date range if selected
+        let startDate, endDate;
         if (dateFrom && dateTo) {
-          startDate = dateFrom.toISOString()
-          endDate = dateTo.toISOString()
+          startDate = dateFrom.toISOString();
+          endDate = dateTo.toISOString();
         } else {
-          const dateParams = getDateRangeParams()
-          startDate = dateParams.startDate
-          endDate = dateParams.endDate
+          const dateParams = getDateRangeParams();
+          startDate = dateParams.startDate;
+          endDate = dateParams.endDate;
         }
 
+        // Fetch data based on report type
         if (reportType === "incidents") {
+          // Fetch base incident data
           const result = await getAllIncidents()
           if (result.success) {
             setIncidents(result.data || [])
           } else {
             setError(result.message || "Failed to fetch incidents")
           }
-
-          const barangayResult = await getIncidentsByBarangay(startDate, endDate)
+          
+          // Fetch specialized incident reports
+          const barangayResult = await getIncidentsByBarangay(startDate, endDate);
           if (barangayResult.success) {
-            setIncidentsByBarangay(barangayResult.data || [])
+            setIncidentsByBarangay(barangayResult.data || []);
           }
-
-          const typeResult = await getIncidentsByType(startDate, endDate)
+          
+          const typeResult = await getIncidentsByType(startDate, endDate);
           if (typeResult.success) {
-            setIncidentsByType(typeResult.data || [])
+            setIncidentsByType(typeResult.data || []);
           }
-
-          const statusResult = await getIncidentsByStatus(startDate, endDate)
+          
+          const statusResult = await getIncidentsByStatus(startDate, endDate);
           if (statusResult.success) {
-            setIncidentsByStatus(statusResult.data || [])
+            setIncidentsByStatus(statusResult.data || []);
           }
         } else if (reportType === "volunteers") {
           const result = await getAllVolunteers()
@@ -214,17 +252,20 @@ export default function AdminReports() {
         setLoading(false)
       }
     }
+
     fetchData()
   }, [reportType, dateRange, dateFrom, dateTo])
 
   const filterDataByDateRange = (data: any[]) => {
-    let startDate, endDate
+    // Use custom date range if selected
+    let startDate, endDate;
     if (dateFrom && dateTo) {
-      startDate = dateFrom
-      endDate = dateTo
+      startDate = dateFrom;
+      endDate = dateTo;
     } else {
       const now = new Date()
       startDate = new Date()
+      
       if (dateRange === "week") {
         startDate.setDate(now.getDate() - 7)
       } else if (dateRange === "month") {
@@ -232,8 +273,10 @@ export default function AdminReports() {
       } else if (dateRange === "year") {
         startDate.setFullYear(now.getFullYear() - 1)
       }
+      
       endDate = now
     }
+    
     return data.filter(item => {
       const createdAt = new Date(item.created_at)
       return createdAt >= startDate && createdAt <= endDate
@@ -268,44 +311,53 @@ export default function AdminReports() {
 
   const generateReport = async () => {
     setGeneratingReport(true)
+    
     try {
+      // Log the action
       await fetch("/api/admin/logs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: JSON.stringify({ 
           action: "report_csv_generated",
           details: `CSV report generated by admin ${user?.id}`,
           user_id: user?.id
         })
       })
-
+      
+      // Generate a CSV report for incidents
       if (reportType === "incidents") {
-        let startDate, endDate
+        // Use custom date range if selected
+        let startDate, endDate;
         if (dateFrom && dateTo) {
-          startDate = dateFrom.toISOString()
-          endDate = dateTo.toISOString()
+          startDate = dateFrom.toISOString();
+          endDate = dateTo.toISOString();
         } else {
-          const dateParams = getDateRangeParams()
-          startDate = dateParams.startDate
-          endDate = dateParams.endDate
+          const dateParams = getDateRangeParams();
+          startDate = dateParams.startDate;
+          endDate = dateParams.endDate;
         }
-        const result = await exportIncidentsToCSV(startDate, endDate)
+        
+        const result = await exportIncidentsToCSV(startDate, endDate);
+        
         if (result.success && result.data) {
-          const headers = Object.keys(result.data[0]).join(',')
-          const rows = result.data.map(item => Object.values(item).join(','))
-          const csvContent = [headers, ...rows].join('\n')
-          const blob = new Blob([csvContent], { type: 'text/csv' })
-          const url = URL.createObjectURL(blob)
-          const link = document.createElement('a')
-          link.href = url
-          link.download = `incidents-report-${new Date().toISOString().split('T')[0]}.csv`
-          document.body.appendChild(link)
-          link.click()
-          document.body.removeChild(link)
+          // Create CSV content
+          const headers = Object.keys(result.data[0]).join(',');
+          const rows = result.data.map(item => Object.values(item).join(','));
+          const csvContent = [headers, ...rows].join('\n');
+          
+          // Create download link
+          const blob = new Blob([csvContent], { type: 'text/csv' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `incidents-report-${new Date().toISOString().split('T')[0]}.csv`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
         }
       }
     } catch (err) {
-      console.error("Error generating report:", err)
+      console.error("Error generating report:", err);
     } finally {
       setGeneratingReport(false)
     }
@@ -313,9 +365,12 @@ export default function AdminReports() {
 
   const archiveYearReports = async () => {
     if (!selectedYear) return
-    if (!window.confirm(`Are you sure you want to archive all reports for ${selectedYear}? This action cannot be undone.`)) {
+    
+    // Add confirmation prompt before archiving
+    if (!window.confirm(`Are you sure you want to archive all reports for ${selectedYear}? This action cannot be undone and will make the reports read-only.`)) {
       return
     }
+    
     setArchiveLoading(true)
     try {
       const response = await fetch("/api/admin/reports", {
@@ -323,23 +378,32 @@ export default function AdminReports() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ year: selectedYear })
       })
+      
       const result = await response.json()
+      
       if (result.success) {
+        // Refresh year data
         const refreshResponse = await fetch(`/api/admin/reports?year=${selectedYear}`)
         const refreshResult = await refreshResponse.json()
+        
         if (refreshResult.success) {
           setYearData(refreshResult.data)
         }
+        
+        // Update archived years list
         setArchivedYears(prev => [...prev, selectedYear])
+        
+        // Log the action
         await fetch("/api/admin/logs", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+          body: JSON.stringify({ 
             action: "archive_year_action",
             details: `Reports for year ${selectedYear} archived by admin ${user?.id}`,
             user_id: user?.id
           })
         })
+        
         setArchiveDialogOpen(false)
         alert(`Reports for ${selectedYear} archived successfully`)
       } else if (result.code === 'ALREADY_ARCHIVED') {
@@ -356,9 +420,11 @@ export default function AdminReports() {
   }
 
   const autoArchiveReports = async () => {
-    if (!window.confirm(`This will automatically archive reports for years that are ${scheduleConfig?.years_old || 2} or more years old. Continue?`)) {
+    // Add confirmation prompt before auto-archiving
+    if (!window.confirm(`This will automatically archive reports for years that are ${scheduleConfig?.years_old || 2} or more years old. Do you want to continue?`)) {
       return
     }
+    
     setArchiveLoading(true)
     try {
       const response = await fetch("/api/admin/reports/auto-archive", {
@@ -366,9 +432,14 @@ export default function AdminReports() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({})
       })
+      
       const result = await response.json()
+      
       if (result.success) {
+        // Refresh the page to show updated archived years
         window.location.reload()
+        
+        alert(`Auto-archiving completed. Archived ${result.archivedYears.length} years: ${result.archivedYears.join(', ')}`)
       } else {
         throw new Error(result.message)
       }
@@ -381,13 +452,18 @@ export default function AdminReports() {
   }
 
   const scheduleAutoArchive = async () => {
+    // Show schedule configuration modal
     const frequency = prompt("How often should auto-archiving run?\nOptions: daily, weekly, monthly", scheduleConfig?.schedule_frequency || "daily")
     if (!frequency) return
+    
     const time = prompt("What time should auto-archiving run? (24-hour format HH:MM)", scheduleConfig?.schedule_time || "02:00")
     if (!time) return
+    
     const yearsOld = prompt("Archive reports older than how many years?", (scheduleConfig?.years_old || 2).toString())
     if (!yearsOld) return
+    
     const enabled = window.confirm("Enable auto-archiving schedule?")
+    
     try {
       const response = await fetch("/api/admin/reports/auto-archive", {
         method: "PUT",
@@ -399,10 +475,17 @@ export default function AdminReports() {
           enabled: enabled
         })
       })
+      
       const result = await response.json()
+      
       if (result.success) {
         setScheduleConfig(result.data)
-        alert(`Auto-archiving schedule updated! Status: ${enabled ? 'Enabled' : 'Disabled'}\nFrequency: ${frequency}\nTime: ${time}\nYears Old: ${yearsOld}`)
+        alert(`Auto-archiving schedule updated successfully!
+
+Status: ${enabled ? 'Enabled' : 'Disabled'}
+Frequency: ${frequency}
+Time: ${time}
+Years Old: ${yearsOld}`)
       } else {
         throw new Error(result.message)
       }
@@ -414,20 +497,25 @@ export default function AdminReports() {
 
   const exportYearCSV = async () => {
     if (!selectedYear) return
+    
     setExportLoading(true)
     try {
+      // Log the action
       await fetch("/api/admin/logs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: JSON.stringify({ 
           action: "report_csv_generated",
           details: `CSV report generated for year ${selectedYear} by admin ${user?.id}`,
           user_id: user?.id
         })
       })
+      
       const response = await fetch(`/api/admin/reports?year=${selectedYear}&export=csv`)
       const result = await response.json()
+      
       if (result.success && result.data) {
+        // Create download link
         const blob = new Blob([result.data], { type: 'text/csv' })
         const url = URL.createObjectURL(blob)
         const link = document.createElement('a')
@@ -446,7 +534,12 @@ export default function AdminReports() {
   }
 
   const toggleQuarter = (quarter: string) => {
-    setExpandedQuarters(prev => ({ ...prev, [quarter]: !prev[quarter] }))
+    setExpandedQuarters(prev => ({
+      ...prev,
+      [quarter]: !prev[quarter]
+    }))
+    
+    // Reset month expansion when quarter is toggled
     if (expandedQuarters[quarter]) {
       const newExpandedMonths = { ...expandedMonths }
       Object.keys(newExpandedMonths).forEach(key => {
@@ -459,7 +552,10 @@ export default function AdminReports() {
   }
 
   const toggleMonth = (monthKey: string) => {
-    setExpandedMonths(prev => ({ ...prev, [monthKey]: !prev[monthKey] }))
+    setExpandedMonths(prev => ({
+      ...prev,
+      [monthKey]: !prev[monthKey]
+    }))
   }
 
   const resetFilters = () => {
@@ -472,29 +568,45 @@ export default function AdminReports() {
 
   const getFilteredYearData = () => {
     if (!yearData) return null
+    
+    // Apply filters
     let filteredData = {...yearData}
+    
+    // Filter by incident type
     if (incidentTypeFilter) {
       filteredData.type_breakdown = Object.fromEntries(
-        Object.entries(filteredData.type_breakdown).filter(([type]) => type === incidentTypeFilter)
+        Object.entries(filteredData.type_breakdown).filter(([type]) => 
+          type === incidentTypeFilter
+        )
       )
     }
+    
+    // Filter by barangay
     if (barangayFilter) {
       filteredData.barangay_breakdown = Object.fromEntries(
-        Object.entries(filteredData.barangay_breakdown).filter(([barangay]) => barangay === barangayFilter)
+        Object.entries(filteredData.barangay_breakdown).filter(([barangay]) => 
+          barangay === barangayFilter
+        )
       )
     }
+    
+    // Filter by status
     if (statusFilter) {
       filteredData.status_summary = Object.fromEntries(
-        Object.entries(filteredData.status_summary).filter(([status]) => status === statusFilter)
+        Object.entries(filteredData.status_summary).filter(([status]) => 
+          status === statusFilter
+        )
       )
     }
+    
     return filteredData
   }
 
   const filteredYearData = getFilteredYearData()
+
   const monthlyBreakdown = filteredYearData?.monthly_breakdown ?? yearData?.monthly_breakdown ?? []
   const monthlyBreakdownMap = useMemo(() => {
-    const map = new Map()
+    const map = new Map<number, any>()
     monthlyBreakdown?.forEach((entry: any) => {
       const monthIndex = entry.month_index ?? entry.month ?? 0
       map.set(monthIndex, entry)
@@ -504,35 +616,64 @@ export default function AdminReports() {
 
   const getReportData = () => {
     if (reportType === "incidents") {
-      const byStatus = incidentsByStatus.length > 0 ? incidentsByStatus.map(item => [item.status, parseInt(item.count)]) : []
-      const byType = incidentsByType.length > 0 ? incidentsByType.map(item => [item.incident_type, parseInt(item.count)]) : []
-      const byBarangay = incidentsByBarangay.length > 0 ? incidentsByBarangay.map(item => [item.barangay, parseInt(item.count)]) : []
-      const total = byStatus.reduce((sum, [_, count]) => sum + (count as number), 0)
-      return { total: total || filterDataByDateRange(incidents).length, byType, byStatus, byBarangay }
+      // Use the specialized analytics data if available
+      const byStatus = incidentsByStatus.length > 0 
+        ? incidentsByStatus.map(item => [item.status, parseInt(item.count)])
+        : [];
+        
+      const byType = incidentsByType.length > 0
+        ? incidentsByType.map(item => [item.incident_type, parseInt(item.count)])
+        : [];
+        
+      const byBarangay = incidentsByBarangay.length > 0
+        ? incidentsByBarangay.map(item => [item.barangay, parseInt(item.count)])
+        : [];
+
+      // Calculate total from the status counts
+      const total = byStatus.reduce((sum, [_, count]) => sum + (count as number), 0);
+
+      return {
+        total: total || filterDataByDateRange(incidents).length,
+        byType,
+        byStatus,
+        byBarangay
+      }
     } else if (reportType === "volunteers") {
       const filteredVolunteers = filterDataByDateRange(volunteers)
+      
+      // Count volunteers by status
       const volunteersByStatus = filteredVolunteers.reduce((acc: Record<string, number>, volunteer) => {
         const status = volunteer.volunteer_profiles?.status || "UNKNOWN"
         acc[status] = (acc[status] || 0) + 1
         return acc
       }, {})
-      return { total: filteredVolunteers.length, byStatus: Object.entries(volunteersByStatus) }
+
+      return {
+        total: filteredVolunteers.length,
+        byStatus: Object.entries(volunteersByStatus)
+      }
     } else {
       const filteredSchedules = filterDataByDateRange(schedules)
-      return { total: filteredSchedules.length }
+      return {
+        total: filteredSchedules.length
+      }
     }
   }
 
   const reportData = !loading ? getReportData() : null
+
+  // Colors for charts
   const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8", "#82CA9D"]
 
+  // Get months for a quarter
   const getMonthsForQuarter = (quarter: string, year: number) => {
     const quarterMap: Record<string, number[]> = {
-      'Q1': [0, 1, 2],
-      'Q2': [3, 4, 5],
-      'Q3': [6, 7, 8],
-      'Q4': [9, 10, 11]
+      'Q1': [0, 1, 2],    // Jan, Feb, Mar
+      'Q2': [3, 4, 5],    // Apr, May, Jun
+      'Q3': [6, 7, 8],    // Jul, Aug, Sep
+      'Q4': [9, 10, 11]   // Oct, Nov, Dec
     }
+    
     const months = quarterMap[quarter] || []
     return months.map(month => {
       const stats = monthlyBreakdownMap.get(month)
@@ -548,35 +689,39 @@ export default function AdminReports() {
     })
   }
 
+  // Format date range for display
   const formatDateRange = () => {
     if (dateFrom && dateTo) {
-      return `${format(dateFrom, "MMM d, yyyy")} - ${format(dateTo, "MMM d, yyyy")}`
+      return `${format(dateFrom, "MMM d, yyyy")} - ${format(dateTo, "MMM d, yyyy")}`;
     }
-    return "Select date range"
+    return "Select date range";
   }
 
+  // Set date range presets
   const setDateRangePreset = (type: "daily" | "weekly" | "monthly" | "custom") => {
-    setDateRangeType(type)
-    const today = new Date()
+    setDateRangeType(type);
+    const today = new Date();
+    
     switch (type) {
       case "daily":
-        setDateFrom(today)
-        setDateTo(today)
-        break
+        setDateFrom(today);
+        setDateTo(today);
+        break;
       case "weekly":
-        const weekStart = startOfWeek(today)
-        const weekEnd = endOfWeek(today)
-        setDateFrom(weekStart)
-        setDateTo(weekEnd)
-        break
+        const weekStart = startOfWeek(today);
+        const weekEnd = endOfWeek(today);
+        setDateFrom(weekStart);
+        setDateTo(weekEnd);
+        break;
       case "monthly":
-        const monthStart = startOfMonth(today)
-        const monthEnd = endOfMonth(today)
-        setDateFrom(monthStart)
-        setDateTo(monthEnd)
-        break
+        const monthStart = startOfMonth(today);
+        const monthEnd = endOfMonth(today);
+        setDateFrom(monthStart);
+        setDateTo(monthEnd);
+        break;
       case "custom":
-        break
+        // Keep current dates for custom range
+        break;
     }
   }
 
@@ -585,68 +730,74 @@ export default function AdminReports() {
       <div className="space-y-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Reports</h1>
-            <p className="text-gray-600 mt-2">Generate and view comprehensive system reports</p>
+            <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
+            <p className="text-gray-600 mt-1">Generate and view comprehensive system reports</p>
           </div>
         </div>
 
-        <Tabs defaultValue="yearly" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="yearly">Yearly Reports</TabsTrigger>
-            <TabsTrigger value="analytics">Analytics Dashboard</TabsTrigger>
-            <TabsTrigger value="pdf">PDF Reports</TabsTrigger>
+        <Tabs defaultValue="yearly" className="space-y-6">
+          <TabsList className="w-full flex flex-col gap-2 md:grid md:grid-cols-3 bg-gray-100">
+            <TabsTrigger value="yearly" className="flex items-center gap-2 text-gray-700 data-[state=active]:text-gray-900">
+              <CalendarIcon className="h-4 w-4" />
+              Yearly Reports
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="flex items-center gap-2 text-gray-700 data-[state=active]:text-gray-900">
+              <BarChart3 className="h-4 w-4" />
+              Analytics Dashboard
+            </TabsTrigger>
+            <TabsTrigger value="pdf" className="flex items-center gap-2 text-gray-700 data-[state=active]:text-gray-900">
+              <FileText className="h-4 w-4" />
+              PDF Reports
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="yearly" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Year-Based Reports</CardTitle>
-                <CardDescription>View comprehensive reports organized by year</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
-                  <div className="flex-1">
-                    <Select value={selectedYear?.toString() || ""} onValueChange={(value) => setSelectedYear(parseInt(value))}>
-                      <SelectTrigger disabled={loading}>
-                        <SelectValue placeholder="Select year" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {years.length === 0 ? (
-                          <div className="p-2 text-gray-500">No years available</div>
-                        ) : (
-                          years.map((yearData) => (
-                            <SelectItem key={yearData.year} value={yearData.year.toString()}>
-                              {yearData.year} ({yearData.incident_count || 0} incidents)
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Button
-                    onClick={() => setShowArchived(!showArchived)}
-                    variant="outline"
-                    className="text-gray-700"
-                  >
-                    {showArchived ? (
-                      <>
-                        <EyeOff className="mr-2 h-4 w-4" />
-                        Showing Archived
-                      </>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">Year-Based Reports</h2>
+                <p className="text-sm text-gray-600 mt-1">View comprehensive reports organized by year</p>
+              </div>
+              <div className="mt-4 md:mt-0 flex items-center space-x-2">
+                <Select value={selectedYear?.toString() || ""} onValueChange={(value) => setSelectedYear(parseInt(value))}>
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="Select year" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {years.length === 0 ? (
+                      <SelectItem value="" disabled>No years available</SelectItem>
                     ) : (
-                      <>
-                        <Eye className="mr-2 h-4 w-4" />
-                        Show Archived
-                      </>
+                      years.map((yearData) => (
+                        <SelectItem key={yearData.year} value={yearData.year.toString()}>
+                          {yearData.year} ({yearData.incident_count || 0} incidents)
+                        </SelectItem>
+                      ))
                     )}
-                  </Button>
-                </div>
-
+                  </SelectContent>
+                </Select>
+                
+                <Button 
+                  variant={showArchived ? "default" : "outline"} 
+                  onClick={() => setShowArchived(!showArchived)}
+                  className="text-gray-700"
+                >
+                  {showArchived ? (
+                    <>
+                      <EyeOff className="mr-2 h-4 w-4" />
+                      <span className="text-white">Showing Archived</span>
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="mr-2 h-4 w-4" />
+                      <span>Show Archived</span>
+                    </>
+                  )}
+                </Button>
+                
                 {selectedYear && !showArchived && (
                   <Dialog open={archiveDialogOpen} onOpenChange={setArchiveDialogOpen}>
                     <DialogTrigger asChild>
-                      <Button variant="destructive" className="mt-4">
-                        <Archive className="mr-2 h-4 w-4" />
+                      <Button variant="outline">
+                        <FileText className="mr-2 h-4 w-4" />
                         Archive Reports
                       </Button>
                     </DialogTrigger>
@@ -654,286 +805,518 @@ export default function AdminReports() {
                       <DialogHeader>
                         <DialogTitle>Archive Reports</DialogTitle>
                         <DialogDescription>
-                          Are you sure you want to archive all reports for {selectedYear}?
+                          Are you sure you want to archive all reports for {selectedYear}? 
+                          This action cannot be undone and will make the reports read-only.
                         </DialogDescription>
                       </DialogHeader>
-                      <div className="space-y-4">
+                      <div className="py-4">
                         <p className="text-sm text-gray-600">
                           Archiving will mark all reports from {selectedYear} as read-only for compliance and performance.
                         </p>
-                        <div className="flex justify-end gap-2">
-                          <Button variant="outline" onClick={() => setArchiveDialogOpen(false)}>
-                            Cancel
-                          </Button>
-                          <Button
-                            onClick={archiveYearReports}
-                            disabled={archiveLoading}
-                            variant="destructive"
-                          >
-                            {archiveLoading ? <LoadingSpinner size="sm" /> : "Archive Reports"}
-                          </Button>
-                        </div>
+                      </div>
+                      <div className="flex justify-end space-x-2">
+                        <Button variant="outline" onClick={() => setArchiveDialogOpen(false)}>
+                          Cancel
+                        </Button>
+                        <Button onClick={archiveYearReports} disabled={archiveLoading}>
+                          {archiveLoading ? (
+                            <LoadingSpinner size="sm" />
+                          ) : (
+                            "Archive Reports"
+                          )}
+                        </Button>
                       </div>
                     </DialogContent>
                   </Dialog>
                 )}
+              </div>
+            </div>
 
-                {archivedYears.length > 0 && (
-                  <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                    <h3 className="font-semibold text-gray-900 mb-2">Archived Reports</h3>
-                    <p className="text-sm text-gray-600 mb-3">Previously archived years with read-only reports</p>
-                    <div className="flex flex-wrap gap-2">
-                      {archivedYears.map(year => (
-                        <Button
-                          key={year}
-                          variant="outline"
-                          onClick={() => {
-                            setSelectedYear(year)
-                            setShowArchived(true)
-                          }}
-                        >
-                          {year}
-                        </Button>
-                      ))}
-                    </div>
+            {/* Archived Years Section */}
+            {archivedYears.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Archived Reports
+                  </CardTitle>
+                  <CardDescription>
+                    Previously archived years with read-only reports
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-2">
+                    {archivedYears.map(year => (
+                      <Badge 
+                        key={year} 
+                        variant="secondary" 
+                        className="cursor-pointer"
+                        onClick={() => {
+                          setSelectedYear(year)
+                          setShowArchived(true)
+                        }}
+                      >
+                        {year}
+                      </Badge>
+                    ))}
                   </div>
-                )}
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            )}
 
             {loading ? (
               <div className="flex justify-center py-12">
                 <LoadingSpinner size="lg" text="Loading report data..." />
               </div>
             ) : error ? (
-              <Card className="bg-red-50 border-red-200">
-                <CardContent className="pt-6">
-                  <p className="text-sm text-red-700">{error}</p>
-                </CardContent>
-              </Card>
+              <div className="bg-red-50 border-l-4 border-red-500 p-4">
+                <div className="flex">
+                  <div className="ml-3">
+                    <p className="text-sm text-red-700">{error}</p>
+                  </div>
+                </div>
+              </div>
             ) : selectedYear && yearData ? (
               <div className="space-y-6">
+                {/* Filter Section */}
                 <Card>
                   <CardHeader>
-                    <CardTitle>{selectedYear} Report Summary</CardTitle>
-                    {yearData?.archived && <Badge variant="secondary">Archived</Badge>}
-                    <CardDescription>Comprehensive overview of incidents and reports for {selectedYear}</CardDescription>
+                    <CardTitle className="flex items-center justify-between text-gray-900">
+                      <span>Filters</span>
+                      <Button variant="outline" size="sm" onClick={resetFilters} className="text-gray-700">
+                        <X className="h-4 w-4 mr-2" />
+                        Reset Filters
+                      </Button>
+                    </CardTitle>
+                    <CardDescription>Filter reports by type, location, status, or date range</CardDescription>
+                  </CardHeader>
+                  <CardContent className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 mb-2 block">Incident Type</label>
+                      <Select value={incidentTypeFilter} onValueChange={setIncidentTypeFilter}>
+                        <SelectTrigger className="text-gray-900">
+                          <SelectValue placeholder="All Types" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">All Types</SelectItem>
+                          {Object.keys(yearData?.type_breakdown || {}).map(type => (
+                            <SelectItem key={type} value={type}>{type}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 mb-2 block">Barangay</label>
+                      <Select value={barangayFilter} onValueChange={setBarangayFilter}>
+                        <SelectTrigger className="text-gray-900">
+                          <SelectValue placeholder="All Barangays" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">All Barangays</SelectItem>
+                          {Object.keys(yearData?.barangay_breakdown || {}).map(barangay => (
+                            <SelectItem key={barangay} value={barangay}>{barangay}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 mb-2 block">Status</label>
+                      <Select value={statusFilter} onValueChange={setStatusFilter}>
+                        <SelectTrigger className="text-gray-900">
+                          <SelectValue placeholder="All Statuses" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">All Statuses</SelectItem>
+                          {Object.keys(yearData?.status_summary || {}).map(status => (
+                            <SelectItem key={status} value={status}>{status}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 mb-2 block">Date Range</label>
+                      <div className="text-sm text-gray-600 pt-2">
+                        Select a quarter or month below to filter by date range
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Active Filters Banner */}
+                {(incidentTypeFilter || barangayFilter || statusFilter) && (
+                  <Card className="bg-blue-50 border-blue-200">
+                    <CardContent className="pt-6">
+                      <div className="flex items-center justify-between">
+                        <div className="flex flex-wrap gap-2">
+                          <span className="text-sm font-medium text-blue-900 mr-2">Active Filters:</span>
+                          {incidentTypeFilter && (
+                            <Badge variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-200">
+                              Type: {incidentTypeFilter}
+                              <button 
+                              onClick={() => setIncidentTypeFilter("")}
+                              className="ml-2 hover:bg-blue-300 rounded-full p-0.5"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                            </Badge>
+                          )}
+                          {barangayFilter && (
+                            <Badge variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-200">
+                              Barangay: {barangayFilter}
+                              <button 
+                              onClick={() => setBarangayFilter("")}
+                              className="ml-2 hover:bg-blue-300 rounded-full p-0.5"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                            </Badge>
+                          )}
+                          {statusFilter && (
+                            <Badge variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-200">
+                              Status: {statusFilter}
+                              <button 
+                              onClick={() => setStatusFilter("")}
+                              className="ml-2 hover:bg-blue-300 rounded-full p-0.5"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                            </Badge>
+                          )}
+                        </div>
+                        <Button variant="ghost" size="sm" onClick={resetFilters} className="text-blue-900 hover:text-blue-700">
+                          Clear All
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Year Summary Card */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between text-gray-900">
+                      <span>{selectedYear} Report Summary</span>
+                      {yearData?.archived && (
+                        <Badge variant="secondary" className="bg-gray-200 text-gray-800">Archived</Badge>
+                      )}
+                    </CardTitle>
+                    <CardDescription>
+                      Comprehensive overview of incidents and reports for {selectedYear}
+                    </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                      <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                        <p className="text-sm text-gray-600">Total Incidents</p>
-                        <p className="text-2xl font-bold text-blue-600">{filteredYearData?.total_incidents || yearData?.total_incidents || 0}</p>
+                      <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                        <h3 className="text-sm font-medium text-blue-800 mb-1">Total Incidents</h3>
+                        <p className="text-3xl font-bold text-blue-600">{filteredYearData?.total_incidents || yearData?.total_incidents || 0}</p>
                       </div>
-                      <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-                        <p className="text-sm text-gray-600">Reports Generated</p>
-                        <p className="text-2xl font-bold text-green-600">{filteredYearData?.reports?.length || yearData?.reports?.length || 0}</p>
+                      
+                      <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                        <h3 className="text-sm font-medium text-green-800 mb-1">Reports Generated</h3>
+                        <p className="text-3xl font-bold text-green-600">{filteredYearData?.reports?.length || yearData?.reports?.length || 0}</p>
                       </div>
-                      <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
-                        <p className="text-sm text-gray-600">Busiest Quarter</p>
+                      
+                      <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                        <h3 className="text-sm font-medium text-purple-800 mb-1">Busiest Quarter</h3>
                         <p className="text-2xl font-bold text-purple-600">
-                          {filteredYearData?.quarters?.reduce((max: any, quarter: any) => quarter.incident_count > max.incident_count ? quarter : max, filteredYearData?.quarters?.[0])?.quarter || yearData?.quarters?.reduce((max: any, quarter: any) => quarter.incident_count > max.incident_count ? quarter : max, yearData?.quarters?.[0])?.quarter || "N/A"}
+                          {filteredYearData?.quarters?.reduce((max: any, quarter: any) => 
+                            quarter.incident_count > max.incident_count ? quarter : max, 
+                            filteredYearData?.quarters?.[0]
+                          )?.quarter || yearData?.quarters?.reduce((max: any, quarter: any) => 
+                            quarter.incident_count > max.incident_count ? quarter : max, 
+                            yearData?.quarters?.[0]
+                          )?.quarter || "N/A"}
                         </p>
                       </div>
-                      <div className="p-4 bg-orange-50 rounded-lg border border-orange-200">
-                        <p className="text-sm text-gray-600">Most Common Type</p>
-                        <p className="text-2xl font-bold text-orange-600">
-                          {Object.entries(filteredYearData?.type_breakdown || yearData?.type_breakdown || {}).sort(([,a], [,b]) => (b as number) - (a as number))[0]?.[0] || "N/A"}
+                      
+                      <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
+                        <h3 className="text-sm font-medium text-orange-800 mb-1">Most Common Type</h3>
+                        <p className="text-lg font-bold text-orange-600 truncate">
+                          {Object.entries(filteredYearData?.type_breakdown || yearData?.type_breakdown || {})
+                            .sort(([,a], [,b]) => (b as number) - (a as number))[0]?.[0] || "N/A"}
                         </p>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
 
+                {/* Quarterly Breakdown */}
                 <Card>
                   <CardHeader>
-                    <CardTitle>Quarterly Breakdown</CardTitle>
-                    <CardDescription>Incident distribution across quarters for {selectedYear}</CardDescription>
+                    <CardTitle className="text-gray-900">Quarterly Breakdown</CardTitle>
+                    <CardDescription>
+                      Incident distribution across quarters for {selectedYear}
+                    </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    {(yearData?.quarters || []).map((quarter: any) => (
-                      <div key={quarter.quarter} className="border rounded-lg">
-                        <button
-                          onClick={() => toggleQuarter(quarter.quarter)}
-                          className="w-full p-4 flex items-center justify-between hover:bg-gray-50"
-                        >
-                          <div className="flex items-center gap-3">
-                            {expandedQuarters[quarter.quarter] ? (
-                              <ChevronDown className="h-5 w-5" />
-                            ) : (
-                              <ChevronRight className="h-5 w-5" />
-                            )}
-                            <div className="text-left">
-                              <p className="font-semibold text-gray-900">{quarter.quarter}</p>
-                              <p className="text-sm text-gray-500">
+                  <CardContent>
+                    <div className="space-y-4">
+                      {(yearData?.quarters || []).map((quarter: any) => (
+                        <div key={quarter.quarter} className="border border-gray-200 rounded-lg">
+                          <div 
+                            className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                            onClick={() => toggleQuarter(quarter.quarter)}
+                          >
+                            <div className="flex items-center">
+                              {expandedQuarters[quarter.quarter] ? (
+                                <ChevronDown className="h-5 w-5 mr-2 text-gray-600" />
+                              ) : (
+                                <ChevronRight className="h-5 w-5 mr-2 text-gray-600" />
+                              )}
+                              <h3 className="text-lg font-semibold text-gray-900">{quarter.quarter}</h3>
+                              <Badge variant="outline" className="ml-2 text-gray-700 border-gray-300">
+                                {quarter.incident_count || 0} incidents
+                              </Badge>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <span className="text-sm text-gray-600">
                                 {quarter.start && quarter.end ? (
                                   <>
-                                    {new Date(quarter.start).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(quarter.end).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                    {new Date(quarter.start).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - 
+                                    {' '}{new Date(quarter.end).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                                   </>
                                 ) : (
                                   'Date range not available'
                                 )}
-                              </p>
+                              </span>
                             </div>
                           </div>
-                          <Badge variant="outline">{quarter.incident_count || 0} incidents</Badge>
-                        </button>
-
-                        {expandedQuarters[quarter.quarter] && (
-                          <div className="border-t p-4 bg-gray-50">
-                            <h4 className="font-semibold text-gray-900 mb-3">Monthly Breakdown</h4>
-                            <div className="space-y-2">
-                              {getMonthsForQuarter(quarter.quarter, selectedYear).map((monthData) => {
-                                const monthKey = `${quarter.quarter}-${monthData.month}`
-                                const weeklySeries = (monthData.week_counts || []).map((count: number, index: number) => ({ name: `Week ${index + 1}`, incidents: count }))
-                                return (
-                                  <div key={monthKey} className="bg-white p-3 rounded border border-gray-200">
-                                    <button
-                                      onClick={() => toggleMonth(monthKey)}
-                                      className="w-full flex items-center justify-between hover:bg-gray-50 p-2"
-                                    >
-                                      <div className="flex items-center gap-2">
-                                        {expandedMonths[monthKey] ? (
-                                          <ChevronDown className="h-4 w-4" />
-                                        ) : (
-                                          <ChevronRight className="h-4 w-4" />
+                          
+                          {expandedQuarters[quarter.quarter] && (
+                            <div className="p-4 border-t bg-gray-50">
+                              {/* Month-by-Month Breakdown */}
+                              <div className="mb-6">
+                                <h4 className="font-semibold text-gray-900 mb-3">Monthly Breakdown</h4>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                  {getMonthsForQuarter(quarter.quarter, selectedYear).map((monthData) => {
+                                    const monthKey = `${quarter.quarter}-${monthData.month}`
+                                    const weeklySeries = (monthData.week_counts || []).map((count: number, index: number) => ({
+                                      name: `Week ${index + 1}`,
+                                      incidents: count
+                                    }))
+                                    return (
+                                      <div 
+                                        key={monthKey} 
+                                        className="border border-gray-200 rounded p-3 cursor-pointer hover:bg-white transition-colors"
+                                        onClick={() => toggleMonth(monthKey)}
+                                      >
+                                        <div className="flex justify-between items-center">
+                                          <div>
+                                            <span className="font-semibold text-gray-900">{monthData.monthLabel}</span>
+                                            <p className="text-xs text-gray-600 mt-1">{monthData.incident_count || 0} incidents</p>
+                                          </div>
+                                          <div className="flex items-center">
+                                            {expandedMonths[monthKey] ? (
+                                              <ChevronDown className="h-4 w-4 text-gray-600" />
+                                            ) : (
+                                              <ChevronRight className="h-4 w-4 text-gray-600" />
+                                            )}
+                                          </div>
+                                        </div>
+                                        
+                                        {expandedMonths[monthKey] && (
+                                          <div className="mt-2 pt-2 border-t">
+                                            <div className="h-32">
+                                              {weeklySeries.some(point => point.incidents > 0) ? (
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                  <AreaChart data={weeklySeries}>
+                                                    <CartesianGrid strokeDasharray="3 3" />
+                                                    <XAxis dataKey="name" />
+                                                    <YAxis />
+                                                    <Tooltip />
+                                                    <Area type="monotone" dataKey="incidents" stroke="#8884d8" fill="#8884d8" />
+                                                  </AreaChart>
+                                                </ResponsiveContainer>
+                                              ) : (
+                                                <div className="h-full flex items-center justify-center text-xs text-gray-500">
+                                                  No weekly data for this month
+                                                </div>
+                                              )}
+                                            </div>
+                                          </div>
                                         )}
-                                        <span className="text-sm font-medium text-gray-900">{monthData.monthLabel}</span>
                                       </div>
-                                      <span className="text-sm text-gray-600">{monthData.incident_count || 0} incidents</span>
-                                    </button>
-                                    {expandedMonths[monthKey] && (
-                                      <div className="mt-3 pt-3 border-t">
-                                        {weeklySeries.some(point => point.incidents > 0) ? (
-                                          <ResponsiveContainer width="100%" height={200}>
-                                            <LineChart data={weeklySeries}>
-                                              <CartesianGrid strokeDasharray="3 3" />
-                                              <XAxis dataKey="name" />
-                                              <YAxis allowDecimals={false} />
-                                              <Tooltip />
-                                              <Line type="monotone" dataKey="incidents" stroke="#2563eb" />
-                                            </LineChart>
-                                          </ResponsiveContainer>
-                                        ) : (
-                                          <p className="text-sm text-gray-500 text-center py-4">No weekly data for this month</p>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                )
-                              })}
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                              
+                              {/* Quarter Charts */}
+                              <div className="h-64">
+                                <ResponsiveContainer width="100%" height="100%">
+                                  <BarChart
+                                    data={Object.entries(yearData?.type_breakdown || {})
+                                      .map(([type, count]) => ({ name: type, count: count as number }))
+                                      .sort((a, b) => b.count - a.count)
+                                      .slice(0, 5)}
+                                  >
+                                    <CartesianGrid strokeDasharray="3 3" />
+                                    <XAxis dataKey="name" />
+                                    <YAxis />
+                                    <Tooltip />
+                                    <Legend />
+                                    <Bar dataKey="count" name="Incidents" fill="#8884d8" />
+                                  </BarChart>
+                                </ResponsiveContainer>
+                              </div>
                             </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </CardContent>
                 </Card>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Charts Section */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Incident Types */}
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-base">Incident Types</CardTitle>
+                      <CardTitle className="text-gray-900">Incident Types</CardTitle>
+                      <CardDescription>Distribution of incidents by type</CardDescription>
                     </CardHeader>
                     <CardContent className="h-80">
-                      {Object.keys(filteredYearData?.type_breakdown || {}).length > 0 ? (
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={Object.entries(filteredYearData?.type_breakdown || {}).map(([type, count]) => ({ name: type, value: count as number }))}
-                              cx="50%"
-                              cy="50%"
-                              labelLine={false}
-                              outerRadius={80}
-                              fill="#8884d8"
-                              dataKey="value"
-                              label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                            >
-                              {Object.entries(filteredYearData?.type_breakdown || {}).map((entry, index) => (
-                                <Cell key={index} fill={COLORS[index % COLORS.length]} />
-                              ))}
-                            </Pie>
-                            <Legend />
-                            <Tooltip />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      ) : (
-                        <div className="flex h-full items-center justify-center text-gray-500">No type data available</div>
-                      )}
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={Object.entries(filteredYearData?.type_breakdown || {})
+                              .map(([type, count]) => ({ name: type, value: count as number }))
+                              .sort((a, b) => b.value - a.value)}
+                            cx="50%"
+                            cy="50%"
+                            labelLine={false}
+                            outerRadius={80}
+                            fill="#8884d8"
+                            dataKey="value"
+                            label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                          >
+                            {Object.entries(filteredYearData?.type_breakdown || {}).map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip />
+                          <Legend />
+                        </PieChart>
+                      </ResponsiveContainer>
                     </CardContent>
                   </Card>
 
+                  {/* Status Distribution */}
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-base">Status Distribution</CardTitle>
+                      <CardTitle className="text-gray-900">Status Distribution</CardTitle>
+                      <CardDescription>Distribution of incidents by status</CardDescription>
                     </CardHeader>
                     <CardContent className="h-80">
-                      {Object.keys(filteredYearData?.status_summary || {}).length > 0 ? (
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={Object.entries(filteredYearData?.status_summary || {}).map(([status, count]) => ({ name: status, value: count as number }))}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="name" />
-                            <YAxis allowDecimals={false} />
-                            <Tooltip />
-                            <Bar dataKey="value" fill="#10b981" />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      ) : (
-                        <div className="flex h-full items-center justify-center text-gray-500">No status data available</div>
-                      )}
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={Object.entries(filteredYearData?.status_summary || {})
+                            .map(([status, count]) => ({ name: status, count: count as number }))}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="name" />
+                          <YAxis />
+                          <Tooltip />
+                          <Legend />
+                          <Bar dataKey="count" name="Incidents" fill="#82ca9d" />
+                        </BarChart>
+                      </ResponsiveContainer>
                     </CardContent>
                   </Card>
                 </div>
 
+                {/* PDF Template Editor */}
                 <Card>
                   <CardHeader>
-                    <CardTitle>PDF Report Template</CardTitle>
-                    <CardDescription>Customize the executive summary for your PDF report</CardDescription>
+                    <CardTitle className="text-gray-900">PDF Report Template</CardTitle>
+                    <CardDescription>
+                      Customize the executive summary for your PDF report
+                    </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Executive Summary Notes</label>
-                      <textarea
-                        value={templateNotes}
-                        onChange={(e) => setTemplateNotes(e.target.value)}
-                        className="w-full h-24 p-3 border border-gray-300 rounded-md text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Add any additional notes or summary information for the PDF report..."
-                      />
-                    </div>
-                    <div className="flex justify-end">
-                      <YearlyPDFReportGenerator yearData={filteredYearData || yearData} selectedYear={selectedYear} templateNotes={templateNotes} />
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 mb-2 block">Executive Summary Notes</label>
+                        <textarea
+                          value={templateNotes}
+                          onChange={(e) => setTemplateNotes(e.target.value)}
+                          className="w-full h-24 p-3 border border-gray-300 rounded-md text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="Add any additional notes or summary information for the PDF report..."
+                        />
+                      </div>
+                      <div className="flex justify-end">
+                        <YearlyPDFReportGenerator 
+                          yearData={filteredYearData || yearData} 
+                          selectedYear={selectedYear} 
+                          templateNotes={templateNotes}
+                        />
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
 
+                {/* Action Buttons */}
                 <Card>
                   <CardContent className="pt-6">
                     <div className="flex flex-wrap justify-end gap-2">
                       {!showArchived && (
                         <>
-                          <Button onClick={scheduleAutoArchive} variant="default" className="bg-purple-600 hover:bg-purple-700">
+                          <Button 
+                            onClick={scheduleAutoArchive} 
+                            variant="default"
+                            className="bg-purple-600 hover:bg-purple-700 text-white"
+                          >
                             <Clock className="mr-2 h-4 w-4" />
                             Schedule Auto Archive
                           </Button>
-                          <Button onClick={autoArchiveReports} disabled={archiveLoading} variant="default" className="bg-yellow-600 hover:bg-yellow-700">
-                            {archiveLoading ? <LoadingSpinner size="sm" /> : <>
-                              <Archive className="mr-2 h-4 w-4" />
-                              Auto Archive Old Years
-                            </>}
+                          <Button 
+                            onClick={autoArchiveReports} 
+                            disabled={archiveLoading} 
+                            variant="default"
+                            className="bg-yellow-600 hover:bg-yellow-700 text-white"
+                          >
+                            {archiveLoading ? (
+                              <LoadingSpinner size="sm" />
+                            ) : (
+                              <>
+                                <Archive className="mr-2 h-4 w-4" />
+                                Auto Archive Old Years
+                              </>
+                            )}
                           </Button>
-                          <Button onClick={() => setArchiveDialogOpen(true)} disabled={archiveLoading || !selectedYear} variant="outline">
-                            {archiveLoading ? <LoadingSpinner size="sm" /> : <>
-                              <FileText className="mr-2 h-4 w-4" />
-                              Archive Year
-                            </>}
+                          <Button 
+                            onClick={() => setArchiveDialogOpen(true)} 
+                            disabled={archiveLoading || !selectedYear} 
+                            variant="outline"
+                            className="text-gray-700 border-gray-300"
+                          >
+                            {archiveLoading ? (
+                              <LoadingSpinner size="sm" />
+                            ) : (
+                              <>
+                                <FileText className="mr-2 h-4 w-4" />
+                                Archive Year
+                              </>
+                            )}
                           </Button>
                         </>
                       )}
-                      <Button onClick={exportYearCSV} disabled={exportLoading || showArchived} variant="outline">
-                        {exportLoading ? <LoadingSpinner size="sm" /> : <>
-                          <Download className="mr-2 h-4 w-4" />
-                          Export CSV
-                        </>}
+                      <Button 
+                        onClick={exportYearCSV} 
+                        disabled={exportLoading || showArchived} 
+                        variant="outline"
+                        className="text-gray-700 border-gray-300"
+                      >
+                        {exportLoading ? (
+                          <LoadingSpinner size="sm" />
+                        ) : (
+                          <>
+                            <Download className="mr-2 h-4 w-4" />
+                            Export CSV
+                          </>
+                        )}
                       </Button>
                     </div>
                   </CardContent>
@@ -945,10 +1328,31 @@ export default function AdminReports() {
                   <div className="text-center">
                     <CalendarIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">No Year Selected</h3>
-                    <p className="text-gray-600 mb-6">Select a year from the dropdown above to view reports.</p>
+                    <p className="text-gray-600 mb-6">
+                      Select a year from the dropdown above to view reports.
+                    </p>
                     {years.length === 0 && (
                       <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                        <p className="text-sm text-yellow-800">No report data available. Reports will appear here once incidents are recorded.</p>
+                        <p className="text-sm text-yellow-800">
+                          No report data available. Reports will appear here once incidents are recorded.
+                        </p>
+                      </div>
+                    )}
+                    {years.length > 0 && (
+                      <div className="mt-6">
+                        <p className="text-sm text-gray-500 mb-3">Available years:</p>
+                        <div className="flex flex-wrap justify-center gap-2">
+                          {years.slice(0, 5).map((yearData) => (
+                            <Button
+                              key={yearData.year}
+                              variant="outline"
+                              onClick={() => setSelectedYear(yearData.year)}
+                              className="text-gray-700 hover:bg-blue-50 hover:text-blue-700"
+                            >
+                              {yearData.year}
+                            </Button>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -958,103 +1362,466 @@ export default function AdminReports() {
           </TabsContent>
 
           <TabsContent value="analytics" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Analytics Dashboard</CardTitle>
-                <CardDescription>Real-time analytics and insights</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col md:flex-row gap-4">
-                  <Select value={reportType} onValueChange={(value: any) => setReportType(value)}>
-                    <SelectTrigger disabled={loading} className="md:w-48">
-                      <SelectValue placeholder="Select report type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="incidents">Incidents Report</SelectItem>
-                      <SelectItem value="volunteers">Volunteers Report</SelectItem>
-                      <SelectItem value="schedules">Schedules Report</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button onClick={generateReport} disabled={loading || generatingReport} className="bg-blue-600 hover:bg-blue-700">
-                    {generatingReport ? <LoadingSpinner size="sm" /> : <>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">Analytics Dashboard</h2>
+                <p className="text-sm text-gray-600 mt-1">Real-time analytics and insights</p>
+              </div>
+              <div className="mt-4 md:mt-0 flex items-center space-x-2">
+                <div className="flex items-center space-x-1">
+                  <Button 
+                    variant={dateRangeType === "daily" ? "default" : "outline"} 
+                    size="sm" 
+                    onClick={() => setDateRangePreset("daily")}
+                  >
+                    Daily
+                  </Button>
+                  <Button 
+                    variant={dateRangeType === "weekly" ? "default" : "outline"} 
+                    size="sm" 
+                    onClick={() => setDateRangePreset("weekly")}
+                  >
+                    Weekly
+                  </Button>
+                  <Button 
+                    variant={dateRangeType === "monthly" ? "default" : "outline"} 
+                    size="sm" 
+                    onClick={() => setDateRangePreset("monthly")}
+                  >
+                    Monthly
+                  </Button>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant={dateRangeType === "custom" ? "default" : "outline"}
+                        size="sm"
+                        className={cn(
+                          "w-[240px] justify-start text-left font-normal",
+                          !dateFrom && !dateTo && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {dateFrom && dateTo ? formatDateRange() : "Custom Range"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        initialFocus
+                        mode="range"
+                        defaultMonth={dateFrom}
+                        selected={{ from: dateFrom, to: dateTo }}
+                        onSelect={(range) => {
+                          if (range?.from) setDateFrom(range.from);
+                          if (range?.to) setDateTo(range.to);
+                          setDateRangeType("custom");
+                        }}
+                        numberOfMonths={2}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                
+                <Button
+                  onClick={generateReport}
+                  disabled={loading || generatingReport}
+                  variant="default"
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {generatingReport ? (
+                    <LoadingSpinner size="sm" color="text-white" />
+                  ) : (
+                    <>
                       <Download className="mr-2 h-4 w-4" />
                       Export Report
-                    </>}
-                  </Button>
+                    </>
+                  )}
+                </Button>
+                <Button
+                  onClick={generateMonthlyIncidentsReport}
+                  disabled={loading || submittingMonthly}
+                  variant="default"
+                  className="bg-purple-600 hover:bg-purple-700 text-white"
+                >
+                  {submittingMonthly ? (
+                    <LoadingSpinner size="sm" color="text-white" />
+                  ) : (
+                    <>
+                      <FileText className="mr-2 h-4 w-4" />
+                      Generate Monthly Report
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Report Configuration</CardTitle>
+                <CardDescription>Select report type and date range</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col md:flex-row md:items-end space-y-4 md:space-y-0 md:space-x-4">
+                  <div className="flex-1">
+                    <label htmlFor="report-type" className="block text-sm font-medium text-gray-700 mb-2">
+                      Report Type
+                    </label>
+                    <Select value={reportType} onValueChange={(value: any) => setReportType(value)}>
+                      <SelectTrigger id="report-type" disabled={loading} className="text-gray-900">
+                        <SelectValue placeholder="Select report type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="incidents">Incidents Report</SelectItem>
+                        <SelectItem value="volunteers">Volunteers Report</SelectItem>
+                        <SelectItem value="schedules">Schedules Report</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="md:self-end">
+                    <Button
+                      onClick={() => {
+                        // Refresh report data
+                        setLoading(true)
+                        setTimeout(() => setLoading(false), 500)
+                      }}
+                      variant="outline"
+                      disabled={loading}
+                      className="text-gray-700"
+                    >
+                      <Filter className="mr-2 h-4 w-4" />
+                      Apply Filters
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
-            {loading ? (
-              <div className="flex justify-center py-12">
-                <LoadingSpinner size="lg" text="Loading report data..." />
-              </div>
-            ) : error ? (
-              <Card className="bg-red-50 border-red-200">
-                <CardContent className="pt-6">
-                  <p className="text-sm text-red-700">{error}</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardDescription>Total {reportType}</CardDescription>
-                      <CardTitle className="text-3xl font-bold text-blue-600">{reportData?.total || 0}</CardTitle>
-                    </CardHeader>
+              {loading ? (
+                <div className="flex justify-center py-12">
+                  <LoadingSpinner size="lg" text="Loading report data..." />
+                </div>
+              ) : error ? (
+                <div className="bg-red-50 border-l-4 border-red-500 p-4">
+                  <div className="flex">
+                    <div className="ml-3">
+                      <p className="text-sm text-red-700">{error}</p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  <Card className="bg-blue-50 border-blue-200">
+                    <CardContent className="pt-6">
+                      <div className="flex items-center">
+                        <h2 className="text-lg font-semibold text-blue-900">
+                          {reportType === "incidents"
+                            ? "Incidents Report"
+                            : reportType === "volunteers"
+                            ? "Volunteers Report"
+                            : "Schedules Report"}
+                        </h2>
+                      </div>
+                      <p className="mt-2 text-sm text-blue-800">
+                        Showing data for {dateRangeType === "daily" ? "today" : 
+                                      dateRangeType === "weekly" ? "this week" : 
+                                      dateRangeType === "monthly" ? "this month" : 
+                                      dateFrom && dateTo ? formatDateRange() : "selected period"}
+                      </p>
+                    </CardContent>
                   </Card>
-                  {reportType === "incidents" && reportData?.byStatus && (
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <Card>
                       <CardHeader className="pb-2">
-                        <CardDescription>By Status</CardDescription>
+                        <CardDescription>Total {reportType}</CardDescription>
+                        <CardTitle className="text-3xl font-bold text-blue-600">{reportData?.total || 0}</CardTitle>
+                      </CardHeader>
+                    </Card>
+
+                    {reportType === "incidents" && (
+                      <>
+                        <Card>
+                          <CardHeader className="pb-2">
+                            <CardDescription>By Status</CardDescription>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="space-y-2">
+                              {reportData?.byStatus?.map(([status, count]) => (
+                                <div key={status} className="flex justify-between items-center">
+                                  <Badge className={`${
+                                    status === "PENDING" ? "bg-yellow-100 text-yellow-800 hover:bg-yellow-100" :
+                                    status === "ASSIGNED" ? "bg-blue-100 text-blue-800 hover:bg-blue-100" :
+                                    status === "RESPONDING" ? "bg-orange-100 text-orange-800 hover:bg-orange-100" :
+                                    status === "RESOLVED" ? "bg-green-100 text-green-800 hover:bg-green-100" :
+                                    "bg-gray-100 text-gray-800 hover:bg-gray-100"
+                                  }`}>
+                                    {status}
+                                  </Badge>
+                                  <span className="text-sm font-bold text-gray-900">{count as number}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        <Card>
+                          <CardHeader className="pb-2">
+                            <CardDescription>By Type</CardDescription>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="space-y-2">
+                              {reportData?.byType?.map(([type, count]) => (
+                                <div key={type} className="flex justify-between items-center">
+                                  <span className="text-sm font-medium text-gray-900">
+                                    {type}
+                                  </span>
+                                  <span className="text-sm font-bold text-gray-900">{count as number}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </>
+                    )}
+
+                    {reportType === "volunteers" && (
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardDescription>By Status</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-2">
+                            {reportData?.byStatus?.map(([status, count]) => (
+                              <div key={status} className="flex justify-between items-center">
+                                <Badge className={`${
+                                  status === "ACTIVE" ? "bg-green-100 text-green-800 hover:bg-green-100" :
+                                  status === "INACTIVE" ? "bg-gray-100 text-gray-800 hover:bg-gray-100" :
+                                  status === "PENDING" ? "bg-yellow-100 text-yellow-800 hover:bg-yellow-100" :
+                                  "bg-gray-100 text-gray-800 hover:bg-gray-100"
+                                }`}>
+                                  {status}
+                                </Badge>
+                                <span className="text-sm font-bold text-gray-900">{count as number}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+
+                  {reportType === "incidents" && reportData?.byBarangay && reportData.byBarangay.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center">
+                          <MapPin className="h-5 w-5 text-blue-500 mr-2" />
+                          Incidents by Barangay
+                        </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className="space-y-2">
-                          {reportData.byStatus.slice(0, 3).map(([status, count]: any) => (
-                            <div key={status} className="flex justify-between">
-                              <span className="text-sm text-gray-600">{status}</span>
-                              <span className="text-sm font-bold">{count}</span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                          {reportData.byBarangay.map(([barangay, count]) => (
+                            <div key={barangay} className="flex justify-between bg-gray-50 p-3 rounded-md border border-gray-200">
+                              <span className="text-sm font-medium text-gray-900">{barangay || "Unknown"}</span>
+                              <span className="text-sm font-bold text-gray-900">{count as number}</span>
                             </div>
                           ))}
                         </div>
                       </CardContent>
                     </Card>
                   )}
-                </div>
 
-                {reportType === "incidents" && incidentsByStatus.length > 0 && (
-                  <Card>
+                  {reportType === "incidents" && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-base">Status Overview</CardTitle>
+                        </CardHeader>
+                        <CardContent className="h-64">
+                          {incidentsByStatus.length ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                              <BarChart data={incidentsByStatus.map((item) => ({ name: item.status, value: Number(item.count) }))}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="name" />
+                                <YAxis allowDecimals={false} />
+                                <Tooltip />
+                                <Bar dataKey="value" fill="#2563eb" />
+                              </BarChart>
+                            </ResponsiveContainer>
+                          ) : (
+                            <div className="flex h-full items-center justify-center text-sm text-gray-500">
+                              No status data for this range
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-base">Type Distribution</CardTitle>
+                        </CardHeader>
+                        <CardContent className="h-64">
+                          {incidentsByType.length ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                              <PieChart>
+                                <Pie
+                                  data={incidentsByType.map((item) => ({ name: item.incident_type, value: Number(item.count) }))}
+                                  dataKey="value"
+                                  nameKey="name"
+                                  outerRadius={80}
+                                  label
+                                >
+                                  {incidentsByType.map((_, index) => (
+                                    <Cell key={index} fill={COLORS[index % COLORS.length]} />
+                                  ))}
+                                </Pie>
+                                <Legend />
+                                <Tooltip />
+                              </PieChart>
+                            </ResponsiveContainer>
+                          ) : (
+                            <div className="flex h-full items-center justify-center text-sm text-gray-500">
+                              No type data for this range
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </div>
+                  )}
+
+                  <Card className="mt-6">
                     <CardHeader>
-                      <CardTitle className="text-base">Status Overview</CardTitle>
+                      <CardTitle>
+                        {reportType === "incidents"
+                          ? "Recent Incidents"
+                          : reportType === "volunteers"
+                          ? "Recent Volunteers"
+                          : "Recent Schedules"}
+                      </CardTitle>
                     </CardHeader>
-                    <CardContent className="h-64">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={incidentsByStatus.map((item) => ({ name: item.status, value: Number(item.count) }))}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="name" />
-                          <YAxis allowDecimals={false} />
-                          <Tooltip />
-                          <Bar dataKey="value" fill="#2563eb" />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-            )}
+                    <CardContent>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              {reportType === "incidents" && (
+                                <>
+                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Type</th>
+                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Date</th>
+                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Status</th>
+                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Location</th>
+                                </>
+                              )}
+                              
+                              {reportType === "volunteers" && (
+                                <>
+                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Name</th>
+                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Email</th>
+                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Status</th>
+                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Joined</th>
+                                </>
+                              )}
+                              
+                              {reportType === "schedules" && (
+                                <>
+                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Title</th>
+                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Start Time</th>
+                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">End Time</th>
+                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Volunteers</th>
+                                </>
+                              )}
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                          {reportType === "incidents" && 
+                            filterDataByDateRange(incidents)
+                              .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                              .slice(0, 5)
+                              .map((incident) => (
+                              <tr key={incident.id}>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{incident.incident_type}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(incident.created_at).toLocaleDateString()}</td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                    incident.status === "PENDING" ? "bg-yellow-100 text-yellow-800" :
+                                    incident.status === "ASSIGNED" ? "bg-blue-100 text-blue-800" :
+                                    incident.status === "RESPONDING" ? "bg-orange-100 text-orange-800" :
+                                    incident.status === "RESOLVED" ? "bg-green-100 text-green-800" :
+                                    "bg-gray-100 text-gray-800"
+                                  }`}>
+                                    {incident.status}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{incident.location_address}</td>
+                              </tr>
+                            ))
+                          }
+                          
+                          {reportType === "volunteers" && 
+                            filterDataByDateRange(volunteers).slice(0, 5).map((volunteer) => (
+                            <tr key={volunteer.id}>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                {volunteer.first_name} {volunteer.last_name}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{volunteer.email}</td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                  volunteer.volunteer_profiles?.status === "ACTIVE" ? "bg-green-100 text-green-800" :
+                                  volunteer.volunteer_profiles?.status === "INACTIVE" ? "bg-gray-100 text-gray-800" :
+                                  volunteer.volunteer_profiles?.status === "PENDING" ? "bg-yellow-100 text-yellow-800" :
+                                  "bg-gray-100 text-gray-800"
+                                }`}>
+                                  {volunteer.volunteer_profiles?.status || "UNKNOWN"}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {new Date(volunteer.created_at).toLocaleDateString()}
+                              </td>
+                            </tr>
+                          ))
+                          }
+                          
+                          {reportType === "schedules" && 
+                            filterDataByDateRange(schedules).slice(0, 5).map((schedule) => (
+                              <tr key={schedule.id}>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{schedule.title}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                  {new Date(schedule.start_time).toLocaleString()}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                  {new Date(schedule.end_time).toLocaleString()}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                  {(schedule.volunteers?.length || 0)}
+                                </td>
+                              </tr>
+                            ))
+                          }
+                          
+                          {(
+                            (reportType === "incidents" && filterDataByDateRange(incidents).length === 0) ||
+                            (reportType === "volunteers" && filterDataByDateRange(volunteers).length === 0) ||
+                            (reportType === "schedules" && filterDataByDateRange(schedules).length === 0)
+                          ) && (
+                            <tr>
+                              <td colSpan={4} className="px-6 py-8 text-center">
+                                <div className="text-gray-500">
+                                  <p className="text-sm">No data available for the selected date range</p>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+                </div>
+              )}
+            </div>
           </TabsContent>
 
-          <TabsContent value="pdf">
-            <Card>
-              <CardHeader>
-                <CardTitle>PDF Reports</CardTitle>
-                <CardDescription>Generate PDF reports from your data</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <PDFReportGenerator />
-              </CardContent>
-            </Card>
+          <TabsContent value="pdf" className="space-y-6">
+            <PDFReportGenerator />
           </TabsContent>
         </Tabs>
       </div>
