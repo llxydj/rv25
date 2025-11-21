@@ -6,7 +6,7 @@ import { Filter, MapPin, FileText, Download, BarChart3, Calendar as CalendarIcon
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import { getAllIncidents } from "@/lib/incidents"
 import { getAllVolunteers } from "@/lib/volunteers"
-import { getAllSchedules } from "@/src/lib/schedules"
+import { getAllSchedules } from "@/lib/schedules"
 import { getIncidentsByBarangay, getIncidentsByStatus, getIncidentsByType, exportIncidentsToCSV } from "@/lib/reports"
 import { useAuth } from "@/lib/auth"
 import { Button } from "@/components/ui/button"

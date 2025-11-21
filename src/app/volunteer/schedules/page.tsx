@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { VolunteerLayout } from "@/components/layout/volunteer-layout"
 import { useAuth } from "@/lib/auth"
-import { getVolunteerSchedules } from "@/src/lib/schedules"
+import { getVolunteerSchedules } from "@/lib/schedules"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import { AlertTriangle, Calendar, Filter } from "lucide-react"
 import { ScheduleCard } from "@/components/volunteer/schedule-card"

@@ -89,193 +89,193 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
           <nav className="p-4 space-y-1 overflow-y-auto h-[calc(100vh-4rem)]">
             <Link
               href="/admin/dashboard"
-              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 ${
-                isActive("/admin/dashboard") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md"
+              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
+                isActive("/admin/dashboard") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
               }`}
               onClick={() => setSidebarOpen(false)}
             >
-              <Home className="h-5 w-5 flex-shrink-0" />
-              <span className="font-medium truncate">Dashboard</span>
+              <Home className="h-5 w-5 flex-shrink-0 text-white" />
+              <span className="font-medium truncate text-white">Dashboard</span>
             </Link>
 
             <Link
               href="/admin/documents"
-              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 ${
-                isActive("/admin/documents") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md"
+              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
+                isActive("/admin/documents") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
               }`}
               onClick={() => setSidebarOpen(false)}
             >
-              <FileText className="h-5 w-5 flex-shrink-0" />
-              <span className="font-medium truncate">Documents</span>
+              <FileText className="h-5 w-5 flex-shrink-0 text-white" />
+              <span className="font-medium truncate text-white">Documents</span>
             </Link>
 
             <Link
               href="/admin/incidents"
-              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 ${
-                isActive("/admin/incidents") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md"
+              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
+                isActive("/admin/incidents") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
               }`}
               onClick={() => setSidebarOpen(false)}
             >
-              <AlertTriangle className="h-5 w-5 flex-shrink-0" />
-              <span className="font-medium truncate">Incidents</span>
+              <AlertTriangle className="h-5 w-5 flex-shrink-0 text-white" />
+              <span className="font-medium truncate text-white">Incidents</span>
             </Link>
 
             <Link
               href="/admin/volunteers"
-              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 ${
-                pathname.startsWith("/admin/volunteers") && !pathname.includes("/analytics") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md"
+              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
+                pathname.startsWith("/admin/volunteers") && !pathname.includes("/analytics") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
               }`}
               onClick={() => setSidebarOpen(false)}
             >
-              <User className="h-5 w-5 flex-shrink-0" />
-              <span className="font-medium truncate">Volunteers</span>
+              <User className="h-5 w-5 flex-shrink-0 text-white" />
+              <span className="font-medium truncate text-white">Volunteers</span>
             </Link>
 
             <Link
               href="/admin/volunteers/analytics"
-              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 ${
-                pathname.includes("/volunteers/analytics") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md"
+              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
+                pathname.includes("/volunteers/analytics") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
               }`}
               onClick={() => setSidebarOpen(false)}
             >
-              <BarChart3 className="h-5 w-5 flex-shrink-0" />
-              <span className="font-medium truncate">Volunteer Analytics</span>
+              <BarChart3 className="h-5 w-5 flex-shrink-0 text-white" />
+              <span className="font-medium truncate text-white">Volunteer Analytics</span>
             </Link>
 
             <Link
               href="/admin/volunteers/map"
-              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 ${
-                pathname.startsWith("/admin/volunteers/map") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md"
+              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
+                pathname.startsWith("/admin/volunteers/map") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
               }`}
               onClick={() => setSidebarOpen(false)}
             >
-              <MapPin className="h-5 w-5 flex-shrink-0" />
-              <span className="font-medium truncate">Volunteer Tracking</span>
+              <MapPin className="h-5 w-5 flex-shrink-0 text-white" />
+              <span className="font-medium truncate text-white">Volunteer Tracking</span>
             </Link>
 
             <Link
               href="/admin/barangay"
-              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 ${
-                pathname.startsWith("/admin/barangay") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md"
+              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
+                pathname.startsWith("/admin/barangay") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
               }`}
               onClick={() => setSidebarOpen(false)}
             >
-              <MapPin className="h-5 w-5 flex-shrink-0" />
-              <span className="font-medium truncate">Barangay</span>
+              <MapPin className="h-5 w-5 flex-shrink-0 text-white" />
+              <span className="font-medium truncate text-white">Barangay</span>
             </Link>
 
             <Link
               href="/admin/activities/dashboard"
-              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 ${
-                isActive("/admin/activities/dashboard") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md"
+              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
+                isActive("/admin/activities/dashboard") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
               }`}
               onClick={() => setSidebarOpen(false)}
             >
-              <BarChart3 className="h-5 w-5 flex-shrink-0" />
-              <span className="font-medium truncate">Activity Dashboard</span>
+              <BarChart3 className="h-5 w-5 flex-shrink-0 text-white" />
+              <span className="font-medium truncate text-white">Activity Dashboard</span>
             </Link>
 
             <Link
               href="/admin/schedules"
-              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 ${
-                isActive("/admin/schedules") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md"
+              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
+                isActive("/admin/schedules") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
               }`}
               onClick={() => setSidebarOpen(false)}
             >
-              <Calendar className="h-5 w-5 flex-shrink-0" />
-              <span className="font-medium truncate">Schedules</span>
+              <Calendar className="h-5 w-5 flex-shrink-0 text-white" />
+              <span className="font-medium truncate text-white">Schedules</span>
             </Link>
 
             <Link
               href="/admin/reports"
-              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 ${
-                isActive("/admin/reports") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md"
+              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
+                isActive("/admin/reports") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
               }`}
               onClick={() => setSidebarOpen(false)}
             >
-              <BarChart3 className="h-5 w-5 flex-shrink-0" />
-              <span className="font-medium truncate">Reports</span>
+              <BarChart3 className="h-5 w-5 flex-shrink-0 text-white" />
+              <span className="font-medium truncate text-white">Reports</span>
             </Link>
 
             <Link
               href="/admin/announcements"
-              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 ${
-                isActive("/admin/announcements") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md"
+              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
+                isActive("/admin/announcements") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
               }`}
               onClick={() => setSidebarOpen(false)}
             >
-              <Bell className="h-5 w-5 flex-shrink-0" />
-              <span className="font-medium truncate">Announcements</span>
+              <Bell className="h-5 w-5 flex-shrink-0 text-white" />
+              <span className="font-medium truncate text-white">Announcements</span>
             </Link>
 
             <Link
               href="/admin/contacts"
-              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 ${
-                isActive("/admin/contacts") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md"
+              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
+                isActive("/admin/contacts") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
               }`}
               onClick={() => setSidebarOpen(false)}
             >
-              <Phone className="h-5 w-5 flex-shrink-0" />
-              <span className="font-medium truncate">Contacts</span>
+              <Phone className="h-5 w-5 flex-shrink-0 text-white" />
+              <span className="font-medium truncate text-white">Contacts</span>
             </Link>
 
             <Link
               href="/admin/lgu-contacts"
-              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 ${
-                isActive("/admin/lgu-contacts") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md"
+              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
+                isActive("/admin/lgu-contacts") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
               }`}
               onClick={() => setSidebarOpen(false)}
             >
-              <Phone className="h-5 w-5 flex-shrink-0" />
-              <span className="font-medium truncate">LGU Contacts</span>
+              <Phone className="h-5 w-5 flex-shrink-0 text-white" />
+              <span className="font-medium truncate text-white">LGU Contacts</span>
             </Link>
 
             <Link
               href="/admin/users"
-              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 ${
-                pathname.startsWith("/admin/users") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md"
+              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
+                pathname.startsWith("/admin/users") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
               }`}
               onClick={() => setSidebarOpen(false)}
             >
-              <User className="h-5 w-5 flex-shrink-0" />
-              <span className="font-medium truncate">Users</span>
+              <User className="h-5 w-5 flex-shrink-0 text-white" />
+              <span className="font-medium truncate text-white">Users</span>
             </Link>
 
             {process.env.NEXT_PUBLIC_FEATURE_TRAININGS_ENABLED === 'true' && (
               <>
                 <Link
                   href="/admin/trainings"
-                  className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 ${
-                    isActive("/admin/trainings") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md"
+                  className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
+                    isActive("/admin/trainings") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
                   }`}
                   onClick={() => setSidebarOpen(false)}
                 >
-                  <Calendar className="h-5 w-5 flex-shrink-0" />
-                  <span className="font-medium truncate">Trainings</span>
+                  <Calendar className="h-5 w-5 flex-shrink-0 text-white" />
+                  <span className="font-medium truncate text-white">Trainings</span>
                 </Link>
 
                 <Link
                   href="/admin/training-evaluations"
-                  className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 ${
-                    isActive("/admin/training-evaluations") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md"
+                  className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
+                    isActive("/admin/training-evaluations") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
                   }`}
                   onClick={() => setSidebarOpen(false)}
                 >
-                  <FileText className="h-5 w-5 flex-shrink-0" />
-                  <span className="font-medium truncate">Training Evaluations</span>
+                  <FileText className="h-5 w-5 flex-shrink-0 text-white" />
+                  <span className="font-medium truncate text-white">Training Evaluations</span>
                 </Link>
               </>
             )}
 
             <Link
               href="/admin/settings"
-              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 ${
-                isActive("/admin/settings") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md"
+              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
+                isActive("/admin/settings") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
               }`}
               onClick={() => setSidebarOpen(false)}
             >
-              <Settings className="h-5 w-5 flex-shrink-0" />
-              <span className="font-medium truncate">Settings</span>
+              <Settings className="h-5 w-5 flex-shrink-0 text-white" />
+              <span className="font-medium truncate text-white">Settings</span>
             </Link>
 
             <button
@@ -284,15 +284,15 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
                 handleSignOut();
               }}
               disabled={loading}
-              className="flex items-center space-x-3 p-3 rounded-lg w-full text-left hover:bg-blue-700 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-white"
+              className="flex items-center space-x-3 p-3 rounded-lg w-full text-left text-white hover:bg-blue-700 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-white"
               aria-label="Sign out"
             >
               {loading ? (
                 <LoadingSpinner size="sm" color="text-white" />
               ) : (
                 <>
-                  <AlertTriangle className="h-5 w-5 flex-shrink-0" />
-                  <span className="font-medium truncate">Sign Out</span>
+                  <AlertTriangle className="h-5 w-5 flex-shrink-0 text-white" />
+                  <span className="font-medium truncate text-white">Sign Out</span>
                 </>
               )}
             </button>
@@ -325,9 +325,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
           </header>
 
           {/* Page content */}
-          <main className="flex-1 overflow-y-auto p-4">
-            <SubscribeBanner userId={user?.id} />
-            {children}
+          <main className="flex-1 overflow-y-auto p-4 text-gray-900 bg-gray-50" style={{ color: '#111827' }}>
+            <div style={{ color: '#111827' }}>
+              <SubscribeBanner userId={user?.id} />
+              {children}
+            </div>
           </main>
         </div>
       </div>

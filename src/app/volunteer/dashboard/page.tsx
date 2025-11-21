@@ -9,7 +9,7 @@ import {
 import { VolunteerLayout } from "@/components/layout/volunteer-layout"
 import { useAuth } from "@/lib/auth"
 import { getVolunteerIncidents } from "@/lib/incidents"
-import { getVolunteerSchedules, getVolunteerUpcomingSchedules } from "@/src/lib/schedules"
+import { getVolunteerSchedules, getVolunteerUpcomingSchedules } from "@/lib/schedules"
 import { 
   getVolunteerProfile, 
   updateVolunteerAvailability, 
@@ -202,16 +202,17 @@ export default function VolunteerDashboard() {
         console.error("Profile query error:", profileError);
       }
       
-      // Force reload incidents with cache busting parameter
-      const incidentsResult = await getVolunteerIncidents(user.id + '?t=' + new Date().getTime());
+      // Force reload incidents
+      const incidentsResult = await getVolunteerIncidents(user.id);
       
-      if (incidentsResult.success) {
+      if (incidentsResult.success && incidentsResult.data) {
         // Log the incidents and status counts for debugging
         console.log("FRESH INCIDENTS DATA:", incidentsResult.data);
         
-        const freshAssignedCount = incidentsResult.data.filter((i: any) => i.status === "ASSIGNED").length;
-        const freshRespondingCount = incidentsResult.data.filter((i: any) => i.status === "RESPONDING").length;
-        const freshResolvedCount = incidentsResult.data.filter((i: any) => i.status === "RESOLVED").length;
+        const incidents = Array.isArray(incidentsResult.data) ? incidentsResult.data : [];
+        const freshAssignedCount = incidents.filter((i: any) => i.status === "ASSIGNED").length;
+        const freshRespondingCount = incidents.filter((i: any) => i.status === "RESPONDING").length;
+        const freshResolvedCount = incidents.filter((i: any) => i.status === "RESOLVED").length;
         
         console.log("FRESH STATUS COUNTS:", {
           assigned: freshAssignedCount,
@@ -220,7 +221,7 @@ export default function VolunteerDashboard() {
         });
         
         // Update state with fresh data
-        setIncidents(incidentsResult.data || []);
+        setIncidents(incidents);
       }
       
       toast({
@@ -398,9 +399,9 @@ export default function VolunteerDashboard() {
         
         // Also refresh incidents to get latest statuses
         const incidentsResult = await getVolunteerIncidents(user.id)
-        if (incidentsResult.success) {
+        if (incidentsResult.success && incidentsResult.data) {
           console.log("Updated incidents:", incidentsResult.data)
-          setIncidents(incidentsResult.data || [])
+          setIncidents(Array.isArray(incidentsResult.data) ? incidentsResult.data : [])
         }
       } catch (err) {
         console.error("Error refreshing dashboard data:", err)
@@ -451,13 +452,15 @@ export default function VolunteerDashboard() {
   }, [user])
 
   // Format incidents for map markers
-  const mapMarkers = incidents.map((incident) => ({
-    id: incident.id,
-    position: [incident.location_lat, incident.location_lng] as [number, number],
-    status: incident.status,
-    title: incident.incident_type,
-    description: incident.description,
-  }))
+  const mapMarkers = incidents
+    .filter((incident) => incident.location_lat && incident.location_lng)
+    .map((incident) => ({
+      id: incident.id,
+      position: [incident.location_lat, incident.location_lng] as [number, number],
+      status: incident.status,
+      title: incident.incident_type,
+      description: incident.description,
+    }))
 
   // Get status counts
   const assignedCount = incidents.filter((i) => i.status === "ASSIGNED").length
@@ -475,7 +478,7 @@ export default function VolunteerDashboard() {
 
   // Get today's schedules
   const today = new Date().toISOString().split("T")[0]
-  const todaySchedules = schedules.filter((s) => s.start_time.startsWith(today))
+  const todaySchedules = schedules.filter((s) => s.start_time && s.start_time.startsWith(today))
 
   // Add activity status indicator component
   const ActivityStatus = () => {
@@ -687,7 +690,7 @@ export default function VolunteerDashboard() {
                     </p>
                     {/* Debug information - helps show the actual value */}
                     {process.env.NODE_ENV !== 'production' && (
-                      <p className="text-xs text-gray-400">
+                      <p className="text-xs text-gray-500">
                         Count from DB: {profile?.volunteer_profiles?.total_incidents_resolved || '0'} 
                         <br />Local count: {resolvedCount || '0'}
                       </p>
@@ -858,7 +861,7 @@ export default function VolunteerDashboard() {
                   </div>
                 ) : schedules.length === 0 ? (
                   <div className="text-center py-8">
-                    <div className="mx-auto h-12 w-12 text-gray-400">📅</div>
+                    <div className="mx-auto h-12 w-12 text-gray-500">📅</div>
                     <h3 className="mt-2 text-sm font-medium text-gray-900">No upcoming activities</h3>
                     <p className="mt-1 text-sm text-gray-500">
                       You don't have any activities scheduled at the moment.

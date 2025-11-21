@@ -121,13 +121,13 @@ export const VolunteerLayout: React.FC<VolunteerLayoutProps> = ({ children }) =>
               <button
                 key={item.href}
                 onClick={() => handleNavigation(item.href)}
-                className={`flex items-center space-x-2 p-2 rounded-md w-full ${
-                  isActive(item.href) ? "bg-green-700 text-white" : "hover:bg-green-700"
+                className={`flex items-center space-x-2 p-2 rounded-md w-full text-white ${
+                  isActive(item.href) ? "bg-green-700 text-white" : "hover:bg-green-700 text-white"
                 } ${isNavigating ? 'opacity-50 cursor-not-allowed' : ''}`}
                 disabled={isNavigating}
               >
-                <item.icon className="h-5 w-5" />
-                <span>{item.name}</span>
+                <item.icon className="h-5 w-5 text-white" />
+                <span className="text-white">{item.name}</span>
                 {isNavigating && isActive(item.href) && (
                   <LoadingSpinner size="sm" color="text-white" className="ml-2" />
                 )}
@@ -137,14 +137,14 @@ export const VolunteerLayout: React.FC<VolunteerLayoutProps> = ({ children }) =>
             <button
               onClick={handleSignOut}
               disabled={loading}
-              className="flex items-center space-x-2 p-2 rounded-md w-full text-left hover:bg-green-700 mt-4 disabled:opacity-50 transition-colors"
+              className="flex items-center space-x-2 p-2 rounded-md w-full text-left text-white hover:bg-green-700 mt-4 disabled:opacity-50 transition-colors"
             >
               {loading ? (
                 <LoadingSpinner size="sm" color="text-white" />
               ) : (
                 <>
-                  <AlertTriangle className="h-5 w-5" />
-                  <span>Sign Out</span>
+                  <AlertTriangle className="h-5 w-5 text-white" />
+                  <span className="text-white">Sign Out</span>
                 </>
               )}
             </button>
@@ -181,8 +181,10 @@ export const VolunteerLayout: React.FC<VolunteerLayoutProps> = ({ children }) =>
                 <LoadingSpinner size="lg" />
               </div>
             }>
-              <main className="flex-1 overflow-auto">
-                {children}
+              <main className="flex-1 overflow-auto text-gray-900 bg-gray-50" style={{ color: '#111827' }}>
+                <div style={{ color: '#111827' }}>
+                  {children}
+                </div>
               </main>
             </Suspense>
           </div>

@@ -7,7 +7,7 @@ import { AdminLayout } from "@/components/layout/admin-layout"
 import { useAuth } from "@/lib/auth"
 import { getAllIncidents, subscribeToIncidents } from "@/lib/incidents"
 import { getAllVolunteers } from "@/lib/volunteers"
-import { getSchedules } from "@/src/lib/schedules"
+import { getSchedules } from "@/lib/schedules"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import { MapComponent } from "@/components/ui/map-component"
 import { IncidentReferenceId } from "@/components/ui/incident-reference-id"
@@ -17,7 +17,7 @@ import { useRouter } from "next/navigation"
 import { PushNotificationToggle } from "@/components/push-notification-toggle"
 import { MetricsChart } from "@/components/admin/metrics-chart"
 import { StatWidget } from "@/components/admin/stat-widget"
-import { AdminMetrics } from "@/src/types/admin-metrics"
+import { AdminMetrics } from "@/types/admin-metrics"
 import { BackupMonitor } from "@/components/admin/backup-monitor"
 
 export default function AdminDashboard() {
@@ -99,14 +99,16 @@ export default function AdminDashboard() {
 
   // Format incidents for map markers
   // FIXED: Removed router from dependencies, use memoized click handler instead
-  const mapMarkers = useMemo(() => incidents.map((incident) => ({
-    id: incident.id,
-    position: [incident.location_lat, incident.location_lng] as [number, number],
-    status: incident.status,
-    title: incident.incident_type,
-    description: incident.description,
-    onClick: handleIncidentClick
-  })), [incidents, handleIncidentClick])
+  const mapMarkers = useMemo(() => incidents
+    .filter((incident) => incident.location_lat && incident.location_lng)
+    .map((incident) => ({
+      id: incident.id,
+      position: [incident.location_lat, incident.location_lng] as [number, number],
+      status: incident.status,
+      title: incident.incident_type,
+      description: incident.description,
+      onClick: handleIncidentClick
+    })), [incidents, handleIncidentClick])
 
   // Defer map mount to next tick after client mount to avoid dev double-mount race
   useEffect(() => {
@@ -127,7 +129,7 @@ export default function AdminDashboard() {
 
   // Get today's schedules
   const today = new Date().toISOString().split("T")[0]
-  const todaySchedules = schedules.filter((s) => s.start_time.startsWith(today)).length
+  const todaySchedules = schedules.filter((s) => s.start_time && s.start_time.startsWith(today)).length
 
   return (
     <AdminLayout>
@@ -441,7 +443,7 @@ export default function AdminDashboard() {
                   ))}
                   {incidents.length === 0 && (
                     <div className="text-center py-8">
-                      <div className="text-gray-400 text-sm">No incidents found</div>
+                      <div className="text-gray-500 text-sm">No incidents found</div>
                     </div>
                   )}
                 </div>
@@ -542,7 +544,7 @@ export default function AdminDashboard() {
                   </table>
                   {incidents.length === 0 && (
                     <div className="text-center py-8">
-                      <div className="text-gray-400 text-sm">No incidents found</div>
+                      <div className="text-gray-500 text-sm">No incidents found</div>
                     </div>
                   )}
                 </div>
@@ -652,7 +654,7 @@ function HotspotsList() {
       ))}
       {items.length === 0 && (
         <div className="text-center py-8">
-          <div className="text-gray-400 text-sm">No hotspot data available</div>
+          <div className="text-gray-500 text-sm">No hotspot data available</div>
         </div>
       )}
     </div>
