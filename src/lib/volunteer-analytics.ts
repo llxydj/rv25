@@ -267,17 +267,52 @@ export async function getAllVolunteersAnalytics(
   endDate?: string
 ): Promise<{ success: boolean; data?: VolunteerAnalytics[]; message?: string }> {
   try {
-    // Get all volunteers
+    // Get all volunteers - check both users table and volunteer_profiles
     const { data: volunteers, error: volunteersError } = await supabase
-      .from('users')
-      .select('id')
-      .eq('role', 'volunteer')
+      .from('volunteer_profiles')
+      .select('volunteer_user_id')
+      .eq('status', 'ACTIVE')
 
-    if (volunteersError) throw volunteersError
+    if (volunteersError) {
+      console.error('Error fetching volunteers from volunteer_profiles:', volunteersError)
+      // Fallback to users table
+      const { data: usersData, error: usersError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('role', 'volunteer')
+
+      if (usersError) throw usersError
+
+      const volunteerIds = (usersData || []).map(u => u.id)
+      
+      if (volunteerIds.length === 0) {
+        console.log('No volunteers found in database')
+        return { success: true, data: [] }
+      }
+
+      // Get analytics for each volunteer
+      const analyticsPromises = volunteerIds.map(volunteerId =>
+        getVolunteerAnalytics(volunteerId, startDate, endDate)
+      )
+
+      const results = await Promise.all(analyticsPromises)
+      const successfulResults = results
+        .filter(result => result.success && result.data)
+        .map(result => result.data!)
+
+      return { success: true, data: successfulResults }
+    }
+
+    const volunteerIds = (volunteers || []).map(v => v.volunteer_user_id).filter(Boolean)
+    
+    if (volunteerIds.length === 0) {
+      console.log('No active volunteers found in volunteer_profiles')
+      return { success: true, data: [] }
+    }
 
     // Get analytics for each volunteer
-    const analyticsPromises = (volunteers || []).map(volunteer =>
-      getVolunteerAnalytics(volunteer.id, startDate, endDate)
+    const analyticsPromises = volunteerIds.map(volunteerId =>
+      getVolunteerAnalytics(volunteerId, startDate, endDate)
     )
 
     const results = await Promise.all(analyticsPromises)
@@ -288,7 +323,7 @@ export async function getAllVolunteersAnalytics(
     return { success: true, data: successfulResults }
   } catch (error: any) {
     console.error('Error fetching all volunteers analytics:', error)
-    return { success: false, message: error.message }
+    return { success: false, message: error.message || 'Failed to fetch volunteers analytics' }
   }
 }
 

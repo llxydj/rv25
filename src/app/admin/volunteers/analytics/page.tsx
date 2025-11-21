@@ -98,20 +98,39 @@ export default function VolunteerAnalyticsPage() {
         end_date: endDate
       })
 
+      console.log('Fetching analytics with params:', params.toString())
+
       const res = await fetch(`/api/volunteers/analytics?${params}`)
       const json = await res.json()
+
+      console.log('Analytics API response:', {
+        success: json.success,
+        dataLength: Array.isArray(json.data) ? json.data.length : json.data ? 1 : 0,
+        message: json.message,
+        error: json.error
+      })
 
       if (!json.success) {
         throw new Error(json.message || 'Failed to fetch analytics')
       }
 
+      // Handle response data
       if (selectedVolunteer === "all") {
-        setAnalytics(json.data || [])
+        // Expecting an array of analytics
+        const data = json.data || []
+        setAnalytics(Array.isArray(data) ? data : [])
       } else {
-        setAnalytics([json.data])
+        // Expecting a single analytics object
+        if (json.data) {
+          setAnalytics([json.data])
+        } else {
+          setAnalytics([])
+        }
       }
     } catch (err: any) {
+      console.error('Error fetching analytics:', err)
       setError(err.message || 'Failed to load analytics')
+      setAnalytics([]) // Clear analytics on error
     } finally {
       setLoading(false)
     }

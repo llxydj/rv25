@@ -102,9 +102,19 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: true, data: result.data })
     }
   } catch (error: any) {
+    console.error('Error in volunteer analytics API:', error)
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code
+    })
     return NextResponse.json({
       success: false,
-      message: error.message || 'Failed to fetch volunteer analytics'
+      message: error.message || 'Failed to fetch volunteer analytics',
+      error: process.env.NODE_ENV === 'development' ? {
+        message: error.message,
+        stack: error.stack
+      } : undefined
     }, { status: 500 })
   }
 }
