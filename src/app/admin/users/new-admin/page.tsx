@@ -28,67 +28,119 @@ export default function NewAdminAccountPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setError(null)
+    setSuccess(null)
     
     if (!user) {
-      setError("You must be logged in as an admin to create an admin account")
+      const errorMsg = "You must be logged in as an admin to create an admin account"
+      setError(errorMsg)
+      toast({
+        title: "Error",
+        description: errorMsg,
+        variant: "destructive"
+      })
+      return
+    }
+    
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      const errorMsg = "Please enter a valid email address"
+      setError(errorMsg)
+      toast({
+        title: "Validation Error",
+        description: errorMsg,
+        variant: "destructive"
+      })
       return
     }
     
     if (password !== confirmPassword) {
-      setError("Passwords do not match")
+      const errorMsg = "Passwords do not match"
+      setError(errorMsg)
+      toast({
+        title: "Validation Error",
+        description: errorMsg,
+        variant: "destructive"
+      })
       return
     }
     
     if (password.length < 8) {
-      setError("Password must be at least 8 characters")
+      const errorMsg = "Password must be at least 8 characters"
+      setError(errorMsg)
+      toast({
+        title: "Validation Error",
+        description: errorMsg,
+        variant: "destructive"
+      })
       return
     }
     
-    if (!email.includes("@")) {
-      setError("Please enter a valid email address")
-      return
-    }
-    
-    if (!firstName || !lastName) {
-      setError("First name and last name are required")
+    if (!firstName.trim() || !lastName.trim()) {
+      const errorMsg = "First name and last name are required"
+      setError(errorMsg)
+      toast({
+        title: "Validation Error",
+        description: errorMsg,
+        variant: "destructive"
+      })
       return
     }
     
     try {
       setLoading(true)
       setError(null)
+      setSuccess(null)
       
       const result = await createAdminAccount(
         user.id,
-        email,
+        email.trim().toLowerCase(),
         password,
-        firstName,
-        lastName,
-        phone
+        firstName.trim(),
+        lastName.trim(),
+        phone.trim() || ""
       )
       
       if (!result.success) {
-        throw new Error(result.message || "Failed to create admin account")
+        const errorMsg = result.message || "Failed to create admin account"
+        setError(errorMsg)
+        toast({
+          title: "Error",
+          description: errorMsg,
+          variant: "destructive"
+        })
+        return
       }
       
-      if (result.success) {
-        setSuccess("Admin account created successfully!")
-        // Clear form
-        setEmail("")
-        setPassword("")
-        setConfirmPassword("")
-        setFirstName("")
-        setLastName("")
-        setPhone("")
-        // Redirect to users list after a short delay
-        setTimeout(() => {
-          router.push("/admin/users")
-        }, 1500)
-      } else {
-        setError(result.message || "Failed to create admin account")
-      }
+      // Success
+      const successMsg = "Admin account created successfully!"
+      setSuccess(successMsg)
+      toast({
+        title: "Success",
+        description: successMsg,
+      })
+      
+      // Clear form
+      setEmail("")
+      setPassword("")
+      setConfirmPassword("")
+      setFirstName("")
+      setLastName("")
+      setPhone("")
+      
+      // Redirect to users list after a short delay
+      setTimeout(() => {
+        router.push("/admin/users")
+      }, 2000)
     } catch (err: any) {
-      setError(err.message || "An unexpected error occurred")
+      const errorMsg = err.message || "An unexpected error occurred"
+      setError(errorMsg)
+      toast({
+        title: "Error",
+        description: errorMsg,
+        variant: "destructive"
+      })
     } finally {
       setLoading(false)
     }
@@ -103,25 +155,30 @@ export default function NewAdminAccountPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>New Administrator</CardTitle>
+            <CardTitle className="text-gray-900">New Administrator</CardTitle>
+            <p className="text-sm text-gray-600 mt-1">
+              Create a new administrator account. The new admin will have full access to the system.
+            </p>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
               {error && (
-                <div className="bg-red-50 border-l-4 border-red-500 p-4">
+                <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded">
                   <div className="flex">
                     <div className="ml-3">
-                      <p className="text-sm text-red-700">{error}</p>
+                      <p className="text-sm font-medium text-red-800">Error</p>
+                      <p className="text-sm text-red-700 mt-1">{error}</p>
                     </div>
                   </div>
                 </div>
               )}
 
               {success && (
-                <div className="bg-green-50 border-l-4 border-green-500 p-4">
+                <div className="bg-green-50 border-l-4 border-green-500 p-4 rounded">
                   <div className="flex">
                     <div className="ml-3">
-                      <p className="text-sm text-green-700">{success}</p>
+                      <p className="text-sm font-medium text-green-800">Success</p>
+                      <p className="text-sm text-green-700 mt-1">{success}</p>
                     </div>
                   </div>
                 </div>
@@ -129,74 +186,90 @@ export default function NewAdminAccountPage() {
 
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                    Email
+                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+                    Email <span className="text-red-500">*</span>
                   </label>
                   <Input
                     type="email"
                     id="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    placeholder="admin@example.com"
                     required
+                    className="text-gray-900"
+                    disabled={loading}
                   />
                 </div>
 
                 <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                    Password
+                  <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+                    Password <span className="text-red-500">*</span>
                   </label>
                   <Input
                     type="password"
                     id="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Minimum 8 characters"
                     required
                     minLength={8}
+                    className="text-gray-900"
+                    disabled={loading}
                   />
+                  <p className="text-xs text-gray-500 mt-1">Must be at least 8 characters long</p>
                 </div>
 
                 <div>
-                  <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700">
-                    Confirm Password
+                  <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700 mb-2">
+                    Confirm Password <span className="text-red-500">*</span>
                   </label>
                   <Input
                     type="password"
                     id="confirm-password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Re-enter password"
                     required
                     minLength={8}
+                    className="text-gray-900"
+                    disabled={loading}
                   />
                 </div>
 
                 <div>
-                  <label htmlFor="first-name" className="block text-sm font-medium text-gray-700">
-                    First Name
+                  <label htmlFor="first-name" className="block text-sm font-medium text-gray-700 mb-2">
+                    First Name <span className="text-red-500">*</span>
                   </label>
                   <Input
                     type="text"
                     id="first-name"
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
+                    placeholder="John"
                     required
+                    className="text-gray-900"
+                    disabled={loading}
                   />
                 </div>
 
                 <div>
-                  <label htmlFor="last-name" className="block text-sm font-medium text-gray-700">
-                    Last Name
+                  <label htmlFor="last-name" className="block text-sm font-medium text-gray-700 mb-2">
+                    Last Name <span className="text-red-500">*</span>
                   </label>
                   <Input
                     type="text"
                     id="last-name"
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
+                    placeholder="Doe"
                     required
+                    className="text-gray-900"
+                    disabled={loading}
                   />
                 </div>
 
                 <div>
-                  <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-2">
                     Phone Number
                   </label>
                   <Input
@@ -204,24 +277,34 @@ export default function NewAdminAccountPage() {
                     id="phone"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
+                    placeholder="+63 912 345 6789"
+                    className="text-gray-900"
+                    disabled={loading}
                   />
+                  <p className="text-xs text-gray-500 mt-1">Optional</p>
                 </div>
               </div>
 
-              <div className="flex justify-end space-x-3">
+              <div className="flex justify-end space-x-3 pt-4 border-t">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => router.back()}
+                  disabled={loading}
+                  className="text-gray-700"
                 >
                   Cancel
                 </Button>
                 <Button
                   type="submit"
                   disabled={loading}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
                 >
                   {loading ? (
-                    <LoadingSpinner size="sm" color="text-white" />
+                    <>
+                      <LoadingSpinner size="sm" color="text-white" />
+                      <span className="ml-2">Creating...</span>
+                    </>
                   ) : (
                     "Create Admin Account"
                   )}

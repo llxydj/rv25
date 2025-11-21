@@ -19,28 +19,83 @@ export async function POST(request: Request) {
     const supabase = await getServerSupabase()
     const { adminId, email, password, firstName, lastName, phoneNumber } = await request.json()
 
+    // Validate required fields
+    if (!email || !password || !firstName || !lastName) {
+      return NextResponse.json({ 
+        success: false, 
+        message: "Email, password, first name, and last name are required" 
+      }, { status: 400 })
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      return NextResponse.json({ 
+        success: false, 
+        message: "Invalid email format" 
+      }, { status: 400 })
+    }
+
+    // Validate password length
+    if (password.length < 8) {
+      return NextResponse.json({ 
+        success: false, 
+        message: "Password must be at least 8 characters long" 
+      }, { status: 400 })
+    }
+
     // Verify requester is admin
     const { data: me } = await supabase.auth.getUser()
     const uid = me?.user?.id
-    if (!uid) return NextResponse.json({ success: false, code: 'NOT_AUTHENTICATED' }, { status: 401 })
+    if (!uid) {
+      return NextResponse.json({ 
+        success: false, 
+        code: 'NOT_AUTHENTICATED',
+        message: 'You must be logged in to create an admin account'
+      }, { status: 401 })
+    }
     
-    const { data: roleRow }: any = await supabase.from('users').select('role').eq('id', uid).maybeSingle()
+    const { data: roleRow, error: roleError }: any = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', uid)
+      .maybeSingle()
+    
+    if (roleError) {
+      console.error("Error checking user role:", roleError)
+      return NextResponse.json({ 
+        success: false, 
+        message: "Error verifying admin status" 
+      }, { status: 500 })
+    }
+    
     if (!roleRow || roleRow.role !== 'admin') {
-      return NextResponse.json({ success: false, code: 'FORBIDDEN' }, { status: 403 })
+      return NextResponse.json({ 
+        success: false, 
+        code: 'FORBIDDEN',
+        message: 'Only administrators can create admin accounts'
+      }, { status: 403 })
     }
 
-    // Check if email already exists
+    // Check if email already exists (case-insensitive)
     const { data: existingUser, error: existingError } = await supabaseAdmin
       .from("users")
-      .select("id")
-      .eq("email", email)
+      .select("id, email")
+      .ilike("email", email)
       .maybeSingle()
 
     if (existingError) {
-      return NextResponse.json({ success: false, message: existingError.message }, { status: 400 })
+      console.error("Error checking existing user:", existingError)
+      return NextResponse.json({ 
+        success: false, 
+        message: "Error checking if email exists. Please try again." 
+      }, { status: 500 })
     }
     if (existingUser) {
-      return NextResponse.json({ success: false, message: "Email already exists" }, { status: 400 })
+      return NextResponse.json({ 
+        success: false, 
+        message: `An account with email ${email} already exists` 
+      }, { status: 400 })
     }
 
     // Create auth user (admin API)
@@ -58,7 +113,10 @@ export async function POST(request: Request) {
     })
 
     if (authError || !authData?.user) {
-      return NextResponse.json({ success: false, message: authError?.message || "Failed to create auth user" }, { status: 400 })
+      return NextResponse.json({ 
+        success: false, 
+        message: authError?.message || "Failed to create auth user" 
+      }, { status: 400 })
     }
 
     // Ensure JWT has role claim by setting app_metadata.role
@@ -74,30 +132,57 @@ export async function POST(request: Request) {
     // Insert profile
     const { error: profileError } = await supabaseAdmin.from("users").insert({
       id: authData.user.id,
-      email,
-      first_name: firstName.toUpperCase(),
-      last_name: lastName.toUpperCase(),
+      email: email.toLowerCase().trim(),
+      first_name: firstName.trim().toUpperCase(),
+      last_name: lastName.trim().toUpperCase(),
       role: "admin",
-      phone_number: phoneNumber,
+      phone_number: phoneNumber?.trim() || null,
       city: "TALISAY CITY",
       province: "NEGROS OCCIDENTAL",
+      status: "active",
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     })
 
     if (profileError) {
-      return NextResponse.json({ success: false, message: profileError.message }, { status: 400 })
+      console.error("Error creating user profile:", profileError)
+      // Try to clean up auth user if profile creation fails
+      try {
+        await supabaseAdmin.auth.admin.deleteUser(authData.user.id)
+      } catch (cleanupError) {
+        console.error("Error cleaning up auth user:", cleanupError)
+      }
+      return NextResponse.json({ 
+        success: false, 
+        message: `Failed to create user profile: ${profileError.message}` 
+      }, { status: 400 })
     }
 
     // Log the action in system_logs
-    await supabaseAdmin.from('system_logs').insert({
-      action: 'ADMIN_CREATED',
-      details: `Admin ${authData.user.id} created by admin ${uid}`,
-      user_id: uid
-    })
+    try {
+      await supabaseAdmin.from('system_logs').insert({
+        action: 'ADMIN_CREATED',
+        details: `Admin account created: ${email} (${authData.user.id}) by admin ${uid}`,
+        user_id: uid
+      })
+    } catch (logError) {
+      // Non-fatal: log error but don't fail the request
+      console.warn("Failed to log admin creation:", logError)
+    }
 
-    return NextResponse.json({ success: true, message: "Admin account created successfully." })
+    return NextResponse.json({ 
+      success: true, 
+      message: "Admin account created successfully.",
+      data: {
+        id: authData.user.id,
+        email: email.toLowerCase().trim()
+      }
+    })
   } catch (e: any) {
-    return NextResponse.json({ success: false, message: e?.message || "Unexpected error" }, { status: 500 })
+    console.error("Unexpected error creating admin account:", e)
+    return NextResponse.json({ 
+      success: false, 
+      message: e?.message || "An unexpected error occurred while creating the admin account" 
+    }, { status: 500 })
   }
 }
