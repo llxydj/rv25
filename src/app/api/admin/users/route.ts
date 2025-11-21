@@ -49,9 +49,9 @@ export async function GET(request: Request) {
       query = query.eq('role', roleFilter)
     }
     
+    // Only apply status filter if statusFilter is provided and not 'all'
+    // Note: If status column doesn't exist, this will be handled gracefully
     if (statusFilter && statusFilter !== 'all') {
-      // Filter by status - if column doesn't exist, Supabase will return empty results
-      // We'll handle this gracefully by checking the response
       query = query.eq('status', statusFilter)
     }
     
@@ -73,10 +73,101 @@ export async function GET(request: Request) {
 
     const { data: users, error: usersError, count } = await query
 
-    if (usersError) throw usersError
+    if (usersError) {
+      console.error('Error fetching users from database:', usersError)
+      // If error is about missing column, try without status filter
+      if (usersError.message?.includes('status') || usersError.message?.includes('column')) {
+        console.log('Retrying query without status filter...')
+        // Retry without status filter
+        let retryQuery = supabaseAdmin
+          .from('users')
+          .select('*', { count: 'exact' })
+        
+        if (roleFilter && roleFilter !== 'all') {
+          retryQuery = retryQuery.eq('role', roleFilter)
+        }
+        
+        if (barangayFilter && barangayFilter !== 'all') {
+          retryQuery = retryQuery.eq('barangay', barangayFilter)
+        }
+        
+        if (searchTerm) {
+          retryQuery = retryQuery.or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`)
+        }
+        
+        if (!getAll) {
+          retryQuery = retryQuery.range(offset, offset + limit - 1)
+        }
+        
+        retryQuery = retryQuery.order('created_at', { ascending: false })
+        
+        const retryResult = await retryQuery
+        if (retryResult.error) {
+          throw retryResult.error
+        }
+        
+        // Use retry result
+        const retryUsers = retryResult.data || []
+        const retryCount = retryResult.count || 0
+        
+        // Continue with retryUsers
+        const userIds = retryUsers.map((u: any) => u.id)
+        const userIncidentCounts: Record<string, number> = {}
+        
+        if (userIds.length > 0) {
+          const { data: reportedIncidents } = await supabaseAdmin
+            .from('incidents')
+            .select('reporter_id')
+            .in('reporter_id', userIds)
+          
+          if (reportedIncidents) {
+            reportedIncidents.forEach((item: any) => {
+              if (item.reporter_id) {
+                userIncidentCounts[item.reporter_id] = (userIncidentCounts[item.reporter_id] || 0) + 1
+              }
+            })
+          }
+          
+          const { data: assignedIncidents } = await supabaseAdmin
+            .from('incidents')
+            .select('assigned_to')
+            .in('assigned_to', userIds)
+          
+          if (assignedIncidents) {
+            assignedIncidents.forEach((item: any) => {
+              if (item.assigned_to) {
+                userIncidentCounts[item.assigned_to] = (userIncidentCounts[item.assigned_to] || 0) + 1
+              }
+            })
+          }
+        }
+        
+        const usersWithIncidentData = retryUsers.map((user: any) => ({
+          ...user,
+          incident_count: userIncidentCounts[user.id] || 0,
+          status: user.status || 'active'
+        }))
+        
+        return NextResponse.json({ 
+          success: true, 
+          data: usersWithIncidentData,
+          meta: {
+            total_count: retryCount || usersWithIncidentData.length,
+            current_page: getAll ? 1 : page,
+            per_page: getAll ? retryCount || usersWithIncidentData.length : limit,
+            total_pages: getAll ? 1 : Math.ceil((retryCount || 0) / limit)
+          }
+        })
+      }
+      throw usersError
+    }
 
+    // Ensure users is an array
+    const usersArray = users || []
+    console.log(`Fetched ${usersArray.length} users from database`)
+    
     // Fetch incident counts for all users (residents report, volunteers are assigned)
-    const userIds = users.map((u: any) => u.id)
+    const userIds = usersArray.map((u: any) => u.id)
     const userIncidentCounts: Record<string, number> = {}
     
     if (userIds.length > 0) {
@@ -110,11 +201,13 @@ export async function GET(request: Request) {
     }
 
     // Merge incident counts with users and ensure status field exists
-    const usersWithIncidentData = users.map((user: any) => ({
+    const usersWithIncidentData = usersArray.map((user: any) => ({
       ...user,
       incident_count: userIncidentCounts[user.id] || 0,
       status: user.status || 'active' // Default to active if status column doesn't exist
     }))
+
+    console.log(`Returning ${usersWithIncidentData.length} users with incident data`)
 
     return NextResponse.json({ 
       success: true, 
@@ -128,10 +221,21 @@ export async function GET(request: Request) {
     })
   } catch (e: any) {
     console.error('Error fetching users:', e)
+    console.error('Error details:', {
+      message: e?.message,
+      code: e?.code,
+      details: e?.details,
+      hint: e?.hint
+    })
     return NextResponse.json({ 
       success: false, 
       code: 'INTERNAL_ERROR', 
-      message: e?.message || 'Failed to fetch users' 
+      message: e?.message || 'Failed to fetch users',
+      error: process.env.NODE_ENV === 'development' ? {
+        message: e?.message,
+        code: e?.code,
+        details: e?.details
+      } : undefined
     }, { status: 500 })
   }
 }

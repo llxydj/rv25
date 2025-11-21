@@ -116,7 +116,31 @@ export default function UserManagementPage() {
         const response = await fetch(`/api/admin/users?${params}`)
         const result = await response.json()
         
-        if (!result.success) throw new Error(result.message)
+        console.log("Users API response:", {
+          success: result.success,
+          dataLength: result.data?.length,
+          meta: result.meta,
+          error: result.error
+        })
+        
+        if (!result.success) {
+          console.error("API returned error:", result)
+          throw new Error(result.message || result.code || "Failed to fetch users")
+        }
+        
+        // Check if data exists and is an array
+        if (!result.data || !Array.isArray(result.data)) {
+          console.warn("Invalid data format received:", result)
+          setUsers([])
+          setFilteredUsers([])
+          setPagination({
+            total_count: 0,
+            current_page: 1,
+            per_page: pagination.per_page,
+            total_pages: 1
+          })
+          return
+        }
         
         // Transform data to match our User interface
         const transformedUsers: User[] = result.data.map((user: any) => ({
@@ -133,14 +157,25 @@ export default function UserManagementPage() {
           incident_count: user.incident_count
         }))
         
+        console.log("Transformed users:", transformedUsers.length)
+        
         setUsers(transformedUsers)
         setFilteredUsers(transformedUsers)
-        setPagination(result.meta)
+        setPagination(result.meta || {
+          total_count: transformedUsers.length,
+          current_page: pagination.current_page,
+          per_page: pagination.per_page,
+          total_pages: 1
+        })
       } catch (error: any) {
         console.error("Error fetching users:", error)
+        console.error("Error details:", {
+          message: error.message,
+          stack: error.stack
+        })
         toast({
           title: "Error",
-          description: "Failed to fetch users",
+          description: error.message || "Failed to fetch users. Please check the console for details.",
           variant: "destructive"
         })
       } finally {
