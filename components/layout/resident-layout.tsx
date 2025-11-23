@@ -28,20 +28,20 @@ export const ResidentLayout: React.FC<ResidentLayoutProps> = ({ children }) => {
   }
 
   const handleSignOut = async () => {
-    setShowModal(false) // close modal
+    setShowModal(false)
     setLoading(true)
 
-    // Create abort controller for timeout
     const controller = new AbortController()
     const timeoutId = setTimeout(() => {
       controller.abort()
       setLoading(false)
       alert("Sign out took too long. Please try again.")
-    }, 8000) // 8s timeout
+    }, 8000)
 
     try {
       const result = await signOut({ signal: controller.signal })
       clearTimeout(timeoutId)
+
       if (result.success) {
         router.push("/login")
       } else {
@@ -57,7 +57,8 @@ export const ResidentLayout: React.FC<ResidentLayoutProps> = ({ children }) => {
   return (
     <AuthLayout allowedRoles={["resident"]}>
       <div className="flex h-screen bg-gray-100">
-        {/* Mobile sidebar backdrop */}
+        
+        {/* Backdrop for mobile sidebar */}
         {sidebarOpen && (
           <div
             className="fixed inset-0 z-20 bg-black bg-opacity-50 lg:hidden"
@@ -122,6 +123,7 @@ export const ResidentLayout: React.FC<ResidentLayoutProps> = ({ children }) => {
               <span>Profile</span>
             </Link>
 
+            {/* Emergency Call */}
             <button
               onClick={handleEmergencyCall}
               className="flex items-center space-x-2 p-2 rounded-md w-full text-left bg-red-600 hover:bg-red-500 mt-4"
@@ -130,6 +132,7 @@ export const ResidentLayout: React.FC<ResidentLayoutProps> = ({ children }) => {
               <span>Emergency Call</span>
             </button>
 
+            {/* Sign Out */}
             <button
               onClick={() => setShowModal(true)}
               disabled={loading}
@@ -147,9 +150,8 @@ export const ResidentLayout: React.FC<ResidentLayoutProps> = ({ children }) => {
           </nav>
         </aside>
 
-        {/* Main content */}
+        {/* Content */}
         <div className="flex flex-col flex-1 overflow-hidden">
-          {/* Top navbar */}
           <header className="bg-white shadow-sm z-10">
             <div className="flex items-center justify-between p-4">
               <button className="p-1 rounded-md lg:hidden hover:bg-gray-200" onClick={() => setSidebarOpen(true)}>
@@ -158,6 +160,8 @@ export const ResidentLayout: React.FC<ResidentLayoutProps> = ({ children }) => {
 
               <div className="flex items-center space-x-4">
                 <SystemClock className="hidden md:block" />
+
+                {/* Emergency (mobile only) */}
                 <button
                   onClick={handleEmergencyCall}
                   className="bg-red-600 text-white px-4 py-2 rounded-md flex items-center space-x-2 hover:bg-red-500 md:hidden"
@@ -166,6 +170,7 @@ export const ResidentLayout: React.FC<ResidentLayoutProps> = ({ children }) => {
                   <span>Emergency</span>
                 </button>
 
+                {/* User avatar */}
                 <div className="flex items-center space-x-2">
                   <div className="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center text-white font-bold">
                     R
@@ -176,15 +181,15 @@ export const ResidentLayout: React.FC<ResidentLayoutProps> = ({ children }) => {
             </div>
           </header>
 
-          {/* Page content */}
           <main className="flex-1 overflow-y-auto p-4">{children}</main>
         </div>
 
-        {/* Confirmation Modal */}
+        {/* Sign-out Confirmation Modal */}
         {showModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-            <div className="bg-white rounded-lg p-6 w-80 text-center">
+            <div className="bg-white rounded-lg p-6 w-80 text-center shadow-md">
               <h3 className="text-lg font-semibold mb-4">Are you sure you want to sign out?</h3>
+
               <div className="flex justify-between space-x-4">
                 <button
                   onClick={() => setShowModal(false)}
@@ -192,6 +197,7 @@ export const ResidentLayout: React.FC<ResidentLayoutProps> = ({ children }) => {
                 >
                   Cancel
                 </button>
+
                 <button
                   onClick={handleSignOut}
                   className="flex-1 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
@@ -202,6 +208,7 @@ export const ResidentLayout: React.FC<ResidentLayoutProps> = ({ children }) => {
             </div>
           </div>
         )}
+
       </div>
     </AuthLayout>
   )

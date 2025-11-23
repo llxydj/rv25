@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import Link from "next/link"
 import { VolunteerLayout } from "@/components/layout/volunteer-layout"
 import { useAuth } from "@/lib/auth"
@@ -15,72 +15,109 @@ export default function VolunteerIncidentsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<string>("ALL")
+  
+  // Use ref to track if component is mounted
+  const isMountedRef = useRef(true)
+  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
+    isMountedRef.current = true
+    
     const fetchIncidents = async () => {
-      if (!user) return
+      if (!user) {
+        setLoading(false)
+        return
+      }
 
       try {
-        setLoading(true)
-        console.log("Fetching incidents for user:", user.id);
+        console.log("Fetching incidents for user:", user.id)
         
         const result = await getVolunteerIncidents(user.id)
-        console.log("Incident fetch result:", result);
+        console.log("Incident fetch result:", result)
+
+        // Only update state if component is still mounted
+        if (!isMountedRef.current) return
 
         if (result.success) {
           setIncidents(result.data || [])
           setFilteredIncidents(result.data || [])
+          setError(null) // Clear any previous errors
         } else {
           setError(result.message || "Failed to fetch incidents")
         }
       } catch (err: any) {
-        console.error("Error fetching incidents:", err);
-        setError(err.message || "An unexpected error occurred")
+        console.error("Error fetching incidents:", err)
+        if (isMountedRef.current) {
+          setError(err.message || "An unexpected error occurred")
+        }
       } finally {
-        setLoading(false)
+        // Always clear loading state when done
+        if (isMountedRef.current) {
+          setLoading(false)
+          // Clear the timeout since we're done loading
+          if (loadingTimeoutRef.current) {
+            clearTimeout(loadingTimeoutRef.current)
+            loadingTimeoutRef.current = null
+          }
+        }
       }
     }
 
-    fetchIncidents()
-    
-    // Add a timeout to prevent infinite loading state
-    const loadingTimeout = setTimeout(() => {
-      if (loading) {
+    // Start loading timeout BEFORE fetch
+    loadingTimeoutRef.current = setTimeout(() => {
+      if (isMountedRef.current && loading) {
+        console.warn("Loading timeout triggered")
         setLoading(false)
         setError("Loading timed out. Please refresh the page.")
       }
-    }, 10000) // 10 seconds timeout
+    }, 15000) // Increased to 15 seconds for slower connections
 
-    // Subscribe to real-time updates
-    let subscription: any = null;
+    // Fetch incidents
+    fetchIncidents()
+
+    // Subscribe to real-time updates (separate from initial fetch)
+    let subscription: any = null
     if (user?.id) {
       subscription = subscribeToVolunteerIncidents(user.id, (payload) => {
+        if (!isMountedRef.current) return
+        
         const { eventType, new: newRecord, old: oldRecord } = payload
+        console.log("Real-time update:", eventType, newRecord?.id)
 
         if (eventType === "INSERT") {
           setIncidents((prev) => [newRecord, ...prev])
         } else if (eventType === "UPDATE") {
-          setIncidents((prev) => prev.map((incident) => (incident.id === newRecord.id ? newRecord : incident)))
+          setIncidents((prev) => 
+            prev.map((incident) => (incident.id === newRecord.id ? newRecord : incident))
+          )
         } else if (eventType === "DELETE") {
-          setIncidents((prev) => prev.filter((incident) => incident.id !== oldRecord.id))
+          setIncidents((prev) => 
+            prev.filter((incident) => incident.id !== oldRecord.id)
+          )
         }
       })
     }
 
+    // Cleanup function
     return () => {
-      clearTimeout(loadingTimeout);
+      isMountedRef.current = false
+      
+      // Clear timeout
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current)
+        loadingTimeoutRef.current = null
+      }
+      
+      // Unsubscribe from real-time updates
       if (subscription) {
-        subscription.unsubscribe();
+        subscription.unsubscribe()
       }
     }
-  }, [user])
+  }, [user?.id]) // Only depend on user.id, not the entire user object
 
-  // Apply filters when incidents or statusFilter changes
+  // Apply filters whenever incidents or statusFilter changes
   useEffect(() => {
-    // Skip filtering if incidents aren't loaded yet
-    if (!incidents.length) return;
-    
-    let filtered = [...incidents];
+    let filtered = [...incidents]
     
     if (statusFilter !== "ALL") {
       filtered = filtered.filter((incident) => incident.status === statusFilter)
@@ -178,6 +215,12 @@ export default function VolunteerIncidentsPage() {
               </div>
               <div className="ml-3">
                 <p className="text-sm text-red-700">{error}</p>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="mt-2 text-sm font-medium text-red-600 hover:text-red-500"
+                >
+                  Refresh Page
+                </button>
               </div>
             </div>
           </div>

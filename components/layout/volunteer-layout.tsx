@@ -17,10 +17,14 @@ interface VolunteerLayoutProps {
 export const VolunteerLayout: React.FC<VolunteerLayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [confirmSignOut, setConfirmSignOut] = useState(false)
+
   const pathname = usePathname()
   const router = useRouter()
 
-  const handleSignOut = async () => {
+  const isActive = (path: string) => pathname === path
+
+  const handleSignOutConfirm = async () => {
     setLoading(true)
     const result = await signOut()
     if (result.success) {
@@ -30,19 +34,15 @@ export const VolunteerLayout: React.FC<VolunteerLayoutProps> = ({ children }) =>
     }
   }
 
-  const isActive = (path: string) => {
-    return pathname === path
-  }
-
   return (
     <AuthLayout allowedRoles={["volunteer"]}>
       <div className="flex h-screen bg-gray-100">
         {/* Mobile sidebar backdrop */}
         {sidebarOpen && (
           <div
-            className="fixed inset-0 z-20 bg-black bg-opacity-50 lg:hidden"
+            className="fixed inset-0 z-20 bg-black/50 lg:hidden"
             onClick={() => setSidebarOpen(false)}
-          ></div>
+          />
         )}
 
         {/* Sidebar */}
@@ -56,7 +56,10 @@ export const VolunteerLayout: React.FC<VolunteerLayoutProps> = ({ children }) =>
               <AlertTriangle className="h-6 w-6" />
               <span className="text-xl font-bold">RVOIS Volunteer</span>
             </div>
-            <button className="p-1 rounded-md lg:hidden hover:bg-green-700" onClick={() => setSidebarOpen(false)}>
+            <button
+              className="p-1 rounded-md lg:hidden hover:bg-green-700"
+              onClick={() => setSidebarOpen(false)}
+            >
               <X className="h-6 w-6" />
             </button>
           </div>
@@ -102,8 +105,9 @@ export const VolunteerLayout: React.FC<VolunteerLayoutProps> = ({ children }) =>
               <span>Profile</span>
             </Link>
 
+            {/* SIGN OUT BUTTON → now opens modal */}
             <button
-              onClick={handleSignOut}
+              onClick={() => setConfirmSignOut(true)}
               disabled={loading}
               className="flex items-center space-x-2 p-2 rounded-md w-full text-left hover:bg-green-700 disabled:opacity-50"
             >
@@ -124,7 +128,10 @@ export const VolunteerLayout: React.FC<VolunteerLayoutProps> = ({ children }) =>
           {/* Top navbar */}
           <header className="bg-white shadow-sm z-10">
             <div className="flex items-center justify-between p-4">
-              <button className="p-1 rounded-md lg:hidden hover:bg-gray-200" onClick={() => setSidebarOpen(true)}>
+              <button
+                className="p-1 rounded-md lg:hidden hover:bg-gray-200"
+                onClick={() => setSidebarOpen(true)}
+              >
                 <X className="h-6 w-6 text-gray-700" />
               </button>
 
@@ -149,6 +156,35 @@ export const VolunteerLayout: React.FC<VolunteerLayoutProps> = ({ children }) =>
           <main className="flex-1 overflow-y-auto p-4">{children}</main>
         </div>
       </div>
+
+      {/* SIGN OUT CONFIRMATION MODAL */}
+      {confirmSignOut && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white shadow-lg rounded-lg p-6 w-full max-w-sm">
+            <h2 className="text-lg font-semibold text-gray-800 mb-2">
+              Confirm Sign Out
+            </h2>
+            <p className="text-gray-600 mb-4">
+              Are you sure you want to sign out?
+            </p>
+
+            <div className="flex justify-end space-x-2">
+              <button
+                onClick={() => setConfirmSignOut(false)}
+                className="px-4 py-2 rounded-md bg-gray-200 text-gray-800 hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSignOutConfirm}
+                className="px-4 py-2 rounded-md bg-green-700 text-white hover:bg-green-800"
+              >
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AuthLayout>
   )
 }

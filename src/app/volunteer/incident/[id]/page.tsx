@@ -1,6 +1,8 @@
+// src/app/volunteer/incident/[id]/page.tsx
+
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { VolunteerLayout } from "@/components/layout/volunteer-layout"
 import { getIncidentById, updateIncidentStatus } from "@/lib/incidents"
@@ -24,100 +26,139 @@ export default function VolunteerIncidentDetailPage() {
   const [updating, setUpdating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  
+  // Use refs to prevent re-render loops
+  const isMountedRef = useRef(true)
+  const hasLoadedRef = useRef(false)
+  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Memoize the fetch function to prevent re-creation
+  const fetchIncidentData = useCallback(async (incidentId: string, userId: string, userRole: string) => {
+    try {
+      console.log(`Fetching incident details for ID: ${incidentId}`)
+      
+      // Validate UUID format
+      if (!incidentId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+        console.error("Invalid incident ID format:", incidentId)
+        throw new Error("Invalid incident ID format")
+      }
+      
+      // Fetch incident details
+      const incidentResult = await getIncidentById(incidentId)
+      console.log("Incident fetch result:", incidentResult)
+      
+      if (!isMountedRef.current) return null
+      
+      if (incidentResult.success && incidentResult.data) {
+        // Check if current user is assigned to this incident (allow admins to view any)
+        const assignedUserId = incidentResult.data.assigned_to || 
+                              (incidentResult.data.assignee && incidentResult.data.assignee.id) || 
+                              null
+        
+        if (userRole !== 'admin' && assignedUserId !== userId) {
+          throw new Error("You are not assigned to this incident")
+        }
+        
+        return incidentResult.data
+      } else {
+        throw new Error(incidentResult.message || "Failed to fetch incident details")
+      }
+    } catch (err: any) {
+      console.error("Error fetching incident details:", err)
+      throw err
+    }
+  }, []) // Empty deps - this function doesn't depend on any props/state
 
   useEffect(() => {
-    // Wait for auth to finish loading before proceeding
-    if (authLoading) return;
+    // Reset mounted ref on mount
+    isMountedRef.current = true
     
-    let isMounted = true;
+    // Clear any existing timeout
+    if (loadingTimeoutRef.current) {
+      clearTimeout(loadingTimeoutRef.current)
+    }
     
-    const fetchData = async () => {
-      if (!user) {
-        console.log("No authenticated user found, redirecting to login");
-        router.push('/login');
-        return;
+    const loadData = async () => {
+      // Prevent multiple loads
+      if (hasLoadedRef.current) {
+        console.log("Data already loaded, skipping...")
+        return
       }
       
-      // Extract ID properly from params, ensuring it's a string
-      const incidentId = params?.id;
-      if (!incidentId) {
-        console.log("No incident ID found in URL params");
-        if (isMounted) {
-          setError("No incident ID provided");
-          setLoading(false);
-        }
-        return;
+      // Wait for auth to finish loading
+      if (authLoading) {
+        console.log("Waiting for auth...")
+        return
       }
+      
+      // Check authentication
+      if (!user) {
+        console.log("No authenticated user found, redirecting to login")
+        router.push('/login')
+        return
+      }
+      
+      // Extract and validate incident ID
+      const incidentId = params?.id
+      if (!incidentId) {
+        console.log("No incident ID found in URL params")
+        setError("No incident ID provided")
+        setLoading(false)
+        return
+      }
+      
+      // Convert to string if it's an array
+      const idToUse = Array.isArray(incidentId) ? incidentId[0] : String(incidentId)
+      
+      // Mark as loading started
+      hasLoadedRef.current = true
+      setLoading(true)
+      setError(null)
+      
+      // Set up timeout for loading (30 seconds)
+      loadingTimeoutRef.current = setTimeout(() => {
+        if (isMountedRef.current && loading) {
+          console.error("Loading timed out after 30 seconds")
+          setLoading(false)
+          setError("Loading timed out. Please refresh the page or check your connection.")
+        }
+      }, 30000)
       
       try {
-        // Convert to string if it's an array or other type
-        const idToUse = Array.isArray(incidentId) ? incidentId[0] : String(incidentId);
+        const incidentData = await fetchIncidentData(idToUse, user.id, user.role)
         
-        console.log(`Fetching incident details for ID: ${idToUse} (${typeof idToUse})`);
-        
-        // Make sure we have a properly formatted UUID
-        if (!idToUse.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
-          console.error("Invalid incident ID format in URL:", idToUse);
-          if (isMounted) {
-            setError("Invalid incident ID format");
-            setLoading(false);
-          }
-          return;
-        }
-        
-        // Fetch incident details
-        const incidentResult = await getIncidentById(idToUse)
-        console.log("Incident fetch result:", incidentResult);
-        
-        if (!isMounted) return;
-        
-        if (incidentResult.success && incidentResult.data) {
-          setIncident(incidentResult.data);
-          setError(null);
-          
-          // Check if current user is assigned to this incident
-          // Allow admins to view any incident
-          // Handle both direct ID and joined user object
-          const assignedUserId = incidentResult.data.assigned_to || 
-                                (incidentResult.data.assignee && incidentResult.data.assignee.id) || 
-                                null;
-          
-          if (user.role !== 'admin' && assignedUserId !== user.id) {
-            setError("You are not assigned to this incident");
-            return;
-          }
-        } else {
-          setError(incidentResult.message || "Failed to fetch incident details");
+        if (isMountedRef.current && incidentData) {
+          setIncident(incidentData)
+          setError(null)
         }
       } catch (err: any) {
-        console.error("Error fetching incident details:", err);
-        if (isMounted) {
-          setError(err.message || "An unexpected error occurred");
+        console.error("Error in loadData:", err)
+        if (isMountedRef.current) {
+          setError(err.message || "An unexpected error occurred")
         }
       } finally {
-        if (isMounted) {
-          setLoading(false);
+        if (isMountedRef.current) {
+          setLoading(false)
+          // Clear timeout on successful load
+          if (loadingTimeoutRef.current) {
+            clearTimeout(loadingTimeoutRef.current)
+            loadingTimeoutRef.current = null
+          }
         }
       }
     }
-
-    setLoading(true);
-    setError(null);
-    fetchData();
     
-    // Add a timeout to prevent infinite loading state
-    const loadingTimeout = setTimeout(() => {
-      if (isMounted && loading) {
-        setLoading(false);
-        setError("Loading timed out. Please refresh the page.");
-      }
-    }, 30000); // 30 seconds timeout
+    loadData()
     
+    // Cleanup function
     return () => {
-      isMounted = false;
-      clearTimeout(loadingTimeout);
+      isMountedRef.current = false
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current)
+        loadingTimeoutRef.current = null
+      }
     }
-  }, [params, user, authLoading, router]); // Added authLoading and router dependencies
+  }, [params?.id, user?.id, user?.role, authLoading, fetchIncidentData, router]) // Only essential dependencies
 
   const handleUpdateStatus = async (newStatus: "RESPONDING" | "RESOLVED" | "ARRIVED") => {
     if (!user || !incident) return
@@ -135,18 +176,18 @@ export default function VolunteerIncidentDetailPage() {
       
       // Validate incident ID format
       if (!incident.id || typeof incident.id !== 'string') {
-        console.error("Missing incident ID:", incident);
-        setError("Invalid incident: missing ID");
-        setUpdating(false);
-        return;
+        console.error("Missing incident ID:", incident)
+        setError("Invalid incident: missing ID")
+        setUpdating(false)
+        return
       }
       
       // Validate UUID format
       if (!incident.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
-        console.error("Invalid incident ID format:", incident.id);
-        setError("Invalid incident ID format");
-        setUpdating(false);
-        return;
+        console.error("Invalid incident ID format:", incident.id)
+        setError("Invalid incident ID format")
+        setUpdating(false)
+        return
       }
       
       console.log("Updating incident status:", {
@@ -158,17 +199,16 @@ export default function VolunteerIncidentDetailPage() {
       })
       
       try {
-        // First, do a direct SQL update to force the incident status change
+        // Direct SQL update for RESOLVED status
         if (newStatus === "RESOLVED") {
           try {
-            console.log("Attempting progressive update approaches");
+            console.log("Attempting direct update for RESOLVED status")
             
-            // Track whether any update has succeeded
-            let updateSucceeded = false;
+            let updateSucceeded = false
             
-            // ===== ATTEMPT 1: Try filter method =====
+            // Attempt 1: Filter-based update
             try {
-              console.log("Attempt 1: Filter-based update");
+              console.log("Attempt 1: Filter-based update")
               
               const { error } = await (supabase as any)
                 .from('incidents')
@@ -177,97 +217,68 @@ export default function VolunteerIncidentDetailPage() {
                   resolved_at: new Date().toISOString(),
                   resolution_notes: resolutionNotes || null
                 })
-                .eq('id', incident.id);
+                .eq('id', incident.id)
                 
               if (error) {
-                console.error("Filter update failed:", error);
-                throw error;
+                console.error("Filter update failed:", error)
+                throw error
               }
               
-              console.log("Filter update succeeded!");
-              updateSucceeded = true;
+              console.log("Filter update succeeded!")
+              updateSucceeded = true
               
             } catch (filterError) {
-              console.error("Attempt 1 failed:", filterError);
+              console.error("Attempt 1 failed:", filterError)
               
-              // ===== ATTEMPT 2: Try match method =====
+              // Attempt 2: Minimal update
               try {
-                console.log("Attempt 2: Match-based update");
+                console.log("Attempt 2: Minimal update")
                 
                 const { error } = await (supabase as any)
                   .from('incidents')
-                  .update({ 
-                    status: 'RESOLVED' as const,
-                    resolved_at: new Date().toISOString(),
-                    resolution_notes: resolutionNotes || null
-                  })
-                  .eq('id', incident.id);
+                  .update({ status: 'RESOLVED' as const })
+                  .eq('id', incident.id)
                   
                 if (error) {
-                  console.error("Match update failed:", error);
-                  throw error;
+                  console.error("Minimal update failed:", error)
+                  throw error
                 }
                 
-                console.log("Match update succeeded!");
-                updateSucceeded = true;
+                console.log("Minimal update succeeded!")
+                updateSucceeded = true
                 
-              } catch (matchError) {
-                console.error("Attempt 2 failed:", matchError);
-                
-                // ===== ATTEMPT 3: Try eq method with minimal fields =====
-                try {
-                  console.log("Attempt 3: Minimal update");
-                  
-                  // Only update the status field, which is less likely to cause problems
-                  const { error } = await (supabase as any)
-                    .from('incidents')
-                    .update({ status: 'RESOLVED' as const })
-                    .eq('id', incident.id);
-                    
-                  if (error) {
-                    console.error("Minimal update failed:", error);
-                    throw error;
-                  }
-                  
-                  console.log("Minimal update succeeded!");
-                  updateSucceeded = true;
-                  
-                } catch (minError) {
-                  console.error("Attempt 3 failed:", minError);
-                  throw minError; // Let it propagate to the outer catch
-                }
+              } catch (minError) {
+                console.error("Attempt 2 failed:", minError)
+                throw minError
               }
             }
             
-            // If any update method succeeded, update the volunteer profile
+            // Update volunteer profile if incident update succeeded
             if (updateSucceeded) {
               try {
-                console.log("Updating volunteer profile");
+                console.log("Updating volunteer profile")
                 
-                // IMPORTANT: Use manual update to avoid the trigger issues
-                // First get current count
                 const { data: profileData } = await supabase
                   .from('volunteer_profiles')
                   .select('total_incidents_resolved')
                   .eq('volunteer_user_id', user.id)
-                  .single();
+                  .single()
                   
-                const currentCount = (profileData as any)?.total_incidents_resolved || 0;
-                const newCount = currentCount + 1;
+                const currentCount = (profileData as any)?.total_incidents_resolved || 0
+                const newCount = currentCount + 1
                 
-                // Update the profile
                 const { error: profileError } = await (supabase as any)
                   .from('volunteer_profiles')
                   .update({ 
                     total_incidents_resolved: newCount,
                     is_available: true 
                   })
-                  .eq('volunteer_user_id', user.id);
+                  .eq('volunteer_user_id', user.id)
                   
                 if (profileError) {
-                  console.error("Profile update failed (non-critical):", profileError);
+                  console.error("Profile update failed (non-critical):", profileError)
                 } else {
-                  console.log(`Profile updated to ${newCount} resolved incidents`);
+                  console.log(`Profile updated to ${newCount} resolved incidents`)
                 }
 
                 // Update local state and show success message
@@ -276,28 +287,27 @@ export default function VolunteerIncidentDetailPage() {
                   status: 'RESOLVED',
                   resolved_at: new Date().toISOString(),
                   resolution_notes: resolutionNotes
-                });
+                })
                 
-                setSuccessMessage("✅ Incident resolved successfully! Admins and the reporter have been notified.");
-                return; // Skip the standard update function
+                setSuccessMessage("✅ Incident resolved successfully! Admins and the reporter have been notified.")
+                return // Skip the standard update function
                 
               } catch (profileErr) {
-                console.error("Error in profile update (non-critical):", profileErr);
+                console.error("Error in profile update (non-critical):", profileErr)
                 
-                // Still consider this a success since the incident was updated
                 setIncident({
                   ...incident,
                   status: 'RESOLVED'
-                });
+                })
                 
-                setSuccessMessage("✅ Incident marked as resolved! Admins and the reporter have been notified.");
-                return; // Skip the standard update function
+                setSuccessMessage("✅ Incident marked as resolved! Admins and the reporter have been notified.")
+                return
               }
             }
             
           } catch (error) {
-            console.error("All update approaches failed:", error);
-            // Fall through to standard update if direct updates fail
+            console.error("All update approaches failed:", error)
+            // Fall through to standard update
           }
         }
         
@@ -321,40 +331,35 @@ export default function VolunteerIncidentDetailPage() {
             resolution_notes: newStatus === "RESOLVED" ? resolutionNotes : incident.resolution_notes,
           })
           
-          // Show success message with notification info
+          // Show success message
           if (newStatus === "RESOLVED") {
-            setSuccessMessage("✅ Incident resolved successfully! Admins and the reporter have been notified.");
+            setSuccessMessage("✅ Incident resolved successfully! Admins and the reporter have been notified.")
           } else if (newStatus === "RESPONDING") {
-            setSuccessMessage("🚀 Status updated to responding! Admins and the reporter have been notified.");
+            setSuccessMessage("🚀 Status updated to responding! Admins and the reporter have been notified.")
           } else if (newStatus === "ARRIVED") {
-            setSuccessMessage("📍 Status updated to arrived! Admins and the reporter have been notified.");
+            setSuccessMessage("📍 Status updated to arrived! Admins and the reporter have been notified.")
           }
         } else {
-          console.error("Failed to update status:", result);
+          console.error("Failed to update status:", result)
           
-          // Enhanced error handling with detailed column error tracking
           if (result.error?.message) {
-            const errorMsg = result.error.message;
-            
-            // Print the exact error to help debugging
-            console.error(`Database error details: ${errorMsg}`);
+            const errorMsg = result.error.message
+            console.error(`Database error details: ${errorMsg}`)
             
             if (errorMsg.includes("column") && errorMsg.includes("does not exist")) {
-              // Try to extract column name
-              const columnMatch = errorMsg.match(/column ["']([^"']+)["']/);
-              const columnName = columnMatch ? columnMatch[1] : "unknown";
-              
-              setError(`Database error: Column '${columnName}' does not exist. Please contact support.`);
+              const columnMatch = errorMsg.match(/column ["']([^"']+)["']/)
+              const columnName = columnMatch ? columnMatch[1] : "unknown"
+              setError(`Database error: Column '${columnName}' does not exist. Please contact support.`)
             } else {
-              setError(result.message || `Failed to update status to ${newStatus}`);
+              setError(result.message || `Failed to update status to ${newStatus}`)
             }
           } else {
-            setError(result.message || `Failed to update status to ${newStatus}`);
+            setError(result.message || `Failed to update status to ${newStatus}`)
           }
         }
       } catch (updateErr: any) {
-        console.error("Exception during update:", updateErr);
-        setError(updateErr.message || `Error during update: ${updateErr}`);
+        console.error("Exception during update:", updateErr)
+        setError(updateErr.message || `Error during update: ${updateErr}`)
       }
     } catch (err: any) {
       console.error("Error in handleUpdateStatus:", err)
@@ -470,7 +475,7 @@ export default function VolunteerIncidentDetailPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-      <div className="bg-white p-6 rounded-lg shadow-md">
+            <div className="bg-white p-6 rounded-lg shadow-md">
               <div className="flex justify-between items-start">
                 <div>
                   <h2 className="text-xl font-semibold text-black">{incident.incident_type}</h2>
@@ -553,7 +558,6 @@ export default function VolunteerIncidentDetailPage() {
               userRole="volunteer"
               onCallComplete={(callLog) => {
                 console.log('Call completed:', callLog)
-                // You can add additional logic here if needed
               }}
             />
 
@@ -624,12 +628,16 @@ export default function VolunteerIncidentDetailPage() {
                     currentStatus={incident.status}
                     volunteerId={user.id}
                     onStatusUpdate={(newStatus) => {
-                      setIncident({
-                        ...incident,
+                      console.log('Parent received status update:', newStatus)
+                      
+                      // Force immediate state update
+                      setIncident(prevIncident => ({
+                        ...prevIncident,
                         status: newStatus,
-                        responding_at: newStatus === "RESPONDING" ? new Date().toISOString() : incident.responding_at,
-                        resolved_at: newStatus === "RESOLVED" ? new Date().toISOString() : incident.resolved_at,
-                      })
+                        responding_at: newStatus === "RESPONDING" ? new Date().toISOString() : prevIncident.responding_at,
+                        arrived_at: newStatus === "ARRIVED" ? new Date().toISOString() : prevIncident.arrived_at,
+                        resolved_at: newStatus === "RESOLVED" ? new Date().toISOString() : prevIncident.resolved_at,
+                      }))
                       
                       let message = ""
                       switch (newStatus) {
@@ -685,7 +693,7 @@ export default function VolunteerIncidentDetailPage() {
                       disabled={updating}
                     />
                     <button
-                      className="mt-2 w-full inline-flex justify-center items-center px-4 py-2 border border-gray-300 text-gray-900 bg-white rounded-md shadow-sm hover:bg-gray-50"
+                      className="mt-2 w-full inline-flex justify-center items-center px-4 py-2 border border-gray-300 text-gray-900 bg-white rounded-md shadow-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                       onClick={() => handleUpdateStatus("RESOLVED")}
                       disabled={updating || !resolutionNotes.trim()}
                     >
@@ -801,7 +809,7 @@ export default function VolunteerIncidentDetailPage() {
               <div className="mt-3">
                 <button
                   onClick={() => router.push('/volunteer/dashboard')}
-                  className="px-4 py-2 bg-green-600 text-gray-600 rounded-md hover:bg-green-700 transition-colors"
+                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
                 >
                   Return to Dashboard
                 </button>
