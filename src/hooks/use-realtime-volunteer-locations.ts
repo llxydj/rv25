@@ -10,6 +10,7 @@ export interface VolunteerLocation {
   latitude: number
   longitude: number
   accuracy?: number
+  speed?: number
   last_seen: string
   first_name?: string
   last_name?: string
@@ -37,14 +38,26 @@ export function useRealtimeVolunteerLocations({
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'reconnecting'>('connecting')
-  
-  // Refs for managing reconnection
+
   const channelRef = useRef<RealtimeChannel | null>(null)
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const reconnectAttemptsRef = useRef(0)
   const isMountedRef = useRef(true)
 
-  // Cleanup function - stable, no external dependencies
+  // Helper function to calculate distance
+  const calculateDistance = useCallback((lat1: number, lng1: number, lat2: number, lng2: number): number => {
+    const R = 6371
+    const dLat = (lat2 - lat1) * Math.PI / 180
+    const dLng = (lng2 - lng1) * Math.PI / 180
+    const a = 
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLng / 2) * Math.sin(dLng / 2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    return R * c
+  }, [])
+
+  // Cleanup function
   const cleanup = useCallback(() => {
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current)
@@ -54,32 +67,9 @@ export function useRealtimeVolunteerLocations({
       clearTimeout(reconnectTimeoutRef.current)
       reconnectTimeoutRef.current = null
     }
-    setIsConnected(false)
-    setConnectionStatus('disconnected')
   }, [])
 
-  // Reconnection logic - stable, using refs and props only
-  const attemptReconnect = useCallback(() => {
-    if (!isMountedRef.current || reconnectAttemptsRef.current >= reconnectAttempts) {
-      console.error('Max reconnection attempts reached')
-      setConnectionStatus('disconnected')
-      setError('Connection lost. Please refresh the page.')
-      return
-    }
-
-    reconnectAttemptsRef.current++
-    setConnectionStatus('reconnecting')
-    console.log(`Attempting reconnection ${reconnectAttemptsRef.current}/${reconnectAttempts}`)
-
-    reconnectTimeoutRef.current = setTimeout(() => {
-      if (isMountedRef.current) {
-        // Trigger a re-render by updating a state that will cause useEffect to run
-        setConnectionStatus('connecting')
-      }
-    }, reconnectInterval)
-  }, [reconnectAttempts, reconnectInterval])
-
-  // Fetch initial volunteer locations - recreates when search params change
+  // Fetch volunteer locations
   const fetchVolunteers = useCallback(async () => {
     if (!enabled || !isMountedRef.current) return
 
@@ -87,7 +77,6 @@ export function useRealtimeVolunteerLocations({
       setIsLoading(true)
       setError(null)
 
-      // Fetch volunteer locations with user details
       const { data: locations, error: locError } = await supabase
         .from('volunteer_locations')
         .select(`
@@ -95,6 +84,7 @@ export function useRealtimeVolunteerLocations({
           lat,
           lng,
           accuracy,
+          speed,
           created_at,
           users!volunteer_locations_user_id_fkey (
             first_name,
@@ -119,19 +109,17 @@ export function useRealtimeVolunteerLocations({
         }
       })
 
-      // Filter by Talisay boundaries, radius, and calculate distance
+      // Filter and transform
       const filtered = Array.from(uniqueVolunteers.values())
-        .filter(loc => isWithinTalisayCity(loc.lat, loc.lng)) // Only show volunteers in Talisay
+        .filter(loc => loc.lat && loc.lng && isWithinTalisayCity(loc.lat, loc.lng))
         .map(loc => {
-          const distance = calculateDistance(
-            center[0], center[1],
-            loc.lat, loc.lng
-          )
+          const distance = calculateDistance(center[0], center[1], loc.lat, loc.lng)
           return {
             user_id: loc.user_id,
             latitude: loc.lat,
             longitude: loc.lng,
             accuracy: loc.accuracy,
+            speed: loc.speed,
             last_seen: loc.created_at,
             first_name: loc.users?.first_name,
             last_name: loc.users?.last_name,
@@ -144,6 +132,7 @@ export function useRealtimeVolunteerLocations({
 
       if (isMountedRef.current) {
         setVolunteers(filtered)
+        console.log(`Fetched ${filtered.length} volunteers`)
       }
     } catch (err: any) {
       console.error('Failed to fetch volunteers:', err)
@@ -156,100 +145,90 @@ export function useRealtimeVolunteerLocations({
         setIsLoading(false)
       }
     }
-  }, [center, radiusKm, enabled])
+  }, [center, radiusKm, enabled, calculateDistance])
 
-  // Helper function to calculate distance between two points
-  function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
-    const R = 6371 // Earth's radius in km
-    const dLat = (lat2 - lat1) * Math.PI / 180
-    const dLng = (lng2 - lng1) * Math.PI / 180
-    const a = 
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-      Math.sin(dLng / 2) * Math.sin(dLng / 2)
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-    return R * c
-  }
+  // Reconnection logic
+  const attemptReconnect = useCallback(() => {
+    if (!isMountedRef.current || reconnectAttemptsRef.current >= reconnectAttempts) {
+      console.error('Max reconnection attempts reached')
+      setConnectionStatus('disconnected')
+      setError('Connection lost. Please refresh the page.')
+      return
+    }
 
-  // Setup realtime subscription with enhanced error handling
-  // Removed circular dependencies to prevent infinite loops
+    reconnectAttemptsRef.current++
+    setConnectionStatus('reconnecting')
+    console.log(`Attempting reconnection ${reconnectAttemptsRef.current}/${reconnectAttempts}`)
+
+    reconnectTimeoutRef.current = setTimeout(() => {
+      if (isMountedRef.current) {
+        setupRealtimeSubscription()
+      }
+    }, reconnectInterval)
+  }, [reconnectAttempts, reconnectInterval])
+
+  // Setup realtime subscription
   const setupRealtimeSubscription = useCallback(() => {
     if (!enabled || !isMountedRef.current) return
 
-    // Clean up existing subscription
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current)
-      channelRef.current = null
-    }
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current)
-      reconnectTimeoutRef.current = null
-    }
-
+    cleanup()
     setConnectionStatus('connecting')
     console.log('Setting up real-time subscription...')
 
     const channel = supabase
-      .channel(`volunteer-locations-${Date.now()}`) // Unique channel name
+      .channel(`volunteer-locations-${Date.now()}`)
       .on(
         'postgres_changes',
         {
-          event: '*', // Listen to INSERT, UPDATE, DELETE
+          event: '*',
           schema: 'public',
-          table: 'volunteer_locations',
-          // Only listen to recent updates (last 5 minutes)
-          filter: `created_at=gte.${new Date(Date.now() - 300000).toISOString()}`
+          table: 'volunteer_locations'
         },
         (payload) => {
-          console.log('Location update received:', payload)
-          
-          // Refetch all volunteers when any location changes
-          // This ensures we get accurate distance calculations
+          console.log('Location update received:', payload.eventType)
           fetchVolunteers()
         }
       )
-      .on('system', { event: 'connected' }, () => {
-        console.log('✅ Real-time connection established')
-        if (isMountedRef.current) {
-          setIsConnected(true)
-          setConnectionStatus('connected')
-          setError(null)
-          reconnectAttemptsRef.current = 0 // Reset reconnection attempts
-        }
-      })
-      .on('system', { event: 'disconnected' }, () => {
-        console.warn('⚠️ Real-time connection lost')
-        if (isMountedRef.current) {
-          setIsConnected(false)
-          setConnectionStatus('disconnected')
-          attemptReconnect()
-        }
-      })
-      .on('system', { event: 'error' }, (error) => {
-        console.warn('⚠️ Real-time connection error:', error?.message || 'Unknown error')
-        if (isMountedRef.current) {
-          setError(`Connection error: ${error?.message || 'Unknown error'}`)
-          attemptReconnect()
-        }
-      })
-      .subscribe((status) => {
+      .subscribe((status, err) => {
         console.log('Subscription status:', status)
-        if (status === 'SUBSCRIBED' && isMountedRef.current) {
-          setIsConnected(true)
-          setConnectionStatus('connected')
-          setError(null)
-        } else if (status === 'CHANNEL_ERROR' && isMountedRef.current) {
-          console.warn('⚠️ Channel error, attempting reconnection...')
-          attemptReconnect()
+        
+        if (status === 'SUBSCRIBED') {
+          if (isMountedRef.current) {
+            setIsConnected(true)
+            setConnectionStatus('connected')
+            setError(null)
+            reconnectAttemptsRef.current = 0
+          }
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('Channel error:', err)
+          if (isMountedRef.current) {
+            setIsConnected(false)
+            setConnectionStatus('disconnected')
+            if (err) {
+              setError(`Connection error: ${err.message || 'Unknown error'}`)
+            }
+            attemptReconnect()
+          }
+        } else if (status === 'TIMED_OUT') {
+          console.warn('Subscription timed out')
+          if (isMountedRef.current) {
+            attemptReconnect()
+          }
+        } else if (status === 'CLOSED') {
+          if (isMountedRef.current) {
+            setIsConnected(false)
+            setConnectionStatus('disconnected')
+          }
         }
       })
 
     channelRef.current = channel
-  }, [enabled, center[0], center[1], radiusKm])
+  }, [enabled, cleanup, fetchVolunteers, attemptReconnect])
 
-  // Main effect: Set up subscription when search params change
-  // We include ONLY the essential dependencies to prevent infinite loops
+  // Main effect
   useEffect(() => {
+    isMountedRef.current = true
+
     if (!enabled) {
       setVolunteers([])
       setIsConnected(false)
@@ -258,24 +237,21 @@ export function useRealtimeVolunteerLocations({
       return
     }
 
-    // Fetch initial data
     fetchVolunteers()
-
-    // Set up real-time subscription
     setupRealtimeSubscription()
 
-    // Cleanup on unmount or when dependencies change
-    return () => {
-      cleanup()
-    }
-  }, [enabled, center[0], center[1], radiusKm])
-
-  // Cleanup on unmount
-  useEffect(() => {
     return () => {
       isMountedRef.current = false
+      cleanup()
     }
-  }, [])
+  }, [enabled])
+
+  // Refetch when center or radius changes
+  useEffect(() => {
+    if (enabled) {
+      fetchVolunteers()
+    }
+  }, [center[0], center[1], radiusKm])
 
   return {
     volunteers,
@@ -286,7 +262,7 @@ export function useRealtimeVolunteerLocations({
     refetch: fetchVolunteers,
     reconnect: () => {
       reconnectAttemptsRef.current = 0
-      attemptReconnect()
+      setupRealtimeSubscription()
     }
   }
 }

@@ -1,8 +1,11 @@
-import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
-import { getServerSupabase } from '@/lib/supabase-server'
+// src/app/api/admin/users/route.ts
 
-// Initialize admin client in server context
+import { createClient } from '@supabase/supabase-js'
+import { NextRequest, NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
+import { createServerClient } from '@supabase/ssr'
+
+// ✅ ADMIN CLIENT - Use ONLY for admin operations with SERVICE_ROLE key
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -14,12 +17,42 @@ const supabaseAdmin = createClient(
   }
 )
 
-export async function GET(request: Request) {
+// ✅ Create auth client with proper cookie handling
+async function getAuthClient() {
+  const cookieStore = await cookies()
+  
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value
+        },
+        set(name: string, value: string, options: any) {
+          try {
+            cookieStore.set({ name, value, ...options })
+          } catch {
+            // Cookie setting may fail in route handlers, ignore
+          }
+        },
+        remove(name: string, options: any) {
+          try {
+            cookieStore.set({ name, value: '', ...options })
+          } catch {
+            // Cookie removal may fail, ignore
+          }
+        },
+      },
+    }
+  )
+}
+
+export async function GET(request: NextRequest) {
   try {
-    const supabase = await getServerSupabase()
     const url = new URL(request.url)
     const page = parseInt(url.searchParams.get('page') || '1')
-    const limit = parseInt(url.searchParams.get('limit') || '1000') // Increased default to show more users
+    const limit = parseInt(url.searchParams.get('limit') || '1000')
     const offset = (page - 1) * limit
     
     // Get filter parameters
@@ -27,19 +60,61 @@ export async function GET(request: Request) {
     const statusFilter = url.searchParams.get('status') || null
     const barangayFilter = url.searchParams.get('barangay') || null
     const searchTerm = url.searchParams.get('search') || null
-    const getAll = url.searchParams.get('all') === 'true' // Option to get all users without pagination
+    const getAll = url.searchParams.get('all') === 'true'
 
-    // Verify requester is admin (via RLS-bound client)
-    const { data: me } = await supabase.auth.getUser()
-    const uid = me?.user?.id
-    if (!uid) return NextResponse.json({ success: false, code: 'NOT_AUTHENTICATED' }, { status: 401 })
-    
-    const { data: roleRow }: any = await supabase.from('users').select('role').eq('id', uid).maybeSingle()
-    if (!roleRow || roleRow.role !== 'admin') {
-      return NextResponse.json({ success: false, code: 'FORBIDDEN' }, { status: 403 })
+    // ✅ CRITICAL FIX: Always await getAuthClient()
+    const supabase = await getAuthClient()
+
+    // ✅ CRITICAL FIX: Use getUser() instead of getSession()
+    // getUser() validates the JWT token server-side every time
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
+
+    console.log('Auth check:', { 
+      hasUser: !!authUser, 
+      userId: authUser?.id,
+      authError: authError?.message 
+    })
+
+    if (authError || !authUser) {
+      console.error('Authentication failed:', authError)
+      return NextResponse.json({ 
+        success: false, 
+        code: 'NOT_AUTHENTICATED',
+        message: 'User not authenticated. Please log in again.' 
+      }, { status: 401 })
     }
 
-    // Build query with filters
+    // ✅ Use admin client to check role (avoids RLS issues)
+    const { data: roleRow, error: roleError } = await supabaseAdmin
+      .from('users')
+      .select('role')
+      .eq('id', authUser.id)
+      .maybeSingle()
+
+    console.log('Role check:', { 
+      roleRow, 
+      roleError: roleError?.message 
+    })
+
+    if (roleError) {
+      console.error('Role fetch error:', roleError)
+      return NextResponse.json({ 
+        success: false, 
+        code: 'ROLE_FETCH_ERROR',
+        message: 'Failed to fetch user role' 
+      }, { status: 500 })
+    }
+
+    if (!roleRow || roleRow.role !== 'admin') {
+      console.error('User is not admin:', { role: roleRow?.role })
+      return NextResponse.json({ 
+        success: false, 
+        code: 'FORBIDDEN',
+        message: 'Admin access required' 
+      }, { status: 403 })
+    }
+
+    // ✅ Build query with filters using admin client
     let query = supabaseAdmin
       .from('users')
       .select('*', { count: 'exact' })
@@ -48,150 +123,61 @@ export async function GET(request: Request) {
     if (roleFilter && roleFilter !== 'all') {
       query = query.eq('role', roleFilter)
     }
-    
-    // Only apply status filter if statusFilter is provided and not 'all'
-    // Note: If status column doesn't exist, this will be handled gracefully
+
     if (statusFilter && statusFilter !== 'all') {
       query = query.eq('status', statusFilter)
     }
-    
+
     if (barangayFilter && barangayFilter !== 'all') {
       query = query.eq('barangay', barangayFilter)
     }
-    
+
     if (searchTerm) {
-      // Search in name and email using or filter
-      query = query.or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`)
+      query = query.or(
+        `first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`
+      )
     }
 
-    // Apply pagination only if not getting all
+    // Apply pagination
     if (!getAll) {
       query = query.range(offset, offset + limit - 1)
     }
-    
-    query = query.order('created_at', { ascending: false })
 
+    query = query.order('created_at', { ascending: false })
     const { data: users, error: usersError, count } = await query
 
     if (usersError) {
       console.error('Error fetching users from database:', usersError)
-      // If error is about missing column, try without status filter
-      if (usersError.message?.includes('status') || usersError.message?.includes('column')) {
-        console.log('Retrying query without status filter...')
-        // Retry without status filter
-        let retryQuery = supabaseAdmin
-          .from('users')
-          .select('*', { count: 'exact' })
-        
-        if (roleFilter && roleFilter !== 'all') {
-          retryQuery = retryQuery.eq('role', roleFilter)
-        }
-        
-        if (barangayFilter && barangayFilter !== 'all') {
-          retryQuery = retryQuery.eq('barangay', barangayFilter)
-        }
-        
-        if (searchTerm) {
-          retryQuery = retryQuery.or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`)
-        }
-        
-        if (!getAll) {
-          retryQuery = retryQuery.range(offset, offset + limit - 1)
-        }
-        
-        retryQuery = retryQuery.order('created_at', { ascending: false })
-        
-        const retryResult = await retryQuery
-        if (retryResult.error) {
-          throw retryResult.error
-        }
-        
-        // Use retry result
-        const retryUsers = retryResult.data || []
-        const retryCount = retryResult.count || 0
-        
-        // Continue with retryUsers
-        const userIds = retryUsers.map((u: any) => u.id)
-        const userIncidentCounts: Record<string, number> = {}
-        
-        if (userIds.length > 0) {
-          const { data: reportedIncidents } = await supabaseAdmin
-            .from('incidents')
-            .select('reporter_id')
-            .in('reporter_id', userIds)
-          
-          if (reportedIncidents) {
-            reportedIncidents.forEach((item: any) => {
-              if (item.reporter_id) {
-                userIncidentCounts[item.reporter_id] = (userIncidentCounts[item.reporter_id] || 0) + 1
-              }
-            })
-          }
-          
-          const { data: assignedIncidents } = await supabaseAdmin
-            .from('incidents')
-            .select('assigned_to')
-            .in('assigned_to', userIds)
-          
-          if (assignedIncidents) {
-            assignedIncidents.forEach((item: any) => {
-              if (item.assigned_to) {
-                userIncidentCounts[item.assigned_to] = (userIncidentCounts[item.assigned_to] || 0) + 1
-              }
-            })
-          }
-        }
-        
-        const usersWithIncidentData = retryUsers.map((user: any) => ({
-          ...user,
-          incident_count: userIncidentCounts[user.id] || 0,
-          status: user.status || 'active'
-        }))
-        
-        return NextResponse.json({ 
-          success: true, 
-          data: usersWithIncidentData,
-          meta: {
-            total_count: retryCount || usersWithIncidentData.length,
-            current_page: getAll ? 1 : page,
-            per_page: getAll ? retryCount || usersWithIncidentData.length : limit,
-            total_pages: getAll ? 1 : Math.ceil((retryCount || 0) / limit)
-          }
-        })
-      }
       throw usersError
     }
 
-    // Ensure users is an array
     const usersArray = users || []
     console.log(`Fetched ${usersArray.length} users from database`)
-    
-    // Fetch incident counts for all users (residents report, volunteers are assigned)
+
+    // Fetch incident counts
     const userIds = usersArray.map((u: any) => u.id)
     const userIncidentCounts: Record<string, number> = {}
-    
+
     if (userIds.length > 0) {
-      // Count incidents reported by users (for residents)
-      const { data: reportedIncidents, error: reportedError } = await supabaseAdmin
+      const { data: reportedIncidents } = await supabaseAdmin
         .from('incidents')
         .select('reporter_id')
         .in('reporter_id', userIds)
-      
-      if (!reportedError && reportedIncidents) {
+
+      if (reportedIncidents) {
         reportedIncidents.forEach((item: any) => {
           if (item.reporter_id) {
             userIncidentCounts[item.reporter_id] = (userIncidentCounts[item.reporter_id] || 0) + 1
           }
         })
       }
-      
-      // Count incidents assigned to users (for volunteers)
-      const { data: assignedIncidents, error: assignedError } = await supabaseAdmin
+
+      const { data: assignedIncidents } = await supabaseAdmin
         .from('incidents')
         .select('assigned_to')
         .in('assigned_to', userIds)
-      
-      if (!assignedError && assignedIncidents) {
+
+      if (assignedIncidents) {
         assignedIncidents.forEach((item: any) => {
           if (item.assigned_to) {
             userIncidentCounts[item.assigned_to] = (userIncidentCounts[item.assigned_to] || 0) + 1
@@ -200,11 +186,10 @@ export async function GET(request: Request) {
       }
     }
 
-    // Merge incident counts with users and ensure status field exists
     const usersWithIncidentData = usersArray.map((user: any) => ({
       ...user,
       incident_count: userIncidentCounts[user.id] || 0,
-      status: user.status || 'active' // Default to active if status column doesn't exist
+      status: user.status || 'active'
     }))
 
     console.log(`Returning ${usersWithIncidentData.length} users with incident data`)
@@ -219,6 +204,7 @@ export async function GET(request: Request) {
         total_pages: getAll ? 1 : Math.ceil((count || 0) / limit)
       }
     })
+
   } catch (e: any) {
     console.error('Error fetching users:', e)
     console.error('Error details:', {
@@ -240,59 +226,76 @@ export async function GET(request: Request) {
   }
 }
 
-export async function PUT(request: Request) {
+export async function PUT(request: NextRequest) {
   try {
-    const supabase = await getServerSupabase()
+    const supabase = await getAuthClient()
     const body = await request.json()
     const { userId, action } = body
 
-    // Verify requester is admin
-    const { data: me } = await supabase.auth.getUser()
-    const uid = me?.user?.id
-    if (!uid) return NextResponse.json({ success: false, code: 'NOT_AUTHENTICATED' }, { status: 401 })
-    
-    const { data: roleRow }: any = await supabase.from('users').select('role').eq('id', uid).maybeSingle()
+    // ✅ CRITICAL FIX: Use getUser() instead of getSession()
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !authUser) {
+      return NextResponse.json({ 
+        success: false, 
+        code: 'NOT_AUTHENTICATED',
+        message: 'User not authenticated' 
+      }, { status: 401 })
+    }
+
+    const { data: roleRow } = await supabaseAdmin
+      .from('users')
+      .select('role')
+      .eq('id', authUser.id)
+      .maybeSingle()
+
     if (!roleRow || roleRow.role !== 'admin') {
-      return NextResponse.json({ success: false, code: 'FORBIDDEN' }, { status: 403 })
+      return NextResponse.json({ 
+        success: false, 
+        code: 'FORBIDDEN',
+        message: 'Admin access required' 
+      }, { status: 403 })
     }
 
     if (action === 'deactivate') {
-      // Update user status to inactive
       const { error } = await supabaseAdmin
         .from('users')
         .update({ status: 'inactive' })
         .eq('id', userId)
-      
+
       if (error) throw error
-      
-      // Log the action in system_logs
+
       await supabaseAdmin.from('system_logs').insert({
         action: 'USER_DEACTIVATED',
-        details: `User ${userId} deactivated by admin ${uid}`,
-        user_id: uid
+        details: `User ${userId} deactivated by admin ${authUser.id}`,
+        user_id: authUser.id
       })
-      
+
       return NextResponse.json({ success: true, message: 'User deactivated successfully' })
-    } else if (action === 'activate') {
-      // Update user status to active
+    } 
+    else if (action === 'activate') {
       const { error } = await supabaseAdmin
         .from('users')
         .update({ status: 'active' })
         .eq('id', userId)
-      
+
       if (error) throw error
-      
-      // Log the action in system_logs
+
       await supabaseAdmin.from('system_logs').insert({
         action: 'USER_ACTIVATED',
-        details: `User ${userId} activated by admin ${uid}`,
-        user_id: uid
+        details: `User ${userId} activated by admin ${authUser.id}`,
+        user_id: authUser.id
       })
-      
+
       return NextResponse.json({ success: true, message: 'User activated successfully' })
-    } else {
-      return NextResponse.json({ success: false, message: 'Invalid action' }, { status: 400 })
+    } 
+    else {
+      return NextResponse.json({ 
+        success: false, 
+        message: 'Invalid action' 
+      }, { status: 400 })
     }
+
   } catch (e: any) {
     console.error('Error updating user status:', e)
     return NextResponse.json({ 
@@ -303,23 +306,37 @@ export async function PUT(request: Request) {
   }
 }
 
-export async function DELETE(request: Request) {
+export async function DELETE(request: NextRequest) {
   try {
-    const supabase = await getServerSupabase()
+    const supabase = await getAuthClient()
     const body = await request.json()
     const { userId } = body
 
-    // Verify requester is admin
-    const { data: me } = await supabase.auth.getUser()
-    const uid = me?.user?.id
-    if (!uid) return NextResponse.json({ success: false, code: 'NOT_AUTHENTICATED' }, { status: 401 })
-    
-    const { data: roleRow }: any = await supabase.from('users').select('role').eq('id', uid).maybeSingle()
-    if (!roleRow || roleRow.role !== 'admin') {
-      return NextResponse.json({ success: false, code: 'FORBIDDEN' }, { status: 403 })
+    // ✅ CRITICAL FIX: Use getUser() instead of getSession()
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !authUser) {
+      return NextResponse.json({ 
+        success: false, 
+        code: 'NOT_AUTHENTICATED',
+        message: 'User not authenticated' 
+      }, { status: 401 })
     }
 
-    // Instead of deleting the user, we'll deactivate them
+    const { data: roleRow } = await supabaseAdmin
+      .from('users')
+      .select('role')
+      .eq('id', authUser.id)
+      .maybeSingle()
+
+    if (!roleRow || roleRow.role !== 'admin') {
+      return NextResponse.json({ 
+        success: false, 
+        code: 'FORBIDDEN',
+        message: 'Admin access required' 
+      }, { status: 403 })
+    }
+
     const { error: updateError } = await supabaseAdmin
       .from('users')
       .update({ 
@@ -331,10 +348,9 @@ export async function DELETE(request: Request) {
         last_name: '[USER]'
       })
       .eq('id', userId)
-    
+
     if (updateError) throw updateError
 
-    // Anonymize incidents reported by this user
     await supabaseAdmin
       .from('incidents')
       .update({ 
@@ -343,14 +359,17 @@ export async function DELETE(request: Request) {
       })
       .eq('reporter_id', userId)
 
-    // Log the action in system_logs
     await supabaseAdmin.from('system_logs').insert({
       action: 'USER_SOFT_DELETED',
-      details: `User ${userId} soft deleted by admin ${uid}`,
-      user_id: uid
+      details: `User ${userId} soft deleted by admin ${authUser.id}`,
+      user_id: authUser.id
     })
 
-    return NextResponse.json({ success: true, message: 'User deactivated and data anonymized successfully' })
+    return NextResponse.json({ 
+      success: true, 
+      message: 'User deactivated and data anonymized successfully' 
+    })
+
   } catch (e: any) {
     console.error('Error deleting user:', e)
     return NextResponse.json({ 

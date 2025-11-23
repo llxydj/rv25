@@ -1,4 +1,6 @@
-import { createClient } from "@supabase/supabase-js"
+'use client'
+
+import { createBrowserClient } from '@supabase/ssr'
 import type { Database } from "@/types/supabase"
 
 // Get environment variables
@@ -15,13 +17,9 @@ if (!supabaseAnonKey) {
 }
 
 // Create and export the Supabase client
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true
-  }
-})
+// IMPORTANT: Using createBrowserClient from @supabase/ssr stores session in COOKIES
+// This allows the server (middleware, API routes) to read the auth session
+export const supabase = createBrowserClient<Database>(supabaseUrl, supabaseAnonKey)
 
 // Helper function to convert text to uppercase
 export const toUpperCase = (text: string): string => {

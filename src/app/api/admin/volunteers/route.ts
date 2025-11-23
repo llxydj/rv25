@@ -1,224 +1,176 @@
+// File: src/app/api/admin/volunteers/route.ts
 import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
-import { z } from 'zod'
-import { getServerSupabase } from '@/lib/supabase-server'
+import { NextRequest, NextResponse } from 'next/server'
 
-// Initialize admin client in server context
+// Create Supabase admin client (server-side with service role key)
 const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 )
 
-export async function POST(request: Request) {
+/**
+ * GET: Fetch all volunteers with their volunteer profiles
+ */
+export async function GET(request: NextRequest) {
   try {
-    const body = await request.json()
-    const Schema = z.object({
-      adminId: z.string().uuid(),
-      email: z.string().email(),
-      password: z.string().min(6),
-      firstName: z.string().trim().min(1),
-      lastName: z.string().trim().min(1),
-      phone: z.string().optional().nullable(),
-      address: z.string().optional().nullable(),
-      barangay: z.string().optional().nullable(),
-    })
-    const parsed = Schema.safeParse(body)
-    if (!parsed.success) {
-      return NextResponse.json({ success: false, code: 'VALIDATION_ERROR', issues: parsed.error.flatten() }, { status: 400 })
-    }
-    const { adminId, email, password, firstName, lastName, phone, address, barangay } = parsed.data
-
-    const toSentenceCase = (s?: string | null) => {
-      try { const lower = (s || '').toLowerCase(); return lower.replace(/(^\w|[\.\!\?]\s+\w)/g, (c) => c.toUpperCase()) } catch { return s || null }
-    }
-
-    // Check if admin
-    const { data: adminData, error: adminError } = await supabaseAdmin
-      .from("users")
-      .select("role")
-      .eq("id", adminId)
-      .single()
-
-    if (adminError) {
-      return NextResponse.json({ success: false, message: "Error verifying admin status" }, { status: 401 })
-    }
-
-    if (adminData.role !== "admin") {
-      return NextResponse.json({ success: false, message: "Only admins can create volunteer accounts" }, { status: 403 })
-    }
-
-    // Idempotent behavior: if a user with this email already exists, reuse it
-    // 1) Try to find existing users row
-    const { data: existingUserRow } = await supabaseAdmin
+    const { data: volunteers, error } = await supabaseAdmin
       .from('users')
-      .select('id, role')
-      .ilike('email', email)
-      .maybeSingle()
+      .select(`
+        *,
+        volunteer_profiles!volunteer_profiles_volunteer_user_id_fkey(*)
+      `)
+      .eq('role', 'volunteer')
+      .order('created_at', { ascending: false })
 
-    let userId = existingUserRow?.id as string | undefined
-
-    // 2) If no users row, try to create auth user; if already exists in auth, locate it and then create users row
-    if (!userId) {
-      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
-        user_metadata: { role: 'volunteer', created_by: adminId, created_at: new Date().toISOString() },
-      })
-
-      if (authError) {
-        // If email already registered, find the auth user via listUsers and reuse
-        if (authError.message?.toLowerCase?.().includes('already') || authError.status === 422) {
-          try {
-            const { data: list } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 })
-            const found = list?.users?.find(u => u.email?.toLowerCase() === email.toLowerCase())
-            if (!found) return NextResponse.json({ success: false, message: 'User already exists but could not be looked up.' }, { status: 400 })
-            userId = found.id
-          } catch (e: any) {
-            return NextResponse.json({ success: false, message: 'User already exists and lookup failed' }, { status: 400 })
-          }
-        } else {
-          return NextResponse.json({ success: false, message: authError.message }, { status: 400 })
-        }
-      } else {
-        if (!authData?.user) return NextResponse.json({ success: false, message: 'Failed to create user account' }, { status: 400 })
-        userId = authData.user.id
-        // Ensure app_metadata.role
-        try { await supabaseAdmin.auth.admin.updateUserById(userId, { app_metadata: { role: 'volunteer' } }) } catch {}
-      }
+    if (error) {
+      console.error('Error fetching volunteers:', error)
+      return NextResponse.json(
+        { success: false, message: error.message },
+        { status: 400 }
+      )
     }
 
-    // Upsert users row with volunteer role
-    const payload = {
-      id: userId!,
-      email,
-      first_name: toSentenceCase(firstName),
-      last_name: toSentenceCase(lastName),
-      role: 'volunteer',
-      phone_number: phone || null,
-      address: toSentenceCase(address || undefined),
-      barangay: toSentenceCase(barangay || undefined),
-      city: 'Talisay City',
-      province: 'Negros Occidental',
-      updated_at: new Date().toISOString(),
-    } as any
-
-    const { data: userData, error: userError } = await supabaseAdmin
-      .from('users')
-      .upsert(payload, { onConflict: 'id' })
-      .select()
-      .single()
-    if (userError) return NextResponse.json({ success: false, message: userError.message }, { status: 400 })
-
-    // Ensure volunteer_profiles exists
-    const { data: existingProfile } = await supabaseAdmin
-      .from('volunteer_profiles')
-      .select('volunteer_user_id')
-      .eq('volunteer_user_id', userId!)
-      .maybeSingle()
-    if (!existingProfile) {
-      const now = new Date().toISOString()
-      const { error: profErr } = await supabaseAdmin
-        .from('volunteer_profiles')
-        .insert({
-          volunteer_user_id: userId!,
-          admin_user_id: adminId,
-          status: 'INACTIVE',
-          is_available: false,
-          skills: [],
-          availability: [],
-          assigned_barangays: [],
-          total_incidents_resolved: 0,
-          created_at: now,
-          updated_at: now,
-          last_status_change: now,
-          last_status_changed_by: adminId,
-        })
-      if (profErr) {
-        // Not fatal for return, but report
-        console.warn('Failed to create volunteer_profiles:', profErr.message)
-      }
-    }
-
-    return NextResponse.json({ success: true, data: userData, message: 'Volunteer ensured with profile' })
-  } catch (error: any) {
-    console.error("Error creating volunteer:", error)
     return NextResponse.json(
-      { success: false, message: error.message || "An unexpected error occurred" },
+      { success: true, data: volunteers || [] },
+      { status: 200 }
+    )
+  } catch (error: any) {
+    console.error('Unexpected error in GET volunteers:', error)
+    return NextResponse.json(
+      { success: false, message: error.message || 'Internal server error' },
       { status: 500 }
     )
   }
 }
 
-export async function GET(request: Request) {
+/**
+ * POST: Create a new volunteer (auth user + profile + volunteer profile)
+ */
+export async function POST(request: NextRequest) {
   try {
-    const supabase = await getServerSupabase()
+    const body = await request.json()
+    const {
+      firstName,
+      lastName,
+      email,
+      phone,
+      address,
+      barangay,
+      password,
+      skills,
+      status,
+    } = body
 
-    // Verify requester is admin (via RLS-bound client)
-    const { data: me } = await supabase.auth.getUser()
-    const uid = me?.user?.id
-    if (!uid) return NextResponse.json({ success: false, code: 'NOT_AUTHENTICATED' }, { status: 401 })
-    const { data: roleRow } = await supabase.from('users').select('role').eq('id', uid).maybeSingle()
-    if (!roleRow || roleRow.role !== 'admin') {
-      return NextResponse.json({ success: false, code: 'FORBIDDEN' }, { status: 403 })
+    // Validation
+    if (!firstName || !lastName || !email || !password) {
+      return NextResponse.json(
+        { message: 'Missing required fields' },
+        { status: 400 }
+      )
     }
 
-    // Use service role client for data fetch to avoid RLS gaps
-    const { data: volunteers, error: usersError } = await supabaseAdmin
-      .from('users')
-      .select('*')
-      .eq('role', 'volunteer')
-
-    if (usersError) throw usersError
-
-    const ids = (volunteers || []).map(v => v.id)
-    let profiles: any[] = []
-    if (ids.length) {
-      const { data: profs, error: profErr } = await supabaseAdmin
-        .from('volunteer_profiles')
-        .select('*')
-        .in('volunteer_user_id', ids)
-      if (profErr) throw profErr
-      profiles = profs || []
+    if (password.length < 8) {
+      return NextResponse.json(
+        { message: 'Password must be at least 8 characters' },
+        { status: 400 }
+      )
     }
 
-    const merged = (volunteers || []).map(u => {
-      const p = profiles.find(pr => pr.volunteer_user_id === u.id) || null
-      return {
-        ...u,
-        role: 'volunteer',
-        volunteer_profiles: p ? {
-          ...p,
-          is_available: p.is_available === true || p.is_available === 'true',
-          skills: Array.isArray(p.skills) ? p.skills : [],
-          availability: Array.isArray(p.availability) ? p.availability : [],
-          assigned_barangays: Array.isArray(p.assigned_barangays) ? p.assigned_barangays : [],
-        } : null,
+    // ✅ CREATE AUTH USER (server-side admin method)
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser(
+      {
+        email,
+        password,
+        email_confirm: true, // Auto-confirm email
       }
-    })
+    )
 
-    const url = new URL(request.url)
-    const debug = url.searchParams.get('debug') === '1'
-    if (debug) {
-      return NextResponse.json({
-        success: true,
-        data: merged,
-        meta: {
-          requester_role: roleRow?.role || null,
-          volunteers_count: volunteers?.length || 0,
-          profiles_count: profiles?.length || 0,
-        }
-      })
+    if (authError) {
+      console.error('Auth error:', authError)
+      return NextResponse.json(
+        { message: authError.message || 'Failed to create user' },
+        { status: 400 }
+      )
     }
 
-    return NextResponse.json({ success: true, data: merged })
-  } catch (e: any) {
-    return NextResponse.json({ success: false, code: 'INTERNAL_ERROR', message: e?.message || 'Failed to fetch volunteers' }, { status: 500 })
+    if (!authData.user) {
+      return NextResponse.json(
+        { message: 'Failed to create user account' },
+        { status: 400 }
+      )
+    }
+
+    const userId = authData.user.id
+
+    // ✅ CREATE USER PROFILE
+    const { error: profileError } = await supabaseAdmin
+      .from('users')
+      .insert({
+        id: userId,
+        email,
+        first_name: firstName,
+        last_name: lastName,
+        phone_number: phone,
+        address,
+        barangay,
+        role: 'volunteer',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+
+    if (profileError) {
+      console.error('Profile error:', profileError)
+      // Cleanup: delete auth user if profile creation fails
+      await supabaseAdmin.auth.admin.deleteUser(userId)
+      return NextResponse.json(
+        { message: 'Failed to create profile' },
+        { status: 400 }
+      )
+    }
+
+    // ✅ CREATE VOLUNTEER PROFILE
+    const { error: volunteerError } = await supabaseAdmin
+      .from('volunteer_profiles')
+      .insert({
+        volunteer_user_id: userId,
+        status: status || 'ACTIVE',
+        skills: skills || [],
+        assigned_barangays: barangay ? [barangay] : [],
+        total_incidents_resolved: 0,
+        last_active: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        last_status_change: new Date().toISOString(),
+      })
+
+    if (volunteerError) {
+      console.error('Volunteer profile error:', volunteerError)
+      // Cleanup on failure
+      await supabaseAdmin.from('users').delete().eq('id', userId)
+      await supabaseAdmin.auth.admin.deleteUser(userId)
+      return NextResponse.json(
+        { message: 'Failed to create volunteer profile' },
+        { status: 400 }
+      )
+    }
+
+    return NextResponse.json(
+      {
+        message: 'Volunteer created successfully',
+        data: {
+          id: userId,
+          email,
+          firstName,
+          lastName,
+        },
+      },
+      { status: 201 }
+    )
+  } catch (error: any) {
+    console.error('Unexpected error:', error)
+    return NextResponse.json(
+      { message: error.message || 'Internal server error' },
+      { status: 500 }
+    )
   }
 }

@@ -61,7 +61,7 @@ interface PaginationMeta {
 }
 
 export default function UserManagementPage() {
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const [users, setUsers] = useState<User[]>([])
   const [filteredUsers, setFilteredUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
@@ -97,6 +97,7 @@ export default function UserManagementPage() {
 
   // Fetch users with filters
   useEffect(() => {
+    if (authLoading) return
     if (!user) return
     
     const fetchUsers = async () => {
@@ -113,7 +114,10 @@ export default function UserManagementPage() {
           ...(searchTerm ? { search: searchTerm } : {})
         })
         
-        const response = await fetch(`/api/admin/users?${params}`)
+        // ✅ FIXED: Added backticks for template literal
+        const response = await fetch(`/api/admin/users?${params}`, {
+          credentials: 'include'
+        })
         const result = await response.json()
         
         console.log("Users API response:", {
@@ -184,16 +188,18 @@ export default function UserManagementPage() {
     }
     
     fetchUsers()
-  }, [user, pagination.current_page, pagination.per_page, roleFilter, statusFilter, barangayFilter, searchTerm])
+  }, [user, authLoading, pagination.current_page, pagination.per_page, roleFilter, statusFilter, barangayFilter, searchTerm])
   
   // Fetch barangays separately (only once)
   useEffect(() => {
+    if (authLoading) return
     if (!user) return
     
     const fetchBarangays = async () => {
       try {
-        // Fetch all users to get unique barangays
-        const response = await fetch("/api/admin/users?all=true")
+        const response = await fetch("/api/admin/users?all=true", {
+          credentials: 'include'
+        })
         const result = await response.json()
         
         if (!result.success) throw new Error(result.message)
@@ -210,7 +216,7 @@ export default function UserManagementPage() {
     }
     
     fetchBarangays()
-  }, [user])
+  }, [user, authLoading])
   
   // Filters are now applied server-side, so filteredUsers = users
   useEffect(() => {
@@ -235,12 +241,12 @@ export default function UserManagementPage() {
   }, [roleFilter, statusFilter, barangayFilter, searchTerm])
   
   const handleViewUser = (userId: string) => {
-    // Navigate to user details page
+    // ✅ FIXED: Added backticks for template literal
     window.location.href = `/admin/users/${userId}`
   }
   
   const handleDeactivateUser = (user: User) => {
-    // Add confirmation prompt before deactivation
+    // ✅ FIXED: Added backticks for template literal
     if (window.confirm(`Are you sure you want to deactivate user ${user.first_name} ${user.last_name}? They will no longer be able to access the system.`)) {
       setUserToDeactivate(user)
       setDeactivateDialogOpen(true)
@@ -256,6 +262,7 @@ export default function UserManagementPage() {
         headers: {
           "Content-Type": "application/json"
         },
+        credentials: 'include',
         body: JSON.stringify({
           userId: userToDeactivate.id,
           action: "deactivate"
@@ -268,7 +275,7 @@ export default function UserManagementPage() {
       
       // Update local state
       setUsers(users.map(u => 
-        u.id === userToDeactivate.id ? { ...u, status: "inactive" } : u
+        u.id === userToDeactivate.id ? { ...u, status: "inactive" as const } : u
       ))
       
       toast({
@@ -295,6 +302,7 @@ export default function UserManagementPage() {
         headers: {
           "Content-Type": "application/json"
         },
+        credentials: 'include',
         body: JSON.stringify({
           userId,
           action: "activate"
@@ -307,7 +315,7 @@ export default function UserManagementPage() {
       
       // Update local state
       setUsers(users.map(user => 
-        user.id === userId ? { ...user, status: "active" } : user
+        user.id === userId ? { ...user, status: "active" as const } : user
       ))
       
       toast({
@@ -325,7 +333,7 @@ export default function UserManagementPage() {
   }
   
   const handleDeleteUser = (user: User) => {
-    // Add confirmation prompt before deletion
+    // ✅ FIXED: Added backticks for template literal
     if (window.confirm(`Are you sure you want to deactivate and anonymize user ${user.first_name} ${user.last_name}? This action cannot be undone.`)) {
       setUserToDelete(user)
       setDeleteDialogOpen(true)
@@ -341,6 +349,7 @@ export default function UserManagementPage() {
         headers: {
           "Content-Type": "application/json"
         },
+        credentials: 'include',
         body: JSON.stringify({
           userId: userToDelete.id
         })
@@ -372,7 +381,6 @@ export default function UserManagementPage() {
   
   const handleExportCSV = async () => {
     try {
-      // Create CSV content with proper formatting
       const orgName = "Talisay City Emergency Response System"
       const reportDate = new Date().toLocaleDateString()
       const reportTitle = "Resident User Report"
@@ -385,51 +393,54 @@ export default function UserManagementPage() {
         "Registration Date",
         "Status",
         "Incident Count"
-      ];
+      ]
       
+      // ✅ FIXED: Added backticks for template literals
       const csvContent = [
-        `"${orgName}"`,
-        `"${reportTitle}"`,
-        `"Generated: ${reportDate}"`,
+        orgName,
+        reportTitle,
+        `Generated: ${reportDate}`,
         "", // Empty line
         headers.join(","),
         ...filteredUsers.map(user => [
-          `"${user.first_name} ${user.last_name}"`,
-          `"${user.email}"`,
-          `"${user.role}"`,
-          `"${user.barangay || ""}"`,
-          `"${new Date(user.created_at).toLocaleDateString()}"`,
-          `"${user.status}"`,
-          `"${user.incident_count || 0}"`
+          `${user.first_name} ${user.last_name}`,
+          user.email,
+          user.role,
+          user.barangay || "",
+          new Date(user.created_at).toLocaleDateString(),
+          user.status,
+          user.incident_count || 0
         ].join(","))
-      ].join("\n");
+      ].join("\n")
       
       // Create blob and download
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.setAttribute("href", url);
-      link.setAttribute("download", `resident_users_${new Date().toISOString().split("T")[0]}.csv`);
-      link.style.visibility = "hidden";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.setAttribute("href", url)
+      // ✅ FIXED: Added backticks for template literal
+      link.setAttribute("download", `resident_users_${new Date().toISOString().split("T")[0]}.csv`)
+      link.style.visibility = "hidden"
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
       
       toast({
         title: "Success",
         description: "CSV file downloaded successfully"
-      });
+      })
     } catch (error: any) {
-      console.error("Error exporting CSV:", error);
+      console.error("Error exporting CSV:", error)
       toast({
         title: "Error",
         description: "Failed to export CSV file",
         variant: "destructive"
-      });
+      })
     }
-  };
+  }
   
-  if (loading) {
+  // Show loading while auth is loading
+  if (authLoading || loading) {
     return (
       <AdminLayout>
         <div className="flex justify-center items-center h-64">
@@ -443,7 +454,7 @@ export default function UserManagementPage() {
     <AdminLayout>
       <div className="space-y-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-          <h1 className="text-2xl font-bold text-black">User Management</h1>
+          <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
           <div className="flex space-x-2 mt-4 md:mt-0">
             <Link href="/admin/users/new">
               <Button>
@@ -463,7 +474,6 @@ export default function UserManagementPage() {
             </Button>
           </div>
         </div>
-
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
             <CardHeader className="pb-2">

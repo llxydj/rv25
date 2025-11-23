@@ -1,10 +1,22 @@
+// @/components/layout/admin-layout.tsx
 "use client"
 
 import type React from "react"
 import { useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { AlertTriangle, User, Users, X } from "lucide-react"
+import {
+  AlertTriangle,
+  User,
+  Users,
+  X,
+  Menu,
+  LayoutDashboard,
+  FileText,
+  Calendar,
+  Settings,
+  LogOut,
+} from "lucide-react"
 import { signOut } from "@/lib/auth"
 import { AuthLayout } from "./auth-layout"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
@@ -30,38 +42,56 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     }
   }
 
+  // ✅ FIX: Added parentheses around template literal
   const isActive = (path: string) => {
     if (!pathname) return false
     return pathname === path || pathname.startsWith(`${path}/`)
   }
 
+  const navItems = [
+    { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/admin/incidents", label: "Incidents", icon: AlertTriangle },
+    { href: "/admin/volunteers", label: "Volunteers", icon: User },
+    { href: "/admin/users", label: "User Management", icon: Users },
+    { href: "/admin/schedules", label: "Schedules", icon: Calendar },
+    { href: "/admin/reports", label: "Reports", icon: FileText },
+    { href: "/admin/settings", label: "Settings", icon: Settings },
+  ]
+
   return (
     <AuthLayout allowedRoles={["admin"]}>
-      <div className="flex h-screen bg-background">
+      <div className="flex h-screen bg-gray-100 dark:bg-gray-900">
         {/* Skip link for keyboard users */}
-        <a href="#main-content" className="skip-link">Skip to content</a>
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-white focus:text-blue-600 focus:rounded-md"
+        >
+          Skip to content
+        </a>
+
         {/* Mobile sidebar backdrop */}
         {sidebarOpen && (
           <div
-            className="fixed inset-0 z-20 bg-black bg-opacity-50 lg:hidden"
+            className="fixed inset-0 z-20 bg-black/50 lg:hidden"
             onClick={() => setSidebarOpen(false)}
-          ></div>
+            aria-hidden="true"
+          />
         )}
 
         {/* Sidebar */}
         <aside
-          className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-sidebar text-sidebar-foreground transition duration-300 ease-in-out lg:static lg:translate-x-0 ${
+          className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-blue-800 dark:bg-gray-800 text-white transition duration-300 ease-in-out lg:static lg:translate-x-0 ${
             sidebarOpen ? "translate-x-0" : "-translate-x-full"
           }`}
           aria-label="Admin sidebar"
         >
-          <div className="flex items-center justify-between p-4 border-b border-blue-700">
+          <div className="flex items-center justify-between p-4 border-b border-blue-700 dark:border-gray-700">
             <div className="flex items-center space-x-2">
               <AlertTriangle className="h-6 w-6" />
               <span className="text-xl font-bold">RVOIS Admin</span>
             </div>
             <button
-              className="p-1 rounded-md lg:hidden hover:bg-sidebar-accent"
+              className="p-1 rounded-md lg:hidden hover:bg-blue-700 dark:hover:bg-gray-700"
               onClick={() => setSidebarOpen(false)}
               aria-label="Close sidebar"
               aria-expanded={sidebarOpen}
@@ -71,87 +101,35 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
           </div>
 
           <nav className="p-4 space-y-1">
-            <Link
-              href="/admin/dashboard"
-              className={`flex items-center space-x-2 p-2 rounded-md ${
-                isActive("/admin/dashboard") ? "bg-sidebar-primary text-sidebar-primary-foreground" : "hover:bg-sidebar-accent"
-              }`}
-            >
-              <AlertTriangle className="h-5 w-5" />
-              <span>Dashboard</span>
-            </Link>
-
-            <Link
-              href="/admin/incidents"
-              className={`flex items-center space-x-2 p-2 rounded-md ${
-                isActive("/admin/incidents") ? "bg-blue-700 text-white" : "hover:bg-blue-700"
-              }`}
-            >
-              <AlertTriangle className="h-5 w-5" />
-              <span>Incidents</span>
-            </Link>
-
-            <Link
-              href="/admin/volunteers"
-              className={`flex items-center space-x-2 p-2 rounded-md ${
-                isActive("/admin/volunteers") ? "bg-blue-700 text-white" : "hover:bg-blue-700"
-              }`}
-            >
-              <User className="h-5 w-5" />
-              <span>Volunteers</span>
-            </Link>
-
-            <Link
-              href="/admin/users"
-              className={`flex items-center space-x-2 p-2 rounded-md ${
-                isActive("/admin/users") ? "bg-blue-700 text-white" : "hover:bg-blue-700"
-              }`}
-            >
-              <Users className="h-5 w-5" />
-              <span>User Management</span>
-            </Link>
-
-            <Link
-              href="/admin/schedules"
-              className={`flex items-center space-x-2 p-2 rounded-md ${
-                isActive("/admin/schedules") ? "bg-blue-700 text-white" : "hover:bg-blue-700"
-              }`}
-            >
-              <AlertTriangle className="h-5 w-5" />
-              <span>Schedules</span>
-            </Link>
-
-            <Link
-              href="/admin/reports"
-              className={`flex items-center space-x-2 p-2 rounded-md ${
-                isActive("/admin/reports") ? "bg-blue-700 text-white" : "hover:bg-blue-700"
-              }`}
-            >
-              <AlertTriangle className="h-5 w-5" />
-              <span>Reports</span>
-            </Link>
-
-            <Link
-              href="/admin/settings"
-              className={`flex items-center space-x-2 p-2 rounded-md ${
-                isActive("/admin/settings") ? "bg-blue-700 text-white" : "hover:bg-blue-700"
-              }`}
-            >
-              <AlertTriangle className="h-5 w-5" />
-              <span>Settings</span>
-            </Link>
+            {navItems.map((item) => {
+              const Icon = item.icon
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex items-center space-x-2 p-2 rounded-md transition-colors ${
+                    isActive(item.href)
+                      ? "bg-blue-700 dark:bg-blue-600 text-white"
+                      : "hover:bg-blue-700 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  <Icon className="h-5 w-5" />
+                  <span>{item.label}</span>
+                </Link>
+              )
+            })}
 
             <button
               onClick={handleSignOut}
               disabled={loading}
-              className="flex items-center space-x-2 p-2 rounded-md w-full text-left hover:bg-sidebar-accent disabled:opacity-50"
+              className="flex items-center space-x-2 p-2 rounded-md w-full text-left hover:bg-blue-700 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors"
               aria-label="Sign out"
             >
               {loading ? (
                 <LoadingSpinner size="sm" color="text-white" />
               ) : (
                 <>
-                  <AlertTriangle className="h-5 w-5" />
+                  <LogOut className="h-5 w-5" />
                   <span>Sign Out</span>
                 </>
               )}
@@ -162,31 +140,43 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
         {/* Main content */}
         <div className="flex flex-col flex-1 overflow-hidden">
           {/* Top navbar */}
-          <header className="bg-card shadow-sm z-10">
+          <header className="bg-white dark:bg-gray-800 shadow-sm z-10 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between p-4">
-              <button className="p-1 rounded-md lg:hidden hover:bg-muted" onClick={() => setSidebarOpen(true)}>
-                <X className="h-6 w-6 text-foreground" />
+              <button
+                className="p-2 rounded-md lg:hidden hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+                onClick={() => setSidebarOpen(true)}
+                aria-label="Open sidebar"
+              >
+                <Menu className="h-6 w-6" />
               </button>
 
               <div className="flex items-center space-x-4">
-                <SystemClock className="hidden md:block" />
+                <SystemClock className="hidden md:block text-gray-600 dark:text-gray-300" />
+
                 <div className="relative">
-                  <AlertTriangle className="h-6 w-6 text-muted-foreground cursor-pointer hover:text-foreground" />
-                  <span className="absolute top-0 right-0 h-2 w-2 rounded-full bg-red-500"></span>
+                  <AlertTriangle className="h-6 w-6 text-gray-500 dark:text-gray-400 cursor-pointer hover:text-gray-700 dark:hover:text-gray-200" />
+                  <span className="absolute top-0 right-0 h-2 w-2 rounded-full bg-red-500" />
                 </div>
 
                 <div className="flex items-center space-x-2">
                   <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold">
                     A
                   </div>
-                  <span className="hidden md:inline-block font-medium text-foreground">Admin</span>
+                  <span className="hidden md:inline-block font-medium text-gray-700 dark:text-gray-200">
+                    Admin
+                  </span>
                 </div>
               </div>
             </div>
           </header>
 
           {/* Page content */}
-          <main id="main-content" className="flex-1 overflow-y-auto p-4">{children}</main>
+          <main
+            id="main-content"
+            className="flex-1 overflow-y-auto p-4 bg-gray-100 dark:bg-gray-900"
+          >
+            {children}
+          </main>
         </div>
       </div>
     </AuthLayout>

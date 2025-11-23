@@ -105,6 +105,8 @@ export default function VolunteerAnalyticsPage() {
 
       console.log('Analytics API response:', {
         success: json.success,
+        dataType: typeof json.data,
+        isArray: Array.isArray(json.data),
         dataLength: Array.isArray(json.data) ? json.data.length : json.data ? 1 : 0,
         message: json.message,
         error: json.error
@@ -114,23 +116,36 @@ export default function VolunteerAnalyticsPage() {
         throw new Error(json.message || 'Failed to fetch analytics')
       }
 
-      // Handle response data
-      if (selectedVolunteer === "all") {
-        // Expecting an array of analytics
-        const data = json.data || []
-        setAnalytics(Array.isArray(data) ? data : [])
-      } else {
-        // Expecting a single analytics object
-        if (json.data) {
-          setAnalytics([json.data])
-        } else {
-          setAnalytics([])
+      // CRITICAL FIX: Normalize API response to always be an array
+      let normalizedData: any[] = []
+      
+      if (json.data) {
+        if (Array.isArray(json.data)) {
+          // Already an array (for "all" volunteers)
+          normalizedData = json.data
+        } else if (typeof json.data === 'object') {
+          // Single object (for specific volunteer) - wrap in array
+          normalizedData = [json.data]
         }
       }
+
+      // CRITICAL FIX: Ensure all required fields have default values
+      normalizedData = normalizedData.map(item => ({
+        ...item,
+        total_incidents: item.total_incidents || 0,
+        total_resolved: item.total_resolved || 0,
+        average_response_time_minutes: item.average_response_time_minutes || 0,
+        incidents_by_type: item.incidents_by_type || {},
+        incidents_by_severity: item.incidents_by_severity || {},
+        monthly_trends: Array.isArray(item.monthly_trends) ? item.monthly_trends : []
+      }))
+
+      console.log('Normalized data:', normalizedData)
+      setAnalytics(normalizedData)
     } catch (err: any) {
       console.error('Error fetching analytics:', err)
       setError(err.message || 'Failed to load analytics')
-      setAnalytics([]) // Clear analytics on error
+      setAnalytics([])
     } finally {
       setLoading(false)
     }
@@ -199,31 +214,61 @@ export default function VolunteerAnalyticsPage() {
     )
   }
 
-  const selectedAnalytics = selectedVolunteer === "all" 
-    ? analytics 
-    : analytics.filter(a => a.volunteer_id === selectedVolunteer)
+  // CRITICAL FIX: Use analytics directly (already filtered/normalized)
+  const selectedAnalytics = analytics
 
-  // Prepare chart data
-  const incidentsByTypeData = selectedAnalytics.length > 0 && selectedAnalytics[0].incidents_by_type
-    ? Object.entries(selectedAnalytics[0].incidents_by_type).map(([type, count]) => ({
-        name: type,
-        value: count
-      }))
-    : []
+  // CRITICAL FIX: Aggregate data from ALL selected analytics for charts
+  // This handles both single volunteer and "all volunteers" views
+  const aggregateIncidentsByType = () => {
+    const typeMap: Record<string, number> = {}
+    selectedAnalytics.forEach(item => {
+      Object.entries(item.incidents_by_type || {}).forEach(([type, count]) => {
+        typeMap[type] = (typeMap[type] || 0) + (count as number)
+      })
+    })
+    return Object.entries(typeMap).map(([name, value]) => ({ name, value }))
+  }
 
-  const incidentsBySeverityData = selectedAnalytics.length > 0 && selectedAnalytics[0].incidents_by_severity
-    ? Object.entries(selectedAnalytics[0].incidents_by_severity).map(([severity, count]) => ({
-        name: severity,
-        value: count
-      }))
-    : []
+  const aggregateIncidentsBySeverity = () => {
+    const severityMap: Record<string, number> = {}
+    selectedAnalytics.forEach(item => {
+      Object.entries(item.incidents_by_severity || {}).forEach(([severity, count]) => {
+        severityMap[severity] = (severityMap[severity] || 0) + (count as number)
+      })
+    })
+    return Object.entries(severityMap).map(([name, value]) => ({ name, value }))
+  }
 
-  const monthlyTrendsData = selectedAnalytics.length > 0 && selectedAnalytics[0].monthly_trends
-    ? selectedAnalytics[0].monthly_trends.map((trend: any) => ({
-        month: trend.month,
-        incidents: trend.count
-      }))
-    : []
+  const aggregateMonthlyTrends = () => {
+    const monthMap: Record<string, number> = {}
+    selectedAnalytics.forEach(item => {
+      (item.monthly_trends || []).forEach((trend: any) => {
+        const month = trend.month || trend.name
+        const count = trend.count || trend.incidents || 0
+        monthMap[month] = (monthMap[month] || 0) + count
+      })
+    })
+    return Object.entries(monthMap)
+      .map(([month, incidents]) => ({ month, incidents }))
+      .sort((a, b) => a.month.localeCompare(b.month))
+  }
+
+  // Prepare chart data using aggregation
+  const incidentsByTypeData = aggregateIncidentsByType()
+  const incidentsBySeverityData = aggregateIncidentsBySeverity()
+  const monthlyTrendsData = aggregateMonthlyTrends()
+
+  // CRITICAL FIX: Calculate aggregated totals for summary cards
+  const totalIncidents = selectedAnalytics.reduce((sum, a) => sum + (a.total_incidents || 0), 0)
+  const totalResolved = selectedAnalytics.reduce((sum, a) => sum + (a.total_resolved || 0), 0)
+  
+  // Calculate weighted average response time
+  const totalResponseTime = selectedAnalytics.reduce((sum, a) => {
+    const incidents = a.total_incidents || 0
+    const avgTime = a.average_response_time_minutes || 0
+    return sum + (incidents * avgTime)
+  }, 0)
+  const avgResponseTime = totalIncidents > 0 ? totalResponseTime / totalIncidents : 0
 
   return (
     <AdminLayout>
@@ -310,7 +355,7 @@ export default function VolunteerAnalyticsPage() {
           </CardContent>
         </Card>
 
-        {/* Summary Cards */}
+        {/* Summary Cards - FIXED */}
         {selectedAnalytics.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card>
@@ -319,9 +364,7 @@ export default function VolunteerAnalyticsPage() {
                 <AlertTriangle className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
-                  {selectedAnalytics.reduce((sum, a) => sum + (a.total_incidents || 0), 0)}
-                </div>
+                <div className="text-2xl font-bold">{totalIncidents}</div>
               </CardContent>
             </Card>
             <Card>
@@ -330,9 +373,7 @@ export default function VolunteerAnalyticsPage() {
                 <TrendingUp className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
-                  {selectedAnalytics.reduce((sum, a) => sum + (a.total_resolved || 0), 0)}
-                </div>
+                <div className="text-2xl font-bold">{totalResolved}</div>
               </CardContent>
             </Card>
             <Card>
@@ -342,9 +383,7 @@ export default function VolunteerAnalyticsPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {selectedAnalytics.length > 0 && selectedAnalytics[0].average_response_time_minutes
-                    ? `${Math.round(selectedAnalytics[0].average_response_time_minutes)} min`
-                    : 'N/A'}
+                  {avgResponseTime > 0 ? `${Math.round(avgResponseTime)} min` : 'N/A'}
                 </div>
               </CardContent>
             </Card>
@@ -360,55 +399,59 @@ export default function VolunteerAnalyticsPage() {
           </div>
         )}
 
-        {/* Charts */}
+        {/* Charts - FIXED */}
         {selectedAnalytics.length > 0 && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Incidents by Type */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Incidents by Type</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={incidentsByTypeData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {incidentsByTypeData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
+            {incidentsByTypeData.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Incidents by Type</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={incidentsByTypeData}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {incidentsByTypeData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Incidents by Severity */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Incidents by Severity</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={incidentsBySeverityData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="value" fill="#8884d8" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
+            {incidentsBySeverityData.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Incidents by Severity</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={incidentsBySeverityData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" />
+                      <YAxis />
+                      <Tooltip />
+                      <Legend />
+                      <Bar dataKey="value" fill="#8884d8" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Monthly Trends */}
             {monthlyTrendsData.length > 0 && (

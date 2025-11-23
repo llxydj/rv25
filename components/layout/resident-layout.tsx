@@ -4,7 +4,7 @@ import type React from "react"
 import { useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { AlertTriangle, Phone, User, X } from "lucide-react"
+import { AlertTriangle, Phone, User, X, LogOut } from "lucide-react"
 import { signOut } from "@/lib/auth"
 import { AuthLayout } from "./auth-layout"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
@@ -17,26 +17,41 @@ interface ResidentLayoutProps {
 export const ResidentLayout: React.FC<ResidentLayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [showModal, setShowModal] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
 
-  const handleSignOut = async () => {
-    setLoading(true)
-    const result = await signOut()
-    if (result.success) {
-      router.push("/login")
-    } else {
-      setLoading(false)
-    }
-  }
-
-  const isActive = (path: string) => {
-    return pathname === path
-  }
+  const isActive = (path: string) => pathname === path
 
   const handleEmergencyCall = () => {
-    // This will trigger the device's phone dialer with the emergency number
     window.location.href = "tel:09998064555"
+  }
+
+  const handleSignOut = async () => {
+    setShowModal(false) // close modal
+    setLoading(true)
+
+    // Create abort controller for timeout
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => {
+      controller.abort()
+      setLoading(false)
+      alert("Sign out took too long. Please try again.")
+    }, 8000) // 8s timeout
+
+    try {
+      const result = await signOut({ signal: controller.signal })
+      clearTimeout(timeoutId)
+      if (result.success) {
+        router.push("/login")
+      } else {
+        setLoading(false)
+        alert(result.message || "Failed to sign out.")
+      }
+    } catch (err: any) {
+      setLoading(false)
+      alert(err.message || "Failed to sign out.")
+    }
   }
 
   return (
@@ -116,7 +131,7 @@ export const ResidentLayout: React.FC<ResidentLayoutProps> = ({ children }) => {
             </button>
 
             <button
-              onClick={handleSignOut}
+              onClick={() => setShowModal(true)}
               disabled={loading}
               className="flex items-center space-x-2 p-2 rounded-md w-full text-left hover:bg-red-700 mt-4 disabled:opacity-50"
             >
@@ -124,7 +139,7 @@ export const ResidentLayout: React.FC<ResidentLayoutProps> = ({ children }) => {
                 <LoadingSpinner size="sm" color="text-white" />
               ) : (
                 <>
-                  <AlertTriangle className="h-5 w-5" />
+                  <LogOut className="h-5 w-5" />
                   <span>Sign Out</span>
                 </>
               )}
@@ -164,6 +179,29 @@ export const ResidentLayout: React.FC<ResidentLayoutProps> = ({ children }) => {
           {/* Page content */}
           <main className="flex-1 overflow-y-auto p-4">{children}</main>
         </div>
+
+        {/* Confirmation Modal */}
+        {showModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+            <div className="bg-white rounded-lg p-6 w-80 text-center">
+              <h3 className="text-lg font-semibold mb-4">Are you sure you want to sign out?</h3>
+              <div className="flex justify-between space-x-4">
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="flex-1 px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSignOut}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                >
+                  Sign Out
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </AuthLayout>
   )

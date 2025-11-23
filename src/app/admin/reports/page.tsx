@@ -1,5 +1,4 @@
 "use client"
-
 import { useState, useEffect, useMemo } from "react"
 import { AdminLayout } from "@/components/layout/admin-layout"
 import { Filter, MapPin, FileText, Download, BarChart3, Calendar as CalendarIcon, ChevronDown, ChevronRight, X, Eye, EyeOff, Clock, Archive } from "lucide-react"
@@ -69,6 +68,25 @@ export default function AdminReports() {
   // Archive states
   const [showArchived, setShowArchived] = useState(false)
   const [archivedYears, setArchivedYears] = useState([])
+
+  // Dark mode detection
+  const [darkMode, setDarkMode] = useState(false)
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+      setDarkMode(isDark)
+      const listener = (e: MediaQueryListEvent) => setDarkMode(e.matches)
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+      mediaQuery.addEventListener('change', listener)
+      return () => mediaQuery.removeEventListener('change', listener)
+    }
+  }, [])
+
+  // Chart colors with dark mode support
+  const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8", "#82CA9D"]
+  const COLORS_DARK = ["#60a5fa", "#34d399", "#facc15", "#fb923c", "#a78bfa", "#4ade80"]
+  const chartColors = darkMode ? COLORS_DARK : COLORS
 
   // Fetch schedule configuration
   useEffect(() => {
@@ -214,31 +232,35 @@ export default function AdminReports() {
         setLoading(false)
       }
     }
+
     fetchData()
   }, [reportType, dateRange, dateFrom, dateTo])
 
-  const filterDataByDateRange = (data: any[]) => {
-    let startDate, endDate
-    if (dateFrom && dateTo) {
-      startDate = dateFrom
-      endDate = dateTo
-    } else {
-      const now = new Date()
-      startDate = new Date()
-      if (dateRange === "week") {
-        startDate.setDate(now.getDate() - 7)
-      } else if (dateRange === "month") {
-        startDate.setMonth(now.getMonth() - 1)
-      } else if (dateRange === "year") {
-        startDate.setFullYear(now.getFullYear() - 1)
+  const filterDataByDateRange = useMemo(() => {
+    return (data: any[]) => {
+      let startDate, endDate
+      if (dateFrom && dateTo) {
+        startDate = dateFrom
+        endDate = dateTo
+      } else {
+        const now = new Date()
+        startDate = new Date()
+        if (dateRange === "week") {
+          startDate.setDate(now.getDate() - 7)
+        } else if (dateRange === "month") {
+          startDate.setMonth(now.getMonth() - 1)
+        } else if (dateRange === "year") {
+          startDate.setFullYear(now.getFullYear() - 1)
+        }
+        endDate = now
       }
-      endDate = now
+
+      return data.filter(item => {
+        const createdAt = new Date(item.created_at)
+        return createdAt >= startDate && createdAt <= endDate
+      })
     }
-    return data.filter(item => {
-      const createdAt = new Date(item.created_at)
-      return createdAt >= startDate && createdAt <= endDate
-    })
-  }
+  }, [dateFrom, dateTo, dateRange])
 
   const generateMonthlyIncidentsReport = async () => {
     if (!user?.id) return
@@ -289,19 +311,24 @@ export default function AdminReports() {
           startDate = dateParams.startDate
           endDate = dateParams.endDate
         }
+
         const result = await exportIncidentsToCSV(startDate, endDate)
         if (result.success && result.data) {
           const headers = Object.keys(result.data[0]).join(',')
           const rows = result.data.map(item => Object.values(item).join(','))
           const csvContent = [headers, ...rows].join('\n')
-          const blob = new Blob([csvContent], { type: 'text/csv' })
-          const url = URL.createObjectURL(blob)
-          const link = document.createElement('a')
-          link.href = url
-          link.download = `incidents-report-${new Date().toISOString().split('T')[0]}.csv`
-          document.body.appendChild(link)
-          link.click()
-          document.body.removeChild(link)
+          
+          if (typeof window !== "undefined") {
+            const blob = new Blob([csvContent], { type: 'text/csv' })
+            const url = URL.createObjectURL(blob)
+            const link = document.createElement('a')
+            link.href = url
+            link.download = `incidents-report-${new Date().toISOString().split('T')[0]}.csv`
+            document.body.appendChild(link)
+            link.click()
+            document.body.removeChild(link)
+            URL.revokeObjectURL(url)
+          }
         }
       }
     } catch (err) {
@@ -313,9 +340,13 @@ export default function AdminReports() {
 
   const archiveYearReports = async () => {
     if (!selectedYear) return
-    if (!window.confirm(`Are you sure you want to archive all reports for ${selectedYear}? This action cannot be undone.`)) {
-      return
+    
+    if (typeof window !== "undefined") {
+      if (!window.confirm(`Are you sure you want to archive all reports for ${selectedYear}? This action cannot be undone.`)) {
+        return
+      }
     }
+
     setArchiveLoading(true)
     try {
       const response = await fetch("/api/admin/reports", {
@@ -324,13 +355,16 @@ export default function AdminReports() {
         body: JSON.stringify({ year: selectedYear })
       })
       const result = await response.json()
+      
       if (result.success) {
         const refreshResponse = await fetch(`/api/admin/reports?year=${selectedYear}`)
         const refreshResult = await refreshResponse.json()
         if (refreshResult.success) {
           setYearData(refreshResult.data)
         }
+
         setArchivedYears(prev => [...prev, selectedYear])
+
         await fetch("/api/admin/logs", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -340,25 +374,35 @@ export default function AdminReports() {
             user_id: user?.id
           })
         })
+
         setArchiveDialogOpen(false)
-        alert(`Reports for ${selectedYear} archived successfully`)
+        if (typeof window !== "undefined") {
+          alert(`Reports for ${selectedYear} archived successfully`)
+        }
       } else if (result.code === 'ALREADY_ARCHIVED') {
-        alert(`Reports for ${selectedYear} are already archived`)
+        if (typeof window !== "undefined") {
+          alert(`Reports for ${selectedYear} are already archived`)
+        }
       } else {
         throw new Error(result.message)
       }
     } catch (err: any) {
       console.error("Error archiving reports:", err)
-      alert("Failed to archive reports: " + err.message)
+      if (typeof window !== "undefined") {
+        alert("Failed to archive reports: " + err.message)
+      }
     } finally {
       setArchiveLoading(false)
     }
   }
 
   const autoArchiveReports = async () => {
-    if (!window.confirm(`This will automatically archive reports for years that are ${scheduleConfig?.years_old || 2} or more years old. Continue?`)) {
-      return
+    if (typeof window !== "undefined") {
+      if (!window.confirm(`This will automatically archive reports for years that are ${scheduleConfig?.years_old || 2} or more years old. Continue?`)) {
+        return
+      }
     }
+
     setArchiveLoading(true)
     try {
       const response = await fetch("/api/admin/reports/auto-archive", {
@@ -367,27 +411,36 @@ export default function AdminReports() {
         body: JSON.stringify({})
       })
       const result = await response.json()
-      if (result.success) {
+      
+      if (result.success && typeof window !== "undefined") {
         window.location.reload()
       } else {
         throw new Error(result.message)
       }
     } catch (err: any) {
       console.error("Error auto-archiving reports:", err)
-      alert("Failed to auto-archive reports: " + err.message)
+      if (typeof window !== "undefined") {
+        alert("Failed to auto-archive reports: " + err.message)
+      }
     } finally {
       setArchiveLoading(false)
     }
   }
 
   const scheduleAutoArchive = async () => {
+    if (typeof window === "undefined") return
+
     const frequency = prompt("How often should auto-archiving run?\nOptions: daily, weekly, monthly", scheduleConfig?.schedule_frequency || "daily")
     if (!frequency) return
+
     const time = prompt("What time should auto-archiving run? (24-hour format HH:MM)", scheduleConfig?.schedule_time || "02:00")
     if (!time) return
+
     const yearsOld = prompt("Archive reports older than how many years?", (scheduleConfig?.years_old || 2).toString())
     if (!yearsOld) return
+
     const enabled = window.confirm("Enable auto-archiving schedule?")
+
     try {
       const response = await fetch("/api/admin/reports/auto-archive", {
         method: "PUT",
@@ -400,6 +453,7 @@ export default function AdminReports() {
         })
       })
       const result = await response.json()
+      
       if (result.success) {
         setScheduleConfig(result.data)
         alert(`Auto-archiving schedule updated! Status: ${enabled ? 'Enabled' : 'Disabled'}\nFrequency: ${frequency}\nTime: ${time}\nYears Old: ${yearsOld}`)
@@ -425,9 +479,11 @@ export default function AdminReports() {
           user_id: user?.id
         })
       })
+
       const response = await fetch(`/api/admin/reports?year=${selectedYear}&export=csv`)
       const result = await response.json()
-      if (result.success && result.data) {
+      
+      if (result.success && result.data && typeof window !== "undefined") {
         const blob = new Blob([result.data], { type: 'text/csv' })
         const url = URL.createObjectURL(blob)
         const link = document.createElement('a')
@@ -436,10 +492,13 @@ export default function AdminReports() {
         document.body.appendChild(link)
         link.click()
         document.body.removeChild(link)
+        URL.revokeObjectURL(url)
       }
     } catch (err: any) {
       console.error("Error exporting CSV:", err)
-      alert("Failed to export CSV: " + err.message)
+      if (typeof window !== "undefined") {
+        alert("Failed to export CSV: " + err.message)
+      }
     } finally {
       setExportLoading(false)
     }
@@ -470,29 +529,34 @@ export default function AdminReports() {
     setDateRangeFilter({start: null, end: null})
   }
 
-  const getFilteredYearData = () => {
+  const getFilteredYearData = useMemo(() => {
     if (!yearData) return null
+
     let filteredData = {...yearData}
+
     if (incidentTypeFilter) {
       filteredData.type_breakdown = Object.fromEntries(
         Object.entries(filteredData.type_breakdown).filter(([type]) => type === incidentTypeFilter)
       )
     }
+
     if (barangayFilter) {
       filteredData.barangay_breakdown = Object.fromEntries(
         Object.entries(filteredData.barangay_breakdown).filter(([barangay]) => barangay === barangayFilter)
       )
     }
+
     if (statusFilter) {
       filteredData.status_summary = Object.fromEntries(
         Object.entries(filteredData.status_summary).filter(([status]) => status === statusFilter)
       )
     }
-    return filteredData
-  }
 
-  const filteredYearData = getFilteredYearData()
-  const monthlyBreakdown = filteredYearData?.monthly_breakdown ?? yearData?.monthly_breakdown ?? []
+    return filteredData
+  }, [yearData, incidentTypeFilter, barangayFilter, statusFilter])
+
+  const monthlyBreakdown = getFilteredYearData?.monthly_breakdown ?? yearData?.monthly_breakdown ?? []
+  
   const monthlyBreakdownMap = useMemo(() => {
     const map = new Map()
     monthlyBreakdown?.forEach((entry: any) => {
@@ -502,12 +566,13 @@ export default function AdminReports() {
     return map
   }, [monthlyBreakdown])
 
-  const getReportData = () => {
+  const getReportData = useMemo(() => {
     if (reportType === "incidents") {
       const byStatus = incidentsByStatus.length > 0 ? incidentsByStatus.map(item => [item.status, parseInt(item.count)]) : []
       const byType = incidentsByType.length > 0 ? incidentsByType.map(item => [item.incident_type, parseInt(item.count)]) : []
       const byBarangay = incidentsByBarangay.length > 0 ? incidentsByBarangay.map(item => [item.barangay, parseInt(item.count)]) : []
       const total = byStatus.reduce((sum, [_, count]) => sum + (count as number), 0)
+      
       return { total: total || filterDataByDateRange(incidents).length, byType, byStatus, byBarangay }
     } else if (reportType === "volunteers") {
       const filteredVolunteers = filterDataByDateRange(volunteers)
@@ -516,15 +581,15 @@ export default function AdminReports() {
         acc[status] = (acc[status] || 0) + 1
         return acc
       }, {})
+      
       return { total: filteredVolunteers.length, byStatus: Object.entries(volunteersByStatus) }
     } else {
       const filteredSchedules = filterDataByDateRange(schedules)
       return { total: filteredSchedules.length }
     }
-  }
+  }, [reportType, incidentsByStatus, incidentsByType, incidentsByBarangay, filterDataByDateRange, incidents, volunteers, schedules])
 
-  const reportData = !loading ? getReportData() : null
-  const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8", "#82CA9D"]
+  const reportData = !loading ? getReportData : null
 
   const getMonthsForQuarter = (quarter: string, year: number) => {
     const quarterMap: Record<string, number[]> = {
@@ -534,6 +599,7 @@ export default function AdminReports() {
       'Q4': [9, 10, 11]
     }
     const months = quarterMap[quarter] || []
+    
     return months.map(month => {
       const stats = monthlyBreakdownMap.get(month)
       const startDate = new Date(year, month, 1)
@@ -558,6 +624,7 @@ export default function AdminReports() {
   const setDateRangePreset = (type: "daily" | "weekly" | "monthly" | "custom") => {
     setDateRangeType(type)
     const today = new Date()
+    
     switch (type) {
       case "daily":
         setDateFrom(today)
@@ -582,40 +649,42 @@ export default function AdminReports() {
 
   return (
     <AdminLayout>
-      <div className="space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+      <div className="space-y-6 p-4 md:p-6">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Reports</h1>
-            <p className="text-gray-600 mt-2">Generate and view comprehensive system reports</p>
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-gray-100">Reports</h1>
+            <p className="text-gray-600 dark:text-gray-400 mt-2">Generate and view comprehensive system reports</p>
           </div>
         </div>
 
         <Tabs defaultValue="yearly" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="yearly">Yearly Reports</TabsTrigger>
-            <TabsTrigger value="analytics">Analytics Dashboard</TabsTrigger>
-            <TabsTrigger value="pdf">PDF Reports</TabsTrigger>
-          </TabsList>
+          <div className="overflow-x-auto">
+            <TabsList className="grid w-full grid-cols-3 min-w-[300px]">
+              <TabsTrigger value="yearly">Yearly Reports</TabsTrigger>
+              <TabsTrigger value="analytics">Analytics Dashboard</TabsTrigger>
+              <TabsTrigger value="pdf">PDF Reports</TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="yearly" className="space-y-6">
-            <Card>
+            <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
               <CardHeader>
-                <CardTitle>Year-Based Reports</CardTitle>
-                <CardDescription>View comprehensive reports organized by year</CardDescription>
+                <CardTitle className="text-gray-900 dark:text-gray-100">Year-Based Reports</CardTitle>
+                <CardDescription className="text-gray-600 dark:text-gray-400">View comprehensive reports organized by year</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
-                  <div className="flex-1">
+                  <div className="flex-1 w-full md:w-auto">
                     <Select value={selectedYear?.toString() || ""} onValueChange={(value) => setSelectedYear(parseInt(value))}>
-                      <SelectTrigger disabled={loading}>
+                      <SelectTrigger disabled={loading} className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100">
                         <SelectValue placeholder="Select year" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700">
                         {years.length === 0 ? (
-                          <div className="p-2 text-gray-500">No years available</div>
+                          <div className="p-2 text-gray-500 dark:text-gray-400">No years available</div>
                         ) : (
                           years.map((yearData) => (
-                            <SelectItem key={yearData.year} value={yearData.year.toString()}>
+                            <SelectItem key={yearData.year} value={yearData.year.toString()} className="text-gray-900 dark:text-gray-100">
                               {yearData.year} ({yearData.incident_count || 0} incidents)
                             </SelectItem>
                           ))
@@ -626,7 +695,7 @@ export default function AdminReports() {
                   <Button
                     onClick={() => setShowArchived(!showArchived)}
                     variant="outline"
-                    className="text-gray-700"
+                    className="w-full md:w-auto bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
                   >
                     {showArchived ? (
                       <>
@@ -645,30 +714,31 @@ export default function AdminReports() {
                 {selectedYear && !showArchived && (
                   <Dialog open={archiveDialogOpen} onOpenChange={setArchiveDialogOpen}>
                     <DialogTrigger asChild>
-                      <Button variant="destructive" className="mt-4">
+                      <Button variant="destructive" className="mt-4 w-full md:w-auto">
                         <Archive className="mr-2 h-4 w-4" />
                         Archive Reports
                       </Button>
                     </DialogTrigger>
-                    <DialogContent>
+                    <DialogContent className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
                       <DialogHeader>
-                        <DialogTitle>Archive Reports</DialogTitle>
-                        <DialogDescription>
+                        <DialogTitle className="text-gray-900 dark:text-gray-100">Archive Reports</DialogTitle>
+                        <DialogDescription className="text-gray-600 dark:text-gray-400">
                           Are you sure you want to archive all reports for {selectedYear}?
                         </DialogDescription>
                       </DialogHeader>
                       <div className="space-y-4">
-                        <p className="text-sm text-gray-600">
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
                           Archiving will mark all reports from {selectedYear} as read-only for compliance and performance.
                         </p>
-                        <div className="flex justify-end gap-2">
-                          <Button variant="outline" onClick={() => setArchiveDialogOpen(false)}>
+                        <div className="flex flex-col md:flex-row justify-end gap-2">
+                          <Button variant="outline" onClick={() => setArchiveDialogOpen(false)} className="w-full md:w-auto">
                             Cancel
                           </Button>
                           <Button
                             onClick={archiveYearReports}
                             disabled={archiveLoading}
                             variant="destructive"
+                            className="w-full md:w-auto"
                           >
                             {archiveLoading ? <LoadingSpinner size="sm" /> : "Archive Reports"}
                           </Button>
@@ -679,9 +749,9 @@ export default function AdminReports() {
                 )}
 
                 {archivedYears.length > 0 && (
-                  <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                    <h3 className="font-semibold text-gray-900 mb-2">Archived Reports</h3>
-                    <p className="text-sm text-gray-600 mb-3">Previously archived years with read-only reports</p>
+                  <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                    <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">Archived Reports</h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">Previously archived years with read-only reports</p>
                     <div className="flex flex-wrap gap-2">
                       {archivedYears.map(year => (
                         <Button
@@ -691,6 +761,7 @@ export default function AdminReports() {
                             setSelectedYear(year)
                             setShowArchived(true)
                           }}
+                          className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100"
                         >
                           {year}
                         </Button>
@@ -706,66 +777,70 @@ export default function AdminReports() {
                 <LoadingSpinner size="lg" text="Loading report data..." />
               </div>
             ) : error ? (
-              <Card className="bg-red-50 border-red-200">
+              <Card className="bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800">
                 <CardContent className="pt-6">
-                  <p className="text-sm text-red-700">{error}</p>
+                  <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
                 </CardContent>
               </Card>
             ) : selectedYear && yearData ? (
               <div className="space-y-6">
-                <Card>
+                <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
                   <CardHeader>
-                    <CardTitle>{selectedYear} Report Summary</CardTitle>
-                    {yearData?.archived && <Badge variant="secondary">Archived</Badge>}
-                    <CardDescription>Comprehensive overview of incidents and reports for {selectedYear}</CardDescription>
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                      <CardTitle className="text-gray-900 dark:text-gray-100">{selectedYear} Report Summary</CardTitle>
+                      {yearData?.archived && <Badge variant="secondary" className="w-fit bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-100">Archived</Badge>}
+                    </div>
+                    <CardDescription className="text-gray-600 dark:text-gray-400">Comprehensive overview of incidents and reports for {selectedYear}</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                      <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
-                        <p className="text-sm text-gray-600 dark:text-gray-300">Total Incidents</p>
-                        <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{filteredYearData?.total_incidents || yearData?.total_incidents || 0}</p>
-                      </div>
-                      <div className="p-4 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200 dark:border-green-800">
-                        <p className="text-sm text-gray-600 dark:text-gray-300">Reports Generated</p>
-                        <p className="text-2xl font-bold text-green-600 dark:text-green-400">{filteredYearData?.reports?.length || yearData?.reports?.length || 0}</p>
-                      </div>
-                      <div className="p-4 bg-purple-50 dark:bg-purple-950 rounded-lg border border-purple-200 dark:border-purple-800">
-                        <p className="text-sm text-gray-600 dark:text-gray-300">Busiest Quarter</p>
-                        <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-                          {filteredYearData?.quarters?.reduce((max: any, quarter: any) => quarter.incident_count > max.incident_count ? quarter : max, filteredYearData?.quarters?.[0])?.quarter || yearData?.quarters?.reduce((max: any, quarter: any) => quarter.incident_count > max.incident_count ? quarter : max, yearData?.quarters?.[0])?.quarter || "N/A"}
-                        </p>
-                      </div>
-                      <div className="p-4 bg-orange-50 dark:bg-orange-950 rounded-lg border border-orange-200 dark:border-orange-800">
-                        <p className="text-sm text-gray-600 dark:text-gray-300">Most Common Type</p>
-                        <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">
-                          {Object.entries(filteredYearData?.type_breakdown || yearData?.type_breakdown || {}).sort(([,a], [,b]) => (b as number) - (a as number))[0]?.[0] || "N/A"}
-                        </p>
+                    <div className="overflow-x-auto">
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 min-w-[300px]">
+                        <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+                          <p className="text-sm text-gray-600 dark:text-gray-300">Total Incidents</p>
+                          <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{getFilteredYearData?.total_incidents || yearData?.total_incidents || 0}</p>
+                        </div>
+                        <div className="p-4 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200 dark:border-green-800">
+                          <p className="text-sm text-gray-600 dark:text-gray-300">Reports Generated</p>
+                          <p className="text-2xl font-bold text-green-600 dark:text-green-400">{getFilteredYearData?.reports?.length || yearData?.reports?.length || 0}</p>
+                        </div>
+                        <div className="p-4 bg-purple-50 dark:bg-purple-950 rounded-lg border border-purple-200 dark:border-purple-800">
+                          <p className="text-sm text-gray-600 dark:text-gray-300">Busiest Quarter</p>
+                          <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                            {getFilteredYearData?.quarters?.reduce((max: any, quarter: any) => quarter.incident_count > max.incident_count ? quarter : max, getFilteredYearData?.quarters?.[0])?.quarter || yearData?.quarters?.reduce((max: any, quarter: any) => quarter.incident_count > max.incident_count ? quarter : max, yearData?.quarters?.[0])?.quarter || "N/A"}
+                          </p>
+                        </div>
+                        <div className="p-4 bg-orange-50 dark:bg-orange-950 rounded-lg border border-orange-200 dark:border-orange-800">
+                          <p className="text-sm text-gray-600 dark:text-gray-300">Most Common Type</p>
+                          <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+                            {Object.entries(getFilteredYearData?.type_breakdown || yearData?.type_breakdown || {}).sort(([,a], [,b]) => (b as number) - (a as number))[0]?.[0] || "N/A"}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
 
-                <Card>
+                <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
                   <CardHeader>
-                    <CardTitle>Quarterly Breakdown</CardTitle>
-                    <CardDescription>Incident distribution across quarters for {selectedYear}</CardDescription>
+                    <CardTitle className="text-gray-900 dark:text-gray-100">Quarterly Breakdown</CardTitle>
+                    <CardDescription className="text-gray-600 dark:text-gray-400">Incident distribution across quarters for {selectedYear}</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {(yearData?.quarters || []).map((quarter: any) => (
-                      <div key={quarter.quarter} className="border rounded-lg">
+                      <div key={quarter.quarter} className="border border-gray-200 dark:border-gray-700 rounded-lg">
                         <button
                           onClick={() => toggleQuarter(quarter.quarter)}
-                          className="w-full p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700"
+                          className="w-full p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-colors"
                         >
                           <div className="flex items-center gap-3">
                             {expandedQuarters[quarter.quarter] ? (
-                              <ChevronDown className="h-5 w-5" />
+                              <ChevronDown className="h-5 w-5 text-gray-900 dark:text-gray-100" />
                             ) : (
-                              <ChevronRight className="h-5 w-5" />
+                              <ChevronRight className="h-5 w-5 text-gray-900 dark:text-gray-100" />
                             )}
                             <div className="text-left">
-                              <p className="font-semibold text-gray-900">{quarter.quarter}</p>
-                              <p className="text-sm text-gray-500">
+                              <p className="font-semibold text-gray-900 dark:text-gray-100">{quarter.quarter}</p>
+                              <p className="text-sm text-gray-500 dark:text-gray-400">
                                 {quarter.start && quarter.end ? (
                                   <>
                                     {new Date(quarter.start).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(quarter.end).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
@@ -776,46 +851,48 @@ export default function AdminReports() {
                               </p>
                             </div>
                           </div>
-                          <Badge variant="outline">{quarter.incident_count || 0} incidents</Badge>
+                          <Badge variant="outline" className="bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-100 border-gray-300 dark:border-gray-700">{quarter.incident_count || 0} incidents</Badge>
                         </button>
-
+                        
                         {expandedQuarters[quarter.quarter] && (
-                          <div className="border-t p-4 bg-gray-50">
-                            <h4 className="font-semibold text-gray-900 mb-3">Monthly Breakdown</h4>
+                          <div className="border-t border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-800">
+                            <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Monthly Breakdown</h4>
                             <div className="space-y-2">
                               {getMonthsForQuarter(quarter.quarter, selectedYear).map((monthData) => {
                                 const monthKey = `${quarter.quarter}-${monthData.month}`
                                 const weeklySeries = (monthData.week_counts || []).map((count: number, index: number) => ({ name: `Week ${index + 1}`, incidents: count }))
+                                
                                 return (
-                                  <div key={monthKey} className="bg-white p-3 rounded border border-gray-200">
+                                  <div key={monthKey} className="bg-white dark:bg-gray-900 p-3 rounded border border-gray-200 dark:border-gray-700">
                                     <button
                                       onClick={() => toggleMonth(monthKey)}
-                                      className="w-full flex items-center justify-between hover:bg-gray-50 p-2"
+                                      className="w-full flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800 p-2 rounded transition-colors"
                                     >
                                       <div className="flex items-center gap-2">
                                         {expandedMonths[monthKey] ? (
-                                          <ChevronDown className="h-4 w-4" />
+                                          <ChevronDown className="h-4 w-4 text-gray-900 dark:text-gray-100" />
                                         ) : (
-                                          <ChevronRight className="h-4 w-4" />
+                                          <ChevronRight className="h-4 w-4 text-gray-900 dark:text-gray-100" />
                                         )}
-                                        <span className="text-sm font-medium text-gray-900">{monthData.monthLabel}</span>
+                                        <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{monthData.monthLabel}</span>
                                       </div>
-                                      <span className="text-sm text-gray-600">{monthData.incident_count || 0} incidents</span>
+                                      <span className="text-sm text-gray-600 dark:text-gray-400">{monthData.incident_count || 0} incidents</span>
                                     </button>
+                                    
                                     {expandedMonths[monthKey] && (
-                                      <div className="mt-3 pt-3 border-t">
+                                      <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
                                         {weeklySeries.some(point => point.incidents > 0) ? (
-                                          <ResponsiveContainer width="100%" height={200}>
+                                          <ResponsiveContainer width="100%" height={200} minWidth={300}>
                                             <LineChart data={weeklySeries}>
-                                              <CartesianGrid strokeDasharray="3 3" />
-                                              <XAxis dataKey="name" />
-                                              <YAxis allowDecimals={false} />
-                                              <Tooltip />
-                                              <Line type="monotone" dataKey="incidents" stroke="#2563eb" />
+                                              <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? "#374151" : "#e5e7eb"} />
+                                              <XAxis dataKey="name" stroke={darkMode ? "#9ca3af" : "#6b7280"} />
+                                              <YAxis allowDecimals={false} stroke={darkMode ? "#9ca3af" : "#6b7280"} />
+                                              <Tooltip contentStyle={{ backgroundColor: darkMode ? "#1f2937" : "#ffffff", border: `1px solid ${darkMode ? "#374151" : "#e5e7eb"}`, color: darkMode ? "#f3f4f6" : "#111827" }} />
+                                              <Line type="monotone" dataKey="incidents" stroke={darkMode ? "#60a5fa" : "#2563eb"} strokeWidth={2} />
                                             </LineChart>
                                           </ResponsiveContainer>
                                         ) : (
-                                          <p className="text-sm text-gray-500 text-center py-4">No weekly data for this month</p>
+                                          <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No weekly data for this month</p>
                                         )}
                                       </div>
                                     )}
@@ -831,16 +908,16 @@ export default function AdminReports() {
                 </Card>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Card>
+                  <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
                     <CardHeader>
-                      <CardTitle className="text-base">Incident Types</CardTitle>
+                      <CardTitle className="text-base text-gray-900 dark:text-gray-100">Incident Types</CardTitle>
                     </CardHeader>
                     <CardContent className="h-80">
-                      {Object.keys(filteredYearData?.type_breakdown || {}).length > 0 ? (
-                        <ResponsiveContainer width="100%" height="100%">
+                      {Object.keys(getFilteredYearData?.type_breakdown || {}).length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%" minWidth={250}>
                           <PieChart>
                             <Pie
-                              data={Object.entries(filteredYearData?.type_breakdown || {}).map(([type, count]) => ({ name: type, value: count as number }))}
+                              data={Object.entries(getFilteredYearData?.type_breakdown || {}).map(([type, count]) => ({ name: type, value: count as number }))}
                               cx="50%"
                               cy="50%"
                               labelLine={false}
@@ -849,79 +926,79 @@ export default function AdminReports() {
                               dataKey="value"
                               label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                             >
-                              {Object.entries(filteredYearData?.type_breakdown || {}).map((entry, index) => (
-                                <Cell key={index} fill={COLORS[index % COLORS.length]} />
+                              {Object.entries(getFilteredYearData?.type_breakdown || {}).map((entry, index) => (
+                                <Cell key={index} fill={chartColors[index % chartColors.length]} />
                               ))}
                             </Pie>
-                            <Legend />
-                            <Tooltip />
+                            <Legend wrapperStyle={{ color: darkMode ? "#f3f4f6" : "#111827" }} />
+                            <Tooltip contentStyle={{ backgroundColor: darkMode ? "#1f2937" : "#ffffff", border: `1px solid ${darkMode ? "#374151" : "#e5e7eb"}`, color: darkMode ? "#f3f4f6" : "#111827" }} />
                           </PieChart>
                         </ResponsiveContainer>
                       ) : (
-                        <div className="flex h-full items-center justify-center text-gray-500">No type data available</div>
+                        <div className="flex h-full items-center justify-center text-gray-500 dark:text-gray-400">No type data available</div>
                       )}
                     </CardContent>
                   </Card>
 
-                  <Card>
+                  <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
                     <CardHeader>
-                      <CardTitle className="text-base">Status Distribution</CardTitle>
+                      <CardTitle className="text-base text-gray-900 dark:text-gray-100">Status Distribution</CardTitle>
                     </CardHeader>
                     <CardContent className="h-80">
-                      {Object.keys(filteredYearData?.status_summary || {}).length > 0 ? (
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={Object.entries(filteredYearData?.status_summary || {}).map(([status, count]) => ({ name: status, value: count as number }))}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="name" />
-                            <YAxis allowDecimals={false} />
-                            <Tooltip />
-                            <Bar dataKey="value" fill="#10b981" />
+                      {Object.keys(getFilteredYearData?.status_summary || {}).length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%" minWidth={250}>
+                          <BarChart data={Object.entries(getFilteredYearData?.status_summary || {}).map(([status, count]) => ({ name: status, value: count as number }))} aria-label="Status Distribution Chart">
+                            <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? "#374151" : "#e5e7eb"} />
+                            <XAxis dataKey="name" stroke={darkMode ? "#9ca3af" : "#6b7280"} />
+                            <YAxis allowDecimals={false} stroke={darkMode ? "#9ca3af" : "#6b7280"} />
+                            <Tooltip contentStyle={{ backgroundColor: darkMode ? "#1f2937" : "#ffffff", border: `1px solid ${darkMode ? "#374151" : "#e5e7eb"}`, color: darkMode ? "#f3f4f6" : "#111827" }} />
+                            <Bar dataKey="value" fill={darkMode ? "#34d399" : "#10b981"} />
                           </BarChart>
                         </ResponsiveContainer>
                       ) : (
-                        <div className="flex h-full items-center justify-center text-gray-500">No status data available</div>
+                        <div className="flex h-full items-center justify-center text-gray-500 dark:text-gray-400">No status data available</div>
                       )}
                     </CardContent>
                   </Card>
                 </div>
 
-                <Card>
+                <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
                   <CardHeader>
-                    <CardTitle>PDF Report Template</CardTitle>
-                    <CardDescription>Customize the executive summary for your PDF report</CardDescription>
+                    <CardTitle className="text-gray-900 dark:text-gray-100">PDF Report Template</CardTitle>
+                    <CardDescription className="text-gray-600 dark:text-gray-400">Customize the executive summary for your PDF report</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Executive Summary Notes</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Executive Summary Notes</label>
                       <textarea
                         value={templateNotes}
                         onChange={(e) => setTemplateNotes(e.target.value)}
-                        className="w-full h-24 p-3 border border-gray-300 rounded-md text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full h-24 p-3 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
                         placeholder="Add any additional notes or summary information for the PDF report..."
                       />
                     </div>
                     <div className="flex justify-end">
-                      <YearlyPDFReportGenerator yearData={filteredYearData || yearData} selectedYear={selectedYear} templateNotes={templateNotes} />
+                      <YearlyPDFReportGenerator yearData={getFilteredYearData || yearData} selectedYear={selectedYear} templateNotes={templateNotes} />
                     </div>
                   </CardContent>
                 </Card>
 
-                <Card>
+                <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
                   <CardContent className="pt-6">
-                    <div className="flex flex-wrap justify-end gap-2">
+                    <div className="flex flex-col md:flex-row flex-wrap justify-end gap-2">
                       {!showArchived && (
                         <>
-                          <Button onClick={scheduleAutoArchive} variant="default" className="bg-purple-600 hover:bg-purple-700">
+                          <Button onClick={scheduleAutoArchive} variant="default" className="w-full md:w-auto bg-purple-600 hover:bg-purple-700 dark:bg-purple-500 dark:hover:bg-purple-600">
                             <Clock className="mr-2 h-4 w-4" />
                             Schedule Auto Archive
                           </Button>
-                          <Button onClick={autoArchiveReports} disabled={archiveLoading} variant="default" className="bg-yellow-600 hover:bg-yellow-700">
+                          <Button onClick={autoArchiveReports} disabled={archiveLoading} variant="default" className="w-full md:w-auto bg-yellow-600 hover:bg-yellow-700 dark:bg-yellow-500 dark:hover:bg-yellow-600">
                             {archiveLoading ? <LoadingSpinner size="sm" /> : <>
                               <Archive className="mr-2 h-4 w-4" />
                               Auto Archive Old Years
                             </>}
                           </Button>
-                          <Button onClick={() => setArchiveDialogOpen(true)} disabled={archiveLoading || !selectedYear} variant="outline">
+                          <Button onClick={() => setArchiveDialogOpen(true)} disabled={archiveLoading || !selectedYear} variant="outline" className="w-full md:w-auto bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700">
                             {archiveLoading ? <LoadingSpinner size="sm" /> : <>
                               <FileText className="mr-2 h-4 w-4" />
                               Archive Year
@@ -929,7 +1006,7 @@ export default function AdminReports() {
                           </Button>
                         </>
                       )}
-                      <Button onClick={exportYearCSV} disabled={exportLoading || showArchived} variant="outline">
+                      <Button onClick={exportYearCSV} disabled={exportLoading || showArchived} variant="outline" className="w-full md:w-auto bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700">
                         {exportLoading ? <LoadingSpinner size="sm" /> : <>
                           <Download className="mr-2 h-4 w-4" />
                           Export CSV
@@ -940,15 +1017,15 @@ export default function AdminReports() {
                 </Card>
               </div>
             ) : (
-              <Card>
+              <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
                 <CardContent className="py-12">
                   <div className="text-center">
-                    <CalendarIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No Year Selected</h3>
-                    <p className="text-gray-600 mb-6">Select a year from the dropdown above to view reports.</p>
+                    <CalendarIcon className="h-16 w-16 text-gray-400 dark:text-gray-600 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">No Year Selected</h3>
+                    <p className="text-gray-600 dark:text-gray-400 mb-6">Select a year from the dropdown above to view reports.</p>
                     {years.length === 0 && (
-                      <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                        <p className="text-sm text-yellow-800">No report data available. Reports will appear here once incidents are recorded.</p>
+                      <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                        <p className="text-sm text-yellow-800 dark:text-yellow-200">No report data available. Reports will appear here once incidents are recorded.</p>
                       </div>
                     )}
                   </div>
@@ -958,24 +1035,24 @@ export default function AdminReports() {
           </TabsContent>
 
           <TabsContent value="analytics" className="space-y-6">
-            <Card>
+            <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
               <CardHeader>
-                <CardTitle>Analytics Dashboard</CardTitle>
-                <CardDescription>Real-time analytics and insights</CardDescription>
+                <CardTitle className="text-gray-900 dark:text-gray-100">Analytics Dashboard</CardTitle>
+                <CardDescription className="text-gray-600 dark:text-gray-400">Real-time analytics and insights</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="flex flex-col md:flex-row gap-4">
                   <Select value={reportType} onValueChange={(value: any) => setReportType(value)}>
-                    <SelectTrigger disabled={loading} className="md:w-48">
+                    <SelectTrigger disabled={loading} className="w-full md:w-48 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100">
                       <SelectValue placeholder="Select report type" />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="incidents">Incidents Report</SelectItem>
-                      <SelectItem value="volunteers">Volunteers Report</SelectItem>
-                      <SelectItem value="schedules">Schedules Report</SelectItem>
+                    <SelectContent className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700">
+                      <SelectItem value="incidents" className="text-gray-900 dark:text-gray-100">Incidents Report</SelectItem>
+                      <SelectItem value="volunteers" className="text-gray-900 dark:text-gray-100">Volunteers Report</SelectItem>
+                      <SelectItem value="schedules" className="text-gray-900 dark:text-gray-100">Schedules Report</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Button onClick={generateReport} disabled={loading || generatingReport} className="bg-blue-600 hover:bg-blue-700">
+                  <Button onClick={generateReport} disabled={loading || generatingReport} className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600">
                     {generatingReport ? <LoadingSpinner size="sm" /> : <>
                       <Download className="mr-2 h-4 w-4" />
                       Export Report
@@ -990,52 +1067,54 @@ export default function AdminReports() {
                 <LoadingSpinner size="lg" text="Loading report data..." />
               </div>
             ) : error ? (
-              <Card className="bg-red-50 border-red-200">
+              <Card className="bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800">
                 <CardContent className="pt-6">
-                  <p className="text-sm text-red-700">{error}</p>
+                  <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
                 </CardContent>
               </Card>
             ) : (
               <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardDescription>Total {reportType}</CardDescription>
-                      <CardTitle className="text-3xl font-bold text-blue-600">{reportData?.total || 0}</CardTitle>
-                    </CardHeader>
-                  </Card>
-                  {reportType === "incidents" && reportData?.byStatus && (
-                    <Card>
+                <div className="overflow-x-auto">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 min-w-[300px]">
+                    <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
                       <CardHeader className="pb-2">
-                        <CardDescription>By Status</CardDescription>
+                        <CardDescription className="text-gray-600 dark:text-gray-400">Total {reportType}</CardDescription>
+                        <CardTitle className="text-3xl font-bold text-blue-600 dark:text-blue-400">{reportData?.total || 0}</CardTitle>
                       </CardHeader>
-                      <CardContent>
-                        <div className="space-y-2">
-                          {reportData.byStatus.slice(0, 3).map(([status, count]: any) => (
-                            <div key={status} className="flex justify-between">
-                              <span className="text-sm text-gray-600">{status}</span>
-                              <span className="text-sm font-bold">{count}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </CardContent>
                     </Card>
-                  )}
+                    {reportType === "incidents" && reportData?.byStatus && (
+                      <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+                        <CardHeader className="pb-2">
+                          <CardDescription className="text-gray-600 dark:text-gray-400">By Status</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-2">
+                            {reportData.byStatus.slice(0, 3).map(([status, count]: any) => (
+                              <div key={status} className="flex justify-between">
+                                <span className="text-sm text-gray-600 dark:text-gray-400">{status}</span>
+                                <span className="text-sm font-bold text-gray-900 dark:text-gray-100">{count}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
                 </div>
 
                 {reportType === "incidents" && incidentsByStatus.length > 0 && (
-                  <Card>
+                  <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
                     <CardHeader>
-                      <CardTitle className="text-base">Status Overview</CardTitle>
+                      <CardTitle className="text-base text-gray-900 dark:text-gray-100">Status Overview</CardTitle>
                     </CardHeader>
                     <CardContent className="h-64">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={incidentsByStatus.map((item) => ({ name: item.status, value: Number(item.count) }))}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="name" />
-                          <YAxis allowDecimals={false} />
-                          <Tooltip />
-                          <Bar dataKey="value" fill="#2563eb" />
+                      <ResponsiveContainer width="100%" height="100%" minWidth={300}>
+                        <BarChart data={incidentsByStatus.map((item) => ({ name: item.status, value: Number(item.count) }))} aria-label="Incidents by Status">
+                          <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? "#374151" : "#e5e7eb"} />
+                          <XAxis dataKey="name" stroke={darkMode ? "#9ca3af" : "#6b7280"} />
+                          <YAxis allowDecimals={false} stroke={darkMode ? "#9ca3af" : "#6b7280"} />
+                          <Tooltip contentStyle={{ backgroundColor: darkMode ? "#1f2937" : "#ffffff", border: `1px solid ${darkMode ? "#374151" : "#e5e7eb"}`, color: darkMode ? "#f3f4f6" : "#111827" }} />
+                          <Bar dataKey="value" fill={darkMode ? "#60a5fa" : "#2563eb"} />
                         </BarChart>
                       </ResponsiveContainer>
                     </CardContent>
@@ -1046,10 +1125,10 @@ export default function AdminReports() {
           </TabsContent>
 
           <TabsContent value="pdf">
-            <Card>
+            <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
               <CardHeader>
-                <CardTitle>PDF Reports</CardTitle>
-                <CardDescription>Generate PDF reports from your data</CardDescription>
+                <CardTitle className="text-gray-900 dark:text-gray-100">PDF Reports</CardTitle>
+                <CardDescription className="text-gray-600 dark:text-gray-400">Generate PDF reports from your data</CardDescription>
               </CardHeader>
               <CardContent>
                 <PDFReportGenerator />

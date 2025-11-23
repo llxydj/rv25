@@ -1,17 +1,32 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import Link from "next/link"
 import { AdminLayout } from "@/components/layout/admin-layout"
 import { useAuth } from "@/lib/auth"
 import { getAllVolunteers, updateVolunteerStatus } from "@/lib/volunteers"
-import { LoadingSpinner } from "@/components/ui/loading-spinner"
-import { AlertTriangle, CheckCircle, Filter, Plus, User } from "lucide-react"
-import { UserWithVolunteerProfile, VolunteerStatus } from "@/types/volunteer"
 import { getVolunteerIncidents } from "@/lib/incidents"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
+import { LoadingSpinner } from "@/components/ui/loading-spinner"
+import {
+  AlertTriangle,
+  CheckCircle,
+  Plus,
+  User,
+  Search,
+  X,
+  Eye,
+  UserCheck,
+  UserX,
+  UserMinus,
+  ChevronLeft,
+  ChevronRight,
+  Phone,
+  MapPin,
+} from "lucide-react"
+import { UserWithVolunteerProfile, VolunteerStatus } from "@/types/volunteer"
+
+// Pagination settings
+const ITEMS_PER_PAGE = 10
 
 export default function AdminVolunteersPage() {
   const { user } = useAuth()
@@ -21,27 +36,43 @@ export default function AdminVolunteersPage() {
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+
+  // Filters
   const [statusFilter, setStatusFilter] = useState<string>("ALL")
   const [availabilityFilter, setAvailabilityFilter] = useState<string>("ALL")
   const [searchTerm, setSearchTerm] = useState("")
-  const [creatingProfile, setCreatingProfile] = useState<string | null>(null)
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1)
+
+  // Detail modal state
   const [detailOpen, setDetailOpen] = useState(false)
   const [detailVolunteer, setDetailVolunteer] = useState<UserWithVolunteerProfile | null>(null)
   const [detailIncidents, setDetailIncidents] = useState<any[]>([])
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState<string | null>(null)
 
+  // Auto-clear messages after 5 seconds
+  useEffect(() => {
+    if (success || error) {
+      const timer = setTimeout(() => {
+        setSuccess(null)
+        setError(null)
+      }, 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [success, error])
+
+  // Fetch volunteers on mount
   useEffect(() => {
     const fetchVolunteers = async () => {
       if (!user) return
-
       try {
         setLoading(true)
         const result = await getAllVolunteers()
-
-        if (result.success) {
-          setVolunteers(result.data || [])
-          setFilteredVolunteers(result.data || [])
+        if (result.success && result.data) {
+          setVolunteers(result.data)
+          setFilteredVolunteers(result.data)
         } else {
           setError(result.message || "Failed to fetch volunteers")
         }
@@ -51,7 +82,6 @@ export default function AdminVolunteersPage() {
         setLoading(false)
       }
     }
-
     fetchVolunteers()
   }, [user])
 
@@ -62,14 +92,15 @@ export default function AdminVolunteersPage() {
     // Apply status filter
     if (statusFilter !== "ALL") {
       filtered = filtered.filter(
-        volunteer => volunteer.volunteer_profiles?.status === statusFilter
+        (v) => v.volunteer_profiles?.status === statusFilter
       )
     }
 
     // Apply availability filter
     if (availabilityFilter !== "ALL") {
+      const isAvailable = availabilityFilter === "AVAILABLE"
       filtered = filtered.filter(
-        volunteer => volunteer.volunteer_profiles?.is_available === (availabilityFilter === "AVAILABLE")
+        (v) => (v.volunteer_profiles?.is_available ?? false) === isAvailable
       )
     }
 
@@ -77,453 +108,590 @@ export default function AdminVolunteersPage() {
     if (searchTerm) {
       const search = searchTerm.toLowerCase()
       filtered = filtered.filter(
-        volunteer =>
-          volunteer.first_name?.toLowerCase().includes(search) ||
-          volunteer.last_name?.toLowerCase().includes(search) ||
-          volunteer.email?.toLowerCase().includes(search)
+        (v) =>
+          v.first_name?.toLowerCase().includes(search) ||
+          v.last_name?.toLowerCase().includes(search) ||
+          v.email?.toLowerCase().includes(search) ||
+          v.barangay?.toLowerCase().includes(search)
       )
     }
 
     setFilteredVolunteers(filtered)
+    setCurrentPage(1) // Reset to first page on filter change
   }, [volunteers, statusFilter, availabilityFilter, searchTerm])
 
-  const handleStatusChange = async (volunteerId: string, newStatus: "ACTIVE" | "INACTIVE" | "SUSPENDED") => {
-    if (!user) return
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredVolunteers.length / ITEMS_PER_PAGE)
+  const paginatedVolunteers = filteredVolunteers.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  )
 
-    try {
-      setUpdatingStatus(volunteerId)
-      setError(null)
-      setSuccess(null)
+  // Handle status change
+  const handleStatusChange = useCallback(
+    async (volunteerId: string, newStatus: VolunteerStatus) => {
+      if (!user || updatingStatus) return
 
-      const result = await updateVolunteerStatus(volunteerId, newStatus, user.id)
+      try {
+        setUpdatingStatus(volunteerId)
+        setError(null)
 
-      if (result.success) {
-        // Update the local state with proper type handling
-        setVolunteers(
-          volunteers.map((volunteer) => {
-            if (volunteer.id === volunteerId) {
-              return {
-                ...volunteer,
-                volunteer_profiles: {
-                  ...volunteer.volunteer_profiles,
-                  status: newStatus,
-                  volunteer_user_id: volunteer.volunteer_profiles?.volunteer_user_id || volunteerId,
-                },
-              } as UserWithVolunteerProfile
-            }
-            return volunteer
-          }),
-        )
+        const result = await updateVolunteerStatus(volunteerId, newStatus, user.id)
 
-        setSuccess(`Volunteer status updated to ${newStatus}`)
-      } else {
-        setError(result.message || "Failed to update volunteer status")
+        if (result.success) {
+          // Update local state
+          setVolunteers((prev) =>
+            prev.map((v) =>
+              v.id === volunteerId
+                ? {
+                    ...v,
+                    volunteer_profiles: v.volunteer_profiles
+                      ? { ...v.volunteer_profiles, status: newStatus }
+                      : {
+                          volunteer_user_id: volunteerId,
+                          admin_user_id: user.id,
+                          status: newStatus,
+                          skills: [],
+                          availability: [],
+                          assigned_barangays: [],
+                          total_incidents_resolved: 0,
+                          notes: null,
+                          is_available: false,
+                          created_at: new Date().toISOString(),
+                          updated_at: new Date().toISOString(),
+                          last_status_change: new Date().toISOString(),
+                          last_status_changed_by: user.id,
+                        },
+                  }
+                : v
+            )
+          )
+          setSuccess(`Volunteer status updated to ${newStatus}`)
+        } else {
+          setError(result.message || "Failed to update status")
+        }
+      } catch (err: any) {
+        setError(err.message || "An unexpected error occurred")
+      } finally {
+        setUpdatingStatus(null)
       }
-    } catch (err: any) {
-      setError(err.message || "An unexpected error occurred")
-    } finally {
-      setUpdatingStatus(null)
-    }
-  }
+    },
+    [user, updatingStatus]
+  )
 
-  const handleCreateProfile = async (volunteerId: string) => {
-    if (!user) return
-
-    try {
-      setCreatingProfile(volunteerId)
-      setError(null)
-      setSuccess(null)
-
-      // Create a default profile for the volunteer
-      const result = await updateVolunteerStatus(volunteerId, "INACTIVE", user.id)
-
-      if (result.success) {
-        // Update the local state
-        setVolunteers(
-          volunteers.map((volunteer) => {
-            if (volunteer.id === volunteerId) {
-              const now = new Date().toISOString()
-              return {
-                ...volunteer,
-                volunteer_profiles: {
-                  volunteer_user_id: volunteerId,
-                  admin_user_id: user.id,
-                  status: "INACTIVE",
-                  skills: [],
-                  availability: [],
-                  assigned_barangays: [],
-                  total_incidents_resolved: 0,
-                  notes: "",
-                  is_available: false,
-                  created_at: now,
-                  updated_at: now,
-                  last_status_change: now,
-                  last_status_changed_by: user.id
-                },
-              } as UserWithVolunteerProfile
-            }
-            return volunteer
-          }),
-        )
-
-        setSuccess("Volunteer profile created successfully")
-      } else {
-        setError(result.message || "Failed to create volunteer profile")
-      }
-    } catch (err: any) {
-      setError(err.message || "An unexpected error occurred")
-    } finally {
-      setCreatingProfile(null)
-    }
-  }
-
-  const handleActivateVolunteer = async (volunteerId: string) => {
-    if (!user) return;
-    
-    try {
-      setUpdatingStatus(volunteerId);
-      setError(null);
-      setSuccess(null);
-      
-      const result = await updateVolunteerStatus(volunteerId, "ACTIVE", user.id);
-      
-      if (result.success) {
-        // Update local state
-        setVolunteers(
-          volunteers.map((volunteer) => {
-            if (volunteer.id === volunteerId) {
-              return {
-                ...volunteer,
-                volunteer_profiles: {
-                  ...volunteer.volunteer_profiles,
-                  status: "ACTIVE",
-                  volunteer_user_id: volunteer.volunteer_profiles?.volunteer_user_id || volunteerId,
-                },
-              } as UserWithVolunteerProfile;
-            }
-            return volunteer;
-          })
-        );
-        
-        setSuccess("Volunteer activated successfully");
-      } else {
-        setError(result.message || "Failed to activate volunteer");
-      }
-    } catch (err: any) {
-      setError(err.message || "An unexpected error occurred");
-    } finally {
-      setUpdatingStatus(null);
-    }
-  };
-
+  // Open volunteer details modal
   const openVolunteerDetails = async (volunteer: UserWithVolunteerProfile) => {
     setDetailVolunteer(volunteer)
     setDetailOpen(true)
     setDetailLoading(true)
     setDetailError(null)
+    setDetailIncidents([])
+
     try {
       const history = await getVolunteerIncidents(volunteer.id)
-      if (!history.success) {
-        setDetailError(history.message || "Failed to load volunteer history")
-        setDetailIncidents([])
-      } else {
+      if (history.success) {
         setDetailIncidents(history.data || [])
+      } else {
+        setDetailError(history.message || "Failed to load history")
       }
     } catch (err: any) {
-      setDetailError(err?.message || "Failed to load volunteer history")
-      setDetailIncidents([])
+      setDetailError(err?.message || "Failed to load history")
     } finally {
       setDetailLoading(false)
     }
   }
 
-  const getStatusBadge = (status: string) => {
+  // Close detail modal
+  const closeDetailModal = () => {
+    setDetailOpen(false)
+    setDetailVolunteer(null)
+    setDetailIncidents([])
+    setDetailError(null)
+  }
+
+  // Get status badge styling
+  const getStatusBadgeClass = (status?: string | null) => {
+    const base = "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
     switch (status) {
       case "ACTIVE":
-        return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-            Active
-          </span>
-        )
+        return `${base} bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300`
       case "INACTIVE":
-        return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-            Inactive
-          </span>
-        )
+        return `${base} bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300`
       case "SUSPENDED":
-        return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-            Suspended
-          </span>
-        )
+        return `${base} bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300`
       default:
-        return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-            {status}
-          </span>
-        )
+        return `${base} bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300`
     }
+  }
+
+  // Get availability badge
+  const getAvailabilityBadgeClass = (isAvailable?: boolean) => {
+    const base = "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+    return isAvailable
+      ? `${base} bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300`
+      : `${base} bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400`
   }
 
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="text-2xl font-bold text-gray-900">Volunteers</h1>
-            <Link
-              href="/admin/volunteers/new"
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-            >
-            <Plus className="h-5 w-5 mr-2" />
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Volunteers</h1>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              Manage volunteer accounts and status
+            </p>
+          </div>
+          <Link
+            href="/admin/volunteers/new"
+            className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 dark:focus:ring-offset-gray-900 transition-colors"
+          >
+            <Plus className="h-4 w-4 mr-2" />
             Add Volunteer
-            </Link>
+          </Link>
         </div>
 
+        {/* Success/Error Messages */}
+        {success && (
+          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+            <div className="flex items-center">
+              <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400 mr-3 flex-shrink-0" />
+              <p className="text-sm text-green-800 dark:text-green-300 flex-1">{success}</p>
+              <button
+                onClick={() => setSuccess(null)}
+                className="text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-200"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+            <div className="flex items-center">
+              <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400 mr-3 flex-shrink-0" />
+              <p className="text-sm text-red-800 dark:text-red-300 flex-1">{error}</p>
+              <button
+                onClick={() => setError(null)}
+                className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Filters */}
-        <div className="bg-white p-4 rounded-lg shadow flex flex-col sm:flex-row gap-4">
-          <div className="flex-1">
-            <label htmlFor="search" className="block text-sm font-medium text-gray-700 text-black">
-              Search
-            </label>
-              <input
-                type="text"
-              id="search"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 sm:text-sm text-black"
-              placeholder="Search by name or email"
-            />
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow border border-gray-200 dark:border-gray-700">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Search */}
+            <div className="sm:col-span-2 lg:col-span-1">
+              <label htmlFor="search" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Search
+              </label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="text"
+                  id="search"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                  placeholder="Name, email, barangay..."
+                />
               </div>
-          <div>
-            <label htmlFor="status" className="block text-sm font-medium text-gray-700 text-black">
-              Status
-            </label>
-            <select
-              id="status"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 sm:text-sm text-black"
-            >
-              <option value="ALL">All Status</option>
-              <option value="ACTIVE">Active</option>
-              <option value="INACTIVE">Inactive</option>
-              <option value="SUSPENDED">Suspended</option>
-            </select>
+            </div>
+
+            {/* Status Filter */}
+            <div>
+              <label htmlFor="status" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Status
+              </label>
+              <select
+                id="status"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="block w-full py-2 px-3 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 sm:text-sm"
+              >
+                <option value="ALL">All Status</option>
+                <option value="ACTIVE">Active</option>
+                <option value="INACTIVE">Inactive</option>
+                <option value="SUSPENDED">Suspended</option>
+              </select>
+            </div>
+
+            {/* Availability Filter */}
+            <div>
+              <label htmlFor="availability" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Availability
+              </label>
+              <select
+                id="availability"
+                value={availabilityFilter}
+                onChange={(e) => setAvailabilityFilter(e.target.value)}
+                className="block w-full py-2 px-3 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 sm:text-sm"
+              >
+                <option value="ALL">All</option>
+                <option value="AVAILABLE">Available</option>
+                <option value="UNAVAILABLE">Unavailable</option>
+              </select>
+            </div>
+
+            {/* Results count */}
+            <div className="flex items-end">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Showing {paginatedVolunteers.length} of {filteredVolunteers.length} volunteers
+              </p>
+            </div>
           </div>
-          <div>
-            <label htmlFor="availability" className="block text-sm font-medium text-gray-700 text-black">
-              Availability
-            </label>
-            <select
-              id="availability"
-              value={availabilityFilter}
-              onChange={(e) => setAvailabilityFilter(e.target.value)}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 sm:text-sm text-black"
-            >
-              <option value="ALL">All</option>
-              <option value="AVAILABLE">Available</option>
-              <option value="UNAVAILABLE">Unavailable</option>
-            </select>
-          </div>
-          </div>
+        </div>
 
         {/* Volunteers List */}
-        <div className="bg-white shadow overflow-hidden sm:rounded-md">
+        <div className="bg-white dark:bg-gray-800 shadow rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
           {loading ? (
-            <div className="p-4 flex justify-center">
-              <LoadingSpinner />
-            </div>
-          ) : error ? (
-            <div className="p-4 bg-red-50 border-l-4 border-red-400">
-              <div className="flex">
-                <AlertTriangle className="h-5 w-5 text-red-400" />
-                <p className="ml-3 text-sm text-red-700">{error}</p>
-              </div>
+            <div className="p-8 flex justify-center">
+              <LoadingSpinner text="Loading volunteers..." />
             </div>
           ) : filteredVolunteers.length === 0 ? (
-            <div className="p-4 text-center text-gray-500">No volunteers found</div>
+            <div className="p-8 text-center">
+              <User className="h-12 w-12 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
+              <p className="text-gray-500 dark:text-gray-400">No volunteers found</p>
+              <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
+                Try adjusting your filters or add a new volunteer
+              </p>
+            </div>
           ) : (
-            <ul role="list" className="divide-y divide-gray-200">
-                  {filteredVolunteers.map((volunteer) => (
-                <li key={volunteer.id}>
-                  <Link href={`/admin/volunteers/${volunteer.id}`}>
-                    <div className="block hover:bg-gray-50">
-                      <div className="px-4 py-4 sm:px-6">
-                        <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                            <User className="h-8 w-8 rounded-full bg-gray-200 p-1" />
-                            <div className="ml-4">
-                              <p className="text-sm font-medium text-gray-900">
-                            {volunteer.first_name} {volunteer.last_name}
-                              </p>
-                              <p className="text-sm text-gray-500">{volunteer.email}</p>
+            <>
+              <ul role="list" className="divide-y divide-gray-200 dark:divide-gray-700">
+                {paginatedVolunteers.map((volunteer) => (
+                  <li key={volunteer.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                    <div className="px-4 py-4 sm:px-6">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        {/* Volunteer Info */}
+                        <Link
+                          href={`/admin/volunteers/${volunteer.id}`}
+                          className="flex items-center min-w-0 flex-1"
+                        >
+                          <div className="flex-shrink-0">
+                            <div className="h-10 w-10 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center">
+                              <User className="h-5 w-5 text-gray-500 dark:text-gray-400" />
                             </div>
                           </div>
-                          <div className="flex items-center gap-4">
-                            {/* Availability Badge */}
-                            <span
-                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                volunteer.volunteer_profiles?.is_available
-                                  ? "bg-green-100 text-green-800"
-                                  : "bg-gray-100 text-gray-800"
-                              }`}
-                            >
-                              {volunteer.volunteer_profiles?.is_available ? "Available" : "Unavailable"}
-                            </span>
-                            {/* Status Badge */}
-                            {volunteer.volunteer_profiles === null && (
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                                Needs Profile
-                              </span>
+                          <div className="ml-4 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                              {volunteer.first_name} {volunteer.last_name}
+                            </p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                              {volunteer.email}
+                            </p>
+                            {volunteer.barangay && (
+                              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 flex items-center">
+                                <MapPin className="h-3 w-3 mr-1" />
+                                {volunteer.barangay}
+                              </p>
                             )}
+                          </div>
+                        </Link>
+
+                        {/* Status & Actions */}
+                        <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
+                          {/* Availability Badge */}
+                          <span className={getAvailabilityBadgeClass(volunteer.volunteer_profiles?.is_available)}>
+                            {volunteer.volunteer_profiles?.is_available ? "Available" : "Unavailable"}
+                          </span>
+
+                          {/* Status Badge */}
+                          <span className={getStatusBadgeClass(volunteer.volunteer_profiles?.status)}>
+                            {volunteer.volunteer_profiles?.status || "No Profile"}
+                          </span>
+
+                          {/* Action Buttons */}
+                          <div className="flex items-center gap-1">
+                            {/* Quick View */}
+                            <button
+                              onClick={() => openVolunteerDetails(volunteer)}
+                              className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-md transition-colors"
+                              title="Quick View"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </button>
+
+                            {/* Status Actions */}
                             {volunteer.volunteer_profiles?.status === "INACTIVE" && (
-                              <>
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                                  Needs Activation
-                                </span>
-                                <button
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    handleActivateVolunteer(volunteer.id);
-                                  }}
-                                  className="ml-2 inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 hover:bg-blue-200"
-                                  disabled={updatingStatus === volunteer.id}
-                                >
-                                  {updatingStatus === volunteer.id ? "..." : "Activate"}
-                                </button>
-                              </>
+                              <button
+                                onClick={() => handleStatusChange(volunteer.id, "ACTIVE")}
+                                disabled={updatingStatus === volunteer.id}
+                                className="p-2 text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-200 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-md transition-colors disabled:opacity-50"
+                                title="Activate"
+                              >
+                                {updatingStatus === volunteer.id ? (
+                                  <LoadingSpinner size="sm" color="text-green-600" />
+                                ) : (
+                                  <UserCheck className="h-4 w-4" />
+                                )}
+                              </button>
                             )}
+
                             {volunteer.volunteer_profiles?.status === "ACTIVE" && (
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                Active
-                              </span>
+                              <button
+                                onClick={() => handleStatusChange(volunteer.id, "SUSPENDED")}
+                                disabled={updatingStatus === volunteer.id}
+                                className="p-2 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors disabled:opacity-50"
+                                title="Suspend"
+                              >
+                                {updatingStatus === volunteer.id ? (
+                                  <LoadingSpinner size="sm" color="text-red-600" />
+                                ) : (
+                                  <UserMinus className="h-4 w-4" />
+                                )}
+                              </button>
                             )}
+
                             {volunteer.volunteer_profiles?.status === "SUSPENDED" && (
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                Suspended
-                              </span>
+                              <button
+                                onClick={() => handleStatusChange(volunteer.id, "ACTIVE")}
+                                disabled={updatingStatus === volunteer.id}
+                                className="p-2 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md transition-colors disabled:opacity-50"
+                                title="Reactivate"
+                              >
+                                {updatingStatus === volunteer.id ? (
+                                  <LoadingSpinner size="sm" color="text-blue-600" />
+                                ) : (
+                                  <UserX className="h-4 w-4" />
+                                )}
+                              </button>
                             )}
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="text-xs"
-                              onClick={(e) => {
-                                e.preventDefault()
-                                e.stopPropagation()
-                                openVolunteerDetails(volunteer)
-                              }}
-                            >
-                              Quick View
-                            </Button>
+
+                            {!volunteer.volunteer_profiles && (
+                              <button
+                                onClick={() => handleStatusChange(volunteer.id, "INACTIVE")}
+                                disabled={updatingStatus === volunteer.id}
+                                className="p-2 text-yellow-600 dark:text-yellow-400 hover:text-yellow-800 dark:hover:text-yellow-200 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 rounded-md transition-colors disabled:opacity-50"
+                                title="Create Profile"
+                              >
+                                {updatingStatus === volunteer.id ? (
+                                  <LoadingSpinner size="sm" color="text-yellow-600" />
+                                ) : (
+                                  <Plus className="h-4 w-4" />
+                                )}
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
                     </div>
-                  </Link>
-                </li>
-              ))}
-            </ul>
+                  </li>
+                ))}
+              </ul>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                  <p className="text-sm text-gray-700 dark:text-gray-300">
+                    Page {currentPage} of {totalPages}
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="p-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      className="p-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
 
-        <Dialog
-          open={detailOpen}
-          onOpenChange={(open) => {
-            setDetailOpen(open)
-            if (!open) {
-              setDetailVolunteer(null)
-              setDetailIncidents([])
-              setDetailError(null)
-            }
-          }}
-        >
-          <DialogContent className="max-w-3xl">
-            <DialogHeader>
-              <DialogTitle>
-                {detailVolunteer ? `${detailVolunteer.first_name} ${detailVolunteer.last_name}` : "Volunteer Details"}
-              </DialogTitle>
-              <DialogDescription>
-                {detailVolunteer?.email} · {detailVolunteer?.volunteer_profiles?.status || "No profile"}
-              </DialogDescription>
-            </DialogHeader>
-
-            {detailVolunteer && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <p className="text-xs text-gray-500">Contact</p>
-                    <p className="text-sm text-gray-900">{detailVolunteer.email}</p>
-                    <p className="text-sm text-gray-900">{detailVolunteer.phone_number || "No number"}</p>
-                  </div>
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <p className="text-xs text-gray-500">Barangay</p>
-                    <p className="text-sm text-gray-900">{detailVolunteer.barangay || "Unassigned"}</p>
-                    <p className="text-xs text-gray-500 mt-2">Availability</p>
-                    <Badge variant={detailVolunteer.volunteer_profiles?.is_available ? "secondary" : "outline"}>
-                      {detailVolunteer.volunteer_profiles?.is_available ? "Available" : "Unavailable"}
-                    </Badge>
-                  </div>
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <p className="text-xs text-gray-500">Resolved Incidents</p>
-                    <p className="text-3xl font-semibold text-gray-900">
-                      {detailVolunteer.volunteer_profiles?.total_incidents_resolved || 0}
-                    </p>
-                  </div>
+        {/* Quick View Modal */}
+        {detailOpen && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            onClick={closeDetailModal}
+          >
+            <div
+              className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    {detailVolunteer
+                      ? `${detailVolunteer.first_name} ${detailVolunteer.last_name}`
+                      : "Volunteer Details"}
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {detailVolunteer?.email}
+                  </p>
                 </div>
+                <button
+                  onClick={closeDetailModal}
+                  className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
 
-                <div className="flex justify-between items-center">
-                  <p className="text-sm font-medium text-gray-900">Recent Assignments</p>
-                  <Link href={`/admin/volunteers/${detailVolunteer.id}`}>
-                    <Button variant="outline" size="sm">
-                      View full profile
-                    </Button>
-                  </Link>
-                </div>
-
-                <div className="border rounded-lg">
-                  {detailLoading ? (
-                    <div className="py-10 flex justify-center">
-                      <LoadingSpinner />
+              {/* Modal Body */}
+              {detailVolunteer && (
+                <div className="p-6 space-y-6 overflow-y-auto max-h-[calc(90vh-130px)]">
+                  {/* Info Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Contact</p>
+                      <p className="text-sm text-gray-900 dark:text-white mt-1">{detailVolunteer.email}</p>
+                      <p className="text-sm text-gray-700 dark:text-gray-300 flex items-center mt-1">
+                        <Phone className="h-3 w-3 mr-1" />
+                        {detailVolunteer.phone_number || "No phone"}
+                      </p>
                     </div>
-                  ) : detailError ? (
-                    <div className="py-4 text-center text-sm text-red-600">{detailError}</div>
-                  ) : detailIncidents.length === 0 ? (
-                    <div className="py-4 text-center text-sm text-gray-500">No incident history yet</div>
-                  ) : (
-                    <div className="max-h-72 overflow-y-auto">
-                      <table className="min-w-full divide-y divide-gray-200 text-sm">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-4 py-2 text-left font-medium text-gray-500">Incident</th>
-                            <th className="px-4 py-2 text-left font-medium text-gray-500">Barangay</th>
-                            <th className="px-4 py-2 text-left font-medium text-gray-500">Status</th>
-                            <th className="px-4 py-2 text-left font-medium text-gray-500">Date</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200">
-                          {detailIncidents.slice(0, 10).map((incident) => (
-                            <tr key={incident.id}>
-                              <td className="px-4 py-2">{incident.incident_type || "Unnamed"}</td>
-                              <td className="px-4 py-2">{incident.barangay || "—"}</td>
-                              <td className="px-4 py-2">
-                                <Badge variant="outline">{incident.status}</Badge>
-                              </td>
-                              <td className="px-4 py-2">
-                                {new Date(incident.created_at).toLocaleString()}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                    <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Location</p>
+                      <p className="text-sm text-gray-900 dark:text-white mt-1 flex items-center">
+                        <MapPin className="h-3 w-3 mr-1" />
+                        {detailVolunteer.barangay || "Unassigned"}
+                      </p>
+                      <div className="mt-2 flex gap-2">
+                        <span className={getAvailabilityBadgeClass(detailVolunteer.volunteer_profiles?.is_available)}>
+                          {detailVolunteer.volunteer_profiles?.is_available ? "Available" : "Unavailable"}
+                        </span>
+                        <span className={getStatusBadgeClass(detailVolunteer.volunteer_profiles?.status)}>
+                          {detailVolunteer.volunteer_profiles?.status || "No Profile"}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                        Resolved Incidents
+                      </p>
+                      <p className="text-3xl font-semibold text-gray-900 dark:text-white mt-1">
+                        {detailVolunteer.volunteer_profiles?.total_incidents_resolved ?? 0}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Skills */}
+                  {detailVolunteer.volunteer_profiles?.skills && detailVolunteer.volunteer_profiles.skills.length > 0 && (
+                    <div>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white mb-2">Skills</p>
+                      <div className="flex flex-wrap gap-2">
+                        {detailVolunteer.volunteer_profiles.skills.map((skill) => (
+                          <span
+                            key={skill}
+                            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300"
+                          >
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   )}
+
+                  {/* Recent Assignments */}
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">Recent Assignments</p>
+                      <Link
+                        href={`/admin/volunteers/${detailVolunteer.id}`}
+                        className="text-sm text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-200"
+                      >
+                        View full profile →
+                      </Link>
+                    </div>
+
+                    <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                      {detailLoading ? (
+                        <div className="py-8 flex justify-center">
+                          <LoadingSpinner />
+                        </div>
+                      ) : detailError ? (
+                        <div className="py-4 text-center text-sm text-red-600 dark:text-red-400">{detailError}</div>
+                      ) : detailIncidents.length === 0 ? (
+                        <div className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                          No incident history yet
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto max-h-64">
+                          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+                            <caption className="sr-only">Volunteer incident history</caption>
+                            <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0">
+                              <tr>
+                                <th className="px-4 py-2 text-left font-medium text-gray-500 dark:text-gray-400">
+                                  Incident
+                                </th>
+                                <th className="px-4 py-2 text-left font-medium text-gray-500 dark:text-gray-400 hidden sm:table-cell">
+                                  Barangay
+                                </th>
+                                <th className="px-4 py-2 text-left font-medium text-gray-500 dark:text-gray-400">
+                                  Status
+                                </th>
+                                <th className="px-4 py-2 text-left font-medium text-gray-500 dark:text-gray-400 hidden sm:table-cell">
+                                  Date
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-800">
+                              {detailIncidents.slice(0, 10).map((incident: any) => (
+                                <tr key={incident.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                  <td className="px-4 py-2 text-gray-900 dark:text-white">
+                                    {incident.incident_type || "Unnamed"}
+                                  </td>
+                                  <td className="px-4 py-2 text-gray-700 dark:text-gray-300 hidden sm:table-cell">
+                                    {incident.barangay || "—"}
+                                  </td>
+                                  <td className="px-4 py-2">
+                                    <span className={getStatusBadgeClass(incident.status)}>
+                                      {incident.status || "Unknown"}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-2 text-gray-700 dark:text-gray-300 hidden sm:table-cell">
+                                    {incident.created_at
+                                      ? new Date(incident.created_at).toLocaleDateString()
+                                      : "—"}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
+              )}
+
+              {/* Modal Footer */}
+              <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
+                <button
+                  onClick={closeDetailModal}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+                >
+                  Close
+                </button>
+                {detailVolunteer && (
+                  <Link
+                    href={`/admin/volunteers/${detailVolunteer.id}`}
+                    className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors"
+                  >
+                    View Full Profile
+                  </Link>
+                )}
               </div>
-            )}
-          </DialogContent>
-        </Dialog>
+            </div>
+          </div>
+        )}
       </div>
     </AdminLayout>
   )

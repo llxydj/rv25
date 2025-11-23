@@ -1,86 +1,139 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
-import { NextResponse } from "next/server"
+// src/app/auth/callback/route.ts
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url)
-  const code = requestUrl.searchParams.get("code")
+  const code = requestUrl.searchParams.get('code')
 
   if (code) {
-    const supabase = createRouteHandlerClient({ cookies })
+    const cookieStore = await cookies()
     
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll()
+          },
+          setAll(cookiesToSet) {
+            try {
+              cookiesToSet.forEach(({ name, value, options }) =>
+                cookieStore.set(name, value, options)
+              )
+            } catch {
+              // Ignore errors in Server Components
+            }
+          },
+        },
+      }
+    )
+
     // Exchange the code for a session
     const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
     
     if (exchangeError) {
       console.error('Error exchanging code for session:', exchangeError)
-      return NextResponse.redirect(new URL("/login?error=auth_failed", requestUrl.origin))
+      return NextResponse.redirect(new URL('/login?error=auth_failed', requestUrl.origin))
     }
 
-    // After session exchange, decide where to send the user
+    // After session exchange, get the user
     try {
-      const { data: sessionRes, error: sessionError } = await supabase.auth.getSession()
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
       
-      if (sessionError) {
-        console.error('Error getting session:', sessionError)
-        return NextResponse.redirect(new URL("/login?error=session_error", requestUrl.origin))
+      if (userError) {
+        console.error('Error getting user:', userError)
+        return NextResponse.redirect(new URL('/login?error=session_error', requestUrl.origin))
       }
-      
-      const session = sessionRes?.session
-      const userId = session?.user?.id
-      const userEmail = session?.user?.email
 
-      if (session && userId) {
-        // Check if this is a new user (no users row exists)
-        const { data: userRow, error: userError } = await supabase
+      if (user) {
+        const userId = user.id
+        const userEmail = user.email
+
+        // Check if this user has a profile row
+        const { data: userRow, error: checkError } = await supabase
           .from('users')
           .select('id, role, email')
           .eq('id', userId)
           .maybeSingle()
 
-        if (userError) {
-          console.error('Error checking user row:', userError)
-          // If there's an error checking, assume new user and send to registration
-          return NextResponse.redirect(new URL("/resident/register-google", requestUrl.origin))
+        if (checkError) {
+          console.error('Error checking user row:', checkError)
+          return NextResponse.redirect(new URL('/login?error=user_check_failed', requestUrl.origin))
         }
 
-        // If no users row exists, send to resident Google registration
+        // If user doesn't have a profile, CREATE ONE for Google OAuth users
         if (!userRow) {
-          return NextResponse.redirect(new URL("/resident/register-google", requestUrl.origin))
-        }
-        
-        // If user exists but has no role, still redirect to registration
-        if (userRow && !userRow.role) {
-          return NextResponse.redirect(new URL("/resident/register-google", requestUrl.origin))
-        }
-        
-        // If user exists with a role, redirect to appropriate dashboard
-        if (userRow?.role) {
-          switch (userRow.role) {
-            case 'admin':
-              return NextResponse.redirect(new URL("/admin/dashboard", requestUrl.origin))
-            case 'volunteer':
-              return NextResponse.redirect(new URL("/volunteer/dashboard", requestUrl.origin))
-            case 'barangay':
-              return NextResponse.redirect(new URL("/barangay/dashboard", requestUrl.origin))
-            case 'resident':
-              return NextResponse.redirect(new URL("/resident/dashboard", requestUrl.origin))
-            default:
-              // For any other role or no role, redirect to login
-              return NextResponse.redirect(new URL("/login", requestUrl.origin))
+          const fullName = user.user_metadata?.full_name || 'Google User'
+          const nameParts = fullName.split(' ')
+          const firstName = nameParts[0] || 'Google'
+          const lastName = nameParts.slice(1).join(' ') || 'User'
+
+          const { error: createError } = await supabase.from('users').insert({
+            id: userId,
+            email: userEmail,
+            first_name: firstName,
+            last_name: lastName,
+            role: 'resident',
+            phone_number: user.user_metadata?.phone_number || '',
+            address: '',
+            barangay: '',
+            city: 'TALISAY CITY',
+            province: 'NEGROS OCCIDENTAL',
+            confirmation_phrase: '',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+
+          if (createError) {
+            console.error('Error creating user profile:', createError)
+            return NextResponse.redirect(new URL('/login?error=profile_creation_failed', requestUrl.origin))
           }
+
+          return NextResponse.redirect(new URL('/resident/dashboard', requestUrl.origin))
+        }
+
+        // User exists - check and assign role if needed
+        let userRole = userRow.role
+        
+        if (!userRole) {
+          const { error: updateError } = await supabase
+            .from('users')
+            .update({ role: 'resident' })
+            .eq('id', userId)
+
+          if (updateError) {
+            console.error('Error updating user role:', updateError)
+            return NextResponse.redirect(new URL('/login?error=role_update_failed', requestUrl.origin))
+          }
+          userRole = 'resident'
+        }
+
+        // Redirect based on user role
+        switch (userRole) {
+          case 'admin':
+            return NextResponse.redirect(new URL('/admin/dashboard', requestUrl.origin))
+          case 'volunteer':
+            return NextResponse.redirect(new URL('/volunteer/dashboard', requestUrl.origin))
+          case 'barangay':
+            return NextResponse.redirect(new URL('/barangay/dashboard', requestUrl.origin))
+          case 'resident':
+            return NextResponse.redirect(new URL('/resident/dashboard', requestUrl.origin))
+          default:
+            return NextResponse.redirect(new URL('/login', requestUrl.origin))
         }
       } else {
-        // No session after exchange - this shouldn't happen, but handle it
-        console.warn('No session after code exchange')
-        return NextResponse.redirect(new URL("/login?error=no_session", requestUrl.origin))
+        console.warn('No user after code exchange')
+        return NextResponse.redirect(new URL('/login?error=no_session', requestUrl.origin))
       }
     } catch (error) {
-      // Fallback to default redirect below
       console.error('Unexpected error in callback:', error)
+      return NextResponse.redirect(new URL('/login?error=unexpected', requestUrl.origin))
     }
   }
 
-  // URL to redirect to after sign in process completes
-  return NextResponse.redirect(new URL("/login", requestUrl.origin))
+  // No code provided - redirect to login
+  return NextResponse.redirect(new URL('/login', requestUrl.origin))
 }

@@ -1,5 +1,4 @@
 "use client"
-
 import type React from "react"
 import { useState, useEffect } from "react"
 import Link from "next/link"
@@ -23,7 +22,6 @@ export default function RegisterPage() {
     barangay: "",
     confirmationPhrase: "",
   })
-
   const [barangays, setBarangays] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -33,7 +31,6 @@ export default function RegisterPage() {
   const router = useRouter()
 
   useEffect(() => {
-    // Fetch barangays from the database
     const fetchBarangays = async () => {
       try {
         const { data } = await fetch("/api/barangays").then((res) => res.json())
@@ -42,108 +39,56 @@ export default function RegisterPage() {
         }
       } catch (err) {
         console.error("Error fetching barangays:", err)
-        // Fallback to hardcoded list if API fails
         setBarangays([
-          "ZONE 1",
-          "ZONE 2",
-          "ZONE 3",
-          "ZONE 4",
-          "ZONE 5",
-          "ZONE 6",
-          "ZONE 7",
-          "ZONE 8",
-          "ZONE 9",
-          "ZONE 10",
-          "ZONE 11",
-          "ZONE 12",
-          "ZONE 13",
-          "ZONE 14",
-          "ZONE 15",
-          "ZONE 16",
-          "ZONE 17",
-          "ZONE 18",
-          "ZONE 19",
-          "ZONE 20",
-          "CONCEPCION",
-          "CABATANGAN",
-          "MATAB-ANG",
-          "BUBOG",
-          "DOS HERMANAS",
-          "EFIGENIO LIZARES",
-          "KATILINGBAN",
+          "ZONE 1", "ZONE 2", "ZONE 3", "ZONE 4", "ZONE 5", "ZONE 6", "ZONE 7", "ZONE 8", "ZONE 9", "ZONE 10",
+          "ZONE 11", "ZONE 12", "ZONE 13", "ZONE 14", "ZONE 15", "ZONE 16", "ZONE 17", "ZONE 18", "ZONE 19", "ZONE 20",
+          "CONCEPCION", "CABATANGAN", "MATAB-ANG", "BUBOG", "DOS HERMANAS", "EFIGENIO LIZARES", "KATILINGBAN",
         ])
       }
     }
-
     fetchBarangays()
   }, [])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
-
-    // Format phone number if it's the phone field
     if (name === "phoneNumber") {
-      setFormData({
-        ...formData,
-        [name]: formatPhilippineNumber(value),
-      })
-    }
-    // Auto uppercase for name fields
-    else if (name === "firstName" || name === "lastName" || name === "address") {
-      setFormData({
-        ...formData,
-        [name]: toUpperCase(value),
-      })
+      setFormData({ ...formData, [name]: formatPhilippineNumber(value) })
+    } else if (name === "firstName" || name === "lastName" || name === "address") {
+      setFormData({ ...formData, [name]: toUpperCase(value) })
     } else {
-      setFormData({
-        ...formData,
-        [name]: value,
-      })
+      setFormData({ ...formData, [name]: value })
     }
   }
 
   const validateForm = () => {
-    // Password validation
     if (formData.password.length < 6) {
       setError("Password must be at least 6 characters long")
       return false
     }
-
-    // Check for uppercase, lowercase, number, and special character
     const hasUppercase = /[A-Z]/.test(formData.password)
     const hasLowercase = /[a-z]/.test(formData.password)
     const hasNumber = /[0-9]/.test(formData.password)
     const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(formData.password)
-
     if (!(hasUppercase && hasLowercase && hasNumber && hasSpecial)) {
       setError("Password must include uppercase, lowercase, number, and special character")
       return false
     }
-
-    // Password confirmation
     if (formData.password !== formData.confirmPassword) {
       setError("Passwords do not match")
       return false
     }
-
-    // Phone number validation
     if (!isValidPhilippineNumber(formData.phoneNumber)) {
       setError("Please enter a valid Philippine mobile number (e.g., 09XXXXXXXXX)")
       return false
     }
-
-    // Confirmation phrase validation
     if (formData.confirmationPhrase.length < 4) {
       setError("Confirmation phrase must be at least 4 characters")
       return false
     }
-
-    // Terms acceptance
     if (!termsAccepted) {
       setError("You must accept the terms and conditions")
       return false
     }
-
     return true
   }
 
@@ -152,12 +97,10 @@ export default function RegisterPage() {
     setLoading(true)
     setError(null)
     setSuccess(null)
-
     if (!validateForm()) {
       setLoading(false)
       return
     }
-
     try {
       const result = await signUpResident(
         formData.email,
@@ -169,16 +112,12 @@ export default function RegisterPage() {
         formData.barangay,
         formData.confirmationPhrase,
       )
-
       if (!result.success) {
         setError(result.message || "Registration failed. Please try again.")
         setLoading(false)
         return
       }
-
       setSuccess("Registration successful! Please check your email for verification link.")
-
-      // Redirect to login after 3 seconds
       setTimeout(() => {
         router.push("/login")
       }, 3000)
@@ -189,32 +128,31 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md mx-auto bg-white p-8 rounded-lg shadow-md">
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md mx-auto bg-white dark:bg-gray-800 p-8 rounded-lg shadow-md">
         <div className="text-center">
           <div className="flex justify-center">
             <AlertTriangle className="h-12 w-12 text-red-600" />
           </div>
-          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">Register as Resident</h2>
-          <p className="mt-2 text-sm text-gray-600">Create your account to report incidents</p>
+          <h2 className="mt-6 text-3xl font-extrabold text-gray-900 dark:text-white">Register as Resident</h2>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">Create your account to report incidents</p>
         </div>
 
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           {error && (
-            <div className="bg-red-50 border-l-4 border-red-500 p-4">
+            <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 p-4">
               <div className="flex">
                 <div className="flex-shrink-0">
                   <AlertTriangle className="h-5 w-5 text-red-500" />
                 </div>
                 <div className="ml-3">
-                  <p className="text-sm text-red-700">{error}</p>
+                  <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
                 </div>
               </div>
             </div>
           )}
-
           {success && (
-            <div className="bg-green-50 border-l-4 border-green-500 p-4">
+            <div className="bg-green-50 dark:bg-green-900/20 border-l-4 border-green-500 p-4">
               <div className="flex">
                 <div className="flex-shrink-0">
                   <svg
@@ -231,7 +169,7 @@ export default function RegisterPage() {
                   </svg>
                 </div>
                 <div className="ml-3">
-                  <p className="text-sm text-green-700">{success}</p>
+                  <p className="text-sm text-green-700 dark:text-green-400">{success}</p>
                 </div>
               </div>
             </div>
@@ -239,7 +177,7 @@ export default function RegisterPage() {
 
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <div>
-              <label htmlFor="firstName" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 First Name
               </label>
               <input
@@ -247,15 +185,14 @@ export default function RegisterPage() {
                 name="firstName"
                 id="firstName"
                 required
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm text-gray-900"
+                className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm"
                 value={formData.firstName}
                 onChange={handleChange}
                 disabled={loading}
               />
             </div>
-
             <div>
-              <label htmlFor="lastName" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Last Name
               </label>
               <input
@@ -263,7 +200,7 @@ export default function RegisterPage() {
                 name="lastName"
                 id="lastName"
                 required
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm text-gray-900"
+                className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm"
                 value={formData.lastName}
                 onChange={handleChange}
                 disabled={loading}
@@ -272,7 +209,7 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Email Address
             </label>
             <input
@@ -281,7 +218,7 @@ export default function RegisterPage() {
               id="email"
               autoComplete="email"
               required
-              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm text-gray-900"
+              className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm"
               value={formData.email}
               onChange={handleChange}
               disabled={loading}
@@ -289,7 +226,7 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Password
             </label>
             <input
@@ -297,19 +234,19 @@ export default function RegisterPage() {
               name="password"
               id="password"
               required
-              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm text-gray-900"
+              className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm"
               value={formData.password}
               onChange={handleChange}
               disabled={loading}
             />
             <PasswordStrength password={formData.password} />
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               Must be at least 6 characters with uppercase, lowercase, number, and special character
             </p>
           </div>
 
           <div>
-            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Confirm Password
             </label>
             <input
@@ -317,7 +254,7 @@ export default function RegisterPage() {
               name="confirmPassword"
               id="confirmPassword"
               required
-              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm text-gray-900"
+              className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm"
               value={formData.confirmPassword}
               onChange={handleChange}
               disabled={loading}
@@ -325,7 +262,7 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Phone Number
             </label>
             <input
@@ -333,7 +270,7 @@ export default function RegisterPage() {
               name="phoneNumber"
               id="phoneNumber"
               required
-              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm text-gray-900"
+              className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm"
               value={formData.phoneNumber}
               onChange={handleChange}
               placeholder="09XXXXXXXXX"
@@ -342,7 +279,7 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label htmlFor="address" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="address" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Street Address
             </label>
             <input
@@ -350,7 +287,7 @@ export default function RegisterPage() {
               name="address"
               id="address"
               required
-              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm text-gray-900"
+              className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm"
               value={formData.address}
               onChange={handleChange}
               disabled={loading}
@@ -358,14 +295,14 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label htmlFor="barangay" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="barangay" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Barangay
             </label>
             <select
               name="barangay"
               id="barangay"
               required
-              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm text-gray-900"
+              className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm"
               value={formData.barangay}
               onChange={handleChange}
               disabled={loading}
@@ -380,7 +317,7 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label htmlFor="confirmationPhrase" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="confirmationPhrase" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Email Confirmation Phrase
             </label>
             <input
@@ -388,14 +325,13 @@ export default function RegisterPage() {
               name="confirmationPhrase"
               id="confirmationPhrase"
               required
-              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm text-gray-900"
+              className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm"
               value={formData.confirmationPhrase}
               onChange={handleChange}
               disabled={loading}
             />
-            <p className="mt-1 text-xs text-gray-500">
-              This phrase will appear in your verification email to confirm it's from us. Never share this phrase with
-              anyone.
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              This phrase will appear in your verification email to confirm it's from us. Never share this phrase with anyone.
             </p>
           </div>
 
@@ -405,17 +341,17 @@ export default function RegisterPage() {
               name="terms"
               type="checkbox"
               required
-              className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+              className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 dark:border-gray-600 rounded"
               checked={termsAccepted}
               onChange={() => setTermsAccepted(!termsAccepted)}
               disabled={loading}
             />
-            <label htmlFor="terms" className="ml-2 block text-sm text-gray-900">
+            <label htmlFor="terms" className="ml-2 block text-sm text-gray-900 dark:text-gray-300">
               I agree to the{" "}
               <button
                 type="button"
                 onClick={() => setShowTermsModal(true)}
-                className="text-red-600 hover:text-red-500 font-medium inline-flex items-center"
+                className="text-red-600 dark:text-red-400 hover:text-red-500 dark:hover:text-red-300 font-medium inline-flex items-center"
               >
                 terms and conditions
                 <FileText className="ml-1 h-4 w-4" />
@@ -427,7 +363,7 @@ export default function RegisterPage() {
             <button
               type="submit"
               disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50"
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 dark:focus:ring-offset-gray-800 disabled:opacity-50"
             >
               {loading ? (
                 <LoadingSpinner size="sm" color="text-white" />
@@ -446,14 +382,13 @@ export default function RegisterPage() {
         <div className="mt-6 text-center">
           <Link
             href="/login"
-            className="text-sm font-medium text-red-600 hover:text-red-500 flex items-center justify-center"
+            className="text-sm font-medium text-red-600 dark:text-red-400 hover:text-red-500 dark:hover:text-red-300 flex items-center justify-center"
           >
             <ArrowLeft className="h-4 w-4 mr-1" />
             Back to Login
           </Link>
         </div>
       </div>
-
       <TermsModal isOpen={showTermsModal} onClose={() => setShowTermsModal(false)} />
     </div>
   )
