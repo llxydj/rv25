@@ -1,125 +1,51 @@
 // src/middleware.ts
-
-import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(req: NextRequest) {
   console.log('🔥 MIDDLEWARE HIT:', req.nextUrl.pathname)
   console.log('🍪 ALL COOKIES:', req.cookies.getAll().map(c => c.name))
 
-  let res = NextResponse.next({ request: req })
+  const res = NextResponse.next()
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          const cookies = req.cookies.getAll()
-          console.log('🔑 MIDDLEWARE getAll:', cookies.map(c => c.name))
-          return cookies
-        },
-        setAll(cookiesToSet) {
-          console.log(
-            '🟢 MIDDLEWARE setAll:',
-            cookiesToSet.map(c => c.name)
-          )
-
-          // Write cookies to req
-          cookiesToSet.forEach(({ name, value }) => req.cookies.set(name, value))
-
-          res = NextResponse.next({ request: req })
-
-          // Write cookies to response
-          cookiesToSet.forEach(({ name, value, options }) =>
-            res.cookies.set(name, value, options)
-          )
-        },
+  // Only call Node API route for auth/role checks
+  try {
+    const apiRes = await fetch(`${req.nextUrl.origin}/api/auth/check-user`, {
+      headers: {
+        cookie: req.headers.get('cookie') || '', // forward cookies for SSR auth
       },
-    }
-  )
+    })
+    const json = await apiRes.json()
 
-  // CRITICAL: Refresh auth token
-  const { data: { user }, error } = await supabase.auth.getUser()
-  console.log(
-    '👤 MIDDLEWARE USER:',
-    user?.id || 'NO USER',
-    'ERROR:',
-    error?.message || 'none'
-  )
+    const user = json.user
+    const role = json.role
 
-  // ✅ NEW: PROTECT /admin/sms ROUTES
-  if (req.nextUrl.pathname.startsWith('/admin/sms')) {
-    console.log('🔐 SMS ROUTE PROTECTION - Checking admin access')
-
-    // Check if user is authenticated
-    if (!user) {
-      console.log('❌ No user - redirecting to login')
-      return NextResponse.redirect(new URL('/login', req.url))
-    }
-
-    try {
-      // Check if user is admin
-      const { data: adminProfile, error: adminError } = await supabase
-        .from('admin_profiles')
-        .select('id, role')
-        .eq('user_id', user.id)
-        .maybeSingle()
-
-      console.log('🛡️ Admin check:', {
-        userId: user.id,
-        isAdmin: !!adminProfile,
-        adminRole: adminProfile?.role,
-        error: adminError?.message
-      })
-
-      if (adminError || !adminProfile) {
-        console.log('❌ User is not admin - redirecting to dashboard')
-        return NextResponse.redirect(new URL('/admin/dashboard', req.url))
+    // Protect /admin/sms routes
+    if (req.nextUrl.pathname.startsWith('/admin/sms')) {
+      if (!user || role !== 'admin') {
+        console.log('❌ Not admin - redirect to dashboard/login')
+        return NextResponse.redirect(new URL('/login', req.url))
       }
-
-      // User is admin - allow access
-      console.log('✅ Admin access granted')
-      return res
-    } catch (err) {
-      console.error('❌ Error checking admin status:', err)
-      return NextResponse.redirect(new URL('/admin/dashboard', req.url))
     }
-  }
 
-  // If user is logged in and tries to access /login → redirect based on role
-  if (user && req.nextUrl.pathname === '/login') {
-    try {
-      console.log('🔎 Checking user role for redirect…')
-
-      const { data: userData, error: roleError } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', user.id)
-        .maybeSingle()
-
-      console.log('📌 User role result:', userData, 'ERROR:', roleError?.message)
-
-      if (!roleError && userData) {
-        switch (userData.role) {
-          case 'admin':
-            return NextResponse.redirect(new URL('/admin/dashboard', req.url))
-          case 'volunteer':
-            return NextResponse.redirect(new URL('/volunteer/dashboard', req.url))
-          case 'barangay':
-            return NextResponse.redirect(new URL('/barangay/dashboard', req.url))
-          case 'resident':
-            return NextResponse.redirect(new URL('/resident/dashboard', req.url))
-          default:
-            return NextResponse.redirect(new URL('/resident/register-google', req.url))
-        }
-      } else {
-        return NextResponse.redirect(new URL('/resident/register-google', req.url))
+    // Redirect logged-in users from /login based on role
+    if (user && req.nextUrl.pathname === '/login') {
+      switch (role) {
+        case 'admin':
+          return NextResponse.redirect(new URL('/admin/dashboard', req.url))
+        case 'volunteer':
+          return NextResponse.redirect(new URL('/volunteer/dashboard', req.url))
+        case 'barangay':
+          return NextResponse.redirect(new URL('/barangay/dashboard', req.url))
+        case 'resident':
+          return NextResponse.redirect(new URL('/resident/dashboard', req.url))
+        default:
+          return NextResponse.redirect(new URL('/resident/register-google', req.url))
       }
-    } catch (err) {
-      console.error('❌ Error in middleware role check:', err)
-      return NextResponse.redirect(new URL('/resident/register-google', req.url))
     }
+
+  } catch (err) {
+    console.error('❌ Middleware auth check error:', err)
+    // If API fails, allow next, optionally redirect to login
   }
 
   return res
@@ -128,7 +54,7 @@ export async function middleware(req: NextRequest) {
 export const config = {
   matcher: [
     '/login',
-    '/admin/sms/:path*', 
+    '/admin/sms/:path*',
     '/api/:path*',
   ],
 }

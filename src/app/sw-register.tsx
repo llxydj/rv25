@@ -1,3 +1,5 @@
+// src/app/sw-register.tsx
+
 "use client"
 
 import { useEffect } from "react"
@@ -11,7 +13,7 @@ export default function ServiceWorkerRegistration() {
     ) {
       // Register the service worker
       navigator.serviceWorker
-        .register("/sw-enhanced.js")
+        .register("/sw.js")
         .then((registration) => {
           console.log("SW registered:", registration.scope)
           

@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { AdminLayout } from "@/components/layout/admin-layout"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
+import { X, Upload as UploadIcon, FileText } from "lucide-react"
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024
 const ALLOW = ["pdf", "doc", "docx", "png", "jpg", "jpeg"]
@@ -30,7 +31,7 @@ export default function AdminDocumentsPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null) // 0-100
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null)
   const [renamingDoc, setRenamingDoc] = useState<string | null>(null)
   const [newDisplayName, setNewDisplayName] = useState("")
   const [search, setSearch] = useState("")
@@ -51,15 +52,12 @@ export default function AdminDocumentsPage() {
 
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
-  // Upload result modal
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [uploadResult, setUploadResult] = useState<{ uploaded: string[]; skipped: { name: string; reason: string }[] } | null>(null)
 
-  // Image preview modal
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
 
-  // load documents
   const load = async () => {
     try {
       setLoading(true)
@@ -87,7 +85,6 @@ export default function AdminDocumentsPage() {
     load()
   }, [])
 
-  // Helpers: file ext/type detection
   const getExt = (name: string) => name.split(".").pop()?.toLowerCase() || ""
   const isImage = (d: Doc) => {
     const ext = getExt(d.file_name)
@@ -97,14 +94,12 @@ export default function AdminDocumentsPage() {
   const isPdf = (d: Doc) => getExt(d.file_name) === "pdf" || d.mime_type === "application/pdf"
   const isWord = (d: Doc) => ["doc", "docx"].includes(getExt(d.file_name)) || /word/.test(d.mime_type || "")
 
-  // Filtering by search
   const filteredDocs = useMemo(() => {
     const q = search.trim().toLowerCase()
     if (!q) return docs
     return docs.filter((d) => (d.display_name || d.file_name).toLowerCase().includes(q))
   }, [docs, search])
 
-  // Grouping (by type)
   const grouped = useMemo(() => {
     const groups: Record<GroupName, Doc[]> = {
       Images: [],
@@ -121,17 +116,14 @@ export default function AdminDocumentsPage() {
     return groups
   }, [filteredDocs])
 
-  // Toggle group open/close
   const toggleGroup = (g: GroupName) => {
     setOpenGroups((prev) => {
       const next = { ...prev, [g]: !prev[g] }
-      // update currentGroup
       setCurrentGroup(next[g] ? g : null)
       return next
     })
   }
 
-  // Prefetch signed urls for images in a group when opened (lazy)
   useEffect(() => {
     const groupNames = GROUPS as GroupName[]
     groupNames.forEach((g) => {
@@ -139,7 +131,6 @@ export default function AdminDocumentsPage() {
       if (prefetchingGroup[g]) return
       const imgs = grouped[g].filter((d) => isImage(d))
       if (imgs.length === 0) return
-      // run async prefetch (not blocking)
       ;(async () => {
         setPrefetchingGroup((p) => ({ ...p, [g]: true }))
         await Promise.all(
@@ -161,7 +152,7 @@ export default function AdminDocumentsPage() {
                 setSignedUrls((s) => ({ ...s, [d.id]: json.url }))
               }
             } catch (err) {
-              // ignore individual thumbnail errors
+              // ignore
             }
           })
         )
@@ -171,7 +162,6 @@ export default function AdminDocumentsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openGroups, grouped])
 
-  // Get signed url on demand (for single image) - used by thumbnail img if not prefetched
   const ensureSignedUrl = async (docId: string) => {
     if (signedUrls[docId]) return signedUrls[docId]
     try {
@@ -196,7 +186,6 @@ export default function AdminDocumentsPage() {
     return null
   }
 
-  // View doc in new tab (existing behavior)
   const viewDoc = async (id: string) => {
     try {
       const {
@@ -217,7 +206,6 @@ export default function AdminDocumentsPage() {
     }
   }
 
-  // Upload (multi-file support) with progress via XMLHttpRequest
   const upload = async () => {
     setError(null)
     if (!files || files.length === 0) {
@@ -225,7 +213,6 @@ export default function AdminDocumentsPage() {
       return
     }
 
-    // Validate each file; build list of valid files and skipped files
     const valid: File[] = []
     const skipped: { name: string; reason: string }[] = []
 
@@ -251,17 +238,14 @@ export default function AdminDocumentsPage() {
       setUploading(true)
       setUploadProgress(0)
 
-      // build form
       const form = new FormData()
       valid.forEach((f) => form.append("files", f))
 
-      // get token
       const {
         data: { session },
       } = await supabase.auth.getSession()
       const token = session?.access_token
 
-      // wrap XHR so we can track progress
       const uploadJson = await new Promise<any>((resolve, reject) => {
         const xhr = new XMLHttpRequest()
         xhr.open("POST", "/api/admin-documents", true)
@@ -297,13 +281,12 @@ export default function AdminDocumentsPage() {
       if (!json.success) throw new Error(json.message || "Upload failed")
 
       const uploadedNames: string[] = (json.data && Array.isArray(json.data))
-        ? json.data.map((it: any) => it.display_name || it.file_name || it.file_name)
+        ? json.data.map((it: any) => it.display_name || it.file_name)
         : valid.map((f) => f.name)
 
       setUploadResult({ uploaded: uploadedNames, skipped })
       setShowUploadModal(true)
 
-      // clear file input visually and state
       setFiles([])
       if (fileInputRef.current) fileInputRef.current.value = ""
 
@@ -316,7 +299,6 @@ export default function AdminDocumentsPage() {
     }
   }
 
-  // Delete
   const removeDoc = async (id: string) => {
     if (!confirm("Delete this document?")) return
     try {
@@ -345,7 +327,6 @@ export default function AdminDocumentsPage() {
     }
   }
 
-  // Rename
   const startRename = (doc: Doc) => {
     setRenamingDoc(doc.id)
     setNewDisplayName(doc.display_name || doc.file_name)
@@ -386,7 +367,6 @@ export default function AdminDocumentsPage() {
     }
   }
 
-  // Preview image (modal)
   const openPreview = async (d: Doc) => {
     setPreviewLoading(true)
     try {
@@ -401,7 +381,6 @@ export default function AdminDocumentsPage() {
   }
   const closePreview = () => setPreviewUrl(null)
 
-  // UI helpers
   const getFileIcon = (fileName: string) => {
     const ext = fileName.split(".").pop()?.toLowerCase()
     switch (ext) {
@@ -430,63 +409,104 @@ export default function AdminDocumentsPage() {
     return d.toLocaleString()
   }
 
-  // breadcrumb click: Home and Documents
   const goHome = () => {
     setCurrentGroup(null)
     setOpenGroups({ Images: false, PDFs: false, "Word Documents": false, Others: false })
   }
   const goDocuments = () => {
     setCurrentGroup(null)
-    // keep group open state as-is (or open all)
   }
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-4">
-        {/* Breadcrumb (clickable) */}
-        <div className="text-sm text-gray-500 dark:text-gray-400">
-          <button onClick={goHome} className="underline mr-1">Home</button> /
-          <button onClick={goDocuments} className="underline mx-1">Documents</button>
-          {currentGroup ? <span className="ml-1">/ {currentGroup}</span> : null}
+      <div className="p-4 md:p-6 space-y-3 md:space-y-4">
+        {/* Breadcrumb */}
+        <div className="text-xs md:text-sm text-gray-500 dark:text-gray-400 flex flex-wrap items-center gap-1">
+          <button onClick={goHome} className="underline hover:text-gray-700 dark:hover:text-gray-300">
+            Home
+          </button>
+          <span>/</span>
+          <button onClick={goDocuments} className="underline hover:text-gray-700 dark:hover:text-gray-300">
+            Documents
+          </button>
+          {currentGroup && (
+            <>
+              <span>/</span>
+              <span className="text-gray-700 dark:text-gray-300">{currentGroup}</span>
+            </>
+          )}
         </div>
 
-        <div className="flex items-center justify-between gap-4">
-          <h1 className="text-2xl font-semibold">Admin Documents</h1>
-          <div className="flex items-center gap-2">
-            <div className="text-xs text-gray-500 dark:text-gray-400 mr-2">Auto groups</div>
-            <div className="text-sm text-gray-600 dark:text-gray-300">Images · PDFs · Word Docs · Others</div>
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <h1 className="text-xl md:text-2xl font-semibold text-gray-900 dark:text-white">Admin Documents</h1>
+          <div className="flex flex-wrap items-center gap-2 text-xs md:text-sm text-gray-600 dark:text-gray-400">
+            <span className="hidden sm:inline">Auto groups:</span>
+            <span className="text-gray-700 dark:text-gray-300">Images · PDFs · Word Docs · Others</span>
           </div>
         </div>
 
+        {/* Error Alert */}
         {error && (
-          <div className="bg-red-50 dark:bg-red-900/30 border-l-4 border-red-500 p-4 rounded-md" role="alert" aria-live="polite">
-            <h3 className="text-sm font-medium text-red-800 dark:text-red-200">Error</h3>
-            <p className="mt-2 text-sm text-red-700 dark:text-red-100">{error}</p>
+          <div className="bg-red-50 dark:bg-red-900/30 border-l-4 border-red-500 dark:border-red-800 p-3 md:p-4 rounded-md" role="alert" aria-live="polite">
+            <div className="flex items-start gap-2">
+              <div className="flex-shrink-0">
+                <X className="h-4 w-4 md:h-5 md:w-5 text-red-500 dark:text-red-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-xs md:text-sm font-medium text-red-800 dark:text-red-200">Error</h3>
+                <p className="mt-1 text-xs md:text-sm text-red-700 dark:text-red-100">{error}</p>
+              </div>
+              <button
+                onClick={() => setError(null)}
+                className="flex-shrink-0 text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-200"
+                aria-label="Dismiss error"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         )}
 
         {/* Upload + Search */}
-        <Card className="p-4 flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            onChange={(e) => {
-              const selected = e.target.files ? Array.from(e.target.files) : []
-              setFiles(selected)
-            }}
-            className="flex-1"
-            aria-label="Choose files to upload"
-          />
-          <div className="flex items-center gap-2">
-            <Button onClick={upload} disabled={uploading || files.length === 0} className="w-full sm:w-auto">
+        <Card className="p-3 md:p-4 space-y-3">
+          <div className="flex flex-col sm:flex-row gap-2 md:gap-3 items-stretch sm:items-center">
+            <div className="flex-1 min-w-0">
+              <label className="block text-xs md:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                Choose Files
+              </label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                onChange={(e) => {
+                  const selected = e.target.files ? Array.from(e.target.files) : []
+                  setFiles(selected)
+                }}
+                className="w-full text-xs md:text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md cursor-pointer focus:outline-none file:mr-2 md:file:mr-4 file:py-2 file:px-3 md:file:px-4 file:rounded-l-md file:border-0 file:text-xs md:file:text-sm file:font-semibold file:bg-blue-50 dark:file:bg-blue-900/30 file:text-blue-700 dark:file:text-blue-300 hover:file:bg-blue-100 dark:hover:file:bg-blue-900/50"
+                aria-label="Choose files to upload"
+              />
+              {files.length > 0 && (
+                <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                  {files.length} file{files.length !== 1 ? 's' : ''} selected
+                </p>
+              )}
+            </div>
+            <Button
+              onClick={upload}
+              disabled={uploading || files.length === 0}
+              className="w-full sm:w-auto whitespace-nowrap text-xs md:text-sm h-9 md:h-10 sm:mt-auto"
+            >
               {uploading ? (
                 <>
-                  <LoadingSpinner size="sm" color="text-white" className="mr-2" />
+                  <LoadingSpinner size="sm" color="text-white" className="mr-1.5 md:mr-2" />
                   Uploading...
                 </>
               ) : (
-                "Upload"
+                <>
+                  <UploadIcon className="h-3 w-3 md:h-4 md:w-4 mr-1.5 md:mr-2" />
+                  Upload
+                </>
               )}
             </Button>
           </div>
@@ -495,17 +515,22 @@ export default function AdminDocumentsPage() {
             placeholder="Search by file name..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 sm:flex-auto mt-3 sm:mt-0"
+            className="w-full text-xs md:text-sm"
             aria-label="Search documents"
           />
         </Card>
 
-        {/* upload progress bar */}
+        {/* Upload Progress */}
         {uploading && uploadProgress !== null && (
-          <Card className="p-3">
-            <div className="text-sm mb-2">Uploading: {uploadProgress}%</div>
-            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded h-2 overflow-hidden">
-              <div style={{ width: `${uploadProgress}%` }} className="h-2 bg-blue-600 dark:bg-blue-500" />
+          <Card className="p-3 md:p-4 border-blue-200 dark:border-blue-800">
+            <div className="text-xs md:text-sm text-gray-700 dark:text-gray-300 mb-2">
+              Uploading: {uploadProgress}%
+            </div>
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
+              <div
+                style={{ width: `${uploadProgress}%` }}
+                className="h-2 bg-blue-600 dark:bg-blue-500 transition-all duration-300"
+              />
             </div>
           </Card>
         )}
@@ -517,42 +542,55 @@ export default function AdminDocumentsPage() {
               <LoadingSpinner size="md" />
             </div>
           </Card>
+        ) : docs.length === 0 ? (
+          <Card className="p-8 md:p-12">
+            <div className="text-center">
+              <FileText className="h-12 w-12 md:h-16 md:w-16 text-gray-400 dark:text-gray-500 mx-auto mb-3 md:mb-4" />
+              <h3 className="text-base md:text-lg font-medium text-gray-900 dark:text-white mb-2">
+                No documents yet
+              </h3>
+              <p className="text-xs md:text-sm text-gray-600 dark:text-gray-400 max-w-md mx-auto">
+                Upload your first document to get started. Supported formats: PDF, Word, Images
+              </p>
+            </div>
+          </Card>
         ) : (
           GROUPS.map((g) => {
             const list = grouped[g]
             const open = !!openGroups[g]
             return (
-              <Card key={g} className="p-4">
-                <div className="flex items-center justify-between">
+              <Card key={g} className="p-3 md:p-4">
+                <div className="flex items-center justify-between gap-2 md:gap-4">
                   <button
                     type="button"
                     onClick={() => toggleGroup(g)}
-                    className="flex items-center gap-3 text-left w-full"
+                    className="flex items-center gap-2 md:gap-3 text-left flex-1 min-w-0"
                     aria-expanded={open}
                   >
-                    <div className="text-lg font-medium">
-                      {open ? "📂" : "📁"} {g}
-                    </div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400">({list.length})</div>
+                    <span className="text-base md:text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                      <span>{open ? "📂" : "📁"}</span>
+                      <span className="truncate">{g}</span>
+                    </span>
+                    <span className="text-xs md:text-sm text-gray-500 dark:text-gray-400 flex-shrink-0">
+                      ({list.length})
+                    </span>
                   </button>
 
-                  <div className="flex items-center gap-2">
-                    {prefetchingGroup[g] && (
-                      <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                        <LoadingSpinner size="xs" />
-                        <span>Loading thumbnails…</span>
-                      </div>
-                    )}
-                    <div className="text-sm text-gray-500 dark:text-gray-400">{/* reserved */}</div>
-                  </div>
+                  {prefetchingGroup[g] && (
+                    <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 flex-shrink-0">
+                      <LoadingSpinner size="xs" />
+                      <span className="hidden sm:inline">Loading…</span>
+                    </div>
+                  )}
                 </div>
 
+                {/* Thumbnail Preview (collapsed) */}
                 {!open && list.length > 0 && (
-                  <div className="mt-3 flex gap-2 overflow-x-auto">
+                  <div className="mt-3 flex gap-2 overflow-x-auto pb-2">
                     {list.slice(0, 8).map((d) => (
                       <div
                         key={d.id}
-                        className="flex-shrink-0 w-28 h-20 border rounded-md p-2 bg-white dark:bg-gray-800 cursor-pointer"
+                        className="flex-shrink-0 w-24 h-20 md:w-28 md:h-24 border border-gray-200 dark:border-gray-700 rounded-md p-2 bg-white dark:bg-gray-800 cursor-pointer hover:shadow-md transition-shadow"
                         onClick={() => {
                           setCurrentGroup(g)
                           setOpenGroups((p) => ({ ...p, [g]: true }))
@@ -579,12 +617,16 @@ export default function AdminDocumentsPage() {
                               }}
                             />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center text-gray-400">{getFileIcon(d.file_name)}</div>
+                            <div className="w-full h-full flex items-center justify-center text-gray-400 dark:text-gray-500">
+                              {getFileIcon(d.file_name)}
+                            </div>
                           )
                         ) : (
                           <div className="w-full h-full flex flex-col items-center justify-center text-xs text-gray-600 dark:text-gray-300">
-                            <div className="text-2xl">{getFileIcon(d.file_name)}</div>
-                            <div className="truncate mt-1">{d.display_name || d.file_name}</div>
+                            <div className="text-xl md:text-2xl">{getFileIcon(d.file_name)}</div>
+                            <div className="truncate mt-1 text-[10px] md:text-xs max-w-full px-1">
+                              {d.display_name || d.file_name}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -592,40 +634,55 @@ export default function AdminDocumentsPage() {
                   </div>
                 )}
 
-                {open && list.length === 0 && <div className="mt-4 text-sm text-gray-500">No files in this group.</div>}
+                {/* Empty State */}
+                {open && list.length === 0 && (
+                  <div className="mt-4 text-xs md:text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+                    No files in this group.
+                  </div>
+                )}
 
+                {/* File List (expanded) */}
                 {open && list.length > 0 && (
-                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
                     {list.map((d) => (
-                      <div key={d.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow duration-200 bg-white dark:bg-gray-800">
-                        <div className="flex items-start gap-3">
-                          <div className="w-16 h-12 flex-shrink-0 rounded overflow-hidden bg-gray-50 dark:bg-gray-700 flex items-center justify-center">
+                      <div
+                        key={d.id}
+                        className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 md:p-4 hover:shadow-md transition-shadow duration-200 bg-white dark:bg-gray-800"
+                      >
+                        <div className="flex items-start gap-2 md:gap-3">
+                          {/* Thumbnail */}
+                          <div className="w-12 h-10 md:w-16 md:h-12 flex-shrink-0 rounded overflow-hidden bg-gray-50 dark:bg-gray-700 flex items-center justify-center">
                             {isImage(d) ? (
                               signedUrls[d.id] ? (
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img
                                   src={signedUrls[d.id]}
                                   alt={d.file_name}
-                                  className="w-full h-full object-cover"
+                                  className="w-full h-full object-cover cursor-pointer"
                                   onClick={() => openPreview(d)}
                                 />
                               ) : (
-                                <button onClick={() => ensureSignedUrl(d.id)} className="text-xs text-gray-500 dark:text-gray-300" aria-label="Load thumbnail">
-                                  Load preview
+                                <button
+                                  onClick={() => ensureSignedUrl(d.id)}
+                                  className="text-[10px] md:text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                                  aria-label="Load thumbnail"
+                                >
+                                  Load
                                 </button>
                               )
                             ) : (
-                              <div className="text-2xl">{getFileIcon(d.file_name)}</div>
+                              <div className="text-xl md:text-2xl">{getFileIcon(d.file_name)}</div>
                             )}
                           </div>
 
+                          {/* File Info */}
                           <div className="flex-1 min-w-0">
                             {renamingDoc === d.id ? (
                               <div className="space-y-2">
                                 <Input
                                   value={newDisplayName}
                                   onChange={(e) => setNewDisplayName(e.target.value)}
-                                  className="h-8 text-sm"
+                                  className="h-7 md:h-8 text-xs md:text-sm"
                                   onKeyDown={(e) => {
                                     if (e.key === "Enter") saveRename(d.id)
                                     if (e.key === "Escape") cancelRename()
@@ -633,35 +690,64 @@ export default function AdminDocumentsPage() {
                                   autoFocus
                                 />
                                 <div className="flex gap-1">
-                                  <Button size="sm" variant="default" onClick={() => saveRename(d.id)} className="h-6 text-xs px-2">
+                                  <Button
+                                    size="sm"
+                                    variant="default"
+                                    onClick={() => saveRename(d.id)}
+                                    className="h-6 text-[10px] md:text-xs px-2"
+                                  >
                                     Save
                                   </Button>
-                                  <Button size="sm" variant="outline" onClick={cancelRename} className="h-6 text-xs px-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={cancelRename}
+                                    className="h-6 text-[10px] md:text-xs px-2"
+                                  >
                                     Cancel
                                   </Button>
                                 </div>
                               </div>
                             ) : (
                               <>
-                                <div className="font-medium truncate" title={d.display_name || d.file_name}>
+                                <div
+                                  className="font-medium text-xs md:text-sm text-gray-900 dark:text-white truncate"
+                                  title={d.display_name || d.file_name}
+                                >
                                   {d.display_name || d.file_name}
                                 </div>
-                                <div className="text-xs text-gray-500 mt-1">
+                                <div className="text-[10px] md:text-xs text-gray-500 dark:text-gray-400 mt-1">
                                   {formatFileSize(d.size_bytes)} • {formatDateTime(d.created_at)}
                                 </div>
                               </>
                             )}
                           </div>
 
+                          {/* Actions */}
                           {renamingDoc !== d.id && (
-                            <div className="flex flex-col gap-1">
-                              <Button variant="secondary" size="sm" onClick={() => viewDoc(d.id)} className="h-8 text-xs">
+                            <div className="flex flex-col gap-1 flex-shrink-0">
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => viewDoc(d.id)}
+                                className="h-6 md:h-7 text-[10px] md:text-xs px-2"
+                              >
                                 View
                               </Button>
-                              <Button variant="ghost" size="sm" onClick={() => startRename(d)} className="h-8 text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => startRename(d)}
+                                className="h-6 md:h-7 text-[10px] md:text-xs px-2 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30"
+                              >
                                 Rename
                               </Button>
-                              <Button variant="ghost" size="sm" onClick={() => removeDoc(d.id)} className="h-8 text-xs text-red-600 hover:text-red-800 hover:bg-red-50">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeDoc(d.id)}
+                                className="h-6 md:h-7 text-[10px] md:text-xs px-2 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/30"
+                              >
                                 Delete
                               </Button>
                             </div>
@@ -676,18 +762,34 @@ export default function AdminDocumentsPage() {
           })
         )}
 
-        {/* Upload result modal */}
+        {/* Upload Result Modal */}
         {showUploadModal && uploadResult && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-lg w-full p-6">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Upload Result</h2>
-              <div className="mt-4 space-y-3">
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowUploadModal(false)}
+          >
+            <div
+              className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full p-4 md:p-6 border border-gray-200 dark:border-gray-700"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-base md:text-lg font-semibold text-gray-900 dark:text-white">Upload Result</h2>
+                <button
+                  onClick={() => setShowUploadModal(false)}
+                  className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                  aria-label="Close modal"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-3 md:space-y-4">
                 <div>
-                  <p className="text-sm text-gray-700 dark:text-gray-300">
+                  <p className="text-xs md:text-sm text-gray-700 dark:text-gray-300">
                     Successfully uploaded: <span className="font-medium">{uploadResult.uploaded.length}</span>
                   </p>
                   {uploadResult.uploaded.length > 0 && (
-                    <ul className="mt-2 text-sm text-gray-600 dark:text-gray-400 list-disc list-inside max-h-36 overflow-auto">
+                    <ul className="mt-2 text-xs md:text-sm text-gray-600 dark:text-gray-400 list-disc list-inside max-h-36 overflow-auto">
                       {uploadResult.uploaded.map((n) => (
                         <li key={n}>{n}</li>
                       ))}
@@ -697,8 +799,8 @@ export default function AdminDocumentsPage() {
 
                 {uploadResult.skipped.length > 0 && (
                   <div>
-                    <p className="text-sm text-gray-700 dark:text-gray-300">Skipped files:</p>
-                    <ul className="mt-2 text-sm text-red-600 dark:text-red-400 list-disc list-inside">
+                    <p className="text-xs md:text-sm text-gray-700 dark:text-gray-300">Skipped files:</p>
+                    <ul className="mt-2 text-xs md:text-sm text-red-600 dark:text-red-400 list-disc list-inside">
                       {uploadResult.skipped.map((s) => (
                         <li key={s.name}>
                           {s.name} — {s.reason}
@@ -709,8 +811,8 @@ export default function AdminDocumentsPage() {
                 )}
               </div>
 
-              <div className="mt-6 flex justify-end gap-2">
-                <Button onClick={() => setShowUploadModal(false)} variant="outline">
+              <div className="mt-6 flex justify-end">
+                <Button onClick={() => setShowUploadModal(false)} variant="outline" className="text-xs md:text-sm">
                   Close
                 </Button>
               </div>
@@ -718,19 +820,35 @@ export default function AdminDocumentsPage() {
           </div>
         )}
 
-        {/* Image preview modal */}
+        {/* Image Preview Modal */}
         {previewUrl && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
-            <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg max-w-4xl w-full p-4">
-              <div className="flex justify-end">
-                <button onClick={closePreview} aria-label="Close preview" className="text-gray-700 dark:text-gray-200">✕</button>
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+            onClick={closePreview}
+          >
+            <div
+              className="bg-white dark:bg-gray-900 rounded-lg shadow-2xl max-w-4xl w-full p-3 md:p-4 border border-gray-200 dark:border-gray-700"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-end mb-2">
+                <button
+                  onClick={closePreview}
+                  aria-label="Close preview"
+                  className="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"
+                >
+                  <X className="h-5 w-5 md:h-6 md:w-6" />
+                </button>
               </div>
-              <div className="mt-2 flex justify-center items-center">
+              <div className="flex justify-center items-center">
                 {previewLoading ? (
                   <LoadingSpinner size="md" />
                 ) : (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={previewUrl} alt="Preview" className="max-h-[80vh] object-contain" />
+                  <img
+                    src={previewUrl}
+                    alt="Preview"
+                    className="max-h-[70vh] md:max-h-[80vh] w-auto object-contain rounded"
+                  />
                 )}
               </div>
             </div>

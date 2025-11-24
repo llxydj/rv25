@@ -43,6 +43,14 @@ export default function VolunteerDetailPage() {
     fetchVolunteerData()
   }, [id, user])
 
+  // Auto-clear success message
+  useEffect(() => {
+    if (success) {
+      const timer = setTimeout(() => setSuccess(null), 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [success])
+
   const handleStatusChange = async (newStatus: "ACTIVE" | "INACTIVE" | "SUSPENDED") => {
     if (!user || !volunteer) return
 
@@ -74,28 +82,29 @@ export default function VolunteerDetailPage() {
   }
 
   const getStatusBadge = (status: string) => {
+    const baseClass = "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap"
     switch (status) {
       case "ACTIVE":
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+          <span className={`${baseClass} bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300`}>
             Active
           </span>
         )
       case "INACTIVE":
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+          <span className={`${baseClass} bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300`}>
             Inactive
           </span>
         )
       case "SUSPENDED":
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+          <span className={`${baseClass} bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300`}>
             Suspended
           </span>
         )
       default:
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+          <span className={`${baseClass} bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300`}>
             {status}
           </span>
         )
@@ -134,7 +143,7 @@ export default function VolunteerDetailPage() {
   if (loading) {
     return (
       <AdminLayout>
-        <div className="flex justify-center py-12">
+        <div className="flex justify-center py-12 p-4">
           <LoadingSpinner size="lg" text="Loading volunteer details..." />
         </div>
       </AdminLayout>
@@ -144,15 +153,15 @@ export default function VolunteerDetailPage() {
   if (error) {
     return (
       <AdminLayout>
-        <div className="bg-red-50 border-l-4 border-red-500 p-4">
-          <div className="flex">
+        <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 dark:border-red-800 p-4 m-4">
+          <div className="flex gap-3">
             <div className="flex-shrink-0">
-              <AlertTriangle className="h-5 w-5 text-red-500" />
+              <AlertTriangle className="h-5 w-5 text-red-500 dark:text-red-400" />
             </div>
-            <div className="ml-3">
-              <p className="text-sm text-red-700">{error}</p>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
               <button
-                className="mt-2 text-sm font-medium text-red-700 hover:text-red-600"
+                className="mt-2 text-sm font-medium text-red-700 dark:text-red-300 hover:text-red-600 dark:hover:text-red-200 underline"
                 onClick={() => router.back()}
               >
                 Go Back
@@ -167,10 +176,10 @@ export default function VolunteerDetailPage() {
   if (!volunteer) {
     return (
       <AdminLayout>
-        <div className="text-center py-12">
-          <p className="text-gray-500">Volunteer not found</p>
+        <div className="text-center py-12 p-4">
+          <p className="text-gray-500 dark:text-gray-400 mb-4">Volunteer not found</p>
           <button
-            className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
             onClick={() => router.back()}
           >
             Go Back
@@ -182,311 +191,291 @@ export default function VolunteerDetailPage() {
 
   return (
     <AdminLayout>
-      <div className="space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Volunteer Profile</h1>
-            <p className="text-gray-600 mt-1">
+      <div className="space-y-4 md:space-y-6 p-4 md:p-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 md:gap-4">
+          <div className="min-w-0">
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white truncate">
+              Volunteer Profile
+            </h1>
+            <p className="text-xs md:text-sm text-gray-600 dark:text-gray-400 mt-1">
               Manage volunteer information and status
             </p>
           </div>
-          <div className="mt-4 md:mt-0">
-            <button
-              className="inline-flex items-center px-4 py-2 border border-gray-300 bg-white rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50"
-              onClick={() => router.back()}
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to List
-            </button>
-          </div>
+          <button
+            className="inline-flex items-center justify-center px-3 md:px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm text-xs md:text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors whitespace-nowrap"
+            onClick={() => router.back()}
+          >
+            <ArrowLeft className="h-3 w-3 md:h-4 md:w-4 mr-1.5 md:mr-2 flex-shrink-0" />
+            Back to List
+          </button>
         </div>
 
+        {/* Success Message */}
         {success && (
-          <div className="bg-green-50 border-l-4 border-green-500 p-4">
-            <div className="flex">
+          <div className="bg-green-50 dark:bg-green-900/20 border-l-4 border-green-500 dark:border-green-800 p-3 md:p-4">
+            <div className="flex gap-2 md:gap-3">
               <div className="flex-shrink-0">
-                <CheckCircle className="h-5 w-5 text-green-500" />
+                <CheckCircle className="h-4 w-4 md:h-5 md:w-5 text-green-500 dark:text-green-400" />
               </div>
-              <div className="ml-3">
-                <p className="text-sm text-green-700">{success}</p>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs md:text-sm text-green-700 dark:text-green-300">{success}</p>
               </div>
+              <button
+                onClick={() => setSuccess(null)}
+                className="flex-shrink-0 text-green-500 dark:text-green-400 hover:text-green-700 dark:hover:text-green-200"
+                aria-label="Dismiss success message"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white p-6 rounded-lg shadow-md">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center space-x-6">
-                  <div className="flex-shrink-0 h-24 w-24 rounded-full bg-blue-100 flex items-center justify-center">
-                    <span className="text-3xl font-bold text-blue-600">
+        {/* Main Content */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+          {/* Left Column - Main Info */}
+          <div className="lg:col-span-2 space-y-4 md:space-y-6">
+            <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+              {/* Profile Header */}
+              <div className="flex flex-col sm:flex-row sm:items-start gap-4 mb-6">
+                {/* Avatar & Info */}
+                <div className="flex items-center gap-3 md:gap-4 flex-1 min-w-0">
+                  <div className="flex-shrink-0 h-16 w-16 md:h-20 md:w-20 lg:h-24 lg:w-24 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                    <span className="text-xl md:text-2xl lg:text-3xl font-bold text-blue-600 dark:text-blue-400">
                       {volunteer.first_name.charAt(0)}{volunteer.last_name.charAt(0)}
                     </span>
                   </div>
-                  <div>
-                    <h2 className="text-xl font-semibold">
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-base md:text-lg lg:text-xl font-semibold text-gray-900 dark:text-white truncate">
                       {volunteer.first_name} {volunteer.last_name}
                     </h2>
-                    <div className="mt-2 flex flex-wrap gap-2">
+                    <div className="mt-2 flex flex-wrap gap-1.5 md:gap-2">
                       {getStatusBadge(volunteer.volunteer_profiles?.status || "INACTIVE")}
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 whitespace-nowrap">
                         Volunteer
                       </span>
                       {volunteer.last_active && (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                          <Clock className="h-3 w-3 mr-1" />
-                          Last active: {formatTimeAgo(new Date(volunteer.last_active))}
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 whitespace-nowrap">
+                          <Clock className="h-3 w-3 mr-1 flex-shrink-0" />
+                          <span className="hidden sm:inline">Last active: </span>
+                          {formatTimeAgo(new Date(volunteer.last_active))}
                         </span>
                       )}
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center space-x-4">
+
+                {/* Action Buttons */}
+                <div className="flex sm:flex-col gap-2 sm:flex-shrink-0">
                   {volunteer.phone_number && (
                     <button
                       onClick={handleCallVolunteer}
-                      className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                      className="flex-1 sm:flex-initial inline-flex items-center justify-center px-3 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-xs md:text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors whitespace-nowrap"
+                      aria-label="Call volunteer"
                     >
-                      <Phone className="h-4 w-4 mr-2" />
-                      Call
+                      <Phone className="h-3 w-3 md:h-4 md:w-4 sm:mr-2 flex-shrink-0" />
+                      <span className="hidden sm:inline">Call</span>
                     </button>
                   )}
                   <button
                     onClick={() => setShowStatusModal(true)}
-                    className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                    className="flex-1 sm:flex-initial inline-flex items-center justify-center px-3 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-xs md:text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors whitespace-nowrap"
+                    aria-label="Change volunteer status"
                   >
-                    <Settings className="h-4 w-4 mr-2" />
-                    Change Status
+                    <Settings className="h-3 w-3 md:h-4 md:w-4 sm:mr-2 flex-shrink-0" />
+                    <span className="hidden sm:inline">Change Status</span>
                   </button>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Contact & Areas */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                 <div>
-                  <h3 className="text-sm font-medium text-gray-500 mb-2">Contact Information</h3>
+                  <h3 className="text-xs md:text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+                    Contact Information
+                  </h3>
                   <div className="space-y-2">
-                    <p className="text-sm">
-                      <span className="text-gray-500">Email:</span>{" "}
-                      <span className="text-gray-900">{volunteer.email}</span>
+                    <p className="text-xs md:text-sm">
+                      <span className="text-gray-500 dark:text-gray-400">Email:</span>{" "}
+                      <span className="text-gray-900 dark:text-white break-all">{volunteer.email}</span>
                     </p>
-                    <p className="text-sm">
-                      <span className="text-gray-500">Phone:</span>{" "}
-                      <span className="text-gray-900">{volunteer.phone_number || "Not provided"}</span>
+                    <p className="text-xs md:text-sm">
+                      <span className="text-gray-500 dark:text-gray-400">Phone:</span>{" "}
+                      <span className="text-gray-900 dark:text-white">{volunteer.phone_number || "Not provided"}</span>
                     </p>
-                    <p className="text-sm">
-                      <span className="text-gray-500">Address:</span>{" "}
-                      <span className="text-gray-900">{volunteer.address || "Not provided"}</span>
+                    <p className="text-xs md:text-sm">
+                      <span className="text-gray-500 dark:text-gray-400">Address:</span>{" "}
+                      <span className="text-gray-900 dark:text-white">{volunteer.address || "Not provided"}</span>
                     </p>
-                    <p className="text-sm">
-                      <span className="text-gray-500">Barangay:</span>{" "}
-                      <span className="text-gray-900">{volunteer.barangay || "Not specified"}</span>
+                    <p className="text-xs md:text-sm">
+                      <span className="text-gray-500 dark:text-gray-400">Barangay:</span>{" "}
+                      <span className="text-gray-900 dark:text-white">{volunteer.barangay || "Not specified"}</span>
                     </p>
                   </div>
                 </div>
 
                 <div>
-                  <h3 className="text-sm font-medium text-gray-500 mb-2">Assigned Areas</h3>
+                  <h3 className="text-xs md:text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+                    Assigned Areas
+                  </h3>
                   <div className="space-y-2">
                     {volunteer.volunteer_profiles?.assigned_barangays?.length > 0 ? (
-                      volunteer.volunteer_profiles.assigned_barangays.map((barangay: string) => (
-                        <span
-                          key={barangay}
-                          className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mr-2"
-                        >
-                          {barangay}
-                        </span>
-                      ))
+                      <div className="flex flex-wrap gap-1.5 md:gap-2">
+                        {volunteer.volunteer_profiles.assigned_barangays.map((barangay: string) => (
+                          <span
+                            key={barangay}
+                            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300"
+                          >
+                            {barangay}
+                          </span>
+                        ))}
+                      </div>
                     ) : (
-                      <p className="text-sm text-gray-500">No areas assigned</p>
+                      <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400">No areas assigned</p>
                     )}
                   </div>
                 </div>
               </div>
 
+              {/* Skills & Availability */}
               <div className="mt-6">
-                <h3 className="text-sm font-medium text-gray-500 mb-2">Skills & Availability</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <h3 className="text-xs md:text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">
+                  Skills & Availability
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                   <div>
-                    <h4 className="text-xs font-medium text-gray-700 mb-2">Skills</h4>
-                    <div className="flex flex-wrap gap-2">
+                    <h4 className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Skills</h4>
+                    <div className="flex flex-wrap gap-1.5 md:gap-2">
                       {volunteer.volunteer_profiles?.skills?.length > 0 ? (
                         volunteer.volunteer_profiles.skills.map((skill: string) => (
                           <span
                             key={skill}
-                            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800"
+                            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300"
                           >
                             {skill}
                           </span>
                         ))
                       ) : (
-                        <p className="text-sm text-gray-500">No skills specified</p>
+                        <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400">No skills specified</p>
                       )}
                     </div>
                   </div>
 
                   <div>
-                    <h4 className="text-xs font-medium text-gray-700 mb-2">Availability</h4>
-                    <div className="flex flex-wrap gap-2">
+                    <h4 className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Availability</h4>
+                    <div className="flex flex-wrap gap-1.5 md:gap-2">
                       {volunteer.volunteer_profiles?.availability?.length > 0 ? (
                         volunteer.volunteer_profiles.availability.map((day: string) => (
                           <span
                             key={day}
-                            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800"
+                            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300"
                           >
                             {day}
                           </span>
                         ))
                       ) : (
-                        <p className="text-sm text-gray-500">No availability set</p>
+                        <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400">No availability set</p>
                       )}
                     </div>
                   </div>
                 </div>
               </div>
 
+              {/* Performance Stats */}
               <div className="mt-6">
-                <h3 className="text-sm font-medium text-gray-500 mb-2">Performance & Activity</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="bg-gray-50 p-4 rounded-md">
-                    <p className="text-sm text-gray-500">Total Incidents Resolved</p>
-                    <p className="text-2xl font-bold mt-1">
+                <h3 className="text-xs md:text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">
+                  Performance & Activity
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
+                  <div className="bg-gray-50 dark:bg-gray-700/50 p-3 md:p-4 rounded-md">
+                    <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400">Total Incidents Resolved</p>
+                    <p className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white mt-1">
                       {volunteer.volunteer_profiles?.total_incidents_resolved || 0}
                     </p>
                   </div>
-                  <div className="bg-gray-50 p-4 rounded-md">
-                    <p className="text-sm text-gray-500">Member Since</p>
-                    <p className="text-2xl font-bold mt-1">
+                  <div className="bg-gray-50 dark:bg-gray-700/50 p-3 md:p-4 rounded-md">
+                    <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400">Member Since</p>
+                    <p className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white mt-1">
                       {formatTimeAgo(new Date(volunteer.created_at))}
                     </p>
                   </div>
-                  <div className="bg-gray-50 p-4 rounded-md">
-                    <p className="text-sm text-gray-500">Last Activity</p>
-                    <p className="text-2xl font-bold mt-1">
+                  <div className="bg-gray-50 dark:bg-gray-700/50 p-3 md:p-4 rounded-md">
+                    <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400">Last Activity</p>
+                    <p className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white mt-1">
                       {volunteer.last_active ? formatTimeAgo(new Date(volunteer.last_active)) : "Never"}
                     </p>
                   </div>
                 </div>
               </div>
 
+              {/* Admin Notes */}
               {volunteer.volunteer_profiles?.notes && (
                 <div className="mt-6">
-                  <h3 className="text-sm font-medium text-gray-500 mb-2">Admin Notes</h3>
-                  <div className="bg-yellow-50 p-4 rounded-md">
-                    <p className="text-sm text-gray-700">{volunteer.volunteer_profiles.notes}</p>
+                  <h3 className="text-xs md:text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+                    Admin Notes
+                  </h3>
+                  <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 p-3 md:p-4 rounded-md">
+                    <p className="text-xs md:text-sm text-gray-700 dark:text-gray-300">
+                      {volunteer.volunteer_profiles.notes}
+                    </p>
                   </div>
                 </div>
               )}
             </div>
-
-            {/* Status Change Modal */}
-            {showStatusModal && (
-              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full">
-                  <h3 className="text-lg font-medium mb-4">Change Volunteer Status</h3>
-                  <div className="space-y-4">
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="radio"
-                        id="active"
-                        name="status"
-                        value="ACTIVE"
-                        checked={selectedStatus === "ACTIVE"}
-                        onChange={(e) => setSelectedStatus(e.target.value as "ACTIVE" | "INACTIVE" | "SUSPENDED")}
-                        className="h-4 w-4 text-green-600"
-                      />
-                      <label htmlFor="active" className="text-sm text-gray-700">Active</label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="radio"
-                        id="inactive"
-                        name="status"
-                        value="INACTIVE"
-                        checked={selectedStatus === "INACTIVE"}
-                        onChange={(e) => setSelectedStatus(e.target.value as "ACTIVE" | "INACTIVE" | "SUSPENDED")}
-                        className="h-4 w-4 text-gray-600"
-                      />
-                      <label htmlFor="inactive" className="text-sm text-gray-700">Inactive</label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="radio"
-                        id="suspended"
-                        name="status"
-                        value="SUSPENDED"
-                        checked={selectedStatus === "SUSPENDED"}
-                        onChange={(e) => setSelectedStatus(e.target.value as "ACTIVE" | "INACTIVE" | "SUSPENDED")}
-                        className="h-4 w-4 text-red-600"
-                      />
-                      <label htmlFor="suspended" className="text-sm text-gray-700">Suspended</label>
-                    </div>
-                  </div>
-                  <div className="mt-6 flex justify-end space-x-3">
-                    <button
-                      onClick={() => setShowStatusModal(false)}
-                      className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={() => {
-                        handleStatusChange(selectedStatus)
-                        setShowStatusModal(false)
-                      }}
-                      disabled={updating}
-                      className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:opacity-50"
-                    >
-                      {updating ? <LoadingSpinner size="sm" color="text-white" /> : "Save Changes"}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
 
-          <div className="space-y-6">
-            <div className="bg-white p-6 rounded-lg shadow-md">
-              <h3 className="text-sm font-medium text-gray-500 mb-4">Account Information</h3>
+          {/* Right Column - Sidebar */}
+          <div className="space-y-4 md:space-y-6">
+            {/* Account Info Card */}
+            <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+              <h3 className="text-xs md:text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">
+                Account Information
+              </h3>
               <div className="space-y-3">
                 <div>
-                  <p className="text-xs text-gray-500">User ID</p>
-                  <p className="text-sm text-gray-900">{volunteer.id}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">User ID</p>
+                  <p className="text-xs md:text-sm text-gray-900 dark:text-white break-all">{volunteer.id}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500">Account Created</p>
-                  <p className="text-sm text-gray-900">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Account Created</p>
+                  <p className="text-xs md:text-sm text-gray-900 dark:text-white">
                     {new Date(volunteer.created_at).toLocaleDateString()}
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500">Last Updated</p>
-                  <p className="text-sm text-gray-900">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Last Updated</p>
+                  <p className="text-xs md:text-sm text-gray-900 dark:text-white">
                     {new Date(volunteer.updated_at).toLocaleDateString()}
                   </p>
                 </div>
                 {volunteer.volunteer_profiles?.created_by && (
                   <div>
-                    <p className="text-xs text-gray-500">Created By</p>
-                    <p className="text-sm text-gray-900">Admin (ID: {volunteer.volunteer_profiles.created_by})</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Created By</p>
+                    <p className="text-xs md:text-sm text-gray-900 dark:text-white break-all">
+                      Admin (ID: {volunteer.volunteer_profiles.created_by})
+                    </p>
                   </div>
                 )}
               </div>
             </div>
 
-            <div className="bg-white p-6 rounded-lg shadow-md">
-              <h3 className="text-sm font-medium text-gray-500 mb-4">Actions</h3>
+            {/* Actions Card */}
+            <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+              <h3 className="text-xs md:text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">
+                Quick Actions
+              </h3>
               <div className="space-y-3">
-                <h4 className="text-xs font-medium text-gray-700">Change Status</h4>
+                <h4 className="text-xs font-medium text-gray-700 dark:text-gray-300">Change Status</h4>
                 <div className="flex flex-col space-y-2">
                   <button
                     onClick={() => handleStatusChange("ACTIVE")}
                     disabled={volunteer.volunteer_profiles?.status === "ACTIVE" || updating}
-                    className={`inline-flex justify-center items-center px-4 py-2 border text-sm font-medium rounded-md ${
+                    className={`inline-flex justify-center items-center px-4 py-2 border text-xs md:text-sm font-medium rounded-md transition-colors ${
                       volunteer.volunteer_profiles?.status === "ACTIVE"
-                        ? "border-green-300 text-green-700 bg-green-50 cursor-not-allowed"
-                        : "border-transparent text-white bg-green-600 hover:bg-green-700"
-                    } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50`}
+                        ? "border-green-300 dark:border-green-800 text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20 cursor-not-allowed"
+                        : "border-transparent text-white bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600"
+                    } focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-green-500 disabled:opacity-50`}
                   >
                     {updating ? <LoadingSpinner size="sm" color="text-white" /> : "Set Active"}
                   </button>
@@ -494,11 +483,11 @@ export default function VolunteerDetailPage() {
                   <button
                     onClick={() => handleStatusChange("INACTIVE")}
                     disabled={volunteer.volunteer_profiles?.status === "INACTIVE" || updating}
-                    className={`inline-flex justify-center items-center px-4 py-2 border text-sm font-medium rounded-md ${
+                    className={`inline-flex justify-center items-center px-4 py-2 border text-xs md:text-sm font-medium rounded-md transition-colors ${
                       volunteer.volunteer_profiles?.status === "INACTIVE"
-                        ? "border-gray-300 text-gray-700 bg-gray-50 cursor-not-allowed"
-                        : "border-transparent text-white bg-gray-600 hover:bg-gray-700"
-                    } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50`}
+                        ? "border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 cursor-not-allowed"
+                        : "border-transparent text-white bg-gray-600 hover:bg-gray-700 dark:bg-gray-600 dark:hover:bg-gray-500"
+                    } focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-gray-500 disabled:opacity-50`}
                   >
                     {updating ? <LoadingSpinner size="sm" color="text-white" /> : "Set Inactive"}
                   </button>
@@ -506,11 +495,11 @@ export default function VolunteerDetailPage() {
                   <button
                     onClick={() => handleStatusChange("SUSPENDED")}
                     disabled={volunteer.volunteer_profiles?.status === "SUSPENDED" || updating}
-                    className={`inline-flex justify-center items-center px-4 py-2 border text-sm font-medium rounded-md ${
+                    className={`inline-flex justify-center items-center px-4 py-2 border text-xs md:text-sm font-medium rounded-md transition-colors ${
                       volunteer.volunteer_profiles?.status === "SUSPENDED"
-                        ? "border-red-300 text-red-700 bg-red-50 cursor-not-allowed"
-                        : "border-transparent text-white bg-red-600 hover:bg-red-700"
-                    } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50`}
+                        ? "border-red-300 dark:border-red-800 text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/20 cursor-not-allowed"
+                        : "border-transparent text-white bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-600"
+                    } focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-red-500 disabled:opacity-50`}
                   >
                     {updating ? <LoadingSpinner size="sm" color="text-white" /> : "Suspend"}
                   </button>
@@ -519,7 +508,89 @@ export default function VolunteerDetailPage() {
             </div>
           </div>
         </div>
+
+        {/* Status Change Modal */}
+        {showStatusModal && (
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            onClick={() => setShowStatusModal(false)}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="status-modal-title"
+          >
+            <div
+              className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-lg shadow-xl max-w-md w-full border border-gray-200 dark:border-gray-700"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 id="status-modal-title" className="text-base md:text-lg font-medium text-gray-900 dark:text-white mb-4">
+                Change Volunteer Status
+              </h3>
+              <div className="space-y-3 md:space-y-4">
+                <div className="flex items-center space-x-3">
+                  <input
+                    type="radio"
+                    id="active"
+                    name="status"
+                    value="ACTIVE"
+                    checked={selectedStatus === "ACTIVE"}
+                    onChange={(e) => setSelectedStatus(e.target.value as "ACTIVE" | "INACTIVE" | "SUSPENDED")}
+                    className="h-4 w-4 text-green-600 dark:text-green-500 focus:ring-green-500 dark:focus:ring-green-400"
+                  />
+                  <label htmlFor="active" className="text-xs md:text-sm text-gray-700 dark:text-gray-300">
+                    Active
+                  </label>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <input
+                    type="radio"
+                    id="inactive"
+                    name="status"
+                    value="INACTIVE"
+                    checked={selectedStatus === "INACTIVE"}
+                    onChange={(e) => setSelectedStatus(e.target.value as "ACTIVE" | "INACTIVE" | "SUSPENDED")}
+                    className="h-4 w-4 text-gray-600 dark:text-gray-500 focus:ring-gray-500 dark:focus:ring-gray-400"
+                  />
+                  <label htmlFor="inactive" className="text-xs md:text-sm text-gray-700 dark:text-gray-300">
+                    Inactive
+                  </label>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <input
+                    type="radio"
+                    id="suspended"
+                    name="status"
+                    value="SUSPENDED"
+                    checked={selectedStatus === "SUSPENDED"}
+                    onChange={(e) => setSelectedStatus(e.target.value as "ACTIVE" | "INACTIVE" | "SUSPENDED")}
+                    className="h-4 w-4 text-red-600 dark:text-red-500 focus:ring-red-500 dark:focus:ring-red-400"
+                  />
+                  <label htmlFor="suspended" className="text-xs md:text-sm text-gray-700 dark:text-gray-300">
+                    Suspended
+                  </label>
+                </div>
+              </div>
+              <div className="mt-6 flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3">
+                <button
+                  onClick={() => setShowStatusModal(false)}
+                  className="w-full sm:w-auto px-4 py-2 text-xs md:text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    handleStatusChange(selectedStatus)
+                    setShowStatusModal(false)
+                  }}
+                  disabled={updating}
+                  className="w-full sm:w-auto px-4 py-2 text-xs md:text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {updating ? <LoadingSpinner size="sm" color="text-white" /> : "Save Changes"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </AdminLayout>
   )
-} 
+}

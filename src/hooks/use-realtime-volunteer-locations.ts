@@ -1,3 +1,4 @@
+// src/hooks/use-realtime-volunteer-locations.ts
 "use client"
 
 import { useEffect, useState, useCallback, useRef } from 'react'
@@ -44,20 +45,20 @@ export function useRealtimeVolunteerLocations({
   const reconnectAttemptsRef = useRef(0)
   const isMountedRef = useRef(true)
 
-  // Helper function to calculate distance
+  // --- Helper: distance calculation ---
   const calculateDistance = useCallback((lat1: number, lng1: number, lat2: number, lng2: number): number => {
     const R = 6371
     const dLat = (lat2 - lat1) * Math.PI / 180
     const dLng = (lng2 - lng1) * Math.PI / 180
     const a = 
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.sin(dLat / 2) ** 2 +
       Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-      Math.sin(dLng / 2) * Math.sin(dLng / 2)
+      Math.sin(dLng / 2) ** 2
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
     return R * c
   }, [])
 
-  // Cleanup function
+  // --- Cleanup ---
   const cleanup = useCallback(() => {
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current)
@@ -69,7 +70,7 @@ export function useRealtimeVolunteerLocations({
     }
   }, [])
 
-  // Fetch volunteer locations
+  // --- Fetch volunteer locations ---
   const fetchVolunteers = useCallback(async () => {
     if (!enabled || !isMountedRef.current) return
 
@@ -94,14 +95,8 @@ export function useRealtimeVolunteerLocations({
         `)
         .order('created_at', { ascending: false })
 
-      if (locError) {
-        console.error('Error fetching volunteers:', locError)
-        setError(locError.message)
-        setVolunteers([])
-        return
-      }
+      if (locError) throw locError
 
-      // Get unique volunteers (latest location per user)
       const uniqueVolunteers = new Map<string, any>()
       locations?.forEach(loc => {
         if (!uniqueVolunteers.has(loc.user_id)) {
@@ -109,7 +104,6 @@ export function useRealtimeVolunteerLocations({
         }
       })
 
-      // Filter and transform
       const filtered = Array.from(uniqueVolunteers.values())
         .filter(loc => loc.lat && loc.lng && isWithinTalisayCity(loc.lat, loc.lng))
         .map(loc => {
@@ -141,13 +135,11 @@ export function useRealtimeVolunteerLocations({
         setVolunteers([])
       }
     } finally {
-      if (isMountedRef.current) {
-        setIsLoading(false)
-      }
+      if (isMountedRef.current) setIsLoading(false)
     }
   }, [center, radiusKm, enabled, calculateDistance])
 
-  // Reconnection logic
+  // --- Reconnection ---
   const attemptReconnect = useCallback(() => {
     if (!isMountedRef.current || reconnectAttemptsRef.current >= reconnectAttempts) {
       console.error('Max reconnection attempts reached')
@@ -161,13 +153,11 @@ export function useRealtimeVolunteerLocations({
     console.log(`Attempting reconnection ${reconnectAttemptsRef.current}/${reconnectAttempts}`)
 
     reconnectTimeoutRef.current = setTimeout(() => {
-      if (isMountedRef.current) {
-        setupRealtimeSubscription()
-      }
+      if (isMountedRef.current) setupRealtimeSubscription()
     }, reconnectInterval)
   }, [reconnectAttempts, reconnectInterval])
 
-  // Setup realtime subscription
+  // --- Setup real-time subscription ---
   const setupRealtimeSubscription = useCallback(() => {
     if (!enabled || !isMountedRef.current) return
 
@@ -184,48 +174,43 @@ export function useRealtimeVolunteerLocations({
           schema: 'public',
           table: 'volunteer_locations'
         },
-        (payload) => {
-          console.log('Location update received:', payload.eventType)
-          fetchVolunteers()
+        () => {
+          fetchVolunteers() // Safe: fetchVolunteers is stable via useCallback
         }
       )
       .subscribe((status, err) => {
         console.log('Subscription status:', status)
-        
-        if (status === 'SUBSCRIBED') {
-          if (isMountedRef.current) {
+        if (!isMountedRef.current) return
+
+        switch(status) {
+          case 'SUBSCRIBED':
             setIsConnected(true)
             setConnectionStatus('connected')
             setError(null)
             reconnectAttemptsRef.current = 0
-          }
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error('Channel error:', err)
-          if (isMountedRef.current) {
+            break
+          case 'CHANNEL_ERROR':
+            console.error('Channel error:', err)
             setIsConnected(false)
             setConnectionStatus('disconnected')
-            if (err) {
-              setError(`Connection error: ${err.message || 'Unknown error'}`)
-            }
+            if (err) setError(`Connection error: ${err.message || 'Unknown error'}`)
             attemptReconnect()
-          }
-        } else if (status === 'TIMED_OUT') {
-          console.warn('Subscription timed out')
-          if (isMountedRef.current) {
+            break
+          case 'TIMED_OUT':
+            console.warn('Subscription timed out')
             attemptReconnect()
-          }
-        } else if (status === 'CLOSED') {
-          if (isMountedRef.current) {
+            break
+          case 'CLOSED':
             setIsConnected(false)
             setConnectionStatus('disconnected')
-          }
+            break
         }
       })
 
     channelRef.current = channel
   }, [enabled, cleanup, fetchVolunteers, attemptReconnect])
 
-  // Main effect
+  // --- Main effect ---
   useEffect(() => {
     isMountedRef.current = true
 
@@ -244,14 +229,12 @@ export function useRealtimeVolunteerLocations({
       isMountedRef.current = false
       cleanup()
     }
-  }, [enabled])
+  }, [enabled, fetchVolunteers, setupRealtimeSubscription, cleanup])
 
-  // Refetch when center or radius changes
+  // --- Refetch when center or radius changes ---
   useEffect(() => {
-    if (enabled) {
-      fetchVolunteers()
-    }
-  }, [center[0], center[1], radiusKm])
+    if (enabled) fetchVolunteers()
+  }, [center[0], center[1], radiusKm, enabled, fetchVolunteers])
 
   return {
     volunteers,

@@ -41,12 +41,10 @@ export default function AdminDashboard() {
     recentCalls: number
     averageDuration: number
   } | null>(null)
-  // New state for admin metrics
   const [adminMetrics, setAdminMetrics] = useState<AdminMetrics | null>(null)
   const [metricsLoading, setMetricsLoading] = useState(true)
   const router = useRouter()
 
-  // Memoize the click handler to keep it stable
   const handleIncidentClick = useCallback((id: string) => {
     router.push(`/admin/incidents/${id}`)
   }, [router])
@@ -77,28 +75,21 @@ export default function AdminDashboard() {
     }
   }, [user])
 
-  // Initial data fetch
   useEffect(() => {
     fetchData()
   }, [fetchData])
 
-  // Real-time subscription for incidents
   useEffect(() => {
     if (!user) return
-
     const subscription = subscribeToIncidents((payload) => {
       console.log('Real-time incident update:', payload.eventType)
-      // Refresh data when incidents change
       fetchData()
     })
-
     return () => {
       subscription.unsubscribe()
     }
   }, [user, fetchData])
 
-  // Format incidents for map markers
-  // FIXED: Removed router from dependencies, use memoized click handler instead
   const mapMarkers = useMemo(() => incidents
     .filter((incident) => incident.location_lat && incident.location_lng)
     .map((incident) => ({
@@ -110,48 +101,50 @@ export default function AdminDashboard() {
       onClick: handleIncidentClick
     })), [incidents, handleIncidentClick])
 
-  // Defer map mount to next tick after client mount to avoid dev double-mount race
   useEffect(() => {
     const t = setTimeout(() => setShowMap(true), 0)
     return () => clearTimeout(t)
   }, [])
 
-  // Get status counts
   const pendingCount = incidents.filter((i) => i.status === "PENDING").length
   const assignedCount = incidents.filter((i) => i.status === "ASSIGNED").length
   const respondingCount = incidents.filter((i) => i.status === "RESPONDING").length
   const resolvedCount = incidents.filter((i) => i.status === "RESOLVED").length
 
-  // Get active volunteers count
   const activeVolunteers = volunteers.filter(
     (v) => v.volunteer_profiles && v.volunteer_profiles.status === "ACTIVE",
   ).length
 
-  // Get today's schedules
   const today = new Date().toISOString().split("T")[0]
   const todaySchedules = schedules.filter((s) => s.start_time && s.start_time.startsWith(today)).length
 
   return (
     <AdminLayout>
-      <div className="space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
+      <div className="space-y-6 p-4 md:p-6">
+        {/* HEADER - FIXED */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-            <p className="text-gray-600 mt-1">Monitor incidents, volunteers, and system performance</p>
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-gray-100">
+              Admin Dashboard
+            </h1>
+            <p className="text-sm md:text-base text-gray-600 dark:text-gray-400 mt-1">
+              Monitor incidents, volunteers, and system performance
+            </p>
           </div>
-          <div className="mt-4 md:mt-0 flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-2 md:gap-3">
             <Link
               href="/admin/volunteers/new"
-              className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200 shadow-sm hover:shadow-md active:scale-[0.98]"
+              className="inline-flex items-center px-3 py-2 md:px-4 text-sm md:text-base bg-green-600 text-white rounded-lg hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 dark:focus:ring-offset-gray-900 transition-all duration-200 shadow-sm hover:shadow-md active:scale-[0.98]"
             >
-              <User className="mr-2 h-5 w-5" />
-              New Volunteer
+              <User className="mr-2 h-4 w-4 md:h-5 md:w-5" />
+              <span className="hidden sm:inline">New Volunteer</span>
+              <span className="sm:hidden">New</span>
             </Link>
             <Link
               href="/admin/reports"
-              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 shadow-sm hover:shadow-md active:scale-[0.98]"
+              className="inline-flex items-center px-3 py-2 md:px-4 text-sm md:text-base bg-blue-600 text-white rounded-lg hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-900 transition-all duration-200 shadow-sm hover:shadow-md active:scale-[0.98]"
             >
-              <CalendarDays className="mr-2 h-5 w-5" />
+              <CalendarDays className="mr-2 h-4 w-4 md:h-5 md:w-5" />
               Reports
             </Link>
           </div>
@@ -162,108 +155,137 @@ export default function AdminDashboard() {
             <LoadingSpinner size="lg" text="Loading dashboard data..." />
           </div>
         ) : error ? (
-          <div className="bg-red-50 border-l-4 border-red-500 p-4">
+          <div className="bg-red-50 dark:bg-red-950 border-l-4 border-red-500 dark:border-red-600 p-4 rounded">
             <div className="flex">
               <div className="flex-shrink-0">
-                <AlertTriangle className="h-5 w-5 text-red-500" />
+                <AlertTriangle className="h-5 w-5 text-red-500 dark:text-red-400" />
               </div>
               <div className="ml-3">
-                <p className="text-sm text-red-700">{error}</p>
+                <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
               </div>
             </div>
           </div>
         ) : (
           <>
-            {/* Existing Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-200 hover:scale-[1.02]">
+            {/* STATS CARDS - FIXED */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+              <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 hover:shadow-xl transition-all duration-200 hover:scale-[1.02]">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600 mb-1">Pending Incidents</p>
-                    <p className="text-3xl font-bold text-yellow-600">{pendingCount}</p>
-                    <p className="text-xs text-gray-500 mt-1">Requires attention</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs md:text-sm font-medium text-gray-600 dark:text-gray-400 mb-1 truncate">
+                      Pending Incidents
+                    </p>
+                    <p className="text-2xl md:text-3xl font-bold text-yellow-600 dark:text-yellow-500">
+                      {pendingCount}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Requires attention
+                    </p>
                   </div>
-                  <div className="p-4 rounded-full bg-yellow-100 text-yellow-600">
-                    <AlertTriangle className="h-8 w-8" />
+                  <div className="p-3 md:p-4 rounded-full bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-500 flex-shrink-0 ml-2">
+                    <AlertTriangle className="h-6 w-6 md:h-8 md:w-8" />
                   </div>
                 </div>
-                <div className="mt-4 pt-4 border-t border-gray-100">
+                <div className="mt-3 md:mt-4 pt-3 md:pt-4 border-t border-gray-100 dark:border-gray-700">
                   <Link
                     href="/admin/incidents?status=PENDING"
-                    className="text-sm font-medium text-blue-600 hover:text-blue-500 transition-colors duration-200 hover:underline"
+                    className="text-xs md:text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 transition-colors duration-200 hover:underline"
                   >
                     View all pending incidents →
                   </Link>
                 </div>
               </div>
 
-              <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition-shadow duration-200">
+              <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 hover:shadow-xl transition-shadow duration-200">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600 mb-1">Active Incidents</p>
-                    <p className="text-3xl font-bold text-blue-600">{assignedCount + respondingCount}</p>
-                    <p className="text-xs text-gray-500 mt-1">In progress</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs md:text-sm font-medium text-gray-600 dark:text-gray-400 mb-1 truncate">
+                      Active Incidents
+                    </p>
+                    <p className="text-2xl md:text-3xl font-bold text-blue-600 dark:text-blue-500">
+                      {assignedCount + respondingCount}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      In progress
+                    </p>
                   </div>
-                  <div className="p-4 rounded-full bg-blue-100 text-blue-600">
-                    <BellRing className="h-8 w-8" />
+                  <div className="p-3 md:p-4 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-500 flex-shrink-0 ml-2">
+                    <BellRing className="h-6 w-6 md:h-8 md:w-8" />
                   </div>
                 </div>
-                <div className="mt-4 pt-4 border-t border-gray-100">
+                <div className="mt-3 md:mt-4 pt-3 md:pt-4 border-t border-gray-100 dark:border-gray-700">
                   <Link
                     href="/admin/incidents?status=ACTIVE"
-                    className="text-sm font-medium text-blue-600 hover:text-blue-500 transition-colors duration-200"
+                    className="text-xs md:text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 transition-colors duration-200"
                   >
                     View all active incidents →
                   </Link>
                 </div>
               </div>
 
-              <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition-shadow duration-200">
+              <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 hover:shadow-xl transition-shadow duration-200">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600 mb-1">Active Volunteers</p>
-                    <p className="text-3xl font-bold text-green-600">{activeVolunteers}</p>
-                    <p className="text-xs text-gray-500 mt-1">Available for response</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs md:text-sm font-medium text-gray-600 dark:text-gray-400 mb-1 truncate">
+                      Active Volunteers
+                    </p>
+                    <p className="text-2xl md:text-3xl font-bold text-green-600 dark:text-green-500">
+                      {activeVolunteers}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Available for response
+                    </p>
                   </div>
-                  <div className="p-4 rounded-full bg-green-100 text-green-600">
-                    <User className="h-8 w-8" />
+                  <div className="p-3 md:p-4 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-500 flex-shrink-0 ml-2">
+                    <User className="h-6 w-6 md:h-8 md:w-8" />
                   </div>
                 </div>
-                <div className="mt-4 pt-4 border-t border-gray-100">
-                  <Link href="/admin/volunteers" className="text-sm font-medium text-blue-600 hover:text-blue-500 transition-colors duration-200">
+                <div className="mt-3 md:mt-4 pt-3 md:pt-4 border-t border-gray-100 dark:border-gray-700">
+                  <Link 
+                    href="/admin/volunteers" 
+                    className="text-xs md:text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 transition-colors duration-200"
+                  >
                     View all volunteers →
                   </Link>
                 </div>
               </div>
 
-              <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition-shadow duration-200">
+              <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 hover:shadow-xl transition-shadow duration-200">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600 mb-1">Today's Schedules</p>
-                    <p className="text-3xl font-bold text-purple-600">{todaySchedules}</p>
-                    <p className="text-xs text-gray-500 mt-1">Planned activities</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs md:text-sm font-medium text-gray-600 dark:text-gray-400 mb-1 truncate">
+                      Today's Schedules
+                    </p>
+                    <p className="text-2xl md:text-3xl font-bold text-purple-600 dark:text-purple-500">
+                      {todaySchedules}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Planned activities
+                    </p>
                   </div>
-                  <div className="p-4 rounded-full bg-purple-100 text-purple-600">
-                    <CalendarDays className="h-8 w-8" />
+                  <div className="p-3 md:p-4 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-500 flex-shrink-0 ml-2">
+                    <CalendarDays className="h-6 w-6 md:h-8 md:w-8" />
                   </div>
                 </div>
-                <div className="mt-4 pt-4 border-t border-gray-100">
-                  <Link href="/admin/schedules" className="text-sm font-medium text-blue-600 hover:text-blue-500 transition-colors duration-200">
+                <div className="mt-3 md:mt-4 pt-3 md:pt-4 border-t border-gray-100 dark:border-gray-700">
+                  <Link 
+                    href="/admin/schedules" 
+                    className="text-xs md:text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 transition-colors duration-200"
+                  >
                     View all schedules →
                   </Link>
                 </div>
               </div>
             </div>
 
-            {/* New Admin Metrics Section */}
+            {/* ADMIN METRICS */}
             {metricsLoading ? (
               <div className="flex justify-center py-8">
                 <LoadingSpinner size="md" text="Loading metrics..." />
               </div>
             ) : adminMetrics && (
-              <div className="space-y-6">
-                {/* System-wide Metrics */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="space-y-4 md:space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
                   <StatWidget
                     title="Total Users"
                     value={Object.values(adminMetrics.usersByRole).reduce((a: any, b: any) => a + b, 0)}
@@ -290,8 +312,7 @@ export default function AdminDashboard() {
                   />
                 </div>
 
-                {/* Volunteer Response Metrics */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
                   <StatWidget
                     title="Avg. Assignment Time"
                     value={`${adminMetrics.volunteerResponseMetrics.avgAssignmentTime.toFixed(1)} min`}
@@ -312,9 +333,7 @@ export default function AdminDashboard() {
                   />
                 </div>
 
-                {/* Charts Section */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Incidents by Barangay Chart */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
                   <MetricsChart
                     title="Incidents by Barangay"
                     data={adminMetrics.incidentsByBarangay}
@@ -322,8 +341,6 @@ export default function AdminDashboard() {
                     dataKey="count"
                     nameKey="barangay"
                   />
-
-                  {/* Users by Role Chart */}
                   <MetricsChart
                     title="Users by Role"
                     data={Object.entries(adminMetrics.usersByRole).map(([role, count]) => ({
@@ -336,34 +353,48 @@ export default function AdminDashboard() {
                   />
                 </div>
 
-                {/* Barangay-level Percentage Analytics */}
-                <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-4">Barangay Incident Distribution</h2>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {adminMetrics.incidentsByBarangay.slice(0, 6).map((item: any, index: number) => (
-                      <div key={item.barangay} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <h3 className="font-medium text-gray-900">{item.barangay}</h3>
-                            <p className="text-2xl font-bold text-blue-600 mt-1">{item.count}</p>
+                {/* BARANGAY DISTRIBUTION */}
+                <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700">
+                  <h2 className="text-lg md:text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">
+                    Barangay Incident Distribution
+                  </h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+                    {adminMetrics.incidentsByBarangay.slice(0, 6).map((item: any) => (
+                      <div 
+                        key={item.barangay} 
+                        className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 md:p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                      >
+                        <div className="flex justify-between items-start gap-2">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-medium text-sm md:text-base text-gray-900 dark:text-gray-100 truncate">
+                              {item.barangay}
+                            </h3>
+                            <p className="text-xl md:text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">
+                              {item.count}
+                            </p>
                           </div>
-                          <div className="bg-blue-100 text-blue-800 text-sm font-medium px-2.5 py-0.5 rounded-full">
+                          <div className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs md:text-sm font-medium px-2 py-0.5 rounded-full flex-shrink-0">
                             {item.percentage}%
                           </div>
                         </div>
-                        <div className="mt-3 w-full bg-gray-200 rounded-full h-2">
+                        <div className="mt-2 md:mt-3 w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                           <div 
-                            className="bg-blue-600 h-2 rounded-full" 
+                            className="bg-blue-600 dark:bg-blue-500 h-2 rounded-full transition-all duration-300" 
                             style={{ width: `${item.percentage}%` }}
                           ></div>
                         </div>
-                        <p className="text-xs text-gray-500 mt-2">of total incidents</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                          of total incidents
+                        </p>
                       </div>
                     ))}
                   </div>
                   {adminMetrics.incidentsByBarangay.length > 6 && (
                     <div className="mt-4 text-center">
-                      <Link href="/admin/analytics" className="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                      <Link 
+                        href="/admin/analytics" 
+                        className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium"
+                      >
                         View all barangay analytics →
                       </Link>
                     </div>
@@ -372,33 +403,39 @@ export default function AdminDashboard() {
               </div>
             )}
 
-            {/* Push Notification Settings */}
-            <div className="max-w-2xl">
+            {/* PUSH NOTIFICATIONS */}
+            <div className="max-w-full lg:max-w-2xl">
               <PushNotificationToggle />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-semibold text-gray-900">Recent Incidents</h2>
+            {/* RECENT INCIDENTS & MAP */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+              <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700">
+                <div className="flex items-center justify-between mb-4 md:mb-6">
+                  <h2 className="text-lg md:text-xl font-semibold text-gray-900 dark:text-gray-100">
+                    Recent Incidents
+                  </h2>
                   <Link 
                     href="/admin/incidents" 
-                    className="text-sm font-medium text-blue-600 hover:text-blue-500 transition-colors duration-200"
+                    className="text-xs md:text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 transition-colors duration-200"
                   >
                     View all →
                   </Link>
                 </div>
-                {/* Mobile Card View */}
+                
+                {/* MOBILE CARDS */}
                 <div className="md:hidden space-y-3">
                   {incidents.slice(0, 5).map((incident) => (
                     <div
                       key={incident.id}
-                      className="border rounded-lg p-3 bg-white hover:bg-gray-50 transition-colors cursor-pointer touch-manipulation"
+                      className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer touch-manipulation active:scale-[0.98]"
                       onClick={() => router.push(`/admin/incidents/${incident.id}`)}
                     >
-                      <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-start justify-between mb-2 gap-2">
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-sm font-semibold text-gray-900 truncate">{incident.incident_type}</h3>
+                          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
+                            {incident.incident_type}
+                          </h3>
                           <IncidentReferenceId 
                             incidentId={incident.id} 
                             size="sm" 
@@ -408,92 +445,76 @@ export default function AdminDashboard() {
                           />
                         </div>
                         <span
-                          className={`px-2 py-1 inline-flex text-xs leading-4 font-semibold rounded-full flex-shrink-0 ml-2 ${
+                          className={`px-2 py-1 inline-flex text-xs leading-4 font-semibold rounded-full flex-shrink-0 ${
                             incident.status === "PENDING"
-                              ? "bg-yellow-100 text-yellow-800"
+                              ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-400"
                               : incident.status === "ASSIGNED"
-                                ? "bg-blue-100 text-blue-800"
+                                ? "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400"
                                 : incident.status === "RESPONDING"
-                                  ? "bg-orange-100 text-orange-800"
+                                  ? "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-400"
                                   : incident.status === "RESOLVED"
-                                    ? "bg-green-100 text-green-800"
-                                    : "bg-gray-100 text-gray-800"
+                                    ? "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400"
+                                    : "bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300"
                           }`}
                         >
                           {incident.status}
                         </span>
                       </div>
-                      <div className="text-xs text-gray-500 space-y-1">
+                      <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
                         <div>Date: {new Date(incident.created_at).toLocaleDateString()}</div>
                         <div>
-                          Reporter: {incident.reporter && incident.reporter.first_name && incident.reporter.last_name
+                          Reporter: {incident.reporter?.first_name && incident.reporter?.last_name
                             ? `${incident.reporter.first_name} ${incident.reporter.last_name}`
-                            : incident.reporter && (incident.reporter.first_name || incident.reporter.last_name)
-                            ? (incident.reporter.first_name || incident.reporter.last_name)
-                            : "Anonymous"}
+                            : incident.reporter?.first_name || incident.reporter?.last_name || "Anonymous"}
                         </div>
                         <div>
-                          Contact:{" "}
-                          {incident.reporter && incident.reporter.phone_number
-                            ? incident.reporter.phone_number
-                            : "Not provided"}
+                          Contact: {incident.reporter?.phone_number || "Not provided"}
                         </div>
                       </div>
                     </div>
                   ))}
                   {incidents.length === 0 && (
                     <div className="text-center py-8">
-                      <div className="text-gray-500 text-sm">No incidents found</div>
+                      <div className="text-gray-500 dark:text-gray-400 text-sm">
+                        No incidents found
+                      </div>
                     </div>
                   )}
                 </div>
                 
-                {/* Desktop Table View */}
+                {/* DESKTOP TABLE */}
                 <div className="hidden md:block overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
+                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead className="bg-gray-50 dark:bg-gray-900">
                       <tr>
-                        <th
-                          scope="col"
-                          className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                        >
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                           Type
                         </th>
-                        <th
-                          scope="col"
-                          className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                        >
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                           Date
                         </th>
-                        <th
-                          scope="col"
-                          className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                        >
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                           Status
                         </th>
-                        <th
-                          scope="col"
-                          className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                        >
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                           Reporter
                         </th>
-                        <th
-                          scope="col"
-                          className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                        >
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                           Contact
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                    <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                       {incidents.slice(0, 5).map((incident) => (
                         <tr 
                           key={incident.id}
-                          className="cursor-pointer hover:bg-gray-50 transition-colors duration-150"
+                          className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150"
                           onClick={() => router.push(`/admin/incidents/${incident.id}`)}
                         >
                           <td className="px-4 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-gray-900">{incident.incident_type}</div>
+                            <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                              {incident.incident_type}
+                            </div>
                             <div className="mt-1">
                               <IncidentReferenceId 
                                 incidentId={incident.id} 
@@ -505,7 +526,7 @@ export default function AdminDashboard() {
                             </div>
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-500">
+                            <div className="text-sm text-gray-500 dark:text-gray-400">
                               {new Date(incident.created_at).toLocaleDateString()}
                             </div>
                           </td>
@@ -513,30 +534,26 @@ export default function AdminDashboard() {
                             <span
                               className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
                                 incident.status === "PENDING"
-                                  ? "bg-yellow-100 text-yellow-800"
+                                  ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-400"
                                   : incident.status === "ASSIGNED"
-                                    ? "bg-blue-100 text-blue-800"
+                                    ? "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400"
                                     : incident.status === "RESPONDING"
-                                      ? "bg-orange-100 text-orange-800"
+                                      ? "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-400"
                                       : incident.status === "RESOLVED"
-                                        ? "bg-green-100 text-green-800"
-                                        : "bg-gray-100 text-gray-800"
+                                        ? "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400"
+                                        : "bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300"
                               }`}
                             >
                               {incident.status}
                             </span>
                           </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {incident.reporter && incident.reporter.first_name && incident.reporter.last_name
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                            {incident.reporter?.first_name && incident.reporter?.last_name
                               ? `${incident.reporter.first_name} ${incident.reporter.last_name}`
-                              : incident.reporter && (incident.reporter.first_name || incident.reporter.last_name)
-                              ? (incident.reporter.first_name || incident.reporter.last_name)
-                              : "Anonymous Reporter"}
+                              : incident.reporter?.first_name || incident.reporter?.last_name || "Anonymous Reporter"}
                           </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {incident.reporter && incident.reporter.phone_number
-                              ? incident.reporter.phone_number
-                              : "Not provided"}
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                            {incident.reporter?.phone_number || "Not provided"}
                           </td>
                         </tr>
                       ))}
@@ -544,21 +561,26 @@ export default function AdminDashboard() {
                   </table>
                   {incidents.length === 0 && (
                     <div className="text-center py-8">
-                      <div className="text-gray-500 text-sm">No incidents found</div>
+                      <div className="text-gray-500 dark:text-gray-400 text-sm">
+                        No incidents found
+                      </div>
                     </div>
                   )}
                 </div>
               </div>
 
-              <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-semibold text-gray-900">Incident Map</h2>
-                  <div className="text-sm text-gray-500">
+              {/* INCIDENT MAP */}
+              <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700">
+                <div className="flex items-center justify-between mb-4 md:mb-6">
+                  <h2 className="text-lg md:text-xl font-semibold text-gray-900 dark:text-gray-100">
+                    Incident Map
+                  </h2>
+                  <div className="text-xs md:text-sm text-gray-500 dark:text-gray-400">
                     {mapMarkers.length} incidents
                   </div>
                 </div>
                 {showMap ? (
-                  <div className="rounded-lg overflow-hidden border border-gray-200">
+                  <div className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
                     <MapComponent 
                       markers={mapMarkers} 
                       height="300px" 
@@ -566,39 +588,51 @@ export default function AdminDashboard() {
                     />
                   </div>
                 ) : (
-                  <div style={{ height: "300px" }} className="rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center border border-gray-200">
+                  <div className="h-[300px] rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-900 flex items-center justify-center border border-gray-200 dark:border-gray-700">
                     <div className="text-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
-                      <p className="mt-2 text-gray-600 text-sm">Loading map...</p>
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 dark:border-blue-400 mx-auto"></div>
+                      <p className="mt-2 text-gray-600 dark:text-gray-400 text-sm">
+                        Loading map...
+                      </p>
                     </div>
                   </div>
                 )}
               </div>
 
-              <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-semibold text-gray-900">Hotspots (Last 30 Days)</h2>
-                  <div className="text-sm text-gray-500">Top areas</div>
+              {/* HOTSPOTS */}
+              <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700">
+                <div className="flex items-center justify-between mb-4 md:mb-6">
+                  <h2 className="text-lg md:text-xl font-semibold text-gray-900 dark:text-gray-100">
+                    Hotspots (Last 30 Days)
+                  </h2>
+                  <div className="text-xs md:text-sm text-gray-500 dark:text-gray-400">
+                    Top areas
+                  </div>
                 </div>
                 <HotspotsList />
               </div>
             </div>
 
-            {/* Call Analytics Dashboard - Only show if there's data */}
+            {/* CALL ANALYTICS */}
             {statistics && statistics.totalCalls > 0 && (
-              <CallAnalyticsDashboard className="mt-6" />
+              <CallAnalyticsDashboard className="mt-4 md:mt-6" />
             )}
 
-            <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 mt-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold text-gray-900">Response Times (Last 30 Days)</h2>
-                <div className="text-sm text-gray-500">Performance metrics</div>
+            {/* RESPONSE TIMES */}
+            <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700">
+              <div className="flex items-center justify-between mb-4 md:mb-6">
+                <h2 className="text-lg md:text-xl font-semibold text-gray-900 dark:text-gray-100">
+                  Response Times (Last 30 Days)
+                </h2>
+                <div className="text-xs md:text-sm text-gray-500 dark:text-gray-400">
+                  Performance metrics
+                </div>
               </div>
               <ResponseTimesCard />
             </div>
 
-            {/* Backup Monitor */}
-            <div className="mt-6">
+            {/* BACKUP MONITOR */}
+            <div className="mt-4 md:mt-6">
               <BackupMonitor />
             </div>
           </>
@@ -633,30 +667,36 @@ function HotspotsList() {
     return () => { canceled = true }
   }, [])
 
-  if (loading) return <div className="text-sm text-gray-600">Loading...</div>
-  if (error) return <div className="text-sm text-red-600">{error}</div>
-  if (!items.length) return <div className="text-sm text-gray-500">No data</div>
+  if (loading) {
+    return <div className="text-sm text-gray-600 dark:text-gray-400">Loading...</div>
+  }
+  if (error) {
+    return <div className="text-sm text-red-600 dark:text-red-400">{error}</div>
+  }
+  if (!items.length) {
+    return <div className="text-sm text-gray-500 dark:text-gray-400">No data</div>
+  }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2 md:space-y-3">
       {items.slice(0, 10).map((row, index) => (
-        <div key={row.barangay} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors duration-150">
-          <div className="flex items-center gap-3">
-            <div className="w-6 h-6 bg-red-100 text-red-600 rounded-full flex items-center justify-center text-xs font-semibold">
+        <div 
+          key={row.barangay} 
+          className="flex items-center justify-between p-2 md:p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-150"
+        >
+          <div className="flex items-center gap-2 md:gap-3 flex-1 min-w-0">
+            <div className="w-5 h-5 md:w-6 md:h-6 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0">
               {index + 1}
             </div>
-            <div className="text-sm font-medium text-gray-800">{row.barangay}</div>
+            <div className="text-xs md:text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
+              {row.barangay}
+            </div>
           </div>
-          <div className="text-sm font-bold text-red-600 bg-red-50 px-2 py-1 rounded-full">
+          <div className="text-xs md:text-sm font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 px-2 py-0.5 md:py-1 rounded-full whitespace-nowrap flex-shrink-0 ml-2">
             {row.count} incidents
           </div>
         </div>
       ))}
-      {items.length === 0 && (
-        <div className="text-center py-8">
-          <div className="text-gray-500 text-sm">No hotspot data available</div>
-        </div>
-      )}
     </div>
   )
 }
@@ -692,28 +732,36 @@ function ResponseTimesCard() {
     return () => { canceled = true }
   }, [])
 
-  if (loading) return <div className="text-sm text-gray-600">Loading...</div>
-  if (error) return <div className="text-sm text-red-600">{error}</div>
-  if (!data) return <div className="text-sm text-gray-500">No data</div>
+  if (loading) {
+    return <div className="text-sm text-gray-600 dark:text-gray-400">Loading...</div>
+  }
+  if (error) {
+    return <div className="text-sm text-red-600 dark:text-red-400">{error}</div>
+  }
+  if (!data) {
+    return <div className="text-sm text-gray-500 dark:text-gray-400">No data</div>
+  }
 
   const item = (label: string, value: number | null, color: string) => (
-    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-      <div className="text-sm font-medium text-gray-700">{label}</div>
-      <div className={`text-sm font-bold ${color}`}>
+    <div className="flex items-center justify-between p-2 md:p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+      <div className="text-xs md:text-sm font-medium text-gray-700 dark:text-gray-300">
+        {label}
+      </div>
+      <div className={`text-xs md:text-sm font-bold ${color}`}>
         {value !== null ? `${value.toFixed(1)} min` : '—'}
       </div>
     </div>
   )
 
   return (
-    <div className="space-y-4">
-      <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded-lg">
+    <div className="space-y-3 md:space-y-4">
+      <div className="text-xs md:text-sm text-gray-600 dark:text-gray-400 bg-blue-50 dark:bg-blue-900/30 p-2 md:p-3 rounded-lg">
         <span className="font-medium">Incidents analyzed:</span> {data.count}
       </div>
-      <div className="grid grid-cols-1 gap-3">
-        {item('Average Time to Assign', data.avg_minutes_to_assign, 'text-blue-600')}
-        {item('Average Time to Respond', data.avg_minutes_to_respond, 'text-orange-600')}
-        {item('Average Time to Resolve', data.avg_minutes_to_resolve, 'text-green-600')}
+      <div className="grid grid-cols-1 gap-2 md:gap-3">
+        {item('Average Time to Assign', data.avg_minutes_to_assign, 'text-blue-600 dark:text-blue-400')}
+        {item('Average Time to Respond', data.avg_minutes_to_respond, 'text-orange-600 dark:text-orange-400')}
+        {item('Average Time to Resolve', data.avg_minutes_to_resolve, 'text-green-600 dark:text-green-400')}
       </div>
     </div>
   )

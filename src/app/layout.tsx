@@ -1,15 +1,14 @@
-// src/app/layout.tsx
 import type React from "react";
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { AppClient } from "@/components/providers/app-client";
+import ServiceWorkerRegistration from "./sw-register";
 
-// ✅ Use display: "swap" to prevent layout shift, prefetch font to self-host
 const inter = Inter({
   subsets: ["latin"],
-  display: "swap",   // avoids FOIT (flash of invisible text)
-  preload: true,     // preloads font at build time
+  display: "swap",
+  preload: true,
   variable: "--font-inter",
 });
 
@@ -43,8 +42,11 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={inter.variable}>
-      <body suppressHydrationWarning className={inter.className} style={{ fontFamily: 'var(--font-inter), Inter, sans-serif' }}>
+      <body suppressHydrationWarning className={inter.className}>
         <AppClient>
+          {/* Register service worker */}
+          <ServiceWorkerRegistration />
+          {/* Render page children */}
           {children}
         </AppClient>
       </body>

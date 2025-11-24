@@ -11,7 +11,6 @@ Font.register({
   ]
 })
 
-// Create styles
 const styles = StyleSheet.create({
   page: {
     padding: 30,
@@ -116,7 +115,9 @@ const styles = StyleSheet.create({
   chartPlaceholder: {
     height: 150,
     backgroundColor: "#f9fafb",
-    border: "1px dashed #d1d5db",
+    borderStyle: "dashed",
+    borderWidth: 1,
+    borderColor: "#d1d5db",
     borderRadius: 4,
     justifyContent: "center",
     alignItems: "center",
@@ -144,7 +145,9 @@ const styles = StyleSheet.create({
   notesSection: {
     marginVertical: 10,
     padding: 10,
-    border: "1px solid #d1d5db",
+    borderStyle: "solid",
+    borderWidth: 1,
+    borderColor: "#d1d5db",
     borderRadius: 4,
     backgroundColor: "#f9fafb"
   },
@@ -157,6 +160,19 @@ const styles = StyleSheet.create({
   notesText: {
     fontSize: 12,
     color: "#374151"
+  },
+  emptyState: {
+    padding: 20,
+    backgroundColor: "#fef3c7",
+    borderRadius: 4,
+    borderStyle: "solid",
+    borderWidth: 1,
+    borderColor: "#fbbf24"
+  },
+  emptyStateText: {
+    fontSize: 12,
+    color: "#92400e",
+    textAlign: "center"
   }
 })
 
@@ -167,203 +183,194 @@ interface YearlyReportDocumentProps {
 }
 
 export default function YearlyReportDocument({ yearData, year, templateNotes = "" }: YearlyReportDocumentProps) {
-  // Get top 5 incident types for the table
-  const topIncidentTypes = Object.entries(yearData.type_breakdown)
+  
+  const typeBreakdown = yearData?.type_breakdown || {}
+  const statusSummary = yearData?.status_summary || {}
+  const quarters = yearData?.quarters || []
+  const reports = yearData?.reports || []
+  const totalIncidents = yearData?.total_incidents || 0
+
+  const topIncidentTypes = Object.entries(typeBreakdown)
     .map(([type, count]) => ({ type, count: count as number }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 5)
 
-  // Get status distribution for the table
-  const statusDistribution = Object.entries(yearData.status_summary)
+  const statusDistribution = Object.entries(statusSummary)
     .map(([status, count]) => ({ status, count: count as number }))
+
+  const busiestQuarter = quarters.length > 0
+    ? quarters.reduce((max: any, quarter: any) => 
+        (quarter?.incident_count || 0) > (max?.incident_count || 0) ? quarter : max, 
+        quarters[0]
+      )?.quarter
+    : "N/A"
+
+  const mostCommonType = topIncidentTypes.length > 0 ? topIncidentTypes[0].type : "N/A"
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        {/* Header with Logo */}
+        
+        {/* HEADER WITH CLOUDINARY LOGO */}
         <View style={styles.header}>
           <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <Image src="/assets/radiant-logo.png" style={styles.logo} />
+            <Image
+              src="https://res.cloudinary.com/dfrzg0mbh/image/upload/radiant-logo_i7zwcd"
+              style={styles.logo}
+            />
             <View style={styles.headerText}>
-              <Text style={styles.title}>Annual Report</Text>
+              <Text style={styles.title}>Annual Report {year}</Text>
               <Text style={styles.orgName}>Radiant Rescue Volunteers Inc.</Text>
             </View>
           </View>
+
           <View>
-            <Text style={styles.date}>Generated on: {new Date().toLocaleDateString()}</Text>
-            <Text style={styles.date}>Year: {year}</Text>
+            <Text style={styles.date}>
+              Generated: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+            </Text>
+            <Text style={styles.date}>Fiscal Year: {year}</Text>
           </View>
         </View>
 
-        {/* Executive Summary */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Executive Summary</Text>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Total Incidents:</Text>
-            <Text style={styles.summaryValue}>{yearData.total_incidents}</Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Reports Generated:</Text>
-            <Text style={styles.summaryValue}>{yearData.reports.length}</Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Busiest Quarter:</Text>
-            <Text style={styles.summaryValue}>
-              {yearData.quarters.reduce((max: any, quarter: any) => 
-                quarter.incident_count > max.incident_count ? quarter : max, 
-                yearData.quarters[0]
-              )?.quarter}
+        {/* EMPTY STATE – NO DATA */}
+        {totalIncidents === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateText}>
+              No incident data available for {year}. This report cannot be generated.
             </Text>
           </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Most Common Incident Type:</Text>
-            <Text style={styles.summaryValue}>
-              {Object.entries(yearData.type_breakdown)
-                .sort(([,a], [,b]) => (b as number) - (a as number))[0]?.[0] || "N/A"}
-            </Text>
-          </View>
-          
-          {/* Template Notes Section */}
-          {templateNotes && (
-            <View style={styles.notesSection}>
-              <Text style={styles.notesTitle}>Executive Summary Notes</Text>
-              <Text style={styles.notesText}>{templateNotes}</Text>
-            </View>
-          )}
-        </View>
+        ) : (
+          <>
+            {/* EXECUTIVE SUMMARY */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Executive Summary</Text>
 
-        {/* Quarterly Breakdown */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Quarterly Breakdown</Text>
-          <View style={styles.table}>
-            <View style={styles.tableRow}>
-              <View style={styles.tableColHeader}>
-                <Text style={styles.tableCellHeader}>Quarter</Text>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Total Incidents:</Text>
+                <Text style={styles.summaryValue}>{totalIncidents}</Text>
               </View>
-              <View style={styles.tableColHeader}>
-                <Text style={styles.tableCellHeader}>Incident Count</Text>
-              </View>
-              <View style={styles.tableColHeader}>
-                <Text style={styles.tableCellHeader}>Start Date</Text>
-              </View>
-              <View style={styles.tableColHeader}>
-                <Text style={styles.tableCellHeader}>End Date</Text>
-              </View>
-            </View>
-            {yearData.quarters.map((quarter: any) => (
-              <View key={quarter.quarter} style={styles.tableRow}>
-                <View style={styles.tableCol}>
-                  <Text style={styles.tableCell}>{quarter.quarter}</Text>
-                </View>
-                <View style={styles.tableCol}>
-                  <Text style={styles.tableCell}>{quarter.incident_count}</Text>
-                </View>
-                <View style={styles.tableCol}>
-                  <Text style={styles.tableCell}>
-                    {new Date(quarter.start).toLocaleDateString('en-US')}
-                  </Text>
-                </View>
-                <View style={styles.tableCol}>
-                  <Text style={styles.tableCell}>
-                    {new Date(quarter.end).toLocaleDateString('en-US')}
-                  </Text>
-                </View>
-              </View>
-            ))}
-          </View>
-        </View>
 
-        {/* Incident Types */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Top Incident Types</Text>
-          <View style={styles.table}>
-            <View style={styles.tableRow}>
-              <View style={styles.tableColHeader}>
-                <Text style={styles.tableCellHeader}>Incident Type</Text>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Reports Generated:</Text>
+                <Text style={styles.summaryValue}>{reports.length}</Text>
               </View>
-              <View style={styles.tableColHeader}>
-                <Text style={styles.tableCellHeader}>Count</Text>
+
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Busiest Quarter:</Text>
+                <Text style={styles.summaryValue}>{busiestQuarter}</Text>
               </View>
-              <View style={styles.tableColHeader}>
-                <Text style={styles.tableCellHeader}>Percentage</Text>
+
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Most Common Incident Type:</Text>
+                <Text style={styles.summaryValue}>{mostCommonType}</Text>
               </View>
-              <View style={styles.tableColHeader}>
-                <Text style={styles.tableCellHeader}>Chart</Text>
-              </View>
+
+              {templateNotes && (
+                <View style={styles.notesSection}>
+                  <Text style={styles.notesTitle}>Executive Summary Notes</Text>
+                  <Text style={styles.notesText}>{templateNotes}</Text>
+                </View>
+              )}
             </View>
-            {topIncidentTypes.map((item) => (
-              <View key={item.type} style={styles.tableRow}>
-                <View style={styles.tableCol}>
-                  <Text style={styles.tableCell}>{item.type}</Text>
-                </View>
-                <View style={styles.tableCol}>
-                  <Text style={styles.tableCell}>{item.count}</Text>
-                </View>
-                <View style={styles.tableCol}>
-                  <Text style={styles.tableCell}>
-                    {((item.count / yearData.total_incidents) * 100).toFixed(1)}%
-                  </Text>
-                </View>
-                <View style={styles.tableCol}>
-                  <View style={styles.chartPlaceholder}>
-                    <Text style={styles.chartPlaceholderText}>Chart Visualization</Text>
+
+            {/* QUARTERLY BREAKDOWN */}
+            {quarters.length > 0 && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Quarterly Breakdown</Text>
+
+                <View style={styles.table}>
+                  <View style={styles.tableRow}>
+                    <View style={styles.tableColHeader}><Text style={styles.tableCellHeader}>Quarter</Text></View>
+                    <View style={styles.tableColHeader}><Text style={styles.tableCellHeader}>Incident Count</Text></View>
+                    <View style={styles.tableColHeader}><Text style={styles.tableCellHeader}>Start Date</Text></View>
+                    <View style={styles.tableColHeader}><Text style={styles.tableCellHeader}>End Date</Text></View>
                   </View>
-                </View>
-              </View>
-            ))}
-          </View>
-        </View>
 
-        {/* Status Distribution */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Status Distribution</Text>
-          <View style={styles.table}>
-            <View style={styles.tableRow}>
-              <View style={styles.tableColHeader}>
-                <Text style={styles.tableCellHeader}>Status</Text>
-              </View>
-              <View style={styles.tableColHeader}>
-                <Text style={styles.tableCellHeader}>Count</Text>
-              </View>
-              <View style={styles.tableColHeader}>
-                <Text style={styles.tableCellHeader}>Percentage</Text>
-              </View>
-              <View style={styles.tableColHeader}>
-                <Text style={styles.tableCellHeader}>Chart</Text>
-              </View>
-            </View>
-            {statusDistribution.map((item) => (
-              <View key={item.status} style={styles.tableRow}>
-                <View style={styles.tableCol}>
-                  <Text style={styles.tableCell}>{item.status}</Text>
+                  {quarters.map((q: any, i: number) => (
+                    <View key={q?.quarter || i} style={styles.tableRow}>
+                      <View style={styles.tableCol}><Text style={styles.tableCell}>{q?.quarter || "N/A"}</Text></View>
+                      <View style={styles.tableCol}><Text style={styles.tableCell}>{q?.incident_count || 0}</Text></View>
+                      <View style={styles.tableCol}><Text style={styles.tableCell}>{q?.start ? new Date(q.start).toLocaleDateString("en-US") : "N/A"}</Text></View>
+                      <View style={styles.tableCol}><Text style={styles.tableCell}>{q?.end ? new Date(q.end).toLocaleDateString("en-US") : "N/A"}</Text></View>
+                    </View>
+                  ))}
                 </View>
-                <View style={styles.tableCol}>
-                  <Text style={styles.tableCell}>{item.count}</Text>
-                </View>
-                <View style={styles.tableCol}>
-                  <Text style={styles.tableCell}>
-                    {((item.count / yearData.total_incidents) * 100).toFixed(1)}%
-                  </Text>
-                </View>
-                <View style={styles.tableCol}>
-                  <View style={styles.chartPlaceholder}>
-                    <Text style={styles.chartPlaceholderText}>Chart Visualization</Text>
+              </View>
+            )}
+
+            {/* INCIDENT TYPES */}
+            {topIncidentTypes.length > 0 && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Top Incident Types</Text>
+
+                <View style={styles.table}>
+                  <View style={styles.tableRow}>
+                    <View style={styles.tableColHeader}><Text style={styles.tableCellHeader}>Incident Type</Text></View>
+                    <View style={styles.tableColHeader}><Text style={styles.tableCellHeader}>Count</Text></View>
+                    <View style={styles.tableColHeader}><Text style={styles.tableCellHeader}>Percentage</Text></View>
+                    <View style={styles.tableColHeader}><Text style={styles.tableCellHeader}>Chart</Text></View>
                   </View>
+
+                  {topIncidentTypes.map((item) => (
+                    <View key={item.type} style={styles.tableRow}>
+                      <View style={styles.tableCol}><Text style={styles.tableCell}>{item.type}</Text></View>
+                      <View style={styles.tableCol}><Text style={styles.tableCell}>{item.count}</Text></View>
+                      <View style={styles.tableCol}><Text style={styles.tableCell}>{((item.count / totalIncidents) * 100).toFixed(1)}%</Text></View>
+                      <View style={styles.tableCol}>
+                        <View style={styles.chartPlaceholder}>
+                          <Text style={styles.chartPlaceholderText}>Chart Visualization</Text>
+                        </View>
+                      </View>
+                    </View>
+                  ))}
                 </View>
               </View>
-            ))}
-          </View>
-        </View>
+            )}
 
-        {/* Footer */}
+            {/* STATUS DISTRIBUTION */}
+            {statusDistribution.length > 0 && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Status Distribution</Text>
+
+                <View style={styles.table}>
+                  <View style={styles.tableRow}>
+                    <View style={styles.tableColHeader}><Text style={styles.tableCellHeader}>Status</Text></View>
+                    <View style={styles.tableColHeader}><Text style={styles.tableCellHeader}>Count</Text></View>
+                    <View style={styles.tableColHeader}><Text style={styles.tableCellHeader}>Percentage</Text></View>
+                    <View style={styles.tableColHeader}><Text style={styles.tableCellHeader}>Chart</Text></View>
+                  </View>
+
+                  {statusDistribution.map((item) => (
+                    <View key={item.status} style={styles.tableRow}>
+                      <View style={styles.tableCol}><Text style={styles.tableCell}>{item.status}</Text></View>
+                      <View style={styles.tableCol}><Text style={styles.tableCell}>{item.count}</Text></View>
+                      <View style={styles.tableCol}><Text style={styles.tableCell}>{((item.count / totalIncidents) * 100).toFixed(1)}%</Text></View>
+                      <View style={styles.tableCol}>
+                        <View style={styles.chartPlaceholder}>
+                          <Text style={styles.chartPlaceholderText}>Chart Visualization</Text>
+                        </View>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+          </>
+        )}
+
+        {/* FOOTER */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>
             Radiant Rescue Volunteers Inc. - Annual Report {year}
           </Text>
-          <Text style={styles.footerText} render={({ pageNumber, totalPages }: { pageNumber: number; totalPages: number }) => (
-            `Page ${pageNumber} of ${totalPages}`
-          )} fixed />
+
+          <Text
+            style={styles.footerText}
+            render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+            fixed
+          />
         </View>
+
       </Page>
     </Document>
   )
