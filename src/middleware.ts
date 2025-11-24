@@ -1,5 +1,4 @@
-// middleware.ts - Place at project root (same level as src/ folder)
-// OR if your app folder is inside src/, place at src/middleware.ts
+// src/middleware.ts
 
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
@@ -49,6 +48,45 @@ export async function middleware(req: NextRequest) {
     error?.message || 'none'
   )
 
+  // ✅ NEW: PROTECT /admin/sms ROUTES
+  if (req.nextUrl.pathname.startsWith('/admin/sms')) {
+    console.log('🔐 SMS ROUTE PROTECTION - Checking admin access')
+
+    // Check if user is authenticated
+    if (!user) {
+      console.log('❌ No user - redirecting to login')
+      return NextResponse.redirect(new URL('/login', req.url))
+    }
+
+    try {
+      // Check if user is admin
+      const { data: adminProfile, error: adminError } = await supabase
+        .from('admin_profiles')
+        .select('id, role')
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      console.log('🛡️ Admin check:', {
+        userId: user.id,
+        isAdmin: !!adminProfile,
+        adminRole: adminProfile?.role,
+        error: adminError?.message
+      })
+
+      if (adminError || !adminProfile) {
+        console.log('❌ User is not admin - redirecting to dashboard')
+        return NextResponse.redirect(new URL('/admin/dashboard', req.url))
+      }
+
+      // User is admin - allow access
+      console.log('✅ Admin access granted')
+      return res
+    } catch (err) {
+      console.error('❌ Error checking admin status:', err)
+      return NextResponse.redirect(new URL('/admin/dashboard', req.url))
+    }
+  }
+
   // If user is logged in and tries to access /login → redirect based on role
   if (user && req.nextUrl.pathname === '/login') {
     try {
@@ -90,6 +128,7 @@ export async function middleware(req: NextRequest) {
 export const config = {
   matcher: [
     '/login',
+    '/admin/sms/:path*', 
     '/api/:path*',
   ],
 }

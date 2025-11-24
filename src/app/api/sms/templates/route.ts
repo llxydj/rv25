@@ -1,3 +1,5 @@
+// src/app/api/sms/templates/route.ts
+
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSupabase } from '@/lib/supabase-server'
 import { rateKeyFromRequest, rateLimitAllowed } from '@/lib/rate-limit'
@@ -13,9 +15,48 @@ const SMSTemplateSchema = z.object({
   is_active: z.boolean().optional().default(true)
 })
 
-// Get SMS Templates
+// =======================
+// Helper: Admin Access
+// =======================
+async function verifyAdminAccess(request: NextRequest) {
+  try {
+    const supabase = await getServerSupabase()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+      return { authorized: false, error: 'Unauthorized', status: 401 }
+    }
+
+    const { data: adminProfile } = await supabase
+      .from('admin_profiles')
+      .select('id')
+      .eq('user_id', user.id)
+      .single()
+
+    if (!adminProfile) {
+      return { authorized: false, error: 'Admin access required', status: 403 }
+    }
+
+    return { authorized: true, user }
+  } catch (error: any) {
+    return { authorized: false, error: error.message, status: 500 }
+  }
+}
+
+// =======================
+// GET SMS Templates
+// =======================
 export async function GET(request: NextRequest) {
   try {
+    // ✅ Verify Admin
+    const auth = await verifyAdminAccess(request)
+    if (!auth.authorized) {
+      return NextResponse.json(
+        { success: false, message: auth.error },
+        { status: auth.status }
+      )
+    }
+
     const rate = rateLimitAllowed(rateKeyFromRequest(request, 'sms:templates:get'), 60)
     if (!rate.allowed) {
       return NextResponse.json(
@@ -38,14 +79,12 @@ export async function GET(request: NextRequest) {
     }
 
     const { data, error } = await query
-
     if (error) throw error
 
     return NextResponse.json({
       success: true,
       data: data || []
     })
-
   } catch (error: any) {
     console.error('SMS templates GET error:', error)
     return NextResponse.json(
@@ -55,9 +94,20 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Create SMS Template
+// =======================
+// CREATE SMS Template
+// =======================
 export async function POST(request: NextRequest) {
   try {
+    // ✅ Verify Admin
+    const auth = await verifyAdminAccess(request)
+    if (!auth.authorized) {
+      return NextResponse.json(
+        { success: false, message: auth.error },
+        { status: auth.status }
+      )
+    }
+
     const rate = rateLimitAllowed(rateKeyFromRequest(request, 'sms:templates:post'), 20)
     if (!rate.allowed) {
       return NextResponse.json(
@@ -78,7 +128,6 @@ export async function POST(request: NextRequest) {
 
     const supabase = await getServerSupabase()
 
-    // Check if template code already exists
     const { data: existing } = await supabase
       .from('sms_templates')
       .select('id')
@@ -109,7 +158,6 @@ export async function POST(request: NextRequest) {
       data,
       message: 'SMS template created successfully'
     })
-
   } catch (error: any) {
     console.error('SMS templates POST error:', error)
     return NextResponse.json(
@@ -119,9 +167,20 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Update SMS Template
+// =======================
+// UPDATE SMS Template
+// =======================
 export async function PUT(request: NextRequest) {
   try {
+    // ✅ Verify Admin
+    const auth = await verifyAdminAccess(request)
+    if (!auth.authorized) {
+      return NextResponse.json(
+        { success: false, message: auth.error },
+        { status: auth.status }
+      )
+    }
+
     const rate = rateLimitAllowed(rateKeyFromRequest(request, 'sms:templates:put'), 20)
     if (!rate.allowed) {
       return NextResponse.json(
@@ -141,7 +200,6 @@ export async function PUT(request: NextRequest) {
     }
 
     const parsed = SMSTemplateSchema.partial().safeParse(updateData)
-
     if (!parsed.success) {
       return NextResponse.json(
         { success: false, message: 'Invalid template data', issues: parsed.error.flatten() },
@@ -162,7 +220,6 @@ export async function PUT(request: NextRequest) {
       .single()
 
     if (error) throw error
-
     if (!data) {
       return NextResponse.json(
         { success: false, message: 'Template not found' },
@@ -175,7 +232,6 @@ export async function PUT(request: NextRequest) {
       data,
       message: 'SMS template updated successfully'
     })
-
   } catch (error: any) {
     console.error('SMS templates PUT error:', error)
     return NextResponse.json(
@@ -185,9 +241,20 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-// Delete SMS Template
+// =======================
+// DELETE SMS Template
+// =======================
 export async function DELETE(request: NextRequest) {
   try {
+    // ✅ Verify Admin
+    const auth = await verifyAdminAccess(request)
+    if (!auth.authorized) {
+      return NextResponse.json(
+        { success: false, message: auth.error },
+        { status: auth.status }
+      )
+    }
+
     const rate = rateLimitAllowed(rateKeyFromRequest(request, 'sms:templates:delete'), 10)
     if (!rate.allowed) {
       return NextResponse.json(
@@ -198,7 +265,6 @@ export async function DELETE(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
-
     if (!id) {
       return NextResponse.json(
         { success: false, message: 'Template ID is required' },
@@ -219,7 +285,6 @@ export async function DELETE(request: NextRequest) {
       success: true,
       message: 'SMS template deleted successfully'
     })
-
   } catch (error: any) {
     console.error('SMS templates DELETE error:', error)
     return NextResponse.json(

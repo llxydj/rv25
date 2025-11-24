@@ -36,7 +36,7 @@ export const VolunteerLayout: React.FC<VolunteerLayoutProps> = ({ children }) =>
 
   return (
     <AuthLayout allowedRoles={["volunteer"]}>
-      <div className="flex h-screen bg-gray-100">
+      <div className="flex h-screen bg-gray-100 overflow-hidden">
         {/* Mobile sidebar backdrop */}
         {sidebarOpen && (
           <div
@@ -105,7 +105,7 @@ export const VolunteerLayout: React.FC<VolunteerLayoutProps> = ({ children }) =>
               <span>Profile</span>
             </Link>
 
-            {/* SIGN OUT BUTTON → now opens modal */}
+            {/* SIGN OUT BUTTON */}
             <button
               onClick={() => setConfirmSignOut(true)}
               disabled={loading}
@@ -125,7 +125,7 @@ export const VolunteerLayout: React.FC<VolunteerLayoutProps> = ({ children }) =>
 
         {/* Main content */}
         <div className="flex flex-col flex-1 overflow-hidden">
-          {/* Top navbar */}
+          {/* Navbar */}
           <header className="bg-white shadow-sm z-10">
             <div className="flex items-center justify-between p-4">
               <button
@@ -157,10 +157,10 @@ export const VolunteerLayout: React.FC<VolunteerLayoutProps> = ({ children }) =>
         </div>
       </div>
 
-      {/* SIGN OUT CONFIRMATION MODAL */}
+      {/* CONFIRM SIGN OUT MODAL */}
       {confirmSignOut && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white shadow-lg rounded-lg p-6 w-full max-w-sm">
+          <div className="bg-white shadow-xl rounded-lg p-6 w-full max-w-sm animate-fadeIn">
             <h2 className="text-lg font-semibold text-gray-800 mb-2">
               Confirm Sign Out
             </h2>

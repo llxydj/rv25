@@ -39,6 +39,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     return pathname === path || pathname.startsWith(`${path}/`)
   }
 
+  // Updated nav items including SMS Management
   const navItems = [
     { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/admin/incidents", label: "Incidents", icon: AlertTriangle },
@@ -46,6 +47,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     { href: "/admin/users", label: "User Management", icon: Users },
     { href: "/admin/schedules", label: "Schedules", icon: Calendar },
     { href: "/admin/reports", label: "Reports", icon: FileText },
+    { href: "/admin/sms", label: "SMS", icon: FileText },
     { href: "/admin/settings", label: "Settings", icon: Settings },
   ]
 
@@ -64,8 +66,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   return (
     <AuthLayout allowedRoles={["admin"]}>
       <div className="flex h-screen bg-gray-100 dark:bg-gray-900">
-
-        {/* Skip link for accessibility */}
+        {/* Skip Link */}
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 
@@ -74,7 +75,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
           Skip to content
         </a>
 
-        {/* Mobile sidebar backdrop */}
+        {/* Mobile Backdrop */}
         {sidebarOpen && (
           <div
             className="fixed inset-0 z-20 bg-black/50 lg:hidden"
@@ -122,7 +123,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
               )
             })}
 
-            {/* Open modal instead of instant sign out */}
+            {/* Sign Out Button */}
             <button
               onClick={() => setShowModal(true)}
               disabled={loading}
@@ -143,7 +144,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
 
         {/* MAIN CONTENT */}
         <div className="flex flex-col flex-1 overflow-hidden">
-          {/* Top navbar */}
+          {/* Top Bar */}
           <header className="bg-white dark:bg-gray-800 shadow-sm z-10 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between p-4">
               <button
@@ -174,40 +175,39 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
             </div>
           </header>
 
-          {/* PAGE CONTENT */}
+          {/* Page Content */}
           <main id="main-content" className="flex-1 overflow-y-auto p-4 bg-gray-100 dark:bg-gray-900">
             {children}
           </main>
         </div>
+      </div>
 
-        {/* SIGN OUT CONFIRMATION MODAL */}
-        {showModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-80 text-center shadow-lg">
-              <h3 className="text-lg font-semibold mb-4 dark:text-white">
-                Are you sure you want to sign out?
-              </h3>
+      {/* SIGN OUT MODAL — FIXED OUTSIDE LAYOUT */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-80 text-center shadow-lg">
+            <h3 className="text-lg font-semibold mb-4 dark:text-white">
+              Are you sure you want to sign out?
+            </h3>
 
-              <div className="flex justify-between space-x-4">
-                <button
-                  onClick={() => setShowModal(false)}
-                  className="flex-1 px-4 py-2 bg-gray-300 dark:bg-gray-600 rounded hover:bg-gray-400 dark:hover:bg-gray-500"
-                >
-                  Cancel
-                </button>
+            <div className="flex justify-between space-x-4">
+              <button
+                onClick={() => setShowModal(false)}
+                className="flex-1 px-4 py-2 bg-gray-300 dark:bg-gray-600 rounded hover:bg-gray-400 dark:hover:bg-gray-500"
+              >
+                Cancel
+              </button>
 
-                <button
-                  onClick={handleSignOut}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                >
-                  Sign Out
-                </button>
-              </div>
+              <button
+                onClick={handleSignOut}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                Sign Out
+              </button>
             </div>
           </div>
-        )}
-
-      </div>
+        </div>
+      )}
     </AuthLayout>
   )
 }
