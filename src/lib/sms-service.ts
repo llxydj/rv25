@@ -63,7 +63,7 @@ export class SMSService {
     this.config = {
       apiUrl: process.env.SMS_API_URL || 'https://sms.iprogtech.com/api/v1/sms_messages',
       apiKey: process.env.SMS_API_KEY || '',
-      sender: process.env.SMS_SENDER || 'iprogsms',
+      sender: process.env.SMS_SENDER || 'iprogtech',
       rateLimitPerMinute: parseInt(process.env.SMS_RATE_LIMIT_MINUTE || '10'),
       rateLimitPerHour: parseInt(process.env.SMS_RATE_LIMIT_HOUR || '100'),
       retryAttempts: parseInt(process.env.SMS_RETRY_ATTEMPTS || '1'),
