@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
         skills: skills || [],
         assigned_barangays: barangay ? [barangay] : [],
         total_incidents_resolved: 0,
-        last_active: new Date().toISOString(),
+        last_active_at: new Date().toISOString(),
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         last_status_change: new Date().toISOString(),
