@@ -2,237 +2,147 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Light/Dark theme tokens (aligned with Tailwind theme colors) */
+/* ---------------------- */
+/* Light Theme Tokens     */
+/* ---------------------- */
 :root {
-  color-scheme: light dark;
-  --background: 0 0% 100%;
-  --foreground: 222.2 84% 4.9%;
-  --muted: 210 40% 96.1%;
-  --muted-foreground: 215.4 16.3% 46.9%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 222.2 84% 4.9%;
-  --card: 0 0% 100%;
-  --card-foreground: 222.2 84% 4.9%;
-  --border: 214.3 31.8% 91.4%;
-  --input: 214.3 31.8% 91.4%;
-  --primary: 351 75% 48%;
+  color-scheme: light;
+
+  /* Background & Text */
+  --background: 0 0% 100%;        /* white */
+  --foreground: 222 15% 15%;      /* dark text */
+
+  /* Muted / secondary text */
+  --muted: 210 40% 96%;           
+  --muted-foreground: 215 16% 45%;
+
+  /* Cards / popovers */
+  --card: 0 0% 98%;               
+  --card-foreground: 222 15% 15%;
+
+  /* Borders / inputs */
+  --border: 214 31% 91%;          
+  --input: 0 0% 100%;
+
+  /* Buttons / accents */
+  --primary: 351 75% 48%;         /* pink/purple */
   --primary-foreground: 0 0% 100%;
-  --secondary: 210 40% 96.1%;
-  --secondary-foreground: 222.2 47.4% 11.2%;
-  --accent: 210 40% 96.1%;
-  --accent-foreground: 222.2 47.4% 11.2%;
-  --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 0 0% 98%;
-  --ring: 222.2 84% 4.9%;
+  --secondary: 220 70% 50%;       /* blue/purple */
+  --secondary-foreground: 0 0% 100%;
+  --destructive: 0 84% 60%;       /* red */
+  --destructive-foreground: 0 0% 100%;
+
+  /* Border radius */
   --radius: 0.5rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: 222.2 47.4% 11.2%;
-    --foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --popover: 222.2 47.4% 11.2%;
-    --popover-foreground: 210 40% 98%;
-    --card: 217.2 32.6% 17.5%;
-    --card-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --primary: 351 75% 48%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --ring: 212.7 26.8% 83.9%;
-  }
-}
-
+/* ---------------------- */
+/* Base Styles            */
+/* ---------------------- */
 @layer base {
-  * {
+  *, *::before, *::after {
+    box-sizing: border-box;
     border-color: hsl(var(--border));
   }
-  
+
   body {
-    color: hsl(var(--foreground));
+    font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     background-color: hsl(var(--background));
-    font-family: var(--font-inter), "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: hsl(var(--foreground));
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    line-height: 1.6;
+    margin: 0;
   }
 
-  /* Ensure all text elements inherit color properly */
+  /* Typography inherits color */
   p, h1, h2, h3, h4, h5, h6, span, div, a, li, td, th, label {
     color: inherit;
   }
+
+  /* Cards */
+  .card {
+    background-color: hsl(var(--card));
+    color: hsl(var(--card-foreground));
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+    transition: box-shadow 0.2s;
+  }
+  .card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  }
+
+  /* Form Fields */
+  input, select, textarea {
+    background-color: hsl(var(--input));
+    color: hsl(var(--foreground));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    padding: 0.5rem 0.75rem;
+    width: 100%;
+    transition: all 0.2s;
+  }
+
+  input::placeholder,
+  textarea::placeholder,
+  select::placeholder {
+    color: hsl(var(--muted-foreground));
+    opacity: 0.7;
+  }
+
+  input:focus, select:focus, textarea:focus {
+    outline: 2px solid hsl(var(--primary));
+    outline-offset: 2px;
+  }
+
+  /* Buttons */
+  button {
+    border-radius: var(--radius);
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-weight: 500;
+  }
+  .btn-primary {
+    background-color: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+  }
+  .btn-primary:hover {
+    filter: brightness(1.1);
+  }
+  .btn-secondary {
+    background-color: hsl(var(--secondary));
+    color: hsl(var(--secondary-foreground));
+  }
+  .btn-secondary:hover {
+    filter: brightness(0.9);
+  }
+  .btn-destructive {
+    background-color: hsl(var(--destructive));
+    color: hsl(var(--destructive-foreground));
+  }
+  .btn-destructive:hover {
+    filter: brightness(1.1);
+  }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: hsl(var(--card));
+    color: hsl(var(--card-foreground));
+  }
+  th, td {
+    border: 1px solid hsl(var(--border));
+    padding: 0.5rem 0.75rem;
+  }
 }
 
-/* Leaflet map styles */
+/* ---------------------- */
+/* Leaflet Map Styles     */
+/* ---------------------- */
 .leaflet-container {
   width: 100%;
   height: 100%;
-}
-
-/* Form fields */
-input,
-select,
-textarea {
-  color: hsl(var(--foreground));
-  background-color: hsl(var(--background));
-}
-
-input::placeholder,
-textarea::placeholder,
-select::placeholder {
-  color: hsl(var(--muted-foreground));
-  opacity: 0.7;
-}
-
-/* Ensure proper focus styles */
-input:focus,
-select:focus,
-textarea:focus {
-  outline: 2px solid hsl(var(--ring));
-  outline-offset: 2px;
-}
-
-/* Dark mode specific adjustments */
-@media (prefers-color-scheme: dark) {
-  /* Ensure cards are visible in dark mode */
-  .bg-white {
-    background-color: hsl(var(--card)) !important;
-    color: hsl(var(--card-foreground)) !important;
-  }
-  
-  .bg-gray-50 {
-    background-color: hsl(217.2 32.6% 17.5%) !important;
-    color: hsl(var(--foreground)) !important;
-  }
-  
-  .bg-gray-100 {
-    background-color: hsl(217.2 32.6% 20%) !important;
-    color: hsl(var(--foreground)) !important;
-  }
-
-  /* Ensure text in cards is visible */
-  .bg-white *:not([class*="text-"]):not([class*="bg-"]),
-  .bg-gray-50 *:not([class*="text-"]):not([class*="bg-"]),
-  .bg-gray-100 *:not([class*="text-"]):not([class*="bg-"]) {
-    color: hsl(var(--card-foreground));
-  }
-
-  /* Tables in dark mode */
-  table,
-  table td,
-  table th {
-    color: hsl(var(--foreground));
-  }
-
-  /* Borders in dark mode */
-  .border,
-  .border-gray-200,
-  .border-gray-300 {
-    border-color: hsl(var(--border));
-  }
-
-  /* Inputs in dark mode */
-  input:not([type="checkbox"]):not([type="radio"]),
-  select,
-  textarea {
-    background-color: hsl(217.2 32.6% 17.5%);
-    color: hsl(var(--foreground));
-    border-color: hsl(var(--border));
-  }
-
-  /* Ensure buttons with specific colors maintain visibility */
-  button:not([class*="bg-"]) {
-    color: hsl(var(--foreground));
-  }
-}
-
-/* Light mode specific (to override when needed) */
-@media (prefers-color-scheme: light) {
-  .bg-white,
-  .bg-gray-50,
-  .bg-gray-100 {
-    color: hsl(var(--foreground));
-  }
-
-  table,
-  table td,
-  table th {
-    color: hsl(var(--foreground));
-  }
-}
-
-/* Preserve explicit color classes (both light and dark) */
-.text-white { color: #ffffff !important; }
-.text-black { color: #000000 !important; }
-.text-gray-50 { color: #f9fafb !important; }
-.text-gray-100 { color: #f3f4f6 !important; }
-.text-gray-200 { color: #e5e7eb !important; }
-.text-gray-300 { color: #d1d5db !important; }
-.text-gray-400 { color: #9ca3af !important; }
-.text-gray-500 { color: #6b7280 !important; }
-.text-gray-600 { color: #4b5563 !important; }
-.text-gray-700 { color: #374151 !important; }
-.text-gray-800 { color: #1f2937 !important; }
-.text-gray-900 { color: #111827 !important; }
-
-/* Dark mode text colors */
-@media (prefers-color-scheme: dark) {
-  .dark\:text-white { color: #ffffff !important; }
-  .dark\:text-gray-50 { color: #f9fafb !important; }
-  .dark\:text-gray-100 { color: #f3f4f6 !important; }
-  .dark\:text-gray-200 { color: #e5e7eb !important; }
-  .dark\:text-gray-300 { color: #d1d5db !important; }
-  .dark\:text-gray-400 { color: #9ca3af !important; }
-  .dark\:text-gray-500 { color: #6b7280 !important; }
-}
-
-/* Ensure proper contrast for colored backgrounds */
-.bg-blue-600,
-.bg-blue-700,
-.bg-blue-800,
-.bg-green-600,
-.bg-green-700,
-.bg-green-800,
-.bg-red-600,
-.bg-red-700,
-.bg-red-800,
-.bg-yellow-600,
-.bg-yellow-700,
-.bg-yellow-800,
-.bg-purple-600,
-.bg-purple-700,
-.bg-purple-800 {
-  color: #ffffff;
-}
-
-/* Lighter backgrounds need dark text */
-.bg-blue-50,
-.bg-blue-100,
-.bg-green-50,
-.bg-green-100,
-.bg-red-50,
-.bg-red-100,
-.bg-yellow-50,
-.bg-yellow-100 {
-  color: inherit;
-}
-
-@media (prefers-color-scheme: dark) {
-  .bg-blue-50,
-  .bg-blue-100,
-  .bg-green-50,
-  .bg-green-100,
-  .bg-red-50,
-  .bg-red-100,
-  .bg-yellow-50,
-  .bg-yellow-100 {
-    color: hsl(var(--foreground));
-  }
 }

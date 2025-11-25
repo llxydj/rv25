@@ -1,3 +1,5 @@
+// src/components/notification-bell.tsx
+
 "use client"
 
 import React, { useEffect, useState, useCallback } from "react"
@@ -28,6 +30,50 @@ export function NotificationBell({ userId, userRole, onNotificationClick }: Noti
   const [hasNewNotification, setHasNewNotification] = useState(false)
   const router = useRouter()
 
+  // Send notification to Service Worker for system notification
+  const triggerSystemNotification = useCallback(async (notification: Notification) => {
+    try {
+      // Check if service worker is registered
+      if (!("serviceWorker" in navigator)) {
+        console.warn("⚠️ Service workers not supported")
+        return
+      }
+
+      const registration = await navigator.serviceWorker.ready
+      
+      if (!registration) {
+        console.warn("⚠️ Service worker not ready")
+        return
+      }
+
+      const controller = navigator.serviceWorker.controller
+      if (!controller) {
+        console.warn("⚠️ No active service worker controller")
+        return
+      }
+
+      // Post message to service worker with notification data
+      controller.postMessage({
+        type: 'SHOW_NOTIFICATION',
+        payload: {
+          title: notification.title,
+          body: notification.body,
+          icon: '/icons/icon-192x192.png',
+          badge: '/icons/icon-72x72.png',
+          tag: notification.id,
+          url: notification.data?.incident_id 
+            ? `/${userRole}/incident/${notification.data.incident_id}`
+            : `/${userRole}/notifications`,
+          data: notification.data || {}
+        }
+      })
+
+      console.log('📤 Posted notification to SW:', notification.title)
+    } catch (error) {
+      console.error('❌ Failed to send notification to SW:', error)
+    }
+  }, [userRole])
+
   // Fetch notifications from database
   const fetchNotifications = useCallback(async () => {
     try {
@@ -41,7 +87,7 @@ export function NotificationBell({ userId, userRole, onNotificationClick }: Noti
       if (error) throw error
       setNotifications(data || [])
     } catch (error) {
-      console.error("Failed to fetch notifications:", error)
+      console.error("❌ Failed to fetch notifications:", error)
     } finally {
       setLoading(false)
     }
@@ -66,6 +112,7 @@ export function NotificationBell({ userId, userRole, onNotificationClick }: Noti
           
           if (payload.eventType === "INSERT") {
             const newNotif = payload.new as Notification
+            
             setNotifications((prev) => {
               // Prevent duplicates
               if (prev.some(n => n.id === newNotif.id)) return prev
@@ -76,14 +123,22 @@ export function NotificationBell({ userId, userRole, onNotificationClick }: Noti
             setHasNewNotification(true)
             setTimeout(() => setHasNewNotification(false), 2000)
             
-            // Play subtle notification sound/animation
+            // TRIGGER SYSTEM NOTIFICATION VIA SERVICE WORKER
+            triggerSystemNotification(newNotif)
+            
+            // Also try browser Notification API as fallback (if not using SW)
             if (typeof window !== 'undefined' && 'Notification' in window) {
               if (Notification.permission === 'granted') {
-                new Notification(newNotif.title, {
-                  body: newNotif.body,
-                  icon: '/favicon.ico',
-                  tag: newNotif.id
-                })
+                try {
+                  new Notification(newNotif.title, {
+                    body: newNotif.body,
+                    icon: '/icons/icon-192x192.png',
+                    badge: '/icons/icon-72x72.png',
+                    tag: newNotif.id
+                  })
+                } catch (err) {
+                  console.error('❌ Notification API error:', err)
+                }
               }
             }
           } else if (payload.eventType === "UPDATE") {
@@ -102,7 +157,18 @@ export function NotificationBell({ userId, userRole, onNotificationClick }: Noti
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [userId, fetchNotifications])
+  }, [userId, fetchNotifications, triggerSystemNotification])
+
+  // Request notification permissions on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission().then(permission => {
+          console.log('🔔 Notification permission:', permission)
+        })
+      }
+    }
+  }, [])
 
   // Mark notification as read
   const markAsRead = useCallback(async (notificationId: string) => {
@@ -114,7 +180,7 @@ export function NotificationBell({ userId, userRole, onNotificationClick }: Noti
 
       if (error) throw error
     } catch (error) {
-      console.error("Failed to mark notification as read:", error)
+      console.error("❌ Failed to mark notification as read:", error)
     }
   }, [])
 
@@ -151,7 +217,7 @@ export function NotificationBell({ userId, userRole, onNotificationClick }: Noti
         const { error } = await supabase.from("notifications").delete().eq("id", notificationId)
         if (error) throw error
       } catch (error) {
-        console.error("Failed to delete notification:", error)
+        console.error("❌ Failed to delete notification:", error)
       }
     },
     []
@@ -170,7 +236,7 @@ export function NotificationBell({ userId, userRole, onNotificationClick }: Noti
 
       if (error) throw error
     } catch (error) {
-      console.error("Failed to mark all as read:", error)
+      console.error("❌ Failed to mark all as read:", error)
     }
   }, [notifications])
 

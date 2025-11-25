@@ -23,7 +23,6 @@ export default function LoginPage() {
 
   try {
     const result = await signIn(email, password)
-    console.log("Auth result:", result)
 
     if (!result.success) {
       setError(result.message || "Failed to sign in")
