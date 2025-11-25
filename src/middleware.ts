@@ -2,32 +2,39 @@
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(req: NextRequest) {
-  console.log('🔥 MIDDLEWARE HIT:', req.nextUrl.pathname)
-  console.log('🍪 ALL COOKIES:', req.cookies.getAll().map(c => c.name))
+  // Log only in development
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🔥 MIDDLEWARE HIT:', req.nextUrl.pathname)
+    console.log('🍪 ALL COOKIES:', req.cookies.getAll().map(c => c.name))
+  }
 
   const res = NextResponse.next()
 
-  // Only call Node API route for auth/role checks
+  // Only run auth logic for pages, not APIs
   try {
     const apiRes = await fetch(`${req.nextUrl.origin}/api/auth/check-user`, {
       headers: {
         cookie: req.headers.get('cookie') || '', // forward cookies for SSR auth
       },
     })
-    const json = await apiRes.json()
 
+    if (!apiRes.ok) {
+      // If API fails, allow navigation but could redirect to /login optionally
+      return res
+    }
+
+    const json = await apiRes.json()
     const user = json.user
     const role = json.role
 
-    // Protect /admin/sms routes
+    // Protect /admin/sms pages
     if (req.nextUrl.pathname.startsWith('/admin/sms')) {
       if (!user || role !== 'admin') {
-        console.log('❌ Not admin - redirect to dashboard/login')
         return NextResponse.redirect(new URL('/login', req.url))
       }
     }
 
-    // Redirect logged-in users from /login based on role
+    // Redirect logged-in users from /login
     if (user && req.nextUrl.pathname === '/login') {
       switch (role) {
         case 'admin':
@@ -42,10 +49,9 @@ export async function middleware(req: NextRequest) {
           return NextResponse.redirect(new URL('/resident/register-google', req.url))
       }
     }
-
   } catch (err) {
     console.error('❌ Middleware auth check error:', err)
-    // If API fails, allow next, optionally redirect to login
+    // Allow next if auth check fails
   }
 
   return res
@@ -54,7 +60,7 @@ export async function middleware(req: NextRequest) {
 export const config = {
   matcher: [
     '/login',
-    '/admin/sms/:path*',
-    '/api/:path*',
+    '/admin/sms/:path*', // protect admin SMS pages only
+    // do NOT include /api/* routes
   ],
 }

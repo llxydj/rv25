@@ -152,7 +152,7 @@ export default function NewVolunteerPage() {
         status,
       }
 
-      const response = await fetch("/api/admin/volunteers/create", {
+      const response = await fetch("/api/admin/volunteers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
