@@ -1,3 +1,5 @@
+// src/app/api/notifications/subscribe/route.ts
+
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSupabase } from '@/lib/supabase-server'
 import { rateKeyFromRequest, rateLimitAllowed } from '@/lib/rate-limit'

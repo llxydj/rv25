@@ -90,25 +90,42 @@ export default function ResidentProfilePage() {
   // Auto-uppercase function
   const toUpperCase = (text: string) => text.toUpperCase()
 
-  // ✅ FETCH BARANGAYS
+  // ✅ FETCH BARANGAYS (FIXED)
   useEffect(() => {
     const fetchBarangays = async () => {
       try {
         setBarangaysLoading(true)
-        const res = await fetch("/api/barangays")
+        
+        // Fix 1: Use relative path (better for Next.js)
+        const res = await fetch('/api/barangays')
 
         if (!res.ok) {
           throw new Error(`HTTP error! status: ${res.status}`)
         }
 
         const json = await res.json()
-        let barangayList = Array.isArray(json?.data) ? json.data : []
+        
+        // Fix 2: Debug log to see exactly what the API returns in Console
+        console.log("Barangay API Response:", json) 
 
-        // Ensure each barangay has id and name
-        barangayList = barangayList.map((b: any, index: number) => ({
-          id: b.id || b.name || `barangay-${index}`,
-          name: b.name || "",
+        // Fix 3: Handle BOTH { data: [...] } AND direct array [...] formats
+        let rawList = []
+        if (Array.isArray(json)) {
+            rawList = json
+        } else if (json && Array.isArray(json.data)) {
+            rawList = json.data
+        }
+
+        // Fix 4: Safely map the data
+        const barangayList = rawList.map((b: any, index: number) => ({
+          // Handle cases where ID might be missing, or 'b' is just a string name
+          id: b.id || (typeof b === 'string' ? `${index}` : null) || `barangay-${index}`,
+          name: typeof b === 'string' ? b : (b.name || b.barangay || "Unknown"),
         }))
+
+        if (barangayList.length === 0) {
+            console.warn("Barangay list is empty after parsing.")
+        }
 
         setBarangays(barangayList)
       } catch (error) {
@@ -122,7 +139,6 @@ export default function ResidentProfilePage() {
 
     fetchBarangays()
   }, [])
-
   // ✅ LOAD USER DATA & PROFILE IMAGE
   useEffect(() => {
     const loadUserData = async () => {
@@ -161,6 +177,7 @@ export default function ResidentProfilePage() {
 
     loadUserData()
   }, [user?.id])
+
 
   // ✅ HANDLE PROFILE IMAGE UPLOAD
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

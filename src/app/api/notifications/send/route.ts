@@ -1,42 +1,54 @@
+// src/app/api/notifications/send/route.ts
+
 import { NextRequest, NextResponse } from 'next/server'
 import webpush from 'web-push'
+import { getServerSupabase } from '@/lib/supabase-server'
 
 // Configure web-push
 webpush.setVapidDetails(
-  'mailto:admin@rvois.talisaycity.gov.ph',
+  'mailto:jlcbelonio.chmsu@gmail.com',
   process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
   process.env.VAPID_PRIVATE_KEY!
 )
 
-export async function POST(request: NextRequest) {
+export async function POST(req: NextRequest) {
   try {
-    const { subscription, payload } = await request.json()
-
-    if (!subscription || !payload) {
+    const { user_id, payload } = await req.json()
+    if (!user_id || !payload) {
       return NextResponse.json(
-        { success: false, message: 'Missing subscription or payload' },
+        { success: false, message: 'Missing user_id or payload' },
         { status: 400 }
       )
     }
 
-    // Send push notification
-    await webpush.sendNotification(subscription, JSON.stringify(payload))
+    const supabase = await getServerSupabase()
+    const { data: subscriptions } = await supabase
+      .from('push_subscriptions')
+      .select('subscription')
+      .eq('user_id', user_id)
 
-    return NextResponse.json({ success: true })
-  } catch (error: any) {
-    console.error('Error sending push notification:', error)
-    
-    // Handle specific web-push errors
-    if (error.statusCode === 410) {
-      // Subscription is no longer valid, should be removed
-      return NextResponse.json(
-        { success: false, message: 'Subscription expired' },
-        { status: 410 }
-      )
+    if (!subscriptions?.length) {
+      return NextResponse.json({ success: false, message: 'No subscriptions found' })
     }
 
+    const results = await Promise.all(subscriptions.map(async (sub) => {
+      try {
+        await webpush.sendNotification(sub.subscription, JSON.stringify(payload))
+        return { success: true, endpoint: sub.subscription.endpoint }
+      } catch (err: any) {
+        if (err.statusCode === 410) {
+          // Remove expired subscription from DB
+          await supabase.from('push_subscriptions').delete().eq('endpoint', sub.subscription.endpoint)
+        }
+        return { success: false, error: err.message }
+      }
+    }))
+
+    return NextResponse.json({ success: true, results })
+  } catch (error: any) {
+    console.error('Error sending push notification:', error)
     return NextResponse.json(
-      { success: false, message: 'Failed to send notification' },
+      { success: false, message: 'Failed to send notification', error: error.message },
       { status: 500 }
     )
   }

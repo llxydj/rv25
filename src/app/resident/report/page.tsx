@@ -339,20 +339,21 @@ export default function ReportIncidentPage() {
       setError('Please capture a photo using your camera')
       return Promise.resolve(null)
     }
-
+  
     if (file.size > 3 * 1024 * 1024) {
       setError('Photo size must be less than 3MB')
       return Promise.resolve(null)
     }
-
+  
     return new Promise((resolve) => {
-      const canvas = document.createElement('canvas')
-      const ctx = canvas.getContext('2d')
       const img = new Image()
       const objectUrl = URL.createObjectURL(file)
-
+  
       img.onload = () => {
-        const MAX_DIM = 1280
+        // Set max dimension & JPEG quality based on device
+        const MAX_DIM = /Mobi|Android/i.test(navigator.userAgent) ? 600 : 1280
+        const JPEG_QUALITY = /Mobi|Android/i.test(navigator.userAgent) ? 0.4 : 0.7
+  
         let targetW = img.width
         let targetH = img.height
         if (Math.max(img.width, img.height) > MAX_DIM) {
@@ -360,58 +361,72 @@ export default function ReportIncidentPage() {
           targetW = Math.round(img.width * scale)
           targetH = Math.round(img.height * scale)
         }
-
+  
+        const canvas = document.createElement('canvas')
         canvas.width = targetW
         canvas.height = targetH
+        const ctx = canvas.getContext('2d')
         ctx?.drawImage(img, 0, 0, targetW, targetH)
-
+  
         if (ctx) {
+          // Dynamically adjust watermark height based on canvas height
+          const watermarkHeight = Math.max(50, Math.round(canvas.height * 0.1))
           ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'
-          ctx.fillRect(0, canvas.height - 80, canvas.width, 80)
-
-          ctx.font = 'bold 24px Arial'
+          ctx.fillRect(0, canvas.height - watermarkHeight, canvas.width, watermarkHeight)
+  
+          // Font size scales with watermark height
+          const fontSize = Math.max(12, Math.round(watermarkHeight * 0.3))
+          ctx.font = `bold ${fontSize}px Arial`
           ctx.fillStyle = '#FFFFFF'
-
+  
           const date = new Date().toLocaleDateString('en-US', {
             year: 'numeric',
             month: 'long',
-            day: 'numeric'
+            day: 'numeric',
           })
           const time = new Date().toLocaleTimeString('en-US', {
             hour: '2-digit',
             minute: '2-digit',
-            hour12: true
+            hour12: true,
           })
-
+  
           const locationText = formData.barangay
             ? `${formData.barangay}, Talisay City`
             : location
             ? `Lat: ${location[0].toFixed(6)}, Lng: ${location[1].toFixed(6)}`
             : 'Talisay City'
-
+  
+          // Add shadow for readability
           ctx.shadowColor = 'rgba(0, 0, 0, 0.5)'
           ctx.shadowBlur = 4
           ctx.shadowOffsetX = 2
           ctx.shadowOffsetY = 2
-
-          ctx.fillText(`📍 ${locationText}`, 20, canvas.height - 50)
-          ctx.fillText(`📅 ${date} ${time}`, 20, canvas.height - 20)
-
+  
+          const padding = 10
+          ctx.fillText(`📍 ${locationText}`, padding, canvas.height - watermarkHeight / 2 - 5)
+          ctx.fillText(`📅 ${date} ${time}`, padding, canvas.height - padding)
+  
           ctx.shadowColor = 'transparent'
         }
-
-        canvas.toBlob((blob) => {
-          if (blob) {
-            const watermarkedFile = new File([blob], `incident_photo_${Date.now()}.jpg`, { type: 'image/jpeg' })
-            const previewUrl = URL.createObjectURL(watermarkedFile)
-            resolve({ processed: watermarkedFile, previewUrl })
-          } else {
-            resolve(null)
-          }
-          URL.revokeObjectURL(objectUrl)
-        }, 'image/jpeg', 0.7)
+  
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              const watermarkedFile = new File([blob], `incident_photo_${Date.now()}.jpg`, {
+                type: 'image/jpeg',
+              })
+              const previewUrl = URL.createObjectURL(watermarkedFile)
+              resolve({ processed: watermarkedFile, previewUrl })
+            } else {
+              resolve(null)
+            }
+            URL.revokeObjectURL(objectUrl)
+          },
+          'image/jpeg',
+          JPEG_QUALITY,
+        )
       }
-
+  
       img.onerror = () => {
         URL.revokeObjectURL(objectUrl)
         resolve(null)
@@ -419,7 +434,7 @@ export default function ReportIncidentPage() {
       img.src = objectUrl
     })
   }
-
+  
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return
 
