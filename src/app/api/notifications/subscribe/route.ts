@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
 
     const { error } = await supabase
       .from('push_subscriptions')
-      .upsert(payload, { onConflict: 'user_id,subscription_hash' })
+      .upsert(payload, { onConflict: 'endpoint' })
 
     if (error) throw error
     return NextResponse.json({ success: true })

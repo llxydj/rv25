@@ -106,7 +106,7 @@ class PushNotificationService {
       }
 
       // Register service worker
-      this.registration = await navigator.serviceWorker.register('/service-worker.js')
+      this.registration = await navigator.serviceWorker.register('/sw.js')
       console.log('[push] Service worker registered')
 
       // Wait for service worker to be ready
@@ -208,7 +208,7 @@ class PushNotificationService {
         }
       }
 
-      const response = await fetch('/api/push/subscribe', {
+      const response = await fetch('/api/notifications/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
