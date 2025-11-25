@@ -6,6 +6,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap, Rectangle, Circle, useM
 import L from "leaflet"
 import "leaflet/dist/leaflet.css"
 import { TALISAY_CENTER, isWithinTalisayCity } from "@/lib/geo-utils"
+
 function HeatmapOverlay() {
   const [points, setPoints] = useState<Array<{ lat: number; lng: number; weight: number }>>([])
   const map = useMap()
@@ -18,7 +19,11 @@ function HeatmapOverlay() {
         const res = await fetch('/api/analytics/hotspots?days=30')
         const json = await res.json()
         if (!canceled && res.ok && json.success) {
-          const pts = (json.data || []).map((r: any) => ({ lat: r.lat || TALISAY_CENTER[0], lng: r.lng || TALISAY_CENTER[1], weight: r.count || 1 }))
+          const pts = (json.data || []).map((r: any) => ({ 
+            lat: r.lat || TALISAY_CENTER[0], 
+            lng: r.lng || TALISAY_CENTER[1], 
+            weight: r.count || 1 
+          }))
           // Cap to first 500 points for rendering performance
           setPoints(pts.slice(0, 500))
         }
@@ -27,7 +32,7 @@ function HeatmapOverlay() {
       }
     })()
     return () => { canceled = true }
-  }, [map])
+  }, [])
 
   // Simple circle-based heat approximation
   return (
@@ -43,6 +48,7 @@ function HeatmapOverlay() {
     </>
   )
 }
+
 import { locationTrackingService, LocationData } from "@/lib/location-tracking"
 import { useRealtimeVolunteerLocations } from "@/hooks/use-realtime-volunteer-locations"
 
@@ -193,17 +199,38 @@ function MapClickHandler({ onMapClick }: { onMapClick?: (lat: number, lng: numbe
   return null
 }
 
-// Real-time volunteer locations component
+// Real-time volunteer locations component - FIXED VERSION
 function VolunteerLocations({ showVolunteerLocations }: { showVolunteerLocations?: boolean }) {
   const map = useMap()
-  const center = map.getCenter()
   
-  // Use real-time hook instead of polling
+  // Get map center once and memoize it to prevent infinite re-renders
+  const [mapCenter, setMapCenter] = useState<[number, number]>(() => {
+    const center = map.getCenter()
+    return [center.lat, center.lng]
+  })
+
+  // Update map center only when the map moves (not on every render)
+  useEffect(() => {
+    const handleMoveEnd = () => {
+      const center = map.getCenter()
+      setMapCenter([center.lat, center.lng])
+    }
+
+    map.on('moveend', handleMoveEnd)
+    
+    return () => {
+      map.off('moveend', handleMoveEnd)
+    }
+  }, [map])
+
+  // Use real-time hook with stable center value
   const { volunteers: volunteerLocations, isConnected } = useRealtimeVolunteerLocations({
-    center: [center.lat, center.lng],
+    center: mapCenter,
     radiusKm: 10,
     enabled: showVolunteerLocations
   })
+
+  if (!showVolunteerLocations) return null
 
   return (
     <>
@@ -442,7 +469,7 @@ const MapInternal: React.FC<MapComponentProps> = ({
         
         {/* Loading indicator for user location */}
         {isLoadingLocation && (
-          <div className="absolute top-4 left-4 bg-white p-2 rounded shadow-md">
+          <div className="absolute top-4 left-4 bg-white p-2 rounded shadow-md z-[1000]">
             <div className="flex items-center gap-2">
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
               <span className="text-xs text-gray-600">Getting location...</span>
@@ -454,9 +481,7 @@ const MapInternal: React.FC<MapComponentProps> = ({
         <VolunteerLocations showVolunteerLocations={showVolunteerLocations} />
 
         {/* Heatmap overlay (simple density circles from hotspots) */}
-        {showHeatmap && (
-          <HeatmapOverlay />
-        )}
+        {showHeatmap && <HeatmapOverlay />}
         
         {/* Geofence circle */}
         {showGeofence && (

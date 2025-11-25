@@ -50,7 +50,7 @@ interface Activity {
   description?: string;
 }
 
-// Add a new component for the availability toggle
+// ✅ FIXED: Availability Toggle with Dark Mode Support
 const AvailabilityToggle = ({ isAvailable, onToggle, disabled }: { isAvailable: boolean; onToggle: (checked: boolean) => void; disabled: boolean }) => {
   return (
     <div className="flex items-center space-x-3">
@@ -58,8 +58,8 @@ const AvailabilityToggle = ({ isAvailable, onToggle, disabled }: { isAvailable: 
         onClick={() => onToggle(!isAvailable)}
         disabled={disabled}
         className={`
-          relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2
-          ${isAvailable ? 'bg-green-600' : 'bg-gray-200'}
+          relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:ring-offset-2 dark:focus:ring-offset-gray-900
+          ${isAvailable ? 'bg-green-600 dark:bg-green-500' : 'bg-gray-200 dark:bg-gray-700'}
           ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
         `}
       >
@@ -70,7 +70,7 @@ const AvailabilityToggle = ({ isAvailable, onToggle, disabled }: { isAvailable: 
           `}
         />
       </button>
-      <span className="text-sm font-medium text-gray-900">
+      <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
         {isAvailable ? 'Available for Assignments' : 'Not Available'}
       </span>
     </div>
@@ -103,7 +103,6 @@ export default function VolunteerDashboard() {
           variant: "default"
         })
 
-        // Update profile state with null check
         setProfile((prev: any) => {
           if (!prev) return null;
           return {
@@ -134,7 +133,6 @@ export default function VolunteerDashboard() {
     try {
       const result = await updateScheduledActivityResponse(activityId, isAccepted)
       if (result.success) {
-        // Update local state
         setSchedules(schedules.map(activity => 
           activity.activity_id === activityId 
             ? { ...activity, is_accepted: isAccepted, response_at: new Date().toISOString() }
@@ -164,14 +162,12 @@ export default function VolunteerDashboard() {
     }
   }
 
-  // Add a more aggressive reload function that bypasses all caches
   const forceRefreshData = async () => {
     if (!user) return;
     
     try {
       setLoading(true);
       
-      // Get the current count from volunteer_profiles
       try {
         const { data: profileData, error: profileError } = await supabase
           .from('volunteer_profiles')
@@ -179,14 +175,9 @@ export default function VolunteerDashboard() {
           .eq('volunteer_user_id', user.id)
           .single();
         
-        console.log("Profile query result:", profileData);
-        
         if (!profileError && profileData) {
           const resolvedCount = profileData?.total_incidents_resolved || 0;
           
-          console.log("Setting resolved count from database:", resolvedCount);
-          
-          // Update profile state with database result
           setProfile((prev: any) => {
             if (!prev) return null;
             return {
@@ -202,25 +193,10 @@ export default function VolunteerDashboard() {
         console.error("Profile query error:", profileError);
       }
       
-      // Force reload incidents
       const incidentsResult = await getVolunteerIncidents(user.id);
       
       if (incidentsResult.success && incidentsResult.data) {
-        // Log the incidents and status counts for debugging
-        console.log("FRESH INCIDENTS DATA:", incidentsResult.data);
-        
         const incidents = Array.isArray(incidentsResult.data) ? incidentsResult.data : [];
-        const freshAssignedCount = incidents.filter((i: any) => i.status === "ASSIGNED").length;
-        const freshRespondingCount = incidents.filter((i: any) => i.status === "RESPONDING").length;
-        const freshResolvedCount = incidents.filter((i: any) => i.status === "RESOLVED").length;
-        
-        console.log("FRESH STATUS COUNTS:", {
-          assigned: freshAssignedCount,
-          responding: freshRespondingCount,
-          resolved: freshResolvedCount
-        });
-        
-        // Update state with fresh data
         setIncidents(incidents);
       }
       
@@ -241,16 +217,12 @@ export default function VolunteerDashboard() {
     }
   };
 
-  // Call the force refresh when component mounts, but with a slight delay 
-  // to ensure the page renders first
   useEffect(() => {
     if (user) {
       setLoading(true);
       
-      // First render basic UI with minimal data
       const quickLoad = async () => {
         try {
-          // Get minimal profile data first
           const { data: basicProfile } = await supabase
             .from('users')
             .select('first_name, last_name, email')
@@ -258,7 +230,6 @@ export default function VolunteerDashboard() {
             .single();
             
           if (basicProfile) {
-            // Set minimal profile data so UI can render
             setProfile((prev: any) => ({
               ...prev,
               ...basicProfile
@@ -267,7 +238,6 @@ export default function VolunteerDashboard() {
         } catch (err) {
           console.error("Error in quick load:", err);
         } finally {
-          // After basic UI is rendered, load full data with a slight delay
           setTimeout(() => {
             forceRefreshData();
           }, 100);
@@ -278,7 +248,6 @@ export default function VolunteerDashboard() {
     }
   }, [user]);
 
-  // Add button click handler
   const handleRefreshClick = () => {
     forceRefreshData();
   };
@@ -291,13 +260,11 @@ export default function VolunteerDashboard() {
         setLoading(true)
         setError(null)
 
-        // Fetch volunteer profile first
         const profileResult = await getVolunteerProfile(user.id)
         
         if (!profileResult.success) {
           if (profileResult.message?.includes("duplicate key") || 
               profileResult.message?.includes("volunteer_profiles_pkey")) {
-            // This is the specific error we're handling
             setError("Profile Setup Required: Your account has been created but needs to be activated by an administrator. Please wait for admin approval.")
           } else {
             setError(profileResult.message || "Failed to load profile")
@@ -309,7 +276,6 @@ export default function VolunteerDashboard() {
         if (profileResult.data) {
           setProfile(profileResult.data)
           
-          // Check if profile status is inactive
           if (profileResult.data.volunteer_profiles?.status === "INACTIVE") {
             setError("Your account is pending activation. Please wait for an administrator to approve your account.")
             setLoading(false)
@@ -318,29 +284,19 @@ export default function VolunteerDashboard() {
           
           setIsAvailable(profileResult.data.volunteer_profiles?.is_available || false)
 
-          // Only fetch other data if we have a valid profile
           if (profileResult.data.volunteer_profiles) {
-            // Update last_active timestamp
             await supabase
               .from('volunteer_profiles')
               .update({ last_active: new Date().toISOString() })
               .eq('volunteer_user_id', user.id)
 
-            // Fetch assigned incidents
             const incidentsResult = await getVolunteerIncidents(user.id)
-            console.log("Volunteer incidents result:", {
-              success: incidentsResult.success,
-              count: incidentsResult.data?.length || 0
-            })
             if (incidentsResult.success) {
               setIncidents(incidentsResult.data || [])
             } else {
-              console.error("Failed to fetch incidents:", incidentsResult.message)
-              // Don't fail completely, just set empty incidents
               setIncidents([])
             }
 
-            // Fetch volunteer information
             const infoResult = await getVolunteerInformation(user.id)
             if (infoResult.success) {
               setVolunteerInfo(infoResult.data)
@@ -358,31 +314,19 @@ export default function VolunteerDashboard() {
     fetchData()
   }, [user])
 
-  // Add a new useEffect to refresh data when component is focused or remounted
   useEffect(() => {
     const fetchLatestData = async () => {
       if (!user) return
       
       try {
-        console.log("Refreshing dashboard data for user:", user.id)
-        
-        // Force a direct database query for the most up-to-date profile data
         if (typeof window !== 'undefined') {
-          // Only run on client side
-          console.log("Fetching fresh profile data from database...")
-          
-          // Get the latest total_incidents_resolved directly from the database
           const { data, error } = await supabase
             .from('volunteer_profiles')
             .select('total_incidents_resolved, is_available')
             .eq('volunteer_user_id', user.id)
             .single()
             
-          if (error) {
-            console.error("Error fetching volunteer profile:", error)
-          } else {
-            console.log("Fresh profile data:", data)
-            // Update the profile with the latest data
+          if (!error && data) {
             setProfile((prev: any) => {
               if (!prev) return null
               return {
@@ -397,10 +341,8 @@ export default function VolunteerDashboard() {
           }
         }
         
-        // Also refresh incidents to get latest statuses
         const incidentsResult = await getVolunteerIncidents(user.id)
         if (incidentsResult.success && incidentsResult.data) {
-          console.log("Updated incidents:", incidentsResult.data)
           setIncidents(Array.isArray(incidentsResult.data) ? incidentsResult.data : [])
         }
       } catch (err) {
@@ -408,25 +350,22 @@ export default function VolunteerDashboard() {
       }
     }
     
-    // Add event listener for when the page becomes visible again
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         fetchLatestData()
       }
     }
     
-    // Set up listeners
     document.addEventListener('visibilitychange', handleVisibilityChange)
     window.addEventListener('focus', fetchLatestData)
     
-    // Call once on mount to ensure fresh data
     fetchLatestData()
     
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('focus', fetchLatestData)
     }
-  }, [user]) // Only depends on user
+  }, [user])
 
   useEffect(() => {
     const fetchSchedules = async () => {
@@ -451,7 +390,6 @@ export default function VolunteerDashboard() {
     fetchSchedules()
   }, [user])
 
-  // Format incidents for map markers
   const mapMarkers = incidents
     .filter((incident) => incident.location_lat && incident.location_lng)
     .map((incident) => ({
@@ -462,25 +400,13 @@ export default function VolunteerDashboard() {
       description: incident.description,
     }))
 
-  // Get status counts
   const assignedCount = incidents.filter((i) => i.status === "ASSIGNED").length
   const respondingCount = incidents.filter((i) => i.status === "RESPONDING").length
   const resolvedCount = incidents.filter((i) => i.status === "RESOLVED").length
-  
-  // Debug status counts
-  console.log("Incident stats:", {
-    total: incidents.length,
-    assigned: assignedCount,
-    responding: respondingCount,
-    resolved: resolvedCount,
-    profileResolved: profile?.volunteer_profiles?.total_incidents_resolved || 0
-  })
 
-  // Get today's schedules
   const today = new Date().toISOString().split("T")[0]
   const todaySchedules = schedules.filter((s) => s.start_time && s.start_time.startsWith(today))
 
-  // Add activity status indicator component
   const ActivityStatus = () => {
     if (!profile?.volunteer_profiles?.last_active) return null;
 
@@ -488,14 +414,14 @@ export default function VolunteerDashboard() {
     const now = new Date();
     const diffDays = Math.floor((now.getTime() - lastActive.getTime()) / (1000 * 60 * 60 * 24));
 
-    let statusColor = 'bg-green-100 text-green-800';
+    let statusColor = 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300';
     let statusText = 'Active';
 
     if (diffDays > 30) {
-      statusColor = 'bg-red-100 text-red-800';
+      statusColor = 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300';
       statusText = 'Inactive';
     } else if (diffDays > 7) {
-      statusColor = 'bg-yellow-100 text-yellow-800';
+      statusColor = 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300';
       statusText = 'Away';
     }
 
@@ -504,7 +430,7 @@ export default function VolunteerDashboard() {
         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColor}`}>
           {statusText}
         </span>
-        <span className="text-sm text-gray-500">
+        <span className="text-sm text-gray-500 dark:text-gray-400">
           Last active: {formatTimeAgo(lastActive)}
         </span>
       </div>
@@ -535,16 +461,16 @@ export default function VolunteerDashboard() {
   if (error) {
     return (
       <VolunteerLayout>
-        <div className="rounded-md bg-red-50 p-4 my-4">
+        <div className="rounded-md bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 p-4 my-4">
           <div className="flex">
             <div className="flex-shrink-0">
-              <AlertTriangle className="h-5 w-5 text-red-400" />
+              <AlertTriangle className="h-5 w-5 text-red-400 dark:text-red-500" />
             </div>
             <div className="ml-3">
-              <h3 className="text-sm font-medium text-gray-900">
+              <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">
                 Profile Setup Required
               </h3>
-              <div className="mt-2 text-sm text-gray-700">
+              <div className="mt-2 text-sm text-gray-700 dark:text-gray-300">
                 <p>{error}</p>
                 <p className="mt-2">
                   Please wait for an administrator to activate your account. Once activated,
@@ -561,21 +487,22 @@ export default function VolunteerDashboard() {
   return (
     <VolunteerLayout>
       <div className="space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+        {/* ✅ FIXED: Header with Dark Mode */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-            <p className="text-gray-700 mt-1">Welcome back, {profile?.first_name}</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Dashboard</h1>
+            <p className="text-gray-700 dark:text-gray-300 mt-1">Welcome back, {profile?.first_name}</p>
           </div>
-          <div className="mt-4 md:mt-0 flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-2 md:gap-4">
             <Link
               href="/volunteer/report"
-              className="px-3 py-2 text-sm font-medium bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+              className="px-3 py-2 text-sm font-medium bg-green-600 hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600 text-white rounded transition-colors"
             >
               Report Incident
             </Link>
             <button 
               onClick={handleRefreshClick}
-              className="px-3 py-2 text-sm font-medium bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+              className="px-3 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white rounded transition-colors"
             >
               Refresh Data
             </button>
@@ -587,28 +514,28 @@ export default function VolunteerDashboard() {
           </div>
         </div>
 
-        {/* Scheduled Activities Section */}
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <h2 className="text-lg font-semibold mb-4">Scheduled Activities</h2>
+        {/* ✅ FIXED: Scheduled Activities with Dark Mode */}
+        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-6 rounded-lg shadow-md">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Scheduled Activities</h2>
           {schedules.length === 0 ? (
-            <p className="text-gray-500 text-center py-4">No scheduled activities</p>
+            <p className="text-gray-500 dark:text-gray-400 text-center py-4">No scheduled activities</p>
           ) : (
             <div className="space-y-4">
               {schedules.map((schedule: Schedule) => (
                 <div 
                   key={schedule.id} 
-                  className="border rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                  className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                 >
                   <div className="flex justify-between items-start">
                     <div>
-                      <h3 className="text-lg font-medium">{schedule.title}</h3>
-                      <p className="text-sm text-gray-500">
+                      <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">{schedule.title}</h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
                         {schedule.date ? new Date(schedule.date).toLocaleDateString() : 
                          new Date(schedule.start_time).toLocaleDateString()}
                         {schedule.time && ` at ${schedule.time}`}
                       </p>
                       {schedule.location && (
-                        <p className="text-sm text-gray-500">
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
                           Location: {schedule.location}
                         </p>
                       )}
@@ -616,12 +543,12 @@ export default function VolunteerDashboard() {
                     <span 
                       className={`px-2 py-1 text-xs font-medium rounded-full ${
                         schedule.status === 'PENDING'
-                          ? 'bg-yellow-100 text-yellow-800'
+                          ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300'
                           : schedule.status === 'ACCEPTED'
-                          ? 'bg-green-100 text-green-800'
+                          ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
                           : schedule.status === 'DECLINED'
-                          ? 'bg-red-100 text-red-800'
-                          : 'bg-blue-100 text-blue-800'
+                          ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
+                          : 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300'
                       }`}
                     >
                       {schedule.status}
@@ -638,13 +565,13 @@ export default function VolunteerDashboard() {
             <LoadingSpinner size="lg" text="Loading dashboard data..." />
           </div>
         ) : error ? (
-          <div className="bg-red-50 border-l-4 border-red-500 p-4">
+          <div className="bg-red-50 dark:bg-red-950 border-l-4 border-red-500 dark:border-red-600 p-4">
             <div className="flex">
               <div className="flex-shrink-0">
-                <AlertTriangle className="h-5 w-5 text-red-500" />
+                <AlertTriangle className="h-5 w-5 text-red-500 dark:text-red-400" />
               </div>
               <div className="ml-3">
-                <p className="text-sm text-red-700">{error}</p>
+                <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
               </div>
             </div>
           </div>
@@ -656,59 +583,60 @@ export default function VolunteerDashboard() {
               <PushNotificationToggle />
             </div>
 
+            {/* ✅ FIXED: Stats Cards with Dark Mode */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-white p-4 rounded-lg shadow-md">
+              <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-4 rounded-lg shadow-md">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-500">Assigned Incidents</p>
-                    <p className="text-2xl font-bold text-black">{assignedCount}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Assigned Incidents</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{assignedCount}</p>
                   </div>
-                  <div className="p-3 rounded-full bg-blue-100 text-blue-600">
+                  <div className="p-3 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
                     <div className="h-6 w-6">🔔</div>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-white p-4 rounded-lg shadow-md">
+              <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-4 rounded-lg shadow-md">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-500">Responding</p>
-                    <p className="text-2xl font-bold text-black">{respondingCount}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Responding</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{respondingCount}</p>
                   </div>
-                  <div className="p-3 rounded-full bg-orange-100 text-orange-600">
+                  <div className="p-3 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400">
                     <AlertTriangle className="h-6 w-6" />
                   </div>
                 </div>
               </div>
 
-              <div className="bg-white p-4 rounded-lg shadow-md">
+              <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-4 rounded-lg shadow-md">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-500">Resolved</p>
-                    <p className="text-2xl font-bold text-black">
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Resolved</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
                       {profile?.volunteer_profiles?.total_incidents_resolved || 0}
                     </p>
-                    {/* Debug information - helps show the actual value */}
                     {process.env.NODE_ENV !== 'production' && (
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-gray-500 dark:text-gray-500">
                         Count from DB: {profile?.volunteer_profiles?.total_incidents_resolved || '0'} 
                         <br />Local count: {resolvedCount || '0'}
                       </p>
                     )}
                   </div>
-                  <div className="p-3 rounded-full bg-green-100 text-green-600">
+                  <div className="p-3 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400">
                     <CheckCircle className="h-6 w-6" />
                   </div>
                 </div>
               </div>
             </div>
 
+            {/* ✅ FIXED: Incidents and Activities Section */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-white p-6 rounded-lg shadow-md">
-                <h2 className="text-lg font-semibold mb-4">Assigned Incidents</h2>
+              <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-6 rounded-lg shadow-md">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Assigned Incidents</h2>
                 {incidents.length === 0 ? (
                   <div className="text-center py-8">
-                    <p className="text-gray-500">You don't have any assigned incidents at the moment.</p>
+                    <p className="text-gray-500 dark:text-gray-400">You don't have any assigned incidents at the moment.</p>
                   </div>
                 ) : (
                   <>
@@ -717,34 +645,34 @@ export default function VolunteerDashboard() {
                       {incidents.slice(0, 5).map((incident) => (
                         <div
                           key={incident.id}
-                          className="border rounded-lg p-4 bg-white hover:bg-gray-50 transition-colors touch-manipulation"
+                          className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors touch-manipulation"
                         >
                           <div className="flex items-start justify-between mb-2">
                             <div className="flex-1 min-w-0">
-                              <h3 className="text-sm font-semibold text-gray-900 truncate">{incident.incident_type}</h3>
+                              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{incident.incident_type}</h3>
                             </div>
                             <span
                               className={`px-2 py-1 inline-flex text-xs leading-4 font-semibold rounded-full flex-shrink-0 ml-2 ${
                                 incident.status === "ASSIGNED"
-                                  ? "bg-blue-100 text-blue-800"
+                                  ? "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300"
                                   : incident.status === "RESPONDING"
-                                    ? "bg-orange-100 text-orange-800"
+                                    ? "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300"
                                     : incident.status === "RESOLVED"
-                                      ? "bg-green-100 text-green-800"
-                                      : "bg-gray-100 text-gray-800"
+                                      ? "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300"
+                                      : "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300"
                               }`}
                             >
                               {incident.status}
                             </span>
                           </div>
-                          <div className="text-xs text-gray-500 space-y-1">
+                          <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
                             <div>Date: {new Date(incident.created_at).toLocaleDateString()}</div>
                             <div>Location: {incident.barangay}</div>
                           </div>
-                          <div className="mt-3 pt-3 border-t">
+                          <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
                             <Link
                               href={`/volunteer/incident/${incident.id}`}
-                              className="text-sm font-medium text-green-600 hover:text-green-500 touch-manipulation inline-block"
+                              className="text-sm font-medium text-green-600 dark:text-green-400 hover:text-green-500 dark:hover:text-green-300 touch-manipulation inline-block"
                             >
                               View Details →
                             </Link>
@@ -755,7 +683,7 @@ export default function VolunteerDashboard() {
                         <div className="text-center pt-2">
                           <Link
                             href="/volunteer/incidents"
-                            className="text-sm font-medium text-green-600 hover:text-green-500"
+                            className="text-sm font-medium text-green-600 dark:text-green-400 hover:text-green-500 dark:hover:text-green-300"
                           >
                             View all {incidents.length} incidents →
                           </Link>
@@ -765,30 +693,30 @@ export default function VolunteerDashboard() {
                     
                     {/* Desktop Table View */}
                     <div className="hidden md:block overflow-x-auto">
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
+                      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        <thead className="bg-gray-50 dark:bg-gray-800">
                           <tr>
                             <th
                               scope="col"
-                              className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                              className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
                             >
                               Type
                             </th>
                             <th
                               scope="col"
-                              className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                              className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
                             >
                               Date
                             </th>
                             <th
                               scope="col"
-                              className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                              className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
                             >
                               Status
                             </th>
                             <th
                               scope="col"
-                              className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                              className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
                             >
                               Location
                             </th>
@@ -797,14 +725,14 @@ export default function VolunteerDashboard() {
                             </th>
                           </tr>
                         </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
+                        <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
                           {incidents.slice(0, 5).map((incident) => (
-                            <tr key={incident.id} className="hover:bg-gray-50">
+                            <tr key={incident.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
                               <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm font-medium text-gray-900">{incident.incident_type}</div>
+                                <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{incident.incident_type}</div>
                               </td>
                               <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm text-gray-500">
+                                <div className="text-sm text-gray-600 dark:text-gray-400">
                                   {new Date(incident.created_at).toLocaleDateString()}
                                 </div>
                               </td>
@@ -812,22 +740,22 @@ export default function VolunteerDashboard() {
                                 <span
                                   className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                                     incident.status === "ASSIGNED"
-                                      ? "bg-blue-100 text-blue-800"
+                                      ? "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300"
                                       : incident.status === "RESPONDING"
-                                        ? "bg-orange-100 text-orange-800"
+                                        ? "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300"
                                         : incident.status === "RESOLVED"
-                                          ? "bg-green-100 text-green-800"
-                                          : "bg-gray-100 text-gray-800"
+                                          ? "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300"
+                                          : "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300"
                                   }`}
                                 >
                                   {incident.status}
                                 </span>
                               </td>
-                              <td className="px-4 lg:px-6 py-4 whitespace-nowrap text-sm text-gray-500">{incident.barangay}</td>
+                              <td className="px-4 lg:px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">{incident.barangay}</td>
                               <td className="px-4 lg:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                 <Link
                                   href={`/volunteer/incident/${incident.id}`}
-                                  className="text-green-600 hover:text-green-900 touch-manipulation"
+                                  className="text-green-600 dark:text-green-400 hover:text-green-900 dark:hover:text-green-300 touch-manipulation"
                                 >
                                   View
                                 </Link>
@@ -840,7 +768,7 @@ export default function VolunteerDashboard() {
                         <div className="mt-4 text-center">
                           <Link
                             href="/volunteer/incidents"
-                            className="text-sm font-medium text-green-600 hover:text-green-500"
+                            className="text-sm font-medium text-green-600 dark:text-green-400 hover:text-green-500 dark:hover:text-green-300"
                           >
                             View all {incidents.length} incidents
                           </Link>
@@ -851,9 +779,9 @@ export default function VolunteerDashboard() {
                 )}
               </div>
 
-              <div className="bg-white p-6 rounded-lg shadow-md">
+              <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-6 rounded-lg shadow-md">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-semibold">Your Upcoming Activities</h2>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Your Upcoming Activities</h2>
                 </div>
                 {loading ? (
                   <div className="flex justify-center py-8">
@@ -861,9 +789,9 @@ export default function VolunteerDashboard() {
                   </div>
                 ) : schedules.length === 0 ? (
                   <div className="text-center py-8">
-                    <div className="mx-auto h-12 w-12 text-gray-500">📅</div>
-                    <h3 className="mt-2 text-sm font-medium text-gray-900">No upcoming activities</h3>
-                    <p className="mt-1 text-sm text-gray-500">
+                    <div className="mx-auto h-12 w-12 text-gray-500 dark:text-gray-400">📅</div>
+                    <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">No upcoming activities</h3>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                       You don't have any activities scheduled at the moment.
                     </p>
                   </div>
@@ -872,30 +800,30 @@ export default function VolunteerDashboard() {
                     {schedules.map((schedule: Schedule) => (
                       <div
                         key={schedule.id}
-                        className="flex flex-col md:flex-row md:items-center justify-between p-4 bg-gray-50 rounded-lg"
+                        className="flex flex-col md:flex-row md:items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg"
                       >
                         <div className="flex-1">
-                          <h3 className="text-lg font-medium text-gray-900">{schedule.title}</h3>
+                          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">{schedule.title}</h3>
                           {schedule.description && (
-                            <p className="mt-1 text-sm text-gray-500">{schedule.description}</p>
+                            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{schedule.description}</p>
                           )}
                           <div className="mt-2 space-y-1">
-                            <div className="flex items-center text-sm text-gray-500">
+                            <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
                               <div className="mr-1.5 h-4 w-4">📅</div>
                               {new Date(schedule.start_time).toLocaleDateString()}
                             </div>
-                            <div className="flex items-center text-sm text-gray-500">
+                            <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
                               <div className="mr-1.5 h-4 w-4">🕒</div>
                               {new Date(schedule.start_time).toLocaleTimeString()} -{" "}
                               {new Date(schedule.end_time).toLocaleTimeString()}
                             </div>
-                            <div className="flex items-center text-sm text-gray-500">
+                            <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
                               <div className="mr-1.5 h-4 w-4">📍</div>
                               {schedule.location}, {schedule.barangay}
                             </div>
                           </div>
                           {schedule.creator && (
-                            <p className="mt-2 text-sm text-gray-500">
+                            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
                               Scheduled by: {schedule.creator.first_name} {schedule.creator.last_name}
                             </p>
                           )}
@@ -907,8 +835,8 @@ export default function VolunteerDashboard() {
               </div>
             </div>
 
-            <div className="bg-white p-6 rounded-lg shadow-md">
-              <h2 className="text-lg font-semibold mb-4">Incident Map</h2>
+            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-6 rounded-lg shadow-md">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Incident Map</h2>
               <MapComponent markers={mapMarkers} height="400px" />
             </div>
           </>
