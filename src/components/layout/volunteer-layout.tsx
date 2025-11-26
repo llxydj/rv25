@@ -4,7 +4,7 @@ import type React from "react"
 import { useState, useCallback, useMemo, useEffect, Suspense } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { Bell, Calendar, User, X, AlertTriangle, BarChart3 } from "lucide-react"
+import { Bell, Calendar, User, X, AlertTriangle, BarChart3, BookOpen } from "lucide-react"
 import { useNotificationsChannel } from '@/lib/use-notifications'
 import { useAuth } from "@/hooks/use-auth"
 import { AuthLayout } from "./auth-layout"
@@ -45,6 +45,7 @@ export const VolunteerLayout: React.FC<VolunteerLayoutProps> = ({ children }) =>
     { name: "Dashboard", href: "/volunteer/dashboard", icon: AlertTriangle },
     { name: "Report Incident", href: "/volunteer/report", icon: AlertTriangle },
     { name: "Assigned Incidents", href: "/volunteer/incidents", icon: Bell },
+    { name: "Trainings", href: "/volunteer/trainings", icon: BookOpen },
     { name: "Schedules", href: "/volunteer/schedules", icon: Calendar },
     { name: "Documents", href: "/volunteer/documents", icon: Calendar },
     { name: "Live Location", href: "/volunteer/location", icon: Calendar },

@@ -18,6 +18,7 @@ import { AlertTriangle, CheckCircle, User } from "lucide-react"
 import { IncidentCallActions } from "@/components/incident-call-actions"
 import { ImageLightbox } from "@/components/ui/image-lightbox"
 import { normalizeIncident, formatDisplayDate } from "@/lib/incident-utils"
+import { IncidentFeedbackDisplay } from "@/components/incident-feedback-display"
 
 export default function IncidentDetailPage() {
   const { id } = useParams()
@@ -644,6 +645,13 @@ export default function IncidentDetailPage() {
                 </div>
               </div>
             </div>
+
+            {/* Resident Feedback Section */}
+            {incident.status === "RESOLVED" && (
+              <div className="mt-6">
+                <IncidentFeedbackDisplay incidentId={incident.id} />
+              </div>
+            )}
 
             {incident.photoGallery && incident.photoGallery.length > 0 && (
               <div className="bg-white p-6 rounded-lg shadow-md">

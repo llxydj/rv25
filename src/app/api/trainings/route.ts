@@ -29,8 +29,10 @@ const TrainingCreateSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200).trim(),
   start_at: z.string().datetime('Invalid datetime format'),
   description: z.string().nullable().optional(),
-  end_at: z.string().nullable().optional(),
+  end_at: z.string().datetime('Invalid datetime format').nullable().optional(),
   location: z.string().nullable().optional(),
+  capacity: z.number().int().positive().nullable().optional(),
+  status: z.enum(['SCHEDULED', 'ONGOING', 'COMPLETED', 'CANCELLED']).default('SCHEDULED').optional(),
   created_by: z.string().nullable().optional()
 })
 
@@ -138,12 +140,16 @@ export async function POST(request: Request) {
       has_created_by: !!created_by
     })
 
+    const { capacity, status } = body
+
     const insertData = {
       title: title.trim(),
       description: description || null,
       start_at: start_at,
       end_at: end_at || null,
       location: location || null,
+      capacity: capacity ? parseInt(capacity) : null,
+      status: status || 'SCHEDULED',
       created_by: created_by || null
     }
 

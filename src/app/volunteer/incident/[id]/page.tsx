@@ -15,6 +15,7 @@ import { IncidentCallActions } from "@/components/incident-call-actions"
 import IncidentOTWButton from "@/components/incident-otw-button"
 import IncidentStatusDropdown from "@/components/incident-status-dropdown"
 import IncidentSeverityUpdater from "@/components/incident-severity-updater"
+import { IncidentFeedbackDisplay } from "@/components/incident-feedback-display"
 
 export default function VolunteerIncidentDetailPage() {
   const params = useParams()
@@ -866,6 +867,13 @@ export default function VolunteerIncidentDetailPage() {
                 )}
               </div>
             </div>
+
+            {/* Resident Feedback Section - Show for resolved incidents */}
+            {incident.status === "RESOLVED" && (
+              <div className="mt-6">
+                <IncidentFeedbackDisplay incidentId={incident.id} />
+              </div>
+            )}
           </div>
         </div>
 

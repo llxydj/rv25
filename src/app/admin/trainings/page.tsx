@@ -3,15 +3,31 @@
 import { useEffect, useState } from "react"
 import { AdminLayout } from "@/components/layout/admin-layout"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Badge } from "@/components/ui/badge"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Calendar, MapPin, Users, Clock, Edit, X, CheckCircle, AlertCircle } from "lucide-react"
+import Link from "next/link"
+import { LoadingSpinner } from "@/components/ui/loading-spinner"
 
 export default function AdminTrainingsPage() {
   const FEATURE_ENABLED = process.env.NEXT_PUBLIC_FEATURE_TRAININGS_ENABLED === "true"
 
   const [items, setItems] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
-  const [title, setTitle] = useState("")
-  const [startAt, setStartAt] = useState("")
   const [error, setError] = useState<string | null>(null)
+  
+  // Form state
+  const [title, setTitle] = useState("")
+  const [description, setDescription] = useState("")
+  const [location, setLocation] = useState("")
+  const [startAt, setStartAt] = useState("")
+  const [endAt, setEndAt] = useState("")
+  const [capacity, setCapacity] = useState("")
+  const [status, setStatus] = useState<"SCHEDULED" | "ONGOING" | "COMPLETED" | "CANCELLED">("SCHEDULED")
+  const [statusFilter, setStatusFilter] = useState<"all" | "SCHEDULED" | "ONGOING" | "COMPLETED" | "CANCELLED">("all")
 
   useEffect(() => {
     if (!FEATURE_ENABLED) return
@@ -41,11 +57,22 @@ export default function AdminTrainingsPage() {
 
     try {
       const startDate = new Date(startAt)
-      if (isNaN(startDate.getTime())) throw new Error("Invalid date format")
+      if (isNaN(startDate.getTime())) throw new Error("Invalid start date format")
 
       const payload: any = {
         title: title.trim(),
         start_at: startDate.toISOString(),
+        description: description.trim() || null,
+        location: location.trim() || null,
+        capacity: capacity ? parseInt(capacity) : null,
+        status: status
+      }
+
+      if (endAt) {
+        const endDate = new Date(endAt)
+        if (isNaN(endDate.getTime())) throw new Error("Invalid end date format")
+        if (endDate <= startDate) throw new Error("End date must be after start date")
+        payload.end_at = endDate.toISOString()
       }
 
       const res = await fetch("/api/trainings", {
@@ -59,8 +86,14 @@ export default function AdminTrainingsPage() {
       if (!res.ok) throw new Error(json.message || "Failed to create training")
       if (json.success && json.data) {
         setItems([json.data, ...items])
+        // Reset form
         setTitle("")
+        setDescription("")
+        setLocation("")
         setStartAt("")
+        setEndAt("")
+        setCapacity("")
+        setStatus("SCHEDULED")
       }
     } catch (e: any) {
       setError(e?.message || "Failed to create training")
@@ -69,15 +102,37 @@ export default function AdminTrainingsPage() {
     }
   }
 
-  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setTitle(e.target.value.toUpperCase())
-  }
+  const updateTrainingStatus = async (trainingId: number, newStatus: string) => {
+    try {
+      const res = await fetch(`/api/trainings/${trainingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      })
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !loading && title.trim() && startAt) {
-      createTraining()
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.message || "Failed to update status")
+
+      // Update local state
+      setItems(items.map(t => t.id === trainingId ? { ...t, status: newStatus } : t))
+    } catch (e: any) {
+      alert("Failed to update status: " + (e?.message || "Unknown error"))
     }
   }
+
+  const getStatusBadge = (status: string) => {
+    const variants: Record<string, { variant: "default" | "secondary" | "destructive" | "outline", label: string }> = {
+      SCHEDULED: { variant: "default", label: "Scheduled" },
+      ONGOING: { variant: "secondary", label: "Ongoing" },
+      COMPLETED: { variant: "outline", label: "Completed" },
+      CANCELLED: { variant: "destructive", label: "Cancelled" }
+    }
+    return variants[status] || { variant: "outline" as const, label: status }
+  }
+
+  const filteredItems = statusFilter === "all" 
+    ? items 
+    : items.filter(t => t.status === statusFilter)
 
   return (
     <AdminLayout>
@@ -104,154 +159,298 @@ export default function AdminTrainingsPage() {
           </div>
 
           {/* Create Training Form */}
-          <div className="bg-white p-6 rounded-lg shadow-sm border space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="font-semibold text-lg">Create New Training</h2>
-              <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">Text auto-capitalizes</span>
-            </div>
-
-            {error && (
-              <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded">
-                <div className="flex items-start">
-                  <span className="text-red-500 mr-2">❌</span>
-                  <div>
-                    <p className="text-sm font-medium text-red-800">Error</p>
-                    <p className="text-sm text-red-700 mt-1">{error}</p>
+          <Card>
+            <CardHeader>
+              <CardTitle>Create New Training</CardTitle>
+              <CardDescription>Fill in the details to schedule a new training session</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {error && (
+                <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded">
+                  <div className="flex items-start">
+                    <AlertCircle className="h-5 w-5 text-red-500 mr-2 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium text-red-800">Error</p>
+                      <p className="text-sm text-red-700 mt-1">{error}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Training Title *</label>
-                <input
-                  className="w-full border rounded-lg px-4 py-2.5 text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent uppercase placeholder:normal-case"
-                  placeholder="e.g., First Aid Certification"
-                  value={title}
-                  onChange={handleTitleChange}
-                  onKeyPress={handleKeyPress}
-                  disabled={loading}
-                  maxLength={200}
-                  style={{ textTransform: "uppercase" }}
-                />
-                <p className="text-xs text-gray-500 mt-1">{title.length}/200 characters</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Start Date & Time *</label>
-                <input
-                  className="w-full border rounded-lg px-4 py-2.5 text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  type="datetime-local"
-                  value={startAt}
-                  onChange={(e) => setStartAt(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  disabled={loading}
-                  min={new Date().toISOString().slice(0, 16)}
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 pt-2">
-              <Button onClick={createTraining} disabled={loading || !title.trim() || !startAt} className="px-6">
-                {loading ? (
-                  <>
-                    <span className="animate-spin mr-2">⏳</span> Creating...
-                  </>
-                ) : (
-                  <>
-                    <span className="mr-2">➕</span> Create Training
-                  </>
-                )}
-              </Button>
-
-              {(title || startAt) && !loading && (
-                <button
-                  onClick={() => {
-                    setTitle("")
-                    setStartAt("")
-                    setError(null)
-                  }}
-                  className="text-sm text-gray-600 hover:text-gray-800 underline"
-                >
-                  Clear form
-                </button>
               )}
-            </div>
-          </div>
 
-          {/* Trainings List */}
-          <div className="bg-white p-6 rounded-lg shadow-sm border">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-semibold text-lg">Upcoming & Recent Trainings</h2>
-              {items.length > 0 && (
-                <span className="text-xs bg-blue-100 text-blue-800 px-3 py-1 rounded-full font-medium">
-                  {items.length} total
-                </span>
-              )}
-            </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Training Title *</label>
+                  <Input
+                    placeholder="e.g., First Aid Certification"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value.toUpperCase())}
+                    disabled={loading}
+                    maxLength={200}
+                    className="uppercase"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">{title.length}/200 characters</p>
+                </div>
 
-            {loading && items.length === 0 ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="text-center">
-                  <div className="animate-spin text-4xl mb-2">⏳</div>
-                  <p className="text-gray-600">Loading trainings...</p>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                  <Textarea
+                    placeholder="Describe the training content, objectives, and what volunteers will learn..."
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    disabled={loading}
+                    rows={4}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Location/Venue</label>
+                  <div className="relative">
+                    <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      placeholder="Training venue address"
+                      value={location}
+                      onChange={(e) => setLocation(e.target.value)}
+                      disabled={loading}
+                      className="pl-10"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Capacity (Max Participants)</label>
+                  <div className="relative">
+                    <Users className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      type="number"
+                      placeholder="e.g., 50"
+                      value={capacity}
+                      onChange={(e) => setCapacity(e.target.value)}
+                      disabled={loading}
+                      min="1"
+                      className="pl-10"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Start Date & Time *</label>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      type="datetime-local"
+                      value={startAt}
+                      onChange={(e) => setStartAt(e.target.value)}
+                      disabled={loading}
+                      min={new Date().toISOString().slice(0, 16)}
+                      className="pl-10"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">End Date & Time</label>
+                  <div className="relative">
+                    <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      type="datetime-local"
+                      value={endAt}
+                      onChange={(e) => setEndAt(e.target.value)}
+                      disabled={loading}
+                      min={startAt || new Date().toISOString().slice(0, 16)}
+                      className="pl-10"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                  <Select value={status} onValueChange={(value: any) => setStatus(value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="SCHEDULED">Scheduled</SelectItem>
+                      <SelectItem value="ONGOING">Ongoing</SelectItem>
+                      <SelectItem value="COMPLETED">Completed</SelectItem>
+                      <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
-            ) : items.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="text-6xl mb-4">📚</div>
-                <p className="text-gray-500 font-medium">No trainings scheduled yet</p>
-                <p className="text-sm text-gray-400 mt-1">Create your first training above</p>
+
+              <div className="flex items-center gap-3 pt-2">
+                <Button onClick={createTraining} disabled={loading || !title.trim() || !startAt}>
+                  {loading ? (
+                    <>
+                      <LoadingSpinner size="sm" className="mr-2" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Create Training
+                    </>
+                  )}
+                </Button>
+
+                {(title || startAt || description || location) && !loading && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setTitle("")
+                      setDescription("")
+                      setLocation("")
+                      setStartAt("")
+                      setEndAt("")
+                      setCapacity("")
+                      setStatus("SCHEDULED")
+                      setError(null)
+                    }}
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    Clear Form
+                  </Button>
+                )}
               </div>
-            ) : (
-              <ul className="divide-y divide-gray-200">
-                {items.map((t) => {
-                  const startDate = new Date(t.start_at)
-                  const isUpcoming = startDate > new Date()
-                  return (
-                    <li key={t.id} className="py-4 hover:bg-gray-50 transition-colors rounded px-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-1">
-                            <p className="font-semibold text-gray-900 text-lg">{t.title}</p>
-                            {isUpcoming && (
-                              <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full font-medium">
-                                Upcoming
-                              </span>
+            </CardContent>
+          </Card>
+
+          {/* Trainings List */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Trainings ({filteredItems.length})</CardTitle>
+                  <CardDescription>Manage scheduled and completed training sessions</CardDescription>
+                </div>
+                <Select value={statusFilter} onValueChange={(value: any) => setStatusFilter(value)}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="SCHEDULED">Scheduled</SelectItem>
+                    <SelectItem value="ONGOING">Ongoing</SelectItem>
+                    <SelectItem value="COMPLETED">Completed</SelectItem>
+                    <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loading && items.length === 0 ? (
+                <div className="flex items-center justify-center py-12">
+                  <LoadingSpinner size="lg" text="Loading trainings..." />
+                </div>
+              ) : filteredItems.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="text-6xl mb-4">📚</div>
+                  <p className="text-gray-500 font-medium">No trainings found</p>
+                  <p className="text-sm text-gray-400 mt-1">
+                    {statusFilter === "all" ? "Create your first training above" : `No ${statusFilter.toLowerCase()} trainings`}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {filteredItems.map((t) => {
+                    const startDate = new Date(t.start_at)
+                    const endDate = t.end_at ? new Date(t.end_at) : null
+                    const badge = getStatusBadge(t.status || 'SCHEDULED')
+                    
+                    return (
+                      <div key={t.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <Link href={`/admin/trainings/${t.id}`} className="hover:underline">
+                                <h3 className="font-semibold text-gray-900 text-lg">{t.title}</h3>
+                              </Link>
+                              <Badge variant={badge.variant}>{badge.label}</Badge>
+                            </div>
+                            
+                            {t.description && (
+                              <p className="text-sm text-gray-600 mb-3">{t.description}</p>
                             )}
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-600">
+                              <div className="flex items-center gap-2">
+                                <Calendar className="h-4 w-4" />
+                                <span>
+                                  {startDate.toLocaleDateString("en-US", {
+                                    weekday: "short",
+                                    year: "numeric",
+                                    month: "short",
+                                    day: "numeric",
+                                  })} at {startDate.toLocaleTimeString("en-US", {
+                                    hour: "numeric",
+                                    minute: "2-digit",
+                                    hour12: true,
+                                  })}
+                                </span>
+                              </div>
+                              
+                              {endDate && (
+                                <div className="flex items-center gap-2">
+                                  <Clock className="h-4 w-4" />
+                                  <span>
+                                    Ends: {endDate.toLocaleDateString("en-US", {
+                                      month: "short",
+                                      day: "numeric",
+                                    })} at {endDate.toLocaleTimeString("en-US", {
+                                      hour: "numeric",
+                                      minute: "2-digit",
+                                      hour12: true,
+                                    })}
+                                  </span>
+                                </div>
+                              )}
+
+                              {t.location && (
+                                <div className="flex items-center gap-2">
+                                  <MapPin className="h-4 w-4" />
+                                  <span>{t.location}</span>
+                                </div>
+                              )}
+
+                              {t.capacity && (
+                                <div className="flex items-center gap-2">
+                                  <Users className="h-4 w-4" />
+                                  <span>Capacity: {t.capacity} participants</span>
+                                </div>
+                              )}
+                            </div>
                           </div>
-                          <div className="flex items-center gap-4 text-sm text-gray-600">
-                            <span className="flex items-center gap-1">
-                              📅{" "}
-                              {startDate.toLocaleDateString("en-US", {
-                                weekday: "short",
-                                year: "numeric",
-                                month: "short",
-                                day: "numeric",
-                              })}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              🕐{" "}
-                              {startDate.toLocaleTimeString("en-US", {
-                                hour: "numeric",
-                                minute: "2-digit",
-                                hour12: true,
-                              })}
-                            </span>
+
+                          <div className="flex items-center gap-2 ml-4">
+                            <Select
+                              value={t.status || 'SCHEDULED'}
+                              onValueChange={(value) => updateTrainingStatus(t.id, value)}
+                            >
+                              <SelectTrigger className="w-[140px]">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="SCHEDULED">Scheduled</SelectItem>
+                                <SelectItem value="ONGOING">Ongoing</SelectItem>
+                                <SelectItem value="COMPLETED">Completed</SelectItem>
+                                <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Link href={`/admin/trainings/${t.id}`}>
+                              <Button variant="outline" size="sm">
+                                <Edit className="h-4 w-4 mr-2" />
+                                View Details
+                              </Button>
+                            </Link>
                           </div>
-                          {t.description && <p className="text-sm text-gray-600 mt-2">{t.description}</p>}
-                        </div>
-                        <div className="ml-4">
-                          <span className="text-xs text-gray-400">ID: {t.id}</span>
                         </div>
                       </div>
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-          </div>
+                    )
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       )}
     </AdminLayout>

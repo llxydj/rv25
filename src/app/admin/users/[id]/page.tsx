@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, User, Mail, Phone, MapPin, Calendar, Bell, Trash2 } from "lucide-react"
+import { ArrowLeft, User, Mail, Phone, MapPin, Calendar, Bell, Trash2, AlertTriangle, CheckCircle, Clock, Star, TrendingUp } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
 
@@ -46,6 +46,7 @@ export default function UserDetailsPage({ params }: { params: { id: string } }) 
   const [userData, setUserData] = useState<User | null>(null)
   const [incidents, setIncidents] = useState<Incident[]>([])
   const [loading, setLoading] = useState(true)
+  const [stats, setStats] = useState<any>(null)
 
   // Fetch user data and incidents
   useEffect(() => {
@@ -82,7 +83,7 @@ export default function UserDetailsPage({ params }: { params: { id: string } }) 
         
         setUserData(userObj)
         
-        // Fetch incidents if user is resident
+        // Fetch incidents based on role
         if (userObj.role === "resident") {
           const { data: incidentsData, error: incidentsError } = await supabase
             .from("incidents")
@@ -93,7 +94,101 @@ export default function UserDetailsPage({ params }: { params: { id: string } }) 
           if (incidentsError) throw incidentsError
           
           setIncidents(incidentsData || [])
+        } else if (userObj.role === "volunteer") {
+          const { data: incidentsData, error: incidentsError } = await supabase
+            .from("incidents")
+            .select("*")
+            .eq("assigned_to", params.id)
+            .order("created_at", { ascending: false })
+          
+          if (incidentsError) throw incidentsError
+          
+          setIncidents(incidentsData || [])
         }
+
+        // Fetch statistics
+        const statsData: any = {
+          totalIncidents: 0,
+          resolvedIncidents: 0,
+          pendingIncidents: 0,
+          averageResponseTime: null,
+          feedbackCount: 0,
+          averageRating: null
+        }
+
+        if (userObj.role === "resident") {
+          const { data: incidentsData } = await supabase
+            .from("incidents")
+            .select("id, status, created_at, assigned_at, resolved_at")
+            .eq("reporter_id", params.id)
+
+          if (incidentsData) {
+            statsData.totalIncidents = incidentsData.length
+            statsData.resolvedIncidents = incidentsData.filter((i: any) => i.status === "RESOLVED").length
+            statsData.pendingIncidents = incidentsData.filter((i: any) => i.status === "PENDING" || i.status === "ASSIGNED").length
+
+            // Calculate average response time (time from creation to assignment)
+            const responseTimes = incidentsData
+              .filter((i: any) => i.assigned_at && i.created_at)
+              .map((i: any) => new Date(i.assigned_at).getTime() - new Date(i.created_at).getTime())
+            
+            if (responseTimes.length > 0) {
+              const avgMs = responseTimes.reduce((a: number, b: number) => a + b, 0) / responseTimes.length
+              statsData.averageResponseTime = Math.round(avgMs / 1000 / 60) // minutes
+            }
+
+            // Fetch feedback count
+            const { data: feedbackData } = await supabase
+              .from("feedback")
+              .select("rating")
+              .in("incident_id", incidentsData.map((i: any) => i.id))
+
+            if (feedbackData) {
+              statsData.feedbackCount = feedbackData.length
+              if (feedbackData.length > 0) {
+                const avgRating = feedbackData.reduce((sum: number, f: any) => sum + f.rating, 0) / feedbackData.length
+                statsData.averageRating = avgRating.toFixed(1)
+              }
+            }
+          }
+        } else if (userObj.role === "volunteer") {
+          const { data: incidentsData } = await supabase
+            .from("incidents")
+            .select("id, status, created_at, assigned_at, resolved_at, responding_at")
+            .eq("assigned_to", params.id)
+
+          if (incidentsData) {
+            statsData.totalIncidents = incidentsData.length
+            statsData.resolvedIncidents = incidentsData.filter((i: any) => i.status === "RESOLVED").length
+            statsData.pendingIncidents = incidentsData.filter((i: any) => i.status === "PENDING" || i.status === "ASSIGNED" || i.status === "RESPONDING").length
+
+            // Calculate average response time (time from assignment to responding)
+            const responseTimes = incidentsData
+              .filter((i: any) => i.responding_at && i.assigned_at)
+              .map((i: any) => new Date(i.responding_at).getTime() - new Date(i.assigned_at).getTime())
+            
+            if (responseTimes.length > 0) {
+              const avgMs = responseTimes.reduce((a: number, b: number) => a + b, 0) / responseTimes.length
+              statsData.averageResponseTime = Math.round(avgMs / 1000 / 60) // minutes
+            }
+
+            // Fetch feedback for incidents assigned to this volunteer
+            const { data: feedbackData } = await supabase
+              .from("feedback")
+              .select("rating")
+              .in("incident_id", incidentsData.map((i: any) => i.id))
+
+            if (feedbackData) {
+              statsData.feedbackCount = feedbackData.length
+              if (feedbackData.length > 0) {
+                const avgRating = feedbackData.reduce((sum: number, f: any) => sum + f.rating, 0) / feedbackData.length
+                statsData.averageRating = avgRating.toFixed(1)
+              }
+            }
+          }
+        }
+
+        setStats(statsData)
       } catch (error) {
         console.error("Error fetching user data:", error)
       } finally {
@@ -306,6 +401,41 @@ export default function UserDetailsPage({ params }: { params: { id: string } }) 
                 </div>
               </CardContent>
             </Card>
+
+            {/* Statistics Card */}
+            {stats && (
+              <Card className="mt-6">
+                <CardHeader>
+                  <CardTitle>Statistics</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="text-center p-3 bg-blue-50 rounded-lg">
+                      <div className="text-2xl font-bold text-blue-600">{stats.totalIncidents}</div>
+                      <div className="text-xs text-gray-600 mt-1">Total {userData.role === "resident" ? "Reported" : "Assigned"}</div>
+                    </div>
+                    <div className="text-center p-3 bg-green-50 rounded-lg">
+                      <div className="text-2xl font-bold text-green-600">{stats.resolvedIncidents}</div>
+                      <div className="text-xs text-gray-600 mt-1">Resolved</div>
+                    </div>
+                    {stats.averageResponseTime !== null && (
+                      <div className="text-center p-3 bg-purple-50 rounded-lg">
+                        <div className="text-2xl font-bold text-purple-600">{stats.averageResponseTime}</div>
+                        <div className="text-xs text-gray-600 mt-1">Avg Response (min)</div>
+                      </div>
+                    )}
+                    {stats.feedbackCount > 0 && (
+                      <div className="text-center p-3 bg-yellow-50 rounded-lg">
+                        <div className="text-2xl font-bold text-yellow-600">{stats.feedbackCount}</div>
+                        <div className="text-xs text-gray-600 mt-1">
+                          Feedback {stats.averageRating && `(${stats.averageRating}★)`}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
             
             {/* User Actions Card */}
             <Card className="mt-6">

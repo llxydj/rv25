@@ -4,7 +4,7 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { AlertTriangle, Phone, User, X, Home, FileText, MapPin, Calendar, BarChart3, Settings, Bell } from "lucide-react"
+import { AlertTriangle, Phone, User, X, Home, FileText, MapPin, Calendar, BarChart3, Settings, Bell, MessageSquare } from "lucide-react"
 import { useNotificationsChannel } from '@/lib/use-notifications'
 import { signOut } from "@/lib/auth"
 import { AuthLayout } from "./auth-layout"
@@ -224,6 +224,17 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
             >
               <BarChart3 className="h-5 w-5 flex-shrink-0 text-white" />
               <span className="font-medium truncate text-white">Reports</span>
+            </Link>
+
+            <Link
+              href="/admin/feedback"
+              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
+                isActive("/admin/feedback") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
+              }`}
+              onClick={() => setSidebarOpen(false)}
+            >
+              <MessageSquare className="h-5 w-5 flex-shrink-0 text-white" />
+              <span className="font-medium truncate text-white">Feedback</span>
             </Link>
 
             <Link

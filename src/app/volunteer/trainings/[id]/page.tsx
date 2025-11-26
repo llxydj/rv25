@@ -1,0 +1,322 @@
+"use client"
+
+import { useEffect, useState } from "react"
+import { useParams, useRouter } from "next/navigation"
+import { VolunteerLayout } from "@/components/layout/volunteer-layout"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Calendar, MapPin, Users, Clock, ArrowLeft, CheckCircle, X, AlertCircle } from "lucide-react"
+import { LoadingSpinner } from "@/components/ui/loading-spinner"
+import { useAuth } from "@/lib/auth"
+
+export default function VolunteerTrainingDetailPage() {
+  const params = useParams()
+  const router = useRouter()
+  const { user } = useAuth()
+  const trainingId = params.id as string
+
+  const [training, setTraining] = useState<any>(null)
+  const [isEnrolled, setIsEnrolled] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [enrolling, setEnrolling] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!trainingId || !user) return
+
+      setLoading(true)
+      try {
+        // Fetch training
+        const trainingRes = await fetch(`/api/trainings/${trainingId}`)
+        const trainingJson = await trainingRes.json()
+        if (trainingRes.ok && trainingJson.success) {
+          setTraining(trainingJson.data)
+        } else {
+          throw new Error(trainingJson.message || "Failed to load training")
+        }
+
+        // Check enrollment
+        if (user.id) {
+          const enrollRes = await fetch(`/api/trainings/enrollments?user_id=${user.id}&training_id=${trainingId}`)
+          const enrollJson = await enrollRes.json()
+          if (enrollRes.ok && enrollJson.success) {
+            setIsEnrolled((enrollJson.data || []).length > 0)
+          }
+        }
+      } catch (e: any) {
+        setError(e?.message || "Failed to load training details")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [trainingId, user])
+
+  const handleEnroll = async () => {
+    setEnrolling(true)
+    try {
+      const res = await fetch("/api/trainings/enroll", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ training_id: parseInt(trainingId) }),
+      })
+
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.message || "Failed to enroll")
+
+      setIsEnrolled(true)
+    } catch (e: any) {
+      alert("Failed to enroll: " + (e?.message || "Unknown error"))
+    } finally {
+      setEnrolling(false)
+    }
+  }
+
+  const handleUnenroll = async () => {
+    if (!confirm("Are you sure you want to unenroll from this training?")) return
+
+    setEnrolling(true)
+    try {
+      const res = await fetch(`/api/trainings/enroll?training_id=${trainingId}`, {
+        method: "DELETE",
+      })
+
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.message || "Failed to unenroll")
+
+      setIsEnrolled(false)
+    } catch (e: any) {
+      alert("Failed to unenroll: " + (e?.message || "Unknown error"))
+    } finally {
+      setEnrolling(false)
+    }
+  }
+
+  const getStatusBadge = (status: string) => {
+    const variants: Record<string, { variant: "default" | "secondary" | "destructive" | "outline", label: string }> = {
+      SCHEDULED: { variant: "default", label: "Scheduled" },
+      ONGOING: { variant: "secondary", label: "Ongoing" },
+      COMPLETED: { variant: "outline", label: "Completed" },
+      CANCELLED: { variant: "destructive", label: "Cancelled" }
+    }
+    return variants[status] || { variant: "outline" as const, label: status }
+  }
+
+  if (loading) {
+    return (
+      <VolunteerLayout>
+        <div className="flex justify-center py-12">
+          <LoadingSpinner size="lg" text="Loading training details..." />
+        </div>
+      </VolunteerLayout>
+    )
+  }
+
+  if (error || !training) {
+    return (
+      <VolunteerLayout>
+        <div className="p-6">
+          <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded">
+            <p className="text-red-700">{error || "Training not found"}</p>
+            <Button onClick={() => router.push('/volunteer/trainings')} className="mt-4" variant="outline">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Trainings
+            </Button>
+          </div>
+        </div>
+      </VolunteerLayout>
+    )
+  }
+
+  const startDate = new Date(training.start_at)
+  const endDate = training.end_at ? new Date(training.end_at) : null
+  const badge = getStatusBadge(training.status || 'SCHEDULED')
+  const canEnroll = training.status === 'SCHEDULED' && !isEnrolled
+
+  return (
+    <VolunteerLayout>
+      <div className="p-6 space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button onClick={() => router.push('/volunteer/trainings')} variant="outline" size="icon">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold text-black">{training.title}</h1>
+              <p className="text-sm text-gray-600 mt-1">Training Details</p>
+            </div>
+          </div>
+          <Badge variant={badge.variant} className="text-lg px-4 py-2">
+            {badge.label}
+          </Badge>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Training Information */}
+          <div className="lg:col-span-2 space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Training Information</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {training.description && (
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-700 mb-2">Description</h3>
+                    <p className="text-sm text-gray-600 whitespace-pre-wrap">{training.description}</p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex items-center gap-3">
+                    <Calendar className="h-5 w-5 text-gray-400" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-700">Start Date & Time</p>
+                      <p className="text-sm text-gray-600">
+                        {startDate.toLocaleDateString("en-US", {
+                          weekday: "long",
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                        })}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {startDate.toLocaleTimeString("en-US", {
+                          hour: "numeric",
+                          minute: "2-digit",
+                          hour12: true,
+                        })}
+                      </p>
+                    </div>
+                  </div>
+
+                  {endDate && (
+                    <div className="flex items-center gap-3">
+                      <Clock className="h-5 w-5 text-gray-400" />
+                      <div>
+                        <p className="text-sm font-medium text-gray-700">End Date & Time</p>
+                        <p className="text-sm text-gray-600">
+                          {endDate.toLocaleDateString("en-US", {
+                            weekday: "long",
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                          })}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          {endDate.toLocaleTimeString("en-US", {
+                            hour: "numeric",
+                            minute: "2-digit",
+                            hour12: true,
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {training.location && (
+                    <div className="flex items-center gap-3">
+                      <MapPin className="h-5 w-5 text-gray-400" />
+                      <div>
+                        <p className="text-sm font-medium text-gray-700">Location</p>
+                        <p className="text-sm text-gray-600">{training.location}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {training.capacity && (
+                    <div className="flex items-center gap-3">
+                      <Users className="h-5 w-5 text-gray-400" />
+                      <div>
+                        <p className="text-sm font-medium text-gray-700">Capacity</p>
+                        <p className="text-sm text-gray-600">{training.capacity} participants</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Sidebar */}
+          <div className="space-y-6">
+            {/* Enrollment Actions */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Enrollment</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {isEnrolled ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 text-green-600">
+                      <CheckCircle className="h-5 w-5" />
+                      <span className="font-medium">You are enrolled</span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={handleUnenroll}
+                      disabled={enrolling}
+                    >
+                      {enrolling ? (
+                        <LoadingSpinner size="sm" className="mr-2" />
+                      ) : (
+                        <X className="h-4 w-4 mr-2" />
+                      )}
+                      Unenroll
+                    </Button>
+                  </div>
+                ) : canEnroll ? (
+                  <Button
+                    className="w-full"
+                    onClick={handleEnroll}
+                    disabled={enrolling}
+                  >
+                    {enrolling ? (
+                      <LoadingSpinner size="sm" className="mr-2" />
+                    ) : (
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                    )}
+                    Enroll in Training
+                  </Button>
+                ) : (
+                  <div className="text-center py-4 text-gray-500">
+                    <AlertCircle className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                    <p className="text-sm">
+                      {training.status === 'COMPLETED' 
+                        ? 'This training has been completed'
+                        : training.status === 'CANCELLED'
+                        ? 'This training has been cancelled'
+                        : 'Enrollment not available'}
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Quick Actions */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Quick Actions</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => router.push('/volunteer/trainings')}
+                >
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back to Trainings
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    </VolunteerLayout>
+  )
+}
+
