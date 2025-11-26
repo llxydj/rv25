@@ -5,7 +5,8 @@ import Link from "next/link"
 import { AdminLayout } from "@/components/layout/admin-layout"
 import { useAuth } from "@/lib/auth"
 import { getAllVolunteers, updateVolunteerStatus } from "@/lib/volunteers"
-import { getVolunteerIncidents } from "@/lib/incidents"
+import { getVolunteerIncidentsForAdmin } from "@/lib/incidents"
+
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import {
   AlertTriangle,
@@ -188,7 +189,7 @@ export default function AdminVolunteersPage() {
     setDetailIncidents([])
 
     try {
-      const history = await getVolunteerIncidents(volunteer.id)
+      const history = await getVolunteerIncidentsForAdmin(volunteer.id)
       if (history.success) {
         setDetailIncidents(history.data || [])
       } else {

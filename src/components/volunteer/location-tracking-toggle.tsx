@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { useAuth } from "@/hooks/use-auth"
 import { LocationTrackingService } from "@/lib/location-tracking"
 import { backgroundLocationService } from "@/lib/background-location-service"
-import { notificationService } from "@/lib/notifications"
+import { pushNotificationService } from "@/lib/push-notification-service"
 import { useToast } from "@/components/ui/use-toast"
 
 interface LocationData {
@@ -46,8 +46,15 @@ export function LocationTrackingToggle() {
     
     if (savedPushEnabled === 'true') {
       setPushEnabled(true)
-      // Initialize push notifications
-      notificationService.initialize().catch(console.error)
+      // Initialize push notifications (will check auth inside)
+      pushNotificationService.initialize().catch((error) => {
+        console.error('[location-toggle] Failed to initialize push notifications:', error)
+        // If auth fails, don't enable push
+        if (error.message?.includes('logged in')) {
+          setPushEnabled(false)
+          localStorage.removeItem('push-notifications-enabled')
+        }
+      })
     }
 
     // Check permission status
@@ -201,8 +208,9 @@ export function LocationTrackingToggle() {
   const handlePushNotificationToggle = async (checked: boolean) => {
     if (checked) {
       try {
-        const initialized = await notificationService.initialize()
-        if (initialized) {
+        // Use enable() which checks authentication before proceeding
+        const enabled = await pushNotificationService.enable()
+        if (enabled) {
           setPushEnabled(true)
           localStorage.setItem('push-notifications-enabled', 'true')
           toast({
@@ -213,21 +221,35 @@ export function LocationTrackingToggle() {
           throw new Error('Failed to enable notifications')
         }
       } catch (error: any) {
+        console.error('[location-toggle] Push notification enable error:', error)
+        setPushEnabled(false)
+        localStorage.removeItem('push-notifications-enabled')
         toast({
           variant: "destructive",
           title: "Notification Error",
-          description: error.message || 'Failed to enable push notifications'
+          description: error.message || 'Please log in and allow notifications in your browser settings'
         })
       }
     } else {
-      // Note: NotificationService doesn't have unsubscribe method
-      // Subscription will remain but can be toggled via preferences
-      setPushEnabled(false)
-      localStorage.removeItem('push-notifications-enabled')
-      toast({
-        title: "Push Notifications Disabled",
-        description: "You'll only receive in-app notifications"
-      })
+      // Unsubscribe from push notifications
+      try {
+        await pushNotificationService.unsubscribe()
+        setPushEnabled(false)
+        localStorage.removeItem('push-notifications-enabled')
+        toast({
+          title: "Push Notifications Disabled",
+          description: "You'll only receive in-app notifications"
+        })
+      } catch (error: any) {
+        console.error('[location-toggle] Push notification unsubscribe error:', error)
+        // Still update UI even if unsubscribe fails
+        setPushEnabled(false)
+        localStorage.removeItem('push-notifications-enabled')
+        toast({
+          title: "Push Notifications Disabled",
+          description: "You'll only receive in-app notifications"
+        })
+      }
     }
   }
 

@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { getServerSupabase } from '@/lib/supabase-server'
+import { Database } from '@/types/supabase'
 
 export const runtime = 'nodejs'
 
-const supabaseAdmin = createClient(
+const supabaseAdmin = createClient<Database>(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
   { auth: { autoRefreshToken: false, persistSession: false } }
@@ -15,6 +16,8 @@ function sanitizeId(id: any) {
   if (!s || !/^[0-9a-f-]{36}$/i.test(s)) return null
   return s
 }
+
+type IncidentRow = Database['public']['Tables']['incidents']['Row']
 
 export async function POST(request: Request) {
   try {
@@ -94,18 +97,21 @@ export async function POST(request: Request) {
         new_status: 'ASSIGNED',
         notes: `Assigned to volunteer ${volunteer.first_name ?? ''} ${volunteer.last_name ?? ''}`.trim(),
         created_at: new Date().toISOString(),
-      } as any)
-    } catch {}
+      })
+    } catch { }
 
     // Notify volunteer via centralized notification service (best-effort)
     try {
       const { notificationService } = await import('@/lib/notification-service')
-      if (updated && (updated as any).id && (updated as any).incident_type && (updated as any).barangay) {
-        await notificationService.onVolunteerAssigned(cleanVolunteerId, {
-          id: (updated as any).id,
-          incident_type: (updated as any).incident_type,
-          barangay: (updated as any).barangay,
-        })
+      if (updated) {
+        const incidentData = updated as unknown as IncidentRow
+        if (incidentData.id && incidentData.incident_type && incidentData.barangay) {
+          await notificationService.onVolunteerAssigned(cleanVolunteerId, {
+            id: incidentData.id,
+            incident_type: incidentData.incident_type,
+            barangay: incidentData.barangay,
+          })
+        }
       }
     } catch (notifyErr) {
       console.error('Failed to notify volunteer on manual assignment:', notifyErr)

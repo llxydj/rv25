@@ -2,69 +2,70 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react"
 import { AdminLayout } from "@/components/layout/admin-layout"
-import { 
-  FileText, 
-  Download, 
-  Calendar as CalendarIcon, 
-  ChevronDown, 
-  ChevronRight, 
-  Eye, 
-  EyeOff, 
-  Clock, 
-  Archive 
+import {
+  FileText,
+  Download,
+  Calendar as CalendarIcon,
+  ChevronDown,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  Clock,
+  Archive,
+  Activity
 } from "lucide-react"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import { getAllIncidents } from "@/lib/incidents"
 import { getAllVolunteers } from "@/lib/volunteers"
 import { getAllSchedules } from "@/lib/schedules"
-import { 
-  getIncidentsByBarangay, 
-  getIncidentsByStatus, 
-  getIncidentsByType, 
-  exportIncidentsToCSV 
+import {
+  getIncidentsByBarangay,
+  getIncidentsByStatus,
+  getIncidentsByType,
+  exportIncidentsToCSV
 } from "@/lib/reports"
 import { useAuth } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardHeader, 
-  CardTitle 
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
 } from "@/components/ui/card"
 import { PDFReportGenerator } from "@/components/admin/pdf-report-generator"
 import { YearlyPDFReportGenerator } from "@/components/admin/yearly-pdf-report-generator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
 } from "@/components/ui/select"
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogDescription, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogTrigger 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
 } from "@/components/ui/dialog"
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend, 
-  ResponsiveContainer, 
-  PieChart, 
-  Pie, 
-  Cell, 
-  LineChart, 
-  Line 
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  LineChart,
+  Line
 } from "recharts"
 import { format } from "date-fns"
 
@@ -98,9 +99,9 @@ const CHART_THEME = {
 const CustomTooltip = ({ active, payload, label, darkMode }: any) => {
   if (!active || !payload?.length) return null
   const theme = darkMode ? CHART_THEME.dark : CHART_THEME.light
-  
+
   return (
-    <div 
+    <div
       style={{
         backgroundColor: theme.tooltip.bg,
         border: `1px solid ${theme.tooltip.border}`,
@@ -123,27 +124,27 @@ const CustomTooltip = ({ active, payload, label, darkMode }: any) => {
 
 export default function AdminReports() {
   const { user } = useAuth()
-  
+
   // ✅ STATE MANAGEMENT - GROUPED BY CONCERN
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  
+
   // Report type & date range
   const [reportType, setReportType] = useState<"incidents" | "volunteers" | "schedules">("incidents")
   const [dateRange, setDateRange] = useState<"week" | "month" | "year" | "custom">("week")
   const [dateFrom, setDateFrom] = useState<Date | null>(null)
   const [dateTo, setDateTo] = useState<Date | null>(null)
-  
+
   // Dialog & loading states
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false)
   const [archiveLoading, setArchiveLoading] = useState(false)
   const [exportLoading, setExportLoading] = useState(false)
   const [generatingReport, setGeneratingReport] = useState(false)
-  
+
   // Template & config
   const [templateNotes, setTemplateNotes] = useState("")
   const [scheduleConfig, setScheduleConfig] = useState<any>(null)
-  
+
   // Data states
   const [incidents, setIncidents] = useState<any[]>([])
   const [volunteers, setVolunteers] = useState<any[]>([])
@@ -152,34 +153,37 @@ export default function AdminReports() {
   const [incidentsByType, setIncidentsByType] = useState<any[]>([])
   const [incidentsByStatus, setIncidentsByStatus] = useState<any[]>([])
   
+  // Resident analytics state
+  const [residentAnalytics, setResidentAnalytics] = useState<any>(null)
+
   // Year-based reports
   const [years, setYears] = useState<any[]>([])
   const [selectedYear, setSelectedYear] = useState<number | null>(null)
   const [yearData, setYearData] = useState<any>(null)
   const [expandedQuarters, setExpandedQuarters] = useState<Record<string, boolean>>({})
   const [expandedMonths, setExpandedMonths] = useState<Record<string, boolean>>({})
-  
+
   // Archive states
   const [showArchived, setShowArchived] = useState(false)
   const [archivedYears, setArchivedYears] = useState<number[]>([])
-  
+
   // ✅ DARK MODE DETECTION (PROPER)
   const [darkMode, setDarkMode] = useState(false)
 
   useEffect(() => {
     if (typeof window === "undefined") return
-    
+
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
     setDarkMode(mediaQuery.matches)
-    
+
     const handleChange = (e: MediaQueryListEvent) => setDarkMode(e.matches)
     mediaQuery.addEventListener('change', handleChange)
-    
+
     return () => mediaQuery.removeEventListener('change', handleChange)
   }, [])
 
   // ✅ MEMOIZED CHART THEME
-  const chartTheme = useMemo(() => 
+  const chartTheme = useMemo(() =>
     darkMode ? CHART_THEME.dark : CHART_THEME.light,
     [darkMode]
   )
@@ -187,7 +191,7 @@ export default function AdminReports() {
   // ✅ FETCH SCHEDULE CONFIG (CLEANUP)
   useEffect(() => {
     let isMounted = true
-    
+
     const fetchScheduleConfig = async () => {
       try {
         const response = await fetch("/api/admin/reports/auto-archive")
@@ -200,7 +204,7 @@ export default function AdminReports() {
         console.error("Error fetching schedule config:", err)
       }
     }
-    
+
     fetchScheduleConfig()
     return () => { isMounted = false }
   }, [])
@@ -219,7 +223,7 @@ export default function AdminReports() {
 
     const endDate = new Date()
     const startDate = new Date(endDate)
-    
+
     switch (dateRange) {
       case "week":
         startDate.setDate(startDate.getDate() - 7)
@@ -231,7 +235,7 @@ export default function AdminReports() {
         startDate.setFullYear(startDate.getFullYear() - 1)
         break
     }
-    
+
     return {
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString()
@@ -241,24 +245,35 @@ export default function AdminReports() {
   // ✅ FETCH YEARS (CLEANUP)
   useEffect(() => {
     let isMounted = true
-    
+
     const fetchYears = async () => {
       try {
         const response = await fetch("/api/admin/reports")
-        if (!response.ok) throw new Error('Failed to fetch years')
+        if (!response.ok) {
+          const errorText = await response.text()
+          console.error("Failed to fetch years - response:", errorText)
+          throw new Error(`Failed to fetch years: ${response.status} ${response.statusText}`)
+        }
         const result = await response.json()
-        
+        console.log("Years fetch result:", result) // Debug log
+
         if (isMounted && result.success && result.data) {
-          setYears(result.data)
-          if (result.data.length > 0) {
-            setSelectedYear(result.data[0].year)
+          const yearList = result.data.map((item: any) => item.year)
+          setYears(yearList)
+          if (yearList.length > 0 && !selectedYear) {
+            setSelectedYear(yearList[0])
           }
         }
       } catch (err) {
         console.error("Error fetching years:", err)
+        // Set some default years if fetch fails
+        if (isMounted) {
+          const currentYear = new Date().getFullYear()
+          setYears([currentYear, currentYear - 1, currentYear - 2])
+        }
       }
     }
-    
+
     fetchYears()
     return () => { isMounted = false }
   }, [])
@@ -266,13 +281,18 @@ export default function AdminReports() {
   // ✅ FETCH ARCHIVED YEARS (CLEANUP)
   useEffect(() => {
     let isMounted = true
-    
+
     const fetchArchivedYears = async () => {
       try {
         const response = await fetch("/api/admin/reports", { method: "PUT" })
-        if (!response.ok) throw new Error('Failed to fetch archived years')
+        if (!response.ok) {
+          const errorText = await response.text()
+          console.error("Failed to fetch archived years - response:", errorText)
+          throw new Error(`Failed to fetch archived years: ${response.status} ${response.statusText}`)
+        }
         const result = await response.json()
-        
+        console.log("Archived years fetch result:", result) // Debug log
+
         if (isMounted && result.success && result.data) {
           setArchivedYears(result.data)
         }
@@ -280,7 +300,7 @@ export default function AdminReports() {
         console.error("Error fetching archived years:", err)
       }
     }
-    
+
     fetchArchivedYears()
     return () => { isMounted = false }
   }, [])
@@ -288,16 +308,21 @@ export default function AdminReports() {
   // ✅ FETCH YEAR DATA (CLEANUP)
   useEffect(() => {
     if (!selectedYear) return
-    
+
     let isMounted = true
-    
+
     const fetchYearData = async () => {
       try {
         setLoading(true)
         const response = await fetch(`/api/admin/reports?year=${selectedYear}&archived=${showArchived}`)
-        if (!response.ok) throw new Error('Failed to fetch year data')
+        if (!response.ok) {
+          const errorText = await response.text()
+          console.error(`Failed to fetch year data for ${selectedYear} - response:`, errorText)
+          throw new Error(`Failed to fetch year data: ${response.status} ${response.statusText}`)
+        }
         const result = await response.json()
-        
+        console.log(`Year data fetch result for ${selectedYear}:`, result) // Debug log
+
         if (isMounted && result.success) {
           setYearData(result.data)
         }
@@ -308,7 +333,7 @@ export default function AdminReports() {
         if (isMounted) setLoading(false)
       }
     }
-    
+
     fetchYearData()
     return () => { isMounted = false }
   }, [selectedYear, showArchived])
@@ -317,7 +342,7 @@ export default function AdminReports() {
   useEffect(() => {
     let isMounted = true
     const controller = new AbortController()
-    
+
     const fetchData = async () => {
       try {
         setLoading(true)
@@ -326,11 +351,14 @@ export default function AdminReports() {
         const { startDate, endDate } = getDateRangeParams()
 
         if (reportType === "incidents") {
-          const [incidentsRes, barangayRes, typeRes, statusRes] = await Promise.all([
+          const [incidentsRes, barangayRes, typeRes, statusRes, residentRes] = await Promise.all([
             getAllIncidents(),
             getIncidentsByBarangay(startDate, endDate),
             getIncidentsByType(startDate, endDate),
-            getIncidentsByStatus(startDate, endDate)
+            getIncidentsByStatus(startDate, endDate),
+            fetch(`/api/analytics/resident-incidents?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`, {
+              signal: controller.signal
+            }).then(res => res.json()).catch(() => ({ success: false }))
           ])
 
           if (!isMounted) return
@@ -342,17 +370,24 @@ export default function AdminReports() {
           if (typeRes.success) setIncidentsByType(typeRes.data || [])
           if (statusRes.success) setIncidentsByStatus(statusRes.data || [])
           
+          // Set resident analytics
+          if (residentRes.success && residentRes.data) {
+            setResidentAnalytics(residentRes.data)
+          } else {
+            setResidentAnalytics(null)
+          }
+
         } else if (reportType === "volunteers") {
           const result = await getAllVolunteers()
           if (!isMounted) return
-          
+
           if (result.success) setVolunteers(result.data || [])
           else setError(result.message || "Failed to fetch volunteers")
-          
+
         } else if (reportType === "schedules") {
           const result = await getAllSchedules()
           if (!isMounted) return
-          
+
           if (result.success) setSchedules(result.data || [])
           else setError(result.message || "Failed to fetch schedules")
         }
@@ -389,7 +424,7 @@ export default function AdminReports() {
   // ✅ GENERATE REPORT (WITH ERROR HANDLING)
   const generateReport = useCallback(async () => {
     if (!user?.id) return
-    
+
     setGeneratingReport(true)
     try {
       // Log action
@@ -407,16 +442,16 @@ export default function AdminReports() {
         const { startDate, endDate } = getDateRangeParams()
 
         const result = await exportIncidentsToCSV(startDate, endDate)
-        
+
         if (result.success && result.data && result.data.length > 0) {
           const headers = Object.keys(result.data[0]).join(',')
-          const rows = result.data.map((item: any) => 
-            Object.values(item).map(v => 
+          const rows = result.data.map((item: any) =>
+            Object.values(item).map(v =>
               typeof v === 'string' && v.includes(',') ? `"${v}"` : v
             ).join(',')
           )
           const csvContent = [headers, ...rows].join('\n')
-          
+
           const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
           const url = URL.createObjectURL(blob)
           const link = document.createElement('a')
@@ -441,7 +476,7 @@ export default function AdminReports() {
   // ✅ ARCHIVE YEAR REPORTS
   const archiveYearReports = useCallback(async () => {
     if (!selectedYear || !user?.id) return
-    
+
     if (!confirm(`Archive all reports for ${selectedYear}? This cannot be undone.`)) {
       return
     }
@@ -453,10 +488,10 @@ export default function AdminReports() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ year: selectedYear })
       })
-      
+
       if (!response.ok) throw new Error('Archive failed')
       const result = await response.json()
-      
+
       if (result.success) {
         // Refresh year data
         const refreshResponse = await fetch(`/api/admin/reports?year=${selectedYear}`)
@@ -496,7 +531,7 @@ export default function AdminReports() {
   // ✅ EXPORT YEAR CSV
   const exportYearCSV = useCallback(async () => {
     if (!selectedYear || !user?.id) return
-    
+
     setExportLoading(true)
     try {
       await fetch("/api/admin/logs", {
@@ -512,7 +547,7 @@ export default function AdminReports() {
       const response = await fetch(`/api/admin/reports?year=${selectedYear}&export=csv`)
       if (!response.ok) throw new Error('Export failed')
       const result = await response.json()
-      
+
       if (result.success && result.data) {
         const blob = new Blob([result.data], { type: 'text/csv;charset=utf-8;' })
         const url = URL.createObjectURL(blob)
@@ -538,7 +573,7 @@ export default function AdminReports() {
   const toggleQuarter = useCallback((quarter: string) => {
     setExpandedQuarters(prev => {
       const isExpanding = !prev[quarter]
-      
+
       if (!isExpanding) {
         // Collapse all months in this quarter
         setExpandedMonths(prevMonths => {
@@ -551,7 +586,7 @@ export default function AdminReports() {
           return newMonths
         })
       }
-      
+
       return { ...prev, [quarter]: isExpanding }
     })
   }, [])
@@ -571,12 +606,12 @@ export default function AdminReports() {
   const monthlyBreakdownMap = useMemo(() => {
     const breakdown = getFilteredYearData?.monthly_breakdown || yearData?.monthly_breakdown || []
     const map = new Map()
-    
+
     breakdown.forEach((entry: any) => {
       const monthIndex = entry.month_index ?? entry.month ?? 0
       map.set(monthIndex, entry)
     })
-    
+
     return map
   }, [getFilteredYearData, yearData])
 
@@ -585,14 +620,14 @@ export default function AdminReports() {
     if (loading) return null
 
     if (reportType === "incidents") {
-      const byStatus = incidentsByStatus.map(item => [item.status, parseInt(item.count || '0')])
-      const byType = incidentsByType.map(item => [item.incident_type, parseInt(item.count || '0')])
-      const byBarangay = incidentsByBarangay.map(item => [item.barangay, parseInt(item.count || '0')])
+      const byStatus = incidentsByStatus.map((item) => [item.status, parseInt(item.count || "0", 10)])
+      const byType = incidentsByType.map((item) => [item.incident_type, parseInt(item.count || "0", 10)])
+      const byBarangay = incidentsByBarangay.map((item) => [item.barangay, parseInt(item.count || "0", 10)])
       const total = byStatus.reduce((sum, [_, count]) => sum + (count as number), 0) || filterDataByDateRange(incidents).length
-      
+
       return { total, byType, byStatus, byBarangay }
     }
-    
+
     if (reportType === "volunteers") {
       const filteredVolunteers = filterDataByDateRange(volunteers)
       const volunteersByStatus = filteredVolunteers.reduce((acc: Record<string, number>, volunteer) => {
@@ -600,18 +635,97 @@ export default function AdminReports() {
         acc[status] = (acc[status] || 0) + 1
         return acc
       }, {})
-      
-      return { total: filteredVolunteers.length, byStatus: Object.entries(volunteersByStatus) }
+
+      // Additional volunteer analytics
+      const volunteersBySkills = filteredVolunteers.reduce((acc: Record<string, number>, volunteer) => {
+        const skills = volunteer.volunteer_profiles?.skills || []
+        skills.forEach((skill: string) => {
+          acc[skill] = (acc[skill] || 0) + 1
+        })
+        return acc
+      }, {})
+
+      const volunteersByAvailability = filteredVolunteers.reduce((acc: Record<string, number>, volunteer) => {
+        const availability = volunteer.volunteer_profiles?.availability || "UNKNOWN"
+        acc[availability] = (acc[availability] || 0) + 1
+        return acc
+      }, {})
+
+      return { 
+        total: filteredVolunteers.length, 
+        byStatus: Object.entries(volunteersByStatus),
+        bySkills: Object.entries(volunteersBySkills),
+        byAvailability: Object.entries(volunteersByAvailability),
+        details: filteredVolunteers
+      }
     }
-    
-    const filteredSchedules = filterDataByDateRange(schedules)
-    return { total: filteredSchedules.length }
+
+    if (reportType === "schedules") {
+      const filteredSchedules = filterDataByDateRange(schedules)
+      
+      // Schedule analytics
+      const schedulesByStatus = filteredSchedules.reduce((acc: Record<string, number>, schedule) => {
+        const status = schedule.status || "UNKNOWN"
+        acc[status] = (acc[status] || 0) + 1
+        return acc
+      }, {})
+
+      const schedulesByBarangay = filteredSchedules.reduce((acc: Record<string, number>, schedule) => {
+        const barangay = schedule.barangay || "UNKNOWN"
+        acc[barangay] = (acc[barangay] || 0) + 1
+        return acc
+      }, {})
+
+      const schedulesByType = filteredSchedules.reduce((acc: Record<string, number>, schedule) => {
+        const type = schedule.activity_type || "UNKNOWN"
+        acc[type] = (acc[type] || 0) + 1
+        return acc
+      }, {})
+
+      return { 
+        total: filteredSchedules.length,
+        byStatus: Object.entries(schedulesByStatus),
+        byBarangay: Object.entries(schedulesByBarangay),
+        byType: Object.entries(schedulesByType),
+        details: filteredSchedules
+      }
+    }
+
+    return { total: 0 }
   }, [loading, reportType, incidentsByStatus, incidentsByType, incidentsByBarangay, filterDataByDateRange, incidents, volunteers, schedules])
+
+  // ✅ BARANGAY ANALYTICS (INCIDENTS)
+  const barangayAnalytics = useMemo(() => {
+    if (!incidentsByBarangay || incidentsByBarangay.length === 0) {
+      return { total: 0, items: [] as Array<{ barangay: string; count: number; percentage: number }> }
+    }
+
+    const total = incidentsByBarangay.reduce((sum, item) => {
+      const raw = typeof item.count === "number" ? item.count : parseInt(item.count || "0", 10)
+      const count = Number.isNaN(raw) ? 0 : raw
+      return sum + count
+    }, 0)
+
+    const items = incidentsByBarangay
+      .map((item) => {
+        const raw = typeof item.count === "number" ? item.count : parseInt(item.count || "0", 10)
+        const count = Number.isNaN(raw) ? 0 : raw
+        const percentage = total > 0 ? (count / total) * 100 : 0
+        return {
+          barangay: item.barangay || "UNKNOWN",
+          count,
+          percentage,
+        }
+      })
+      .sort((a, b) => b.count - a.count)
+
+    return { total, items }
+  }, [incidentsByBarangay])
 
   const busiestQuarter = useMemo(() => {
     if (!yearData?.quarters?.length) return null
-    return yearData.quarters.reduce((max: any, quarter: any) => 
-      quarter.incident_count > max.incident_count ? quarter : max, 
+    return yearData.quarters.reduce((max: any, quarter: any) =>
+      quarter.incident_count > max.incident_count ? quarter : max,
       yearData.quarters[0]
     )
   }, [yearData])
@@ -625,11 +739,11 @@ export default function AdminReports() {
       'Q4': [9, 10, 11]
     }
     const months = quarterMap[quarter] || []
-    
+
     return months.map(month => {
       const stats = monthlyBreakdownMap.get(month)
       const startDate = new Date(year, month, 1)
-      
+
       return {
         month,
         monthLabel: format(startDate, 'MMM yyyy'),
@@ -674,12 +788,12 @@ export default function AdminReports() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex flex-col sm:flex-row gap-3">
-                  <Select 
-                    value={selectedYear?.toString() || ""} 
+                  <Select
+                    value={selectedYear?.toString() || ""}
                     onValueChange={(value) => setSelectedYear(parseInt(value))}
                   >
-                    <SelectTrigger 
-                      disabled={loading} 
+                    <SelectTrigger
+                      disabled={loading}
                       className="w-full sm:w-48 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100"
                     >
                       <SelectValue placeholder="Select year" />
@@ -691,9 +805,9 @@ export default function AdminReports() {
                         </div>
                       ) : (
                         years.map((yearItem: any) => (
-                          <SelectItem 
-                            key={yearItem.year} 
-                            value={yearItem.year.toString()} 
+                          <SelectItem
+                            key={yearItem.year}
+                            value={yearItem.year.toString()}
                             className="text-gray-900 dark:text-gray-100"
                           >
                             {yearItem.year} ({yearItem.incident_count || 0} incidents)
@@ -702,7 +816,7 @@ export default function AdminReports() {
                       )}
                     </SelectContent>
                   </Select>
-                  
+
                   <Button
                     onClick={() => setShowArchived(!showArchived)}
                     variant="outline"
@@ -725,8 +839,8 @@ export default function AdminReports() {
                 {selectedYear && !showArchived && (
                   <Dialog open={archiveDialogOpen} onOpenChange={setArchiveDialogOpen}>
                     <DialogTrigger asChild>
-                      <Button 
-                        variant="destructive" 
+                      <Button
+                        variant="destructive"
                         className="w-full sm:w-auto"
                       >
                         <Archive className="mr-2 h-4 w-4" />
@@ -747,8 +861,8 @@ export default function AdminReports() {
                           Archiving will mark all reports from {selectedYear} as read-only.
                         </p>
                         <div className="flex flex-col sm:flex-row justify-end gap-2">
-                          <Button 
-                            variant="outline" 
+                          <Button
+                            variant="outline"
                             onClick={() => setArchiveDialogOpen(false)}
                             className="w-full sm:w-auto"
                           >
@@ -836,7 +950,7 @@ export default function AdminReports() {
                           {yearData?.total_incidents || 0}
                         </p>
                       </div>
-                      
+
                       <div className="p-4 bg-green-50 dark:bg-green-950/50 rounded-lg border border-green-200 dark:border-green-800/50">
                         <p className="text-xs md:text-sm text-gray-600 dark:text-gray-300 mb-1">
                           Reports Generated
@@ -845,7 +959,7 @@ export default function AdminReports() {
                           {yearData?.reports?.length || 0}
                         </p>
                       </div>
-                      
+
                       <div className="p-4 bg-purple-50 dark:bg-purple-950/50 rounded-lg border border-purple-200 dark:border-purple-800/50">
                         <p className="text-xs md:text-sm text-gray-600 dark:text-gray-300 mb-1">
                           Busiest Quarter
@@ -854,14 +968,14 @@ export default function AdminReports() {
                           {busiestQuarter?.quarter || "N/A"}
                         </p>
                       </div>
-                      
+
                       <div className="p-4 bg-orange-50 dark:bg-orange-950/50 rounded-lg border border-orange-200 dark:border-orange-800/50">
                         <p className="text-xs md:text-sm text-gray-600 dark:text-gray-300 mb-1">
                           Most Common Type
                         </p>
                         <p className="text-xl md:text-2xl font-bold text-orange-600 dark:text-orange-400 truncate">
                           {Object.entries(yearData?.type_breakdown || {})
-                            .sort(([,a], [,b]) => (b as number) - (a as number))[0]?.[0] || "N/A"}
+                            .sort(([, a], [, b]) => (b as number) - (a as number))[0]?.[0] || "N/A"}
                         </p>
                       </div>
                     </div>
@@ -880,8 +994,8 @@ export default function AdminReports() {
                   </CardHeader>
                   <CardContent className="space-y-3">
                     {(yearData?.quarters || []).map((quarter: any) => (
-                      <div 
-                        key={quarter.quarter} 
+                      <div
+                        key={quarter.quarter}
                         className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden"
                       >
                         <button
@@ -911,14 +1025,14 @@ export default function AdminReports() {
                               </p>
                             </div>
                           </div>
-                          <Badge 
-                            variant="outline" 
+                          <Badge
+                            variant="outline"
                             className="flex-shrink-0 text-xs bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-100 border-gray-300 dark:border-gray-700"
                           >
                             {quarter.incident_count || 0}
                           </Badge>
                         </button>
-                        
+
                         {expandedQuarters[quarter.quarter] && (
                           <div className="border-t border-gray-200 dark:border-gray-700 p-3 md:p-4 bg-gray-50 dark:bg-gray-800">
                             <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">
@@ -927,14 +1041,14 @@ export default function AdminReports() {
                             <div className="space-y-2">
                               {getMonthsForQuarter(quarter.quarter, selectedYear).map((monthData) => {
                                 const monthKey = `${quarter.quarter}-${monthData.month}`
-                                const weeklySeries = (monthData.week_counts || []).map((count: number, index: number) => ({ 
-                                  name: `W${index + 1}`, 
-                                  incidents: count 
+                                const weeklySeries = (monthData.week_counts || []).map((count: number, index: number) => ({
+                                  name: `W${index + 1}`,
+                                  incidents: count
                                 }))
-                                
+
                                 return (
-                                  <div 
-                                    key={monthKey} 
+                                  <div
+                                    key={monthKey}
                                     className="bg-white dark:bg-gray-900 p-2 md:p-3 rounded border border-gray-200 dark:border-gray-700"
                                   >
                                     <button
@@ -955,7 +1069,7 @@ export default function AdminReports() {
                                         {monthData.incident_count || 0} incidents
                                       </span>
                                     </button>
-                                    
+
                                     {expandedMonths[monthKey] && (
                                       <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
                                         {weeklySeries.some((p: any) => p.incidents > 0) ? (
@@ -963,27 +1077,27 @@ export default function AdminReports() {
                                             <div style={{ minWidth: '280px', height: '180px' }}>
                                               <ResponsiveContainer width="100%" height="100%">
                                                 <LineChart data={weeklySeries} margin={{ top: 5, right: 10, left: -15, bottom: 5 }}>
-                                                  <CartesianGrid 
-                                                    strokeDasharray="3 3" 
+                                                  <CartesianGrid
+                                                    strokeDasharray="3 3"
                                                     stroke={chartTheme.grid}
                                                   />
-                                                  <XAxis 
-                                                    dataKey="name" 
+                                                  <XAxis
+                                                    dataKey="name"
                                                     stroke={chartTheme.axis}
                                                     tick={{ fontSize: 11 }}
                                                   />
-                                                  <YAxis 
-                                                    allowDecimals={false} 
+                                                  <YAxis
+                                                    allowDecimals={false}
                                                     stroke={chartTheme.axis}
                                                     tick={{ fontSize: 11 }}
                                                   />
-                                                  <Tooltip 
+                                                  <Tooltip
                                                     content={<CustomTooltip darkMode={darkMode} />}
                                                   />
-                                                  <Line 
-                                                    type="monotone" 
-                                                    dataKey="incidents" 
-                                                    stroke={chartTheme.colors[0]} 
+                                                  <Line
+                                                    type="monotone"
+                                                    dataKey="incidents"
+                                                    stroke={chartTheme.colors[0]}
                                                     strokeWidth={2}
                                                     dot={{ r: 3 }}
                                                   />
@@ -1024,9 +1138,9 @@ export default function AdminReports() {
                           <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                               <Pie
-                                data={Object.entries(yearData.type_breakdown).map(([type, count]) => ({ 
-                                  name: type, 
-                                  value: count as number 
+                                data={Object.entries(yearData.type_breakdown).map(([type, count]) => ({
+                                  name: type,
+                                  value: count as number
                                 }))}
                                 cx="50%"
                                 cy="50%"
@@ -1044,7 +1158,7 @@ export default function AdminReports() {
                                 ))}
                               </Pie>
                               <Tooltip content={<CustomTooltip darkMode={darkMode} />} />
-                              <Legend 
+                              <Legend
                                 wrapperStyle={{ fontSize: '11px', color: chartTheme.text }}
                                 iconSize={10}
                               />
@@ -1070,30 +1184,30 @@ export default function AdminReports() {
                       {Object.keys(yearData?.status_summary || {}).length > 0 ? (
                         <div className="w-full h-full overflow-hidden">
                           <ResponsiveContainer width="100%" height="100%">
-                            <BarChart 
-                              data={Object.entries(yearData.status_summary).map(([status, count]) => ({ 
-                                name: status, 
-                                value: count as number 
+                            <BarChart
+                              data={Object.entries(yearData.status_summary).map(([status, count]) => ({
+                                name: status,
+                                value: count as number
                               }))}
                               margin={{ top: 5, right: 10, left: -15, bottom: 5 }}
                             >
-                              <CartesianGrid 
-                                strokeDasharray="3 3" 
+                              <CartesianGrid
+                                strokeDasharray="3 3"
                                 stroke={chartTheme.grid}
                               />
-                              <XAxis 
-                                dataKey="name" 
+                              <XAxis
+                                dataKey="name"
                                 stroke={chartTheme.axis}
                                 tick={{ fontSize: 11 }}
                               />
-                              <YAxis 
-                                allowDecimals={false} 
+                              <YAxis
+                                allowDecimals={false}
                                 stroke={chartTheme.axis}
                                 tick={{ fontSize: 11 }}
                               />
                               <Tooltip content={<CustomTooltip darkMode={darkMode} />} />
-                              <Bar 
-                                dataKey="value" 
+                              <Bar
+                                dataKey="value"
                                 fill={chartTheme.colors[1]}
                                 radius={[4, 4, 0, 0]}
                               />
@@ -1132,10 +1246,10 @@ export default function AdminReports() {
                       />
                     </div>
                     <div className="flex justify-end">
-                      <YearlyPDFReportGenerator 
-                        yearData={getFilteredYearData || yearData} 
-                        selectedYear={selectedYear} 
-                        templateNotes={templateNotes} 
+                      <YearlyPDFReportGenerator
+                        yearData={getFilteredYearData || yearData}
+                        selectedYear={selectedYear}
+                        templateNotes={templateNotes}
                       />
                     </div>
                   </CardContent>
@@ -1145,10 +1259,10 @@ export default function AdminReports() {
                 <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
                   <CardContent className="pt-6">
                     <div className="flex flex-col sm:flex-row flex-wrap justify-end gap-2">
-                      <Button 
-                        onClick={exportYearCSV} 
-                        disabled={exportLoading || showArchived} 
-                        variant="outline" 
+                      <Button
+                        onClick={exportYearCSV}
+                        disabled={exportLoading || showArchived}
+                        variant="outline"
                         className="w-full sm:w-auto"
                       >
                         {exportLoading ? <LoadingSpinner size="sm" /> : (
@@ -1202,8 +1316,8 @@ export default function AdminReports() {
               <CardContent className="space-y-4">
                 <div className="flex flex-col md:flex-row md:flex-wrap gap-3">
                   <Select value={reportType} onValueChange={(value: any) => setReportType(value)}>
-                    <SelectTrigger 
-                      disabled={loading} 
+                    <SelectTrigger
+                      disabled={loading}
                       className="w-full sm:w-48 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700"
                     >
                       <SelectValue placeholder="Select report type" />
@@ -1216,8 +1330,8 @@ export default function AdminReports() {
                   </Select>
 
                   <Select value={dateRange} onValueChange={(value: any) => setDateRange(value)}>
-                    <SelectTrigger 
-                      disabled={loading} 
+                    <SelectTrigger
+                      disabled={loading}
                       className="w-full sm:w-48 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700"
                     >
                       <SelectValue placeholder="Select date range" />
@@ -1229,10 +1343,10 @@ export default function AdminReports() {
                       <SelectItem value="custom">Custom Range</SelectItem>
                     </SelectContent>
                   </Select>
-                  
-                  <Button 
-                    onClick={generateReport} 
-                    disabled={loading || generatingReport} 
+
+                  <Button
+                    onClick={generateReport}
+                    disabled={loading || generatingReport}
                     className="w-full sm:w-auto"
                   >
                     {generatingReport ? <LoadingSpinner size="sm" /> : (
@@ -1307,17 +1421,39 @@ export default function AdminReports() {
                       </CardTitle>
                     </CardHeader>
                   </Card>
-                  
-                  {reportType === "incidents" && reportData?.byStatus && (
+
+                  {(reportType === "incidents" || reportType === "volunteers" || reportType === "schedules") && reportData && (
                     <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 sm:col-span-2 lg:col-span-2">
                       <CardHeader className="pb-2">
                         <CardDescription className="text-sm text-gray-600 dark:text-gray-400">
-                          By Status
+                          {reportType === "incidents" && "By Status"}
+                          {reportType === "volunteers" && "Volunteer Distribution"}
+                          {reportType === "schedules" && "Schedule Distribution"}
                         </CardDescription>
                       </CardHeader>
                       <CardContent>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                          {reportData.byStatus.slice(0, 6).map(([status, count]: any) => (
+                          {reportType === "incidents" && reportData.byStatus && reportData.byStatus.slice(0, 6).map(([status, count]: any) => (
+                            <div key={status} className="flex flex-col">
+                              <span className="text-xs text-gray-600 dark:text-gray-400">
+                                {status}
+                              </span>
+                              <span className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                                {count}
+                              </span>
+                            </div>
+                          ))}
+                          {reportType === "volunteers" && reportData.byStatus && reportData.byStatus.slice(0, 6).map(([status, count]: any) => (
+                            <div key={status} className="flex flex-col">
+                              <span className="text-xs text-gray-600 dark:text-gray-400">
+                                {status}
+                              </span>
+                              <span className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                                {count}
+                              </span>
+                            </div>
+                          ))}
+                          {reportType === "schedules" && reportData.byStatus && reportData.byStatus.slice(0, 6).map(([status, count]: any) => (
                             <div key={status} className="flex flex-col">
                               <span className="text-xs text-gray-600 dark:text-gray-400">
                                 {status}
@@ -1332,6 +1468,283 @@ export default function AdminReports() {
                     </Card>
                   )}
                 </div>
+
+                {/* VOLUNTEER SKILLS AND AVAILABILITY */}
+                {reportType === "volunteers" && reportData?.bySkills && reportData.bySkills.length > 0 && (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {/* Skills Distribution */}
+                    <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base md:text-lg text-gray-900 dark:text-gray-100">
+                          Volunteer Skills Distribution
+                        </CardTitle>
+                        <CardDescription className="text-sm text-gray-600 dark:text-gray-400">
+                          Distribution of volunteer skills
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="h-64 md:h-80">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart
+                              data={reportData.bySkills.map(([skill, count]: any) => ({
+                                name: skill,
+                                value: count
+                              }))}
+                              margin={{ top: 5, right: 10, left: -15, bottom: 40 }}
+                            >
+                              <CartesianGrid
+                                strokeDasharray="3 3"
+                                stroke={chartTheme.grid}
+                              />
+                              <XAxis
+                                dataKey="name"
+                                stroke={chartTheme.axis}
+                                tick={{ fontSize: 10 }}
+                                interval={0}
+                                angle={-45}
+                                textAnchor="end"
+                                height={60}
+                              />
+                              <YAxis
+                                allowDecimals={false}
+                                stroke={chartTheme.axis}
+                                tick={{ fontSize: 11 }}
+                              />
+                              <Tooltip content={<CustomTooltip darkMode={darkMode} />} />
+                              <Bar
+                                dataKey="value"
+                                fill={chartTheme.colors[2]}
+                                radius={[4, 4, 0, 0]}
+                              />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Availability Distribution */}
+                    <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base md:text-lg text-gray-900 dark:text-gray-100">
+                          Volunteer Availability
+                        </CardTitle>
+                        <CardDescription className="text-sm text-gray-600 dark:text-gray-400">
+                          Distribution of volunteer availability
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="h-64 md:h-80">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie
+                                data={reportData.byAvailability.map(([availability, count]: any) => ({
+                                  name: availability,
+                                  value: count
+                                }))}
+                                cx="50%"
+                                cy="50%"
+                                labelLine={false}
+                                outerRadius="70%"
+                                fill="#8884d8"
+                                dataKey="value"
+                                label={({ name, percent }) => {
+                                  const pct = (percent * 100).toFixed(0)
+                                  return `${name}: ${pct}%`
+                                }}
+                              >
+                                {reportData.byAvailability.map((_: any, index: number) => (
+                                  <Cell key={`cell-${index}`} fill={chartTheme.colors[index % chartTheme.colors.length]} />
+                                ))}
+                              </Pie>
+                              <Tooltip content={<CustomTooltip darkMode={darkMode} />} />
+                              <Legend
+                                wrapperStyle={{ fontSize: '11px', color: chartTheme.text }}
+                                iconSize={10}
+                              />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
+
+                {/* SCHEDULE DETAILS */}
+                {reportType === "schedules" && (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {/* Schedule Types */}
+                    {reportData?.byType && reportData.byType.length > 0 && (
+                      <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-base md:text-lg text-gray-900 dark:text-gray-100">
+                            Schedule Types
+                          </CardTitle>
+                          <CardDescription className="text-sm text-gray-600 dark:text-gray-400">
+                            Distribution of schedule types
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="h-64 md:h-80">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <BarChart
+                                data={reportData.byType.map(([type, count]: any) => ({
+                                  name: type,
+                                  value: count
+                                }))}
+                                margin={{ top: 5, right: 10, left: -15, bottom: 40 }}
+                              >
+                                <CartesianGrid
+                                  strokeDasharray="3 3"
+                                  stroke={chartTheme.grid}
+                                />
+                                <XAxis
+                                  dataKey="name"
+                                  stroke={chartTheme.axis}
+                                  tick={{ fontSize: 10 }}
+                                  interval={0}
+                                  angle={-45}
+                                  textAnchor="end"
+                                  height={60}
+                                />
+                                <YAxis
+                                  allowDecimals={false}
+                                  stroke={chartTheme.axis}
+                                  tick={{ fontSize: 11 }}
+                                />
+                                <Tooltip content={<CustomTooltip darkMode={darkMode} />} />
+                                <Bar
+                                  dataKey="value"
+                                  fill={chartTheme.colors[0]}
+                                  radius={[4, 4, 0, 0]}
+                                />
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Schedule by Barangay */}
+                    {reportData?.byBarangay && reportData.byBarangay.length > 0 && (
+                      <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-base md:text-lg text-gray-900 dark:text-gray-100">
+                            Schedules by Barangay
+                          </CardTitle>
+                          <CardDescription className="text-sm text-gray-600 dark:text-gray-400">
+                            Distribution of schedules across barangays
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="h-64 md:h-80">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <PieChart>
+                                <Pie
+                                  data={reportData.byBarangay.map(([barangay, count]: any) => ({
+                                    name: barangay,
+                                    value: count
+                                  }))}
+                                  cx="50%"
+                                  cy="50%"
+                                  labelLine={false}
+                                  outerRadius="70%"
+                                  fill="#8884d8"
+                                  dataKey="value"
+                                  label={({ name, percent }) => {
+                                    const pct = (percent * 100).toFixed(0)
+                                    return `${name}: ${pct}%`
+                                  }}
+                                >
+                                  {reportData.byBarangay.map((_: any, index: number) => (
+                                    <Cell key={`cell-${index}`} fill={chartTheme.colors[index % chartTheme.colors.length]} />
+                                  ))}
+                                </Pie>
+                                <Tooltip content={<CustomTooltip darkMode={darkMode} />} />
+                                <Legend
+                                  wrapperStyle={{ fontSize: '11px', color: chartTheme.text }}
+                                  iconSize={10}
+                                />
+                              </PieChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+                )}
+
+                {/* RESIDENT SUMMARY ROW */}
+                {reportType === "incidents" && residentAnalytics?.overall && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+                      <CardHeader className="pb-2">
+                        <CardDescription className="text-sm text-gray-600 dark:text-gray-400">
+                          Total Resident Reports
+                        </CardDescription>
+                        <CardTitle className="text-2xl md:text-3xl font-bold text-blue-600 dark:text-blue-400">
+                          {residentAnalytics.overall.totalIncidents || 0}
+                        </CardTitle>
+                      </CardHeader>
+                    </Card>
+
+                    <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+                      <CardHeader className="pb-2">
+                        <CardDescription className="text-sm text-gray-600 dark:text-gray-400">
+                          Top Barangay (Resident Reports)
+                        </CardDescription>
+                        <CardTitle className="text-lg md:text-xl font-bold text-gray-900 dark:text-gray-100 truncate">
+                          {residentAnalytics.summary?.topBarangay || "N/A"}
+                        </CardTitle>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                          {residentAnalytics.summary?.topBarangayCount || 0} incidents
+                          {residentAnalytics.overall.totalIncidents > 0 && (
+                            <span className="ml-2 text-blue-600 dark:text-blue-400">
+                              ({((residentAnalytics.summary?.topBarangayCount || 0) / residentAnalytics.overall.totalIncidents * 100).toFixed(1)}%)
+                            </span>
+                          )}
+                        </p>
+                      </CardHeader>
+                    </Card>
+
+                    <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+                      <CardHeader className="pb-2">
+                        <CardDescription className="text-sm text-gray-600 dark:text-gray-400">
+                          Emergency vs Non-Emergency (Resident)
+                        </CardDescription>
+                        <CardTitle className="text-lg md:text-xl font-bold text-gray-900 dark:text-gray-100">
+                          {residentAnalytics.overall.totalEmergency || 0} emergency
+                        </CardTitle>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                          {residentAnalytics.overall.totalNonEmergency || 0} non-emergency
+                        </p>
+                        {residentAnalytics.overall.totalIncidents > 0 && (
+                          <div className="mt-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                            <div
+                              className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full"
+                              style={{
+                                width: `${(residentAnalytics.overall.totalEmergency / residentAnalytics.overall.totalIncidents) * 100}%`
+                              }}
+                            />
+                          </div>
+                        )}
+                      </CardHeader>
+                    </Card>
+
+                    <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+                      <CardHeader className="pb-2">
+                        <CardDescription className="text-sm text-gray-600 dark:text-gray-400">
+                          Resolution Rate (Resident)
+                        </CardDescription>
+                        <CardTitle className="text-2xl md:text-3xl font-bold text-green-600 dark:text-green-400">
+                          {parseFloat(residentAnalytics.overall.resolutionRate || "0").toFixed(1)}%
+                        </CardTitle>
+                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                          of resident reports resolved
+                        </p>
+                      </CardHeader>
+                    </Card>
+                  </div>
+                )}
 
                 {/* INCIDENT DETAILS TABLE */}
                 {reportType === "incidents" && filterDataByDateRange(incidents).length > 0 && (
@@ -1407,28 +1820,26 @@ export default function AdminReports() {
                                   {incident.reporter?.phone_number || incident.reporter?.email || "—"}
                                 </td>
                                 <td className="px-4 py-3 whitespace-nowrap">
-                                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                    incident.status === 'PENDING' ? 'bg-yellow-100 dark:bg-yellow-950 text-yellow-800 dark:text-yellow-200' :
-                                    incident.status === 'ASSIGNED' ? 'bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-200' :
-                                    incident.status === 'RESPONDING' ? 'bg-orange-100 dark:bg-orange-950 text-orange-800 dark:text-orange-200' :
-                                    incident.status === 'RESOLVED' ? 'bg-green-100 dark:bg-green-950 text-green-800 dark:text-green-200' :
-                                    'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200'
-                                  }`}>
+                                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${incident.status === 'PENDING' ? 'bg-yellow-100 dark:bg-yellow-950 text-yellow-800 dark:text-yellow-200' :
+                                      incident.status === 'ASSIGNED' ? 'bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-200' :
+                                        incident.status === 'RESPONDING' ? 'bg-orange-100 dark:bg-orange-950 text-orange-800 dark:text-orange-200' :
+                                          incident.status === 'RESOLVED' ? 'bg-green-100 dark:bg-green-950 text-green-800 dark:text-green-200' :
+                                            'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200'
+                                    }`}>
                                     {incident.status}
                                   </span>
                                 </td>
                                 <td className="px-4 py-3 whitespace-nowrap">
-                                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                    incident.priority === 1 ? 'bg-red-600 text-white' :
-                                    incident.priority === 2 ? 'bg-orange-500 text-white' :
-                                    incident.priority === 3 ? 'bg-yellow-500 text-black dark:text-white' :
-                                    incident.priority === 4 ? 'bg-green-500 text-white' :
-                                    'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
-                                  }`}>
+                                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${incident.priority === 1 ? 'bg-red-600 text-white' :
+                                      incident.priority === 2 ? 'bg-orange-500 text-white' :
+                                        incident.priority === 3 ? 'bg-yellow-500 text-black dark:text-white' :
+                                          incident.priority === 4 ? 'bg-green-500 text-white' :
+                                            'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
+                                    }`}>
                                     {incident.priority === 1 ? 'Critical' :
-                                     incident.priority === 2 ? 'High' :
-                                     incident.priority === 3 ? 'Medium' :
-                                     incident.priority === 4 ? 'Low' : 'Info'}
+                                      incident.priority === 2 ? 'High' :
+                                        incident.priority === 3 ? 'Medium' :
+                                          incident.priority === 4 ? 'Low' : 'Info'}
                                   </span>
                                 </td>
                               </tr>
@@ -1445,6 +1856,474 @@ export default function AdminReports() {
                   </Card>
                 )}
 
+                {/* VOLUNTEER DETAILS TABLE */}
+                {reportType === "volunteers" && reportData?.details && reportData.details.length > 0 && (
+                  <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base md:text-lg text-gray-900 dark:text-gray-100">
+                        Volunteer Details
+                      </CardTitle>
+                      <CardDescription className="text-sm text-gray-600 dark:text-gray-400">
+                        Detailed list of all volunteers in selected date range
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
+                          <thead className="bg-gray-50 dark:bg-gray-900">
+                            <tr>
+                              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Name
+                              </th>
+                              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Email
+                              </th>
+                              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Phone
+                              </th>
+                              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Status
+                              </th>
+                              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Skills
+                              </th>
+                              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Availability
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-800">
+                            {reportData.details.slice(0, 50).map((volunteer: any) => (
+                              <tr key={volunteer.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
+                                  {volunteer.first_name && volunteer.last_name
+                                    ? `${volunteer.first_name} ${volunteer.last_name}`
+                                    : volunteer.first_name || volunteer.last_name || "Unknown"}
+                                </td>
+                                <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
+                                  {volunteer.email || "—"}
+                                </td>
+                                <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+                                  {volunteer.phone_number || "—"}
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${volunteer.volunteer_profiles?.status === 'ACTIVE' ? 'bg-green-100 dark:bg-green-950 text-green-800 dark:text-green-200' :
+                                      volunteer.volunteer_profiles?.status === 'INACTIVE' ? 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200' :
+                                        'bg-yellow-100 dark:bg-yellow-950 text-yellow-800 dark:text-yellow-200'
+                                    }`}>
+                                    {volunteer.volunteer_profiles?.status || "UNKNOWN"}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
+                                  <div className="flex flex-wrap gap-1">
+                                    {volunteer.volunteer_profiles?.skills?.slice(0, 3).map((skill: string, index: number) => (
+                                      <span key={index} className="inline-flex px-2 py-1 text-xs rounded-full bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
+                                        {skill}
+                                      </span>
+                                    ))}
+                                    {volunteer.volunteer_profiles?.skills?.length > 3 && (
+                                      <span className="inline-flex px-2 py-1 text-xs rounded-full bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200">
+                                        +{volunteer.volunteer_profiles.skills.length - 3} more
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
+                                  {volunteer.volunteer_profiles?.availability || "—"}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      {reportData.details.length > 50 && (
+                        <div className="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">
+                          Showing first 50 of {reportData.details.length} volunteers. Export CSV for full list.
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* SCHEDULE DETAILS TABLE */}
+                {reportType === "schedules" && reportData?.details && reportData.details.length > 0 && (
+                  <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base md:text-lg text-gray-900 dark:text-gray-100">
+                        Schedule Details
+                      </CardTitle>
+                      <CardDescription className="text-sm text-gray-600 dark:text-gray-400">
+                        Detailed list of all schedules in selected date range
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
+                          <thead className="bg-gray-50 dark:bg-gray-900">
+                            <tr>
+                              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Activity
+                              </th>
+                              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Volunteer
+                              </th>
+                              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Start Time
+                              </th>
+                              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                End Time
+                              </th>
+                              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Barangay
+                              </th>
+                              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Status
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-800">
+                            {reportData.details.slice(0, 50).map((schedule: any) => (
+                              <tr key={schedule.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                                <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
+                                  {schedule.activity_type || schedule.title || "Unknown Activity"}
+                                </td>
+                                <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
+                                  {schedule.volunteer?.first_name && schedule.volunteer?.last_name
+                                    ? `${schedule.volunteer.first_name} ${schedule.volunteer.last_name}`
+                                    : schedule.volunteer?.first_name || schedule.volunteer?.last_name || "Unassigned"}
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
+                                  {schedule.start_time ? new Date(schedule.start_time).toLocaleDateString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  }) : "—"}
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
+                                  {schedule.end_time ? new Date(schedule.end_time).toLocaleDateString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  }) : "—"}
+                                </td>
+                                <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
+                                  {schedule.barangay || "—"}
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${schedule.status === 'PENDING' ? 'bg-yellow-100 dark:bg-yellow-950 text-yellow-800 dark:text-yellow-200' :
+                                      schedule.status === 'CONFIRMED' ? 'bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-200' :
+                                        schedule.status === 'COMPLETED' ? 'bg-green-100 dark:bg-green-950 text-green-800 dark:text-green-200' :
+                                          schedule.status === 'CANCELLED' ? 'bg-red-100 dark:bg-red-950 text-red-800 dark:text-red-200' :
+                                            'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200'
+                                    }`}>
+                                    {schedule.status || "UNKNOWN"}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      {reportData.details.length > 50 && (
+                        <div className="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">
+                          Showing first 50 of {reportData.details.length} schedules. Export CSV for full list.
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* RESIDENT-REPORTED INCIDENTS BY BARANGAY */}
+                {reportType === "incidents" && residentAnalytics?.byBarangay && residentAnalytics.byBarangay.length > 0 && (
+                  <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base md:text-lg text-gray-900 dark:text-gray-100">
+                        Resident-Reported Incidents by Barangay
+                      </CardTitle>
+                      <CardDescription className="text-sm text-gray-600 dark:text-gray-400">
+                        Per barangay, selected period
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {/* Bar Chart */}
+                        <div className="h-64 md:h-80">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart
+                              data={residentAnalytics.byBarangay
+                                .slice(0, 10)
+                                .map((item: any) => ({
+                                  barangay: item.barangay,
+                                  count: item.total,
+                                  percentage: residentAnalytics.overall.totalIncidents > 0
+                                    ? ((item.total / residentAnalytics.overall.totalIncidents) * 100).toFixed(1)
+                                    : '0.0'
+                                }))}
+                              margin={{ top: 5, right: 10, left: -15, bottom: 40 }}
+                            >
+                              <CartesianGrid
+                                strokeDasharray="3 3"
+                                stroke={chartTheme.grid}
+                              />
+                              <XAxis
+                                dataKey="barangay"
+                                stroke={chartTheme.axis}
+                                tick={{ fontSize: 10 }}
+                                interval={0}
+                                angle={-45}
+                                textAnchor="end"
+                                height={60}
+                              />
+                              <YAxis
+                                allowDecimals={false}
+                                stroke={chartTheme.axis}
+                                tick={{ fontSize: 11 }}
+                              />
+                              <Tooltip
+                                content={({ active, payload }) => {
+                                  if (active && payload && payload.length) {
+                                    const data = payload[0].payload
+                                    return (
+                                      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3 shadow-lg">
+                                        <p className="font-medium text-gray-900 dark:text-gray-100">{data.barangay}</p>
+                                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                                          Count: <span className="font-semibold">{data.count}</span>
+                                        </p>
+                                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                                          {data.percentage}% of resident reports
+                                        </p>
+                                      </div>
+                                    )
+                                  }
+                                  return null
+                                }}
+                              />
+                              <Bar
+                                dataKey="count"
+                                fill={chartTheme.colors[2]}
+                                radius={[4, 4, 0, 0]}
+                              />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+
+                        {/* Top Barangays List */}
+                        <div className="space-y-2">
+                          <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">
+                            Top 5 Barangays
+                          </h4>
+                          {residentAnalytics.byBarangay.slice(0, 5).map((item: any, index: number) => {
+                            const percentage = residentAnalytics.overall.totalIncidents > 0
+                              ? ((item.total / residentAnalytics.overall.totalIncidents) * 100).toFixed(1)
+                              : '0.0'
+                            return (
+                              <div
+                                key={item.barangay}
+                                className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/60 rounded-lg"
+                              >
+                                <div className="flex items-center gap-3 flex-1 min-w-0">
+                                  <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
+                                    <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">
+                                      {index + 1}
+                                    </span>
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                                      {item.barangay}
+                                    </p>
+                                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                                      {item.total} incident{item.total !== 1 ? 's' : ''}
+                                    </p>
+                                  </div>
+                                </div>
+                                <Badge className="ml-2 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
+                                  {percentage}%
+                                </Badge>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* RESIDENT TREND CHART */}
+                {reportType === "incidents" && residentAnalytics?.trends && (
+                  <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base md:text-lg text-gray-900 dark:text-gray-100">
+                        Resident Incident Trend
+                      </CardTitle>
+                      <CardDescription className="text-sm text-gray-600 dark:text-gray-400">
+                        {(() => {
+                          const daysDiff = dateRange === "custom" && dateFrom && dateTo
+                            ? Math.ceil((dateTo.getTime() - dateFrom.getTime()) / (1000 * 60 * 60 * 24))
+                            : dateRange === "week" ? 7
+                            : dateRange === "month" ? 30
+                            : 365
+                          return daysDiff <= 30 ? "Daily trend" : daysDiff <= 90 ? "Weekly trend" : "Monthly trend"
+                        })()}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-64 md:h-80">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart
+                            data={(() => {
+                              const daysDiff = dateRange === "custom" && dateFrom && dateTo
+                                ? Math.ceil((dateTo.getTime() - dateFrom.getTime()) / (1000 * 60 * 60 * 24))
+                                : dateRange === "week" ? 7
+                                : dateRange === "month" ? 30
+                                : 365
+                              
+                              let trendData: any[] = []
+                              if (daysDiff <= 30 && residentAnalytics.trends.daily && residentAnalytics.trends.daily.length > 0) {
+                                trendData = residentAnalytics.trends.daily.map((item: any) => {
+                                  try {
+                                    const date = new Date(item.date)
+                                    return {
+                                      date: format(date, 'MMM dd'),
+                                      count: item.count || 0
+                                    }
+                                  } catch {
+                                    return { date: item.date, count: item.count || 0 }
+                                  }
+                                })
+                              } else if (daysDiff <= 90 && residentAnalytics.trends.weekly && residentAnalytics.trends.weekly.length > 0) {
+                                trendData = residentAnalytics.trends.weekly.map((item: any) => {
+                                  try {
+                                    const date = new Date(item.week)
+                                    return {
+                                      date: format(date, 'MMM dd'),
+                                      count: item.count || 0
+                                    }
+                                  } catch {
+                                    return { date: item.week || 'Unknown', count: item.count || 0 }
+                                  }
+                                })
+                              } else if (residentAnalytics.trends.monthly && residentAnalytics.trends.monthly.length > 0) {
+                                trendData = residentAnalytics.trends.monthly.map((item: any) => {
+                                  try {
+                                    const monthStr = item.month || ''
+                                    const date = new Date(monthStr + '-01')
+                                    return {
+                                      date: format(date, 'MMM yyyy'),
+                                      count: item.count || 0
+                                    }
+                                  } catch {
+                                    return { date: item.month || 'Unknown', count: item.count || 0 }
+                                  }
+                                })
+                              }
+                              return trendData
+                            })()}
+                            margin={{ top: 5, right: 10, left: -15, bottom: 5 }}
+                          >
+                            <CartesianGrid
+                              strokeDasharray="3 3"
+                              stroke={chartTheme.grid}
+                            />
+                            <XAxis
+                              dataKey="date"
+                              stroke={chartTheme.axis}
+                              tick={{ fontSize: 11 }}
+                            />
+                            <YAxis
+                              allowDecimals={false}
+                              stroke={chartTheme.axis}
+                              tick={{ fontSize: 11 }}
+                            />
+                            <Tooltip content={<CustomTooltip darkMode={darkMode} />} />
+                            <Line
+                              type="monotone"
+                              dataKey="count"
+                              stroke={chartTheme.colors[0]}
+                              strokeWidth={2}
+                              dot={{ fill: chartTheme.colors[0], r: 4 }}
+                              activeDot={{ r: 6 }}
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* INCIDENTS BY BARANGAY (ANALYTICS) */}
+                {reportType === "incidents" && barangayAnalytics.items.length > 0 && (
+                  <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base md:text-lg text-gray-900 dark:text-gray-100">
+                        Incidents by Barangay
+                      </CardTitle>
+                      <CardDescription className="text-sm text-gray-600 dark:text-gray-400">
+                        Distribution of incidents across barangays for the selected period
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="h-64 md:h-80">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart
+                            data={barangayAnalytics.items}
+                            margin={{ top: 5, right: 10, left: -15, bottom: 40 }}
+                          >
+                            <CartesianGrid
+                              strokeDasharray="3 3"
+                              stroke={chartTheme.grid}
+                            />
+                            <XAxis
+                              dataKey="barangay"
+                              stroke={chartTheme.axis}
+                              tick={{ fontSize: 10 }}
+                              interval={0}
+                              angle={-45}
+                              textAnchor="end"
+                              height={60}
+                            />
+                            <YAxis
+                              allowDecimals={false}
+                              stroke={chartTheme.axis}
+                              tick={{ fontSize: 11 }}
+                            />
+                            <Tooltip content={<CustomTooltip darkMode={darkMode} />} />
+                            <Bar
+                              dataKey="count"
+                              fill={chartTheme.colors[2]}
+                              radius={[4, 4, 0, 0]}
+                            />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {barangayAnalytics.items.slice(0, 6).map((item) => (
+                          <div
+                            key={item.barangay}
+                            className="flex items-center justify-between p-2 md:p-3 bg-gray-50 dark:bg-gray-800/60 rounded-lg"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs md:text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                                {item.barangay}
+                              </p>
+                              <p className="text-xs text-gray-600 dark:text-gray-400">
+                                {item.count} incidents
+                              </p>
+                            </div>
+                            <div className="ml-3 text-xs md:text-sm font-semibold text-blue-600 dark:text-blue-400">
+                              {item.percentage.toFixed(1)}%
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
                 {reportType === "incidents" && incidentsByStatus.length > 0 && (
                   <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
                     <CardHeader className="pb-3">
@@ -1455,30 +2334,30 @@ export default function AdminReports() {
                     <CardContent className="h-64 md:h-80">
                       <div className="w-full h-full overflow-hidden">
                         <ResponsiveContainer width="100%" height="100%">
-                          <BarChart 
-                            data={incidentsByStatus.map((item) => ({ 
-                              name: item.status, 
-                              value: Number(item.count) 
+                          <BarChart
+                            data={incidentsByStatus.map((item) => ({
+                              name: item.status,
+                              value: Number(item.count)
                             }))}
                             margin={{ top: 5, right: 10, left: -15, bottom: 5 }}
                           >
-                            <CartesianGrid 
-                              strokeDasharray="3 3" 
+                            <CartesianGrid
+                              strokeDasharray="3 3"
                               stroke={chartTheme.grid}
                             />
-                            <XAxis 
-                              dataKey="name" 
+                            <XAxis
+                              dataKey="name"
                               stroke={chartTheme.axis}
                               tick={{ fontSize: 11 }}
                             />
-                            <YAxis 
-                              allowDecimals={false} 
+                            <YAxis
+                              allowDecimals={false}
                               stroke={chartTheme.axis}
                               tick={{ fontSize: 11 }}
                             />
                             <Tooltip content={<CustomTooltip darkMode={darkMode} />} />
-                            <Bar 
-                              dataKey="value" 
+                            <Bar
+                              dataKey="value"
                               fill={chartTheme.colors[0]}
                               radius={[4, 4, 0, 0]}
                             />

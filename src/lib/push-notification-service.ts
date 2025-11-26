@@ -2,6 +2,8 @@
 
 "use client"
 
+import { supabase } from './supabase'
+
 /**
  * Push Notification Service
  * Handles web push notifications for instant volunteer alerts
@@ -134,32 +136,59 @@ class PushNotificationService {
 
       // Wait for service worker to be ready
       await navigator.serviceWorker.ready
+      console.log('[push] Service worker ready')
 
       // Check for existing subscription
       this.subscription = await this.registration.pushManager.getSubscription()
 
       if (!this.subscription) {
         // Create new subscription
-        await this.subscribe()
+        console.log('[push] No existing subscription found, creating new one...')
+        const newSubscription = await this.subscribe()
+        if (!newSubscription) {
+          throw new Error('Failed to create push subscription')
+        }
       } else {
-        console.log('[push] Existing subscription found')
-        // Send subscription to server
+        console.log('[push] Existing subscription found, syncing with server...')
+        console.log('[push] Subscription endpoint:', this.subscription.endpoint.substring(0, 50) + '...')
+        // Send subscription to server (will check auth inside)
         await this.sendSubscriptionToServer(this.subscription)
       }
 
       return true
     } catch (error: any) {
-      console.log('[push] Could not initialize push notifications:', error.message)
-      return false
+      console.error('[push] Could not initialize push notifications:', error.message)
+      throw error // Re-throw so caller can handle authentication errors
     }
   }
 
   /**
    * Manually enable push notifications (prompts user for permission)
    * This should be called from a user interaction (button click) for better UX
+   * Checks authentication before enabling
    */
   async enable(): Promise<boolean> {
-    return this.initialize(true)
+    try {
+      // Check authentication first
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      
+      if (sessionError) {
+        console.error('[push] Session error:', sessionError.message)
+        throw new Error('Failed to verify authentication. Please try logging in again.')
+      }
+
+      if (!session?.user?.id) {
+        const errorMsg = 'You must be logged in to enable push notifications. Please log in first.'
+        console.warn('[push]', errorMsg)
+        throw new Error(errorMsg)
+      }
+
+      console.log('[push] User authenticated, proceeding with enable:', session.user.id)
+      return this.initialize(true)
+    } catch (error: any) {
+      console.error('[push] Enable failed:', error.message)
+      throw error
+    }
   }
 
   /**
@@ -183,7 +212,7 @@ class PushNotificationService {
       // Subscribe to push notifications
       this.subscription = await this.registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: convertedKey
+        applicationServerKey: convertedKey as BufferSource
       })
 
       console.log('[push] Subscribed to push notifications')
@@ -226,9 +255,26 @@ class PushNotificationService {
 
   /**
    * Send subscription to server for storage
+   * Checks authentication before sending
    */
   public async sendSubscriptionToServer(subscription: PushSubscription): Promise<void> {
     try {
+      // Check if user is authenticated before sending subscription
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      
+      if (sessionError) {
+        console.error('[push] Session error:', sessionError.message)
+        throw new Error('Failed to verify authentication session')
+      }
+
+      if (!session?.user?.id) {
+        const errorMsg = 'User must be logged in to enable push notifications. Please log in first.'
+        console.warn('[push]', errorMsg)
+        throw new Error(errorMsg)
+      }
+
+      console.log('[push] User authenticated:', session.user.id)
+
       // Store the entire subscription object as JSONB (matches database schema)
       const subscriptionData = {
         endpoint: subscription.endpoint,
@@ -238,6 +284,12 @@ class PushNotificationService {
           auth: this.arrayBufferToBase64(subscription.getKey('auth')!)
         }
       }
+
+      console.log('[push] Sending subscription to server:', {
+        endpoint: subscriptionData.endpoint.substring(0, 50) + '...',
+        hasKeys: !!subscriptionData.keys.p256dh && !!subscriptionData.keys.auth,
+        userId: session.user.id
+      })
 
       const response = await fetch('/api/notifications/subscribe', {
         method: 'POST',
@@ -249,12 +301,36 @@ class PushNotificationService {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `Server returned ${response.status}`)
+        const errorMessage = errorData.message || `Server returned ${response.status}`
+        const errorCode = errorData.code || 'UNKNOWN_ERROR'
+        
+        console.error('[push] Server error:', {
+          status: response.status,
+          code: errorCode,
+          message: errorMessage,
+          userId: session.user.id
+        })
+        
+        // Provide more helpful error messages
+        if (response.status === 401) {
+          throw new Error('Authentication failed. Please log in and try again.')
+        } else if (response.status === 400) {
+          throw new Error('Invalid subscription data. Please try refreshing the page.')
+        } else if (response.status === 429) {
+          throw new Error('Too many requests. Please wait a moment and try again.')
+        } else {
+          throw new Error(errorMessage)
+        }
       }
 
-      console.log('[push] Subscription saved to server')
+      const result = await response.json().catch(() => ({}))
+      console.log('[push] Subscription saved to server successfully:', {
+        userId: session.user.id,
+        endpoint: subscriptionData.endpoint.substring(0, 50) + '...',
+        success: result.success
+      })
     } catch (error: any) {
-      console.log('[push] Could not save subscription:', error.message)
+      console.error('[push] Could not save subscription:', error.message)
       throw error
     }
   }

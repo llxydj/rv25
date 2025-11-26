@@ -13,20 +13,13 @@ export const normalizeIncident = (incident: any) => {
   let photoGallery: string[] = [];
   
   if (Array.isArray(incident.photo_urls) && incident.photo_urls.length > 0) {
-    // New format - use photo_urls array
-    photoGallery = incident.photo_urls;
+    photoGallery = incident.photo_urls; // New format
   } else if (incident.photo_url) {
-    // Old format - convert single photo_url to array
-    photoGallery = [incident.photo_url];
+    photoGallery = [incident.photo_url]; // Old format
   }
   
-  // Determine if this is legacy data (old format)
   const isLegacyData = !Array.isArray(incident.photo_urls);
-  
-  // Use created_at_local if available (new format), otherwise fall back to created_at (old format)
   const displayDate = incident.created_at_local || incident.created_at;
-  
-  // Normalize barangay to uppercase (new format standard)
   const normalizedBarangay = incident.barangay?.toUpperCase() || incident.barangay || '';
   
   return {
@@ -35,7 +28,6 @@ export const normalizeIncident = (incident: any) => {
     isLegacyData,
     displayDate,
     barangay: normalizedBarangay,
-    // Add a flag to indicate data format version
     dataFormatVersion: isLegacyData ? 'legacy' : 'current'
   };
 };
@@ -52,5 +44,31 @@ export const formatDisplayDate = (dateString: string | null | undefined) => {
     return date.toLocaleString();
   } catch {
     return "Invalid date";
+  }
+};
+
+/**
+ * Map incident priority to severity level
+ * @param priority - Incident priority (string or number)
+ * @returns Severity string
+ */
+export const mapPriorityToSeverity = (priority: string | number) => {
+  const priorityStr = String(priority).toLowerCase();
+  
+  switch (priorityStr) {
+    case '1':
+    case 'critical':
+      return 'CRITICAL';
+    case '2':
+    case 'high':
+      return 'SEVERE';
+    case '3':
+    case 'medium':
+      return 'MODERATE';
+    case '4':
+    case 'low':
+      return 'MINOR';
+    default:
+      return 'MODERATE'; // Default to MODERATE instead of unknown
   }
 };

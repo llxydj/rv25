@@ -182,7 +182,7 @@ export const VolunteerLayout: React.FC<VolunteerLayoutProps> = ({ children }) =>
             <div className="bg-white border-b border-gray-200 px-4 py-2 flex justify-between items-center">
               <h1 className="text-lg font-semibold text-gray-800 hidden lg:block">Volunteer Portal</h1>
               <div className="flex items-center space-x-4 ml-auto">
-                <SystemClock className="hidden md:block" />
+                <SystemClock className="block" />
                 <VolunteerNotificationsNew />
               </div>
             </div>

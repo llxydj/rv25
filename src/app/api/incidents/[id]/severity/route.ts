@@ -69,7 +69,7 @@ export async function PATCH(
     const { severity, updated_by, notes } = parsed.data
     
     // Get current incident
-    const { data: currentIncident, error: fetchError } = await supabase
+    const { data: currentIncident, error: fetchError }: any = await supabase
       .from('incidents')
       .select('status, assigned_to, severity')
       .eq('id', params.id)
@@ -90,7 +90,7 @@ export async function PATCH(
     }
 
     // Check user role
-    const { data: user } = await supabase
+    const { data: user }: any = await supabase
       .from('users')
       .select('role')
       .eq('id', userId)
@@ -136,7 +136,7 @@ export async function PATCH(
     // Use a transaction-like approach with row-level locking to prevent race conditions
     // Re-fetch with FOR UPDATE equivalent (Supabase doesn't support SELECT FOR UPDATE directly,
     // but we can use a conditional update that checks status hasn't changed)
-    const { data: verifyIncident, error: verifyError } = await supabase
+    const { data: verifyIncident, error: verifyError }: any = await supabase
       .from('incidents')
       .select('status, assigned_to')
       .eq('id', params.id)
@@ -161,7 +161,7 @@ export async function PATCH(
     // Update incident severity (and keep priority in sync) with conditional check to prevent concurrent updates
     const newPriority = mapSeverityToPriority(severity)
 
-    const { data: updatedIncident, error: updateError } = await supabase
+    const { data: updatedIncident, error: updateError }: any = await (supabase as any)
       .from('incidents')
       .update({ 
         severity,
@@ -170,7 +170,7 @@ export async function PATCH(
       })
       .eq('id', params.id)
       // For volunteers, ensure status is still ARRIVED (additional safety check)
-      .eq(user.role === 'volunteer' ? 'status' : 'id', user.role === 'volunteer' ? 'ARRIVED' : params.id)
+      .eq((user as any).role === 'volunteer' ? 'status' : 'id', (user as any).role === 'volunteer' ? 'ARRIVED' : params.id)
       .select()
       .single()
     
@@ -182,14 +182,14 @@ export async function PATCH(
     }
     
     // Record severity change in incident_updates table
-    const { error: logError } = await supabase
+    const { error: logError }: any = await (supabase as any)
       .from('incident_updates')
       .insert({
         incident_id: params.id,
         updated_by: updated_by || userId,
-        previous_status: currentIncident.status,
-        new_status: currentIncident.status, // Status doesn't change, only severity
-        notes: notes || `Severity updated to ${severity}${currentIncident.severity ? ` (was ${currentIncident.severity})` : ''}`,
+        previous_status: "SEVERITY_UPDATE", // Special marker for severity updates
+        new_status: "SEVERITY_UPDATE", // Special marker for severity updates
+        notes: notes || `Severity updated to ${severity}${(currentIncident as any).severity ? ` (was ${(currentIncident as any).severity})` : ''}`,
         created_at: new Date().toISOString()
       })
     

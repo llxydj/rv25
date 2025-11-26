@@ -216,9 +216,10 @@ export async function PUT(request: Request) {
     if (typeof address === 'string' || address === null) update.address = address ?? null
     if (barangay) update.barangay = String(barangay).toUpperCase()
     if (status) update.status = status
-    if (typeof priority === 'number') {
-      update.priority = priority
-      update.severity = mapPriorityToSeverity(Number(priority))
+    if (typeof priority === 'number' || typeof priority === 'string') {
+      const priorityNum = Number(priority)
+      update.priority = priorityNum
+      update.severity = mapPriorityToSeverity(String(priorityNum))
     }
     if (typeof photo_url === 'string' || photo_url === null) update.photo_url = photo_url ?? null
     if (assigned_to !== undefined) update.assigned_to = assigned_to
@@ -427,13 +428,13 @@ export async function POST(request: Request) {
       province: 'NEGROS OCCIDENTAL',
       status: 'PENDING',
       priority: normalizedPriority,
-      severity: mapPriorityToSeverity(normalizedPriority),
+      severity: mapPriorityToSeverity(String(normalizedPriority)),
       photo_url: primaryPhotoPath,
       photo_urls: processedPhotoPaths.length ? processedPhotoPaths : null,
     }
 
     if (normalizedLocalTimestamp) {
-      payload.created_at = normalizedLocalTimestamp
+      (payload as any).created_at = normalizedLocalTimestamp
     }
 
     const { data, error } = await supabase.from('incidents').insert(payload).select().single()
@@ -515,49 +516,68 @@ export async function POST(request: Request) {
         : generateReferenceId(data.id) // Fallback to simple ID
       
       // Get resident phone number - ALWAYS send confirmation to reporter
-      const { data: resident } = await supabase
+      const { data: resident, error: residentError } = await supabase
         .from('users')
-        .select('phone_number')
+        .select('phone_number, first_name, last_name, email')
         .eq('id', data.reporter_id)
         .single()
 
-      if (resident?.phone_number) {
+      if (residentError) {
+        console.error('❌ Error fetching resident for SMS:', residentError.message)
+      } else if (resident?.phone_number) {
         console.log('📱 Attempting to send SMS confirmation to resident:', {
           phoneNumber: resident.phone_number,
           residentId: data.reporter_id,
+          residentName: `${resident.first_name || ''} ${resident.last_name || ''}`.trim() || resident.email,
           incidentId: data.id,
           referenceId: referenceId
         })
         
-        const smsResult = await smsService.sendIncidentConfirmation(
-          data.id,
-          referenceId,
-          resident.phone_number,
-          data.reporter_id,
-          {
-            type: data.incident_type,
-            barangay: data.barangay,
-            time: new Date(data.created_at).toLocaleTimeString('en-US', { 
-              hour: '2-digit', 
-              minute: '2-digit',
-              hour12: true 
+        try {
+          const smsResult = await smsService.sendIncidentConfirmation(
+            data.id,
+            referenceId,
+            resident.phone_number,
+            data.reporter_id,
+            {
+              type: data.incident_type,
+              barangay: data.barangay,
+              time: new Date(data.created_at).toLocaleTimeString('en-US', { 
+                hour: '2-digit', 
+                minute: '2-digit',
+                hour12: true 
+              })
+            }
+          )
+
+          if (smsResult.success) {
+            console.log('✅ SMS confirmation sent to resident:', {
+              phone: resident.phone_number.substring(0, 4) + '****',
+              referenceId
+            })
+          } else {
+            console.error('❌ SMS confirmation failed:', {
+              error: smsResult.error,
+              retryable: smsResult.retryable,
+              phoneNumber: resident.phone_number.substring(0, 4) + '****',
+              residentId: data.reporter_id,
+              incidentType: data.incident_type,
+              barangay: data.barangay
             })
           }
-        )
-
-        if (smsResult.success) {
-          console.log('✅ SMS confirmation sent to resident:', resident.phone_number)
-        } else {
-          console.log('❌ SMS confirmation failed:', smsResult.error)
-          console.log('🔧 SMS Debug Info:', {
-            phoneNumber: resident.phone_number,
-            residentId: data.reporter_id,
-            incidentType: data.incident_type,
-            barangay: data.barangay
+        } catch (smsError: any) {
+          console.error('❌ SMS send exception:', {
+            error: smsError.message,
+            stack: smsError.stack,
+            phoneNumber: resident.phone_number.substring(0, 4) + '****'
           })
         }
       } else {
-        console.log('⚠️ No phone number found for resident:', data.reporter_id)
+        console.log('⚠️ No phone number found for resident:', {
+          residentId: data.reporter_id,
+          hasPhone: !!resident?.phone_number,
+          email: resident?.email || 'N/A'
+        })
       }
 
       // ALWAYS send critical alert SMS to admins for ALL incidents (not just high priority)

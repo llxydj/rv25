@@ -1,5 +1,9 @@
 import { supabase } from "./supabase"
 import { VolunteerProfile, VolunteerStatus, UserWithVolunteerProfile, VolunteerProfileUpdate } from "@/types/volunteer"
+import { Database } from "@/types/supabase"
+
+type UserRow = Database['public']['Tables']['users']['Row']
+type VolunteerProfileRow = Database['public']['Tables']['volunteer_profiles']['Row']
 
 // Get all volunteers
 export const getAllVolunteers = async () => {
@@ -45,10 +49,10 @@ export const getAllVolunteers = async () => {
         role: 'volunteer' as const,
         volunteer_profiles: profile ? {
           ...profile,
-          is_available: (profile as any).is_available === true || (profile as any).is_available === 'true',
-          skills: Array.isArray((profile as any).skills) ? (profile as any).skills : [],
-          availability: Array.isArray((profile as any).availability) ? (profile as any).availability : [],
-          assigned_barangays: Array.isArray((profile as any).assigned_barangays) ? (profile as any).assigned_barangays : [],
+          is_available: profile.is_available === true,
+          skills: Array.isArray(profile.skills) ? profile.skills : [],
+          availability: Array.isArray(profile.availability) ? profile.availability : [],
+          assigned_barangays: Array.isArray(profile.assigned_barangays) ? profile.assigned_barangays : [],
         } : null,
       }
     })
@@ -171,7 +175,7 @@ export const updateVolunteerStatus = async (
             // The profile got created by another process, try to update it instead
             const { data: updatedProfile, error: updateError } = await supabase
               .from("volunteer_profiles")
-              .update({ 
+              .update({
                 status,
                 admin_user_id: adminId,
                 updated_at: now,
@@ -181,14 +185,14 @@ export const updateVolunteerStatus = async (
               .eq("volunteer_user_id", volunteerId)
               .select()
               .single()
-              
+
             if (updateError) throw updateError
             return { success: true, data: updatedProfile }
           } else {
             throw createError
           }
         }
-        
+
         return { success: true, data: newProfile }
       } catch (err: any) {
         console.error("Error creating volunteer profile:", err.message)
@@ -198,7 +202,7 @@ export const updateVolunteerStatus = async (
       // Update existing volunteer profile
       const { data: updatedProfile, error: updateError } = await supabase
         .from("volunteer_profiles")
-        .update({ 
+        .update({
           status,
           updated_at: now,
           last_status_change: now,
@@ -238,7 +242,7 @@ export const getVolunteerProfile = async (userId: string): Promise<{ success: bo
       .eq("volunteer_user_id", userId)
       .single()
 
-    let volunteerProfile = profileData
+    let volunteerProfile = profileData as unknown as VolunteerProfile
 
     // Handle case where profile doesn't exist
     if (profileError) {
@@ -275,14 +279,14 @@ export const getVolunteerProfile = async (userId: string): Promise<{ success: bo
                 .select("*")
                 .eq("volunteer_user_id", userId)
                 .single()
-              
+
               if (retryError) {
                 throw retryError;
               }
-              volunteerProfile = retryProfileData;
+              volunteerProfile = retryProfileData as unknown as VolunteerProfile;
             } else if (createError.code === 'PGRST204') {
               // If we get an RLS error, return a more helpful message
-              return { 
+              return {
                 success: false,
                 message: "Your profile needs to be activated by an admin. Please contact the administrator."
               }
@@ -290,7 +294,7 @@ export const getVolunteerProfile = async (userId: string): Promise<{ success: bo
               throw createError;
             }
           } else {
-            volunteerProfile = newProfile;
+            volunteerProfile = newProfile as unknown as VolunteerProfile;
           }
         } catch (insertError: any) {
           console.error("Error in profile creation:", insertError);
@@ -299,13 +303,13 @@ export const getVolunteerProfile = async (userId: string): Promise<{ success: bo
             const { data: finalRetryData, error: finalRetryError } = await supabase
               .from("volunteer_profiles")
               .select("*")
-              .eq("volunteer_user_id", userId) 
+              .eq("volunteer_user_id", userId)
               .single()
-              
+
             if (finalRetryError) {
               throw finalRetryError;
             }
-            volunteerProfile = finalRetryData;
+            volunteerProfile = finalRetryData as unknown as VolunteerProfile;
           } else {
             throw insertError;
           }
@@ -326,8 +330,8 @@ export const getVolunteerProfile = async (userId: string): Promise<{ success: bo
     }
   } catch (error: any) {
     console.error("Error fetching volunteer profile:", error?.message || error);
-    return { 
-      success: false, 
+    return {
+      success: false,
       message: error?.message || "An unexpected error occurred while fetching volunteer profile"
     }
   }
@@ -566,26 +570,26 @@ export const getVolunteerInformation = async (volunteerId: string) => {
       throw error
     }
 
-    return { 
-      success: true, 
+    return {
+      success: true,
       data,
       message: data ? "Volunteer information retrieved successfully" : "No information found for this volunteer"
     }
   } catch (error: any) {
     const errorMessage = error?.message || "An unexpected error occurred"
     const errorDetails = error?.details || error?.hint || null
-    
+
     console.error('Error fetching volunteer information:', {
       message: errorMessage,
       details: errorDetails,
       error
     })
 
-    return { 
-      success: false, 
+    return {
+      success: false,
       message: errorMessage,
       details: errorDetails,
-      error 
+      error
     }
   }
 }
@@ -626,25 +630,25 @@ export const updateVolunteerInformation = async (
       throw error
     }
 
-    return { 
+    return {
       success: true,
       message: "Volunteer information updated successfully"
     }
   } catch (error: any) {
     const errorMessage = error?.message || "An unexpected error occurred"
     const errorDetails = error?.details || error?.hint || null
-    
+
     console.error('Error updating volunteer information:', {
       message: errorMessage,
       details: errorDetails,
       error
     })
 
-    return { 
-      success: false, 
+    return {
+      success: false,
       message: errorMessage,
       details: errorDetails,
-      error 
+      error
     }
   }
 }

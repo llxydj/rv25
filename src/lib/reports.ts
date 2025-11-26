@@ -20,7 +20,8 @@ export const getIncidentsByBarangay = async (startDate?: string, endDate?: strin
 
     const counts: Record<string, number> = {}
     ;(data as Array<{ barangay: string | null }> | null || []).forEach((row) => {
-      const key = row.barangay || "UNKNOWN"
+      const raw = row.barangay && typeof row.barangay === "string" ? row.barangay.trim() : null
+      const key = raw && raw.length > 0 ? raw : "UNKNOWN"
       counts[key] = (counts[key] || 0) + 1
     })
 

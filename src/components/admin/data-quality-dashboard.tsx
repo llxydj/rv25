@@ -15,11 +15,13 @@ interface DataQualityStats {
 export function DataQualityDashboard() {
   const [stats, setStats] = useState<DataQualityStats | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchDataQualityStats = async () => {
       try {
         setLoading(true)
+        setError(null)
         
         // Get total incidents
         const { count: totalIncidents, error: totalCountError } = await supabase
@@ -32,7 +34,7 @@ export function DataQualityDashboard() {
         const { count: legacyIncidents, error: legacyCountError } = await supabase
           .from('incidents')
           .select('*', { count: 'exact', head: true })
-          .or('photo_urls.is.null,photo_urls.eq.null')
+          .or('photo_urls.is.null,photo_urls.eq.{}')
           
         if (legacyCountError) throw legacyCountError
         
@@ -49,8 +51,9 @@ export function DataQualityDashboard() {
           currentIncidents: currentIncidents,
           migrationProgress
         })
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error fetching data quality stats:", error)
+        setError(error.message || "Failed to load data quality statistics")
       } finally {
         setLoading(false)
       }
@@ -67,6 +70,19 @@ export function DataQualityDashboard() {
         </CardHeader>
         <CardContent>
           <p>Loading data quality statistics...</p>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Data Quality Dashboard</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-red-500">Error: {error}</p>
         </CardContent>
       </Card>
     )

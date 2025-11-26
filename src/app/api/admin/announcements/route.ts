@@ -3,6 +3,10 @@ import { createClient } from '@supabase/supabase-js'
 import { AnnouncementCreateSchema, AnnouncementUpdateSchema, AnnouncementDeleteSchema } from '@/lib/validation'
 import { rateKeyFromRequest, rateLimitAllowed } from '@/lib/rate-limit'
 import { getServerSupabase } from '@/lib/supabase-server'
+import { Database } from '@/types/supabase'
+
+type AnnouncementInsert = Database['public']['Tables']['announcements']['Insert']
+type AnnouncementUpdate = Database['public']['Tables']['announcements']['Update']
 
 async function getClientWithToken(request: Request) {
   // Extract token from Authorization header
@@ -12,7 +16,7 @@ async function getClientWithToken(request: Request) {
   return getServerSupabase({ token })
 }
 
-async function assertAdmin(supabase: ReturnType<typeof createClient>, userId: string) {
+async function assertAdmin(supabase: ReturnType<typeof createClient<Database>>, userId: string) {
   const { data, error } = await supabase
     .from('users')
     .select('role')
@@ -41,9 +45,21 @@ export async function POST(request: Request) {
     const userId = userRes.user.id
     await assertAdmin(supabase, userId)
 
+    const payload: AnnouncementInsert = {
+      title,
+      content,
+      type,
+      priority,
+      location,
+      date,
+      time,
+      requirements,
+      created_by: userId
+    }
+
     const { data, error } = await supabase
       .from('announcements')
-      .insert({ title, content, type, priority, location, date, time, requirements, created_by: userId })
+      .insert(payload)
       .select()
       .single()
 
@@ -70,9 +86,20 @@ export async function PUT(request: Request) {
     if (userErr || !userRes?.user?.id) throw new Error('Not authenticated')
     await assertAdmin(supabase, userRes.user.id)
 
+    const payload: AnnouncementUpdate = {
+      title,
+      content,
+      type,
+      priority,
+      location,
+      date,
+      time,
+      requirements
+    }
+
     const { data, error } = await supabase
       .from('announcements')
-      .update({ title, content, type, priority, location, date, time, requirements })
+      .update(payload)
       .eq('id', id)
       .select()
       .single()

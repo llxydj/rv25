@@ -4,7 +4,8 @@
  * while maintaining UUID compatibility for database operations
  */
 
-import { supabase } from './supabase'
+import { getSimpleServerSupabase } from './supabase-server-simple'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 export interface ReferenceIdMapping {
   incident_id: string
@@ -41,8 +42,9 @@ export class ReferenceIdService {
    */
   async createReferenceId(incidentId: string): Promise<{ success: boolean; referenceId?: string; error?: string }> {
     try {
+      const serverSupabase = getSimpleServerSupabase()
       // Check if reference ID already exists
-      const { data: existing, error: checkError } = await supabase
+      const { data: existing, error: checkError } = await (serverSupabase as SupabaseClient)
         .from('incident_reference_ids')
         .select('reference_id')
         .eq('incident_id', incidentId)
@@ -68,7 +70,7 @@ export class ReferenceIdService {
         attempts++
 
         // Check if reference ID already exists
-        const { data: existingRef, error: existError } = await supabase
+        const { data: existingRef, error: existError } = await (serverSupabase as SupabaseClient)
           .from('incident_reference_ids')
           .select('reference_id')
           .eq('reference_id', referenceId)
@@ -88,7 +90,7 @@ export class ReferenceIdService {
       } while (true)
 
       // Insert the mapping
-      const { error } = await supabase
+      const { error } = await (serverSupabase as SupabaseClient)
         .from('incident_reference_ids')
         .insert({
           incident_id: incidentId,
@@ -110,7 +112,8 @@ export class ReferenceIdService {
    */
   async getReferenceId(incidentId: string): Promise<{ success: boolean; referenceId?: string; error?: string }> {
     try {
-      const { data, error } = await supabase
+      const serverSupabase = getSimpleServerSupabase()
+      const { data, error } = await (serverSupabase as SupabaseClient)
         .from('incident_reference_ids')
         .select('reference_id')
         .eq('incident_id', incidentId)
@@ -137,7 +140,7 @@ export class ReferenceIdService {
         return await this.createReferenceId(incidentId)
       }
 
-      return { success: true, referenceId: data.reference_id }
+      return { success: true, referenceId: (data as any).reference_id }
     } catch (error: any) {
       // Fail silently - don't spam console with errors
       console.warn('Reference ID service error:', error.message || 'Unknown error')
@@ -150,7 +153,8 @@ export class ReferenceIdService {
    */
   async getIncidentId(referenceId: string): Promise<{ success: boolean; incidentId?: string; error?: string }> {
     try {
-      const { data, error } = await supabase
+      const serverSupabase = getSimpleServerSupabase()
+      const { data, error } = await (serverSupabase as SupabaseClient)
         .from('incident_reference_ids')
         .select('incident_id')
         .eq('reference_id', referenceId)
@@ -169,7 +173,7 @@ export class ReferenceIdService {
         return { success: false, error: 'Reference ID not found' }
       }
 
-      return { success: true, incidentId: data.incident_id }
+      return { success: true, incidentId: (data as any).incident_id }
     } catch (error: any) {
       console.error('Error getting incident ID:', error)
       return { success: false, error: error.message }
@@ -177,28 +181,12 @@ export class ReferenceIdService {
   }
 
   /**
-   * Format reference ID for display
-   */
-  formatReferenceId(referenceId: string): string {
-    if (!referenceId) return 'N/A'
-    return referenceId.toUpperCase()
-  }
-
-  /**
-   * Validate reference ID format
-   */
-  isValidReferenceId(referenceId: string): boolean {
-    if (!referenceId) return false
-    const pattern = new RegExp(`^${this.PREFIX}-[${this.CHARS}]{${this.LENGTH}}$`, 'i')
-    return pattern.test(referenceId)
-  }
-
-  /**
    * Get all reference IDs for a user's incidents
    */
   async getUserReferenceIds(userId: string): Promise<{ success: boolean; mappings?: ReferenceIdMapping[]; error?: string }> {
     try {
-      const { data, error } = await supabase
+      const serverSupabase = getSimpleServerSupabase()
+      const { data, error } = await (serverSupabase as SupabaseClient)
         .from('incident_reference_ids')
         .select(`
           incident_id,

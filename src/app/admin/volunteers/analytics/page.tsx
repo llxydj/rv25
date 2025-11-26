@@ -38,7 +38,8 @@ import {
   AlertTriangle,
   Clock,
   MapPin,
-  FileText
+  FileText,
+  Filter
 } from "lucide-react"
 import { useAuth } from "@/lib/auth"
 import { format, subMonths, startOfMonth, endOfMonth } from "date-fns"
@@ -273,19 +274,29 @@ export default function VolunteerAnalyticsPage() {
   return (
     <AdminLayout>
       <div className="p-6 space-y-6">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold">Volunteer Analytics</h1>
             <p className="text-gray-600 mt-1">Comprehensive profiling and performance metrics</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
               onClick={() => handleExport('csv')}
               disabled={exporting}
+              className="flex items-center gap-2"
             >
-              <Download className="h-4 w-4 mr-2" />
+              <Download className="h-4 w-4" />
               Export CSV
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => handleExport('pdf')}
+              disabled={exporting}
+              className="flex items-center gap-2"
+            >
+              <FileText className="h-4 w-4" />
+              Export PDF
             </Button>
           </div>
         </div>
@@ -299,7 +310,10 @@ export default function VolunteerAnalyticsPage() {
         {/* Filters */}
         <Card>
           <CardHeader>
-            <CardTitle>Filters</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Filter className="h-5 w-5" />
+              Analytics Filters
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -339,7 +353,7 @@ export default function VolunteerAnalyticsPage() {
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-md"
+                  className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
               <div>
@@ -348,7 +362,7 @@ export default function VolunteerAnalyticsPage() {
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-md"
+                  className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
             </div>
@@ -358,25 +372,27 @@ export default function VolunteerAnalyticsPage() {
         {/* Summary Cards - FIXED */}
         {selectedAnalytics.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card>
+            <Card className="hover:shadow-lg transition-shadow">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Incidents</CardTitle>
                 <AlertTriangle className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{totalIncidents}</div>
+                <p className="text-xs text-muted-foreground">Assigned incidents</p>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="hover:shadow-lg transition-shadow">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Resolved</CardTitle>
                 <TrendingUp className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{totalResolved}</div>
+                <p className="text-xs text-muted-foreground">Successfully resolved</p>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="hover:shadow-lg transition-shadow">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Avg Response Time</CardTitle>
                 <Clock className="h-4 w-4 text-muted-foreground" />
@@ -385,15 +401,17 @@ export default function VolunteerAnalyticsPage() {
                 <div className="text-2xl font-bold">
                   {avgResponseTime > 0 ? `${Math.round(avgResponseTime)} min` : 'N/A'}
                 </div>
+                <p className="text-xs text-muted-foreground">Time to resolution</p>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="hover:shadow-lg transition-shadow">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Active Volunteers</CardTitle>
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{selectedAnalytics.length}</div>
+                <p className="text-xs text-muted-foreground">Selected volunteers</p>
               </CardContent>
             </Card>
           </div>
@@ -407,6 +425,7 @@ export default function VolunteerAnalyticsPage() {
               <Card>
                 <CardHeader>
                   <CardTitle>Incidents by Type</CardTitle>
+                  <CardDescription>Distribution of incident types handled by volunteers</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
@@ -425,7 +444,7 @@ export default function VolunteerAnalyticsPage() {
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
-                      <Tooltip />
+                      <Tooltip formatter={(value) => [value, 'Incidents']} />
                     </PieChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -437,6 +456,7 @@ export default function VolunteerAnalyticsPage() {
               <Card>
                 <CardHeader>
                   <CardTitle>Incidents by Severity</CardTitle>
+                  <CardDescription>Distribution of incident severity levels</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
@@ -444,9 +464,9 @@ export default function VolunteerAnalyticsPage() {
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="name" />
                       <YAxis />
-                      <Tooltip />
+                      <Tooltip formatter={(value) => [value, 'Incidents']} />
                       <Legend />
-                      <Bar dataKey="value" fill="#8884d8" />
+                      <Bar dataKey="value" fill="#8884d8" name="Incidents" />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -457,7 +477,8 @@ export default function VolunteerAnalyticsPage() {
             {monthlyTrendsData.length > 0 && (
               <Card className="lg:col-span-2">
                 <CardHeader>
-                  <CardTitle>Monthly Trends</CardTitle>
+                  <CardTitle>Monthly Incident Trends</CardTitle>
+                  <CardDescription>Incident volume over time</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
@@ -465,8 +486,8 @@ export default function VolunteerAnalyticsPage() {
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="month" />
                       <YAxis />
-                      <Tooltip />
-                      <Area type="monotone" dataKey="incidents" stroke="#8884d8" fill="#8884d8" />
+                      <Tooltip formatter={(value) => [value, 'Incidents']} />
+                      <Area type="monotone" dataKey="incidents" stroke="#8884d8" fill="#8884d8" name="Incidents" />
                     </AreaChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -479,7 +500,7 @@ export default function VolunteerAnalyticsPage() {
         {selectedAnalytics.length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle>Volunteer Details</CardTitle>
+              <CardTitle>Volunteer Performance Details</CardTitle>
               <CardDescription>Individual volunteer performance metrics</CardDescription>
             </CardHeader>
             <CardContent>
@@ -497,7 +518,7 @@ export default function VolunteerAnalyticsPage() {
                   </thead>
                   <tbody>
                     {selectedAnalytics.map((analytics) => (
-                      <tr key={analytics.volunteer_id} className="border-b">
+                      <tr key={analytics.volunteer_id} className="border-b hover:bg-gray-50 dark:hover:bg-gray-800">
                         <td className="p-2 font-medium">{analytics.volunteer_name}</td>
                         <td className="p-2">{analytics.total_incidents}</td>
                         <td className="p-2">{analytics.total_resolved}</td>
@@ -509,7 +530,7 @@ export default function VolunteerAnalyticsPage() {
                         <td className="p-2">
                           <div className="flex flex-wrap gap-1">
                             {Object.entries(analytics.incidents_by_type || {}).map(([type, count]) => (
-                              <Badge key={type} variant="outline">
+                              <Badge key={type} variant="outline" className="text-xs">
                                 {type}: {count as number}
                               </Badge>
                             ))}
@@ -518,7 +539,7 @@ export default function VolunteerAnalyticsPage() {
                         <td className="p-2">
                           <div className="flex flex-wrap gap-1">
                             {Object.entries(analytics.incidents_by_severity || {}).map(([severity, count]) => (
-                              <Badge key={severity} variant="outline">
+                              <Badge key={severity} variant="outline" className="text-xs">
                                 {severity}: {count as number}
                               </Badge>
                             ))}

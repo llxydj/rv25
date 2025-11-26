@@ -9,6 +9,10 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/components/ui/use-toast"
+import { Database } from "@/types/supabase"
+
+type EmergencyContactRow = Database['public']['Tables']['emergency_contacts']['Row']
+type EmergencyContactInsert = Database['public']['Tables']['emergency_contacts']['Insert']
 
 // Types should match DB and lib
 const CONTACT_TYPES = [
@@ -21,24 +25,12 @@ const CONTACT_TYPES = [
   { value: "admin", label: "Admin" },
 ] as const
 
-interface EmergencyContact {
-  id: string
-  name: string
-  number: string
-  type: typeof CONTACT_TYPES[number]["value"]
-  priority: number
-  description?: string | null
-  is_active: boolean
-  created_at: string
-  updated_at: string
-}
-
 export default function AdminContactsPage() {
   const { user } = useAuth()
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [contacts, setContacts] = useState<EmergencyContact[]>([])
+  const [contacts, setContacts] = useState<EmergencyContactRow[]>([])
   const [query, setQuery] = useState("")
   const [typeFilter, setTypeFilter] = useState<string>("all")
   const [showForm, setShowForm] = useState(false)
@@ -62,7 +54,7 @@ export default function AdminContactsPage() {
           .order("name", { ascending: true })
 
         if (error) throw error
-        setContacts((data as EmergencyContact[]) || [])
+        setContacts((data as unknown as EmergencyContactRow[]) || [])
       } catch (e: any) {
         toast({ variant: "destructive", title: "Failed to load contacts", description: e.message })
       } finally {
@@ -87,7 +79,7 @@ export default function AdminContactsPage() {
     setShowForm(true)
   }
 
-  const startEdit = (c: EmergencyContact) => {
+  const startEdit = (c: EmergencyContactRow) => {
     setEditId(c.id)
     setForm({ name: c.name, number: c.number, type: c.type, priority: c.priority, description: c.description || "" })
     setShowForm(true)
@@ -101,11 +93,11 @@ export default function AdminContactsPage() {
         return
       }
 
-      const payload = {
+      const payload: EmergencyContactInsert = {
         id: editId || (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`),
         name: form.name.trim(),
         number: form.number.trim(),
-        type: form.type as EmergencyContact["type"],
+        type: form.type as EmergencyContactRow["type"],
         priority: Number(form.priority) || 1,
         description: form.description?.trim() || null,
         is_active: true,
@@ -142,7 +134,7 @@ export default function AdminContactsPage() {
       // Update local list
       setContacts(prev => {
         const other = prev.filter(c => c.id !== data.id)
-        return [...other, data as EmergencyContact].sort((a, b) => (a.priority - b.priority) || a.name.localeCompare(b.name))
+        return [...other, data as unknown as EmergencyContactRow].sort((a, b) => (a.priority - b.priority) || a.name.localeCompare(b.name))
       })
 
       setShowForm(false)
@@ -155,7 +147,7 @@ export default function AdminContactsPage() {
     }
   }
 
-  const toggleActive = async (c: EmergencyContact) => {
+  const toggleActive = async (c: EmergencyContactRow) => {
     try {
       const { data, error } = await supabase
         .from("emergency_contacts")
@@ -164,7 +156,7 @@ export default function AdminContactsPage() {
         .select()
         .single()
       if (error) throw error
-      setContacts(prev => prev.map(x => x.id === c.id ? (data as EmergencyContact) : x))
+      setContacts(prev => prev.map(x => x.id === c.id ? (data as unknown as EmergencyContactRow) : x))
     } catch (e: any) {
       toast({ variant: "destructive", title: "Failed to update status", description: e.message })
     }

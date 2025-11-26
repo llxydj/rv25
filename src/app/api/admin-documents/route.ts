@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server'
 import { getServerSupabase } from '@/lib/supabase-server'
+import { Database } from '@/types/supabase'
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024
 const BUCKET = 'admin-docs'
-const ALLOWLIST = ['application/pdf','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document','image/png','image/jpeg']
+const ALLOWLIST = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'image/png', 'image/jpeg']
+
+type AdminDocumentInsert = Database['public']['Tables']['admin_documents']['Insert']
 
 export async function GET(request: Request) {
   try {
@@ -66,12 +69,22 @@ export async function POST(request: Request) {
     const { error: upErr } = await supabase.storage.from(BUCKET).upload(objectName, await file.arrayBuffer(), {
       contentType: file.type || 'application/octet-stream',
       upsert: false,
-    } as any)
+    })
     if (upErr) throw upErr
+
+    const payload: AdminDocumentInsert = {
+      user_id: userId,
+      path: objectName,
+      file_name: file.name,
+      display_name: file.name,
+      mime_type: file.type,
+      size_bytes: file.size,
+      folder_id: folder_id || null
+    }
 
     const { data, error } = await supabase
       .from('admin_documents')
-      .insert({ user_id: userId, path: objectName, file_name: file.name, display_name: file.name, mime_type: file.type, size_bytes: file.size, folder_id: folder_id || null })
+      .insert(payload)
       .select()
       .single()
     if (error) throw error
@@ -102,7 +115,7 @@ export async function PUT(request: Request) {
       .eq('id', id)
       .select()
       .single()
-    
+
     if (error) throw error
     return NextResponse.json({ success: true, data })
   } catch (e: any) {

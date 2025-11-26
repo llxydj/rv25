@@ -7,7 +7,7 @@ import { Bell, BellOff } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
-import { notificationService } from "@/lib/notifications"
+import { pushNotificationService } from "@/lib/push-notification-service"
 import { useToast } from "@/components/ui/use-toast"
 
 /**
@@ -48,9 +48,10 @@ export function PushNotificationToggle() {
     if (checked) {
       try {
         setLoading(true)
-        const initialized = await notificationService.initialize()
+        // Use enable() which checks authentication before proceeding
+        const enabled = await pushNotificationService.enable()
         
-        if (initialized) {
+        if (enabled) {
           setIsSubscribed(true)
           setPushEnabled(true)
           toast({
@@ -58,31 +59,44 @@ export function PushNotificationToggle() {
             description: "You'll receive instant alerts for important updates"
           })
         } else {
-          throw new Error('Failed to initialize push notifications')
+          throw new Error('Failed to enable push notifications')
         }
       } catch (error: any) {
+        console.error('[push-toggle] Enable error:', error)
         toast({
           variant: "destructive",
           title: "❌ Enable Failed",
-          description: error.message || 'Please allow notifications in your browser settings'
+          description: error.message || 'Please log in and allow notifications in your browser settings'
         })
         setPushEnabled(false)
       } finally {
         setLoading(false)
       }
     } else {
-      // Just update local state - subscription stays but user preference off
-      setPushEnabled(false)
-      toast({
-        title: "🔕 Notifications Paused",
-        description: "You can re-enable them anytime"
-      })
+      // Unsubscribe from push notifications
+      try {
+        await pushNotificationService.unsubscribe()
+        setIsSubscribed(false)
+        setPushEnabled(false)
+        toast({
+          title: "🔕 Notifications Disabled",
+          description: "You can re-enable them anytime"
+        })
+      } catch (error: any) {
+        console.error('[push-toggle] Unsubscribe error:', error)
+        // Still update UI even if unsubscribe fails
+        setPushEnabled(false)
+        toast({
+          title: "🔕 Notifications Paused",
+          description: "You can re-enable them anytime"
+        })
+      }
     }
   }
 
   const testNotification = async () => {
     try {
-      await notificationService.sendNotification({
+      await pushNotificationService.showNotification({
         title: '🔔 Test Notification',
         body: 'Push notifications are working perfectly!',
         icon: '/icons/icon-192x192.png',
@@ -93,17 +107,18 @@ export function PushNotificationToggle() {
         title: "✅ Test Sent",
         description: "Check your notifications"
       })
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[push-toggle] Test notification error:', error)
       toast({
         variant: "destructive",
         title: "❌ Test Failed",
-        description: "Could not send test notification"
+        description: error.message || "Could not send test notification"
       })
     }
   }
 
   // Check if browser supports push notifications
-  if (!notificationService.isSupported()) {
+  if (!pushNotificationService.isSupported()) {
     return (
       <Card className="p-4 bg-yellow-50 border-yellow-200">
         <div className="flex items-center gap-3">

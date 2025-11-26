@@ -107,16 +107,14 @@ export class SMSService {
         return { success: false, error: 'SMS service disabled', retryable: false }
       }
 
-      // Validate phone number
+      // Validate and normalize phone number
       const normalizedPhone = this.normalizePhoneNumber(phoneNumber)
       if (!normalizedPhone) {
         return { success: false, error: 'Invalid phone number', retryable: false }
       }
 
-      // For SMS, use the original format but ensure it's a valid Philippine number
-      const smsPhoneNumber = phoneNumber.startsWith('0') ? phoneNumber : 
-                            phoneNumber.startsWith('+63') ? '0' + phoneNumber.substring(3) :
-                            phoneNumber.startsWith('63') ? '0' + phoneNumber.substring(2) : phoneNumber;
+      // Use the normalized phone number for all operations
+      const smsPhoneNumber = normalizedPhone
 
       // Check rate limits
       if (!this.checkRateLimit(smsPhoneNumber)) {
@@ -153,7 +151,7 @@ export class SMSService {
         retry_count: 0
       })
 
-      // Send SMS via API
+      // Send SMS via API using the normalized phone number
       const result = await this.sendViaAPI(smsPhoneNumber, messageContent)
 
       // Update log with result
@@ -501,7 +499,9 @@ export class SMSService {
             responseData = { message: responseText, success: response.status === 200 }
           }
 
-          if (response.ok && (responseData.success || responseData.status === 'success')) {
+          // Treat success responses and 'queued for delivery' as successful
+          if (response.ok && (responseData.success || responseData.status === 'success' || 
+              (typeof responseData.message === 'string' && responseData.message.toLowerCase().includes('queued for delivery')))) {
             return {
               success: true,
               messageId: responseData.message_id || responseData.id,

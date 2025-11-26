@@ -37,12 +37,18 @@ export default function ReportIncidentPage() {
     barangay: "",
     priority: isEmergency ? "1" : "3",
   })
-  const [location, setLocation] = useState<[number, number] | null>(null)
-  const [photoFiles, setPhotoFiles] = useState<File[]>([])
-  const [photoPreviews, setPhotoPreviews] = useState<string[]>([])
-  const previewUrlsRef = useRef<string[]>([])
+  const [location, setLocation] = useState<[number, number] | null>(null);
+  const [photoFiles, setPhotoFiles] = useState<File[]>([]);
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
+  const previewUrlsRef = useRef<string[]>([]);
+  
+  // Add effect to log location changes
   useEffect(() => {
-    previewUrlsRef.current = photoPreviews
+    console.log("Location state changed:", location);
+  }, [location]);
+  
+  useEffect(() => {
+    previewUrlsRef.current = photoPreviews;
   }, [photoPreviews])
 
   useEffect(() => {
@@ -56,10 +62,15 @@ export default function ReportIncidentPage() {
   const [gettingLocation, setGettingLocation] = useState(false)
   const [isOffline, setIsOffline] = useState(false)
   const [pendingReports, setPendingReports] = useState<any[]>([])
-  const [autoGeoLock, setAutoGeoLock] = useState<{ address: boolean; barangay: boolean }>({ address: false, barangay: false })
-  const [geoMessage, setGeoMessage] = useState<string | null>(null)
-  const [locationCaptured, setLocationCaptured] = useState(false)
-  const [submitStage, setSubmitStage] = useState<string | null>(null)
+  const [autoGeoLock, setAutoGeoLock] = useState<{ address: boolean; barangay: boolean }>({ address: false, barangay: false });
+  const [geoMessage, setGeoMessage] = useState<string | null>(null);
+  const [locationCaptured, setLocationCaptured] = useState(false);
+  const [submitStage, setSubmitStage] = useState<string | null>(null);
+  
+  // Add effect to log locationCaptured changes
+  useEffect(() => {
+    console.log("Location captured state changed:", locationCaptured);
+  }, [locationCaptured]);
 
   useEffect(() => {
     if (!reportType) {
@@ -74,45 +85,46 @@ export default function ReportIncidentPage() {
   }, [reportType, router, autoIncidentType, isEmergency])
 
   useEffect(() => {
+    console.log("Main useEffect called - initializing page");
     // Check if online
-    setIsOffline(!navigator.onLine)
+    setIsOffline(!navigator.onLine);
 
     // Listen for online/offline events
-    const handleOnline = () => setIsOffline(false)
-    const handleOffline = () => setIsOffline(true)
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
 
-    window.addEventListener("online", handleOnline)
-    window.addEventListener("offline", handleOffline)
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
 
     // Fetch barangays from the database
     const fetchBarangays = async () => {
       try {
         if (!navigator.onLine) {
           // Use cached barangays if offline
-          const cachedBarangays = localStorage.getItem("barangays")
+          const cachedBarangays = localStorage.getItem("barangays");
           if (cachedBarangays) {
-            setBarangays(JSON.parse(cachedBarangays))
-            return
+            setBarangays(JSON.parse(cachedBarangays));
+            return;
           }
         }
 
-        const response = await fetch("/api/barangays")
-        const result = await response.json()
+        const response = await fetch("/api/barangays");
+        const result = await response.json();
         
-        console.log("Barangays API response:", result)
+        console.log("Barangays API response:", result);
         
         if (result.data && Array.isArray(result.data)) {
-          const barangayNames = result.data.map((b: any) => b.name)
-          console.log("Setting barangays:", barangayNames)
-          setBarangays(barangayNames)
+          const barangayNames = result.data.map((b: any) => b.name);
+          console.log("Setting barangays:", barangayNames);
+          setBarangays(barangayNames);
           // Cache barangays for offline use
-          localStorage.setItem("barangays", JSON.stringify(barangayNames))
+          localStorage.setItem("barangays", JSON.stringify(barangayNames));
         } else {
-          console.error("Invalid barangays data:", result)
-          throw new Error("Invalid response format from barangays API")
+          console.error("Invalid barangays data:", result);
+          throw new Error("Invalid response format from barangays API");
         }
       } catch (err) {
-        console.error("Error fetching barangays:", err)
+        console.error("Error fetching barangays:", err);
         // Fallback to hardcoded list if API fails
         const fallbackBarangays = [
           "ZONE 1",
@@ -142,32 +154,37 @@ export default function ReportIncidentPage() {
           "DOS HERMANAS",
           "EFIGENIO LIZARES",
           "KATILINGBAN",
-        ]
-        setBarangays(fallbackBarangays)
-        localStorage.setItem("barangays", JSON.stringify(fallbackBarangays))
+        ];
+        setBarangays(fallbackBarangays);
+        localStorage.setItem("barangays", JSON.stringify(fallbackBarangays));
       }
-    }
+    };
 
-    fetchBarangays()
+    fetchBarangays();
 
     // Load any pending reports from localStorage
     const loadPendingReports = () => {
-      const savedReports = localStorage.getItem("pendingIncidentReports")
+      const savedReports = localStorage.getItem("pendingIncidentReports");
       if (savedReports) {
-        setPendingReports(JSON.parse(savedReports))
+        setPendingReports(JSON.parse(savedReports));
       }
-    }
+    };
 
-    loadPendingReports()
+    loadPendingReports();
 
-    // Get user's current location
-    getCurrentLocation()
+    // Get user's current location with a delay to ensure components are mounted
+    // Increased delay to ensure all components are properly initialized
+    const locationTimer = setTimeout(() => {
+      console.log("Calling getCurrentLocation from main useEffect");
+      getCurrentLocation();
+    }, 1000);
 
     return () => {
-      window.removeEventListener("online", handleOnline)
-      window.removeEventListener("offline", handleOffline)
-    }
-  }, [])
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+      clearTimeout(locationTimer);
+    };
+  }, []);
 
   useEffect(() => {
     const handler = () => {
@@ -179,60 +196,60 @@ export default function ReportIncidentPage() {
 
   // Reverse geocode when location changes and we're online
   useEffect(() => {
-    let cancelled = false
+    let cancelled = false;
     const run = async () => {
-      if (!location || isOffline) return
+      if (!location || isOffline) return;
       try {
-        setGeoMessage('Detecting address from map pin…')
-        const [lat, lng] = location
-        const url = `/api/geocode/reverse?lat=${lat}&lon=${lng}&zoom=16&addressdetails=1`
-        const res = await fetch(url, { headers: { 'Accept': 'application/json' } })
-        if (!res.ok) throw new Error('Reverse geocoding failed')
-        const data = await res.json()
-        if (cancelled) return
+        setGeoMessage('Detecting address from map pin…');
+        const [lat, lng] = location;
+        const url = `/api/geocode/reverse?lat=${lat}&lon=${lng}&zoom=16&addressdetails=1`;
+        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        if (!res.ok) throw new Error('Reverse geocoding failed');
+        const data = await res.json();
+        if (cancelled) return;
 
-        const addr = data?.address || {}
+        const addr = data?.address || {};
         // Try several fields for barangay-like locality
         const brgyCandidate: string | undefined = (
           addr.suburb || addr.village || addr.neighbourhood || addr.city_district || addr.quarter || addr.town || addr.county
-        )
+        );
         // Prefer matches from known barangays list (case-insensitive contains)
-        let resolvedBarangay = ''
+        let resolvedBarangay = '';
         if (Array.isArray(barangays) && barangays.length > 0 && brgyCandidate) {
-          const cand = String(brgyCandidate).toUpperCase()
-          const match = barangays.find(b => cand.includes(String(b).toUpperCase()))
-          if (match) resolvedBarangay = match
+          const cand = String(brgyCandidate).toUpperCase();
+          const match = barangays.find(b => cand.includes(String(b).toUpperCase()));
+          if (match) resolvedBarangay = match;
         }
         // If still empty, fallback to brgyCandidate uppercased
         if (!resolvedBarangay && brgyCandidate) {
-          resolvedBarangay = String(brgyCandidate).toUpperCase()
+          resolvedBarangay = String(brgyCandidate).toUpperCase();
         }
 
         // Compose a human-readable address line
-        const addressLine = data?.display_name || [addr.road, addr.suburb || addr.village || addr.neighbourhood, addr.city || addr.town || 'Talisay City'].filter(Boolean).join(', ')
+        const addressLine = data?.display_name || [addr.road, addr.suburb || addr.village || addr.neighbourhood, addr.city || addr.town || 'Talisay City'].filter(Boolean).join(', ');
 
         // Update form and lock when we have confident values
-        const updates: any = {}
-        const newLocks = { ...autoGeoLock }
-        if (addressLine) { updates.address = addressLine; newLocks.address = true }
-        if (resolvedBarangay) { updates.barangay = resolvedBarangay; newLocks.barangay = true }
+        const updates: any = {};
+        const newLocks = { ...autoGeoLock };
+        if (addressLine) { updates.address = addressLine; newLocks.address = true; }
+        if (resolvedBarangay) { updates.barangay = resolvedBarangay; newLocks.barangay = true; }
         if (Object.keys(updates).length > 0) {
-          setFormData(prev => ({ ...prev, ...updates }))
-          setAutoGeoLock(newLocks)
-          setGeoMessage('Address auto-filled from map pin')
+          setFormData(prev => ({ ...prev, ...updates }));
+          setAutoGeoLock(newLocks);
+          setGeoMessage('Address auto-filled from map pin');
         } else {
-          setGeoMessage('Unable to detect address; you can type it manually')
-          setAutoGeoLock({ address: false, barangay: false })
+          setGeoMessage('Unable to detect address; you can type it manually');
+          setAutoGeoLock({ address: false, barangay: false });
         }
       } catch (e) {
-        setGeoMessage('Unable to detect address (network or service issue). You can type it manually.')
-        setAutoGeoLock({ address: false, barangay: false })
+        setGeoMessage('Unable to detect address (network or service issue). You can type it manually.');
+        setAutoGeoLock({ address: false, barangay: false });
       }
-    }
+    };
     // Small debounce to avoid rapid calls when moving pin
-    const t = setTimeout(run, 400)
-    return () => { cancelled = true; clearTimeout(t) }
-  }, [location, isOffline, barangays])
+    const t = setTimeout(run, 400);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [location, isOffline, barangays]);
 
   // Try to submit any pending reports when we come back online
   useEffect(() => {
@@ -283,39 +300,58 @@ export default function ReportIncidentPage() {
   }, [isOffline, pendingReports, user])
 
   const getCurrentLocation = () => {
-    setGettingLocation(true)
+    console.log("getCurrentLocation called");
+    setGettingLocation(true);
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        const lat = position.coords.latitude
-        const lng = position.coords.longitude
-        const accuracy = position.coords.accuracy // in meters
+        console.log("Location acquired:", position);
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        const accuracy = position.coords.accuracy; // in meters
         
         // Check accuracy (target: 5-10 meters)
         if (accuracy > 20) {
-          setError(`Location accuracy is ${Math.round(accuracy)}m. Please wait for better GPS signal or move to an open area.`)
+          setError(`Location accuracy is ${Math.round(accuracy)}m. Please wait for better GPS signal or move to an open area.`);
         } else {
-          setError(null)
+          setError(null);
         }
         
-        setLocation([lat, lng])
-        setLocationCaptured(true)
-        setGettingLocation(false)
+        setLocation([lat, lng]);
+        setLocationCaptured(true);
+        setGettingLocation(false);
+        console.log("Location set:", [lat, lng]);
 
         // Check if location is within Talisay City
         if (!isWithinTalisayCity(lat, lng)) {
-          setError("Your current location is outside Talisay City. You can only report incidents within Talisay City.")
+          setError("Your current location is outside Talisay City. You can only report incidents within Talisay City.");
         }
       },
       (error) => {
-        console.log("Geolocation error code:", error.code)
-        setGettingLocation(false)
+        console.log("Geolocation error code:", error.code);
+        setGettingLocation(false);
         // Default to Talisay City center if location access is denied
-        setLocation(TALISAY_CENTER)
-        setLocationCaptured(true)
+        setLocation(TALISAY_CENTER);
+        setLocationCaptured(true);
+        setError("Unable to get your precise location. Using default location. You can click 'Use My Location' to try again.");
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
-    )
-  }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
+
+  // Add this useEffect to automatically capture location when the component mounts
+  useEffect(() => {
+    console.log("Auto-detection useEffect called", { locationCaptured, location });
+    // Only auto-capture location if it hasn't been captured yet
+    if (!locationCaptured && !location) {
+      console.log("Triggering auto-location capture");
+      // Add a small delay to ensure the component is fully mounted
+      const timer = setTimeout(() => {
+        getCurrentLocation();
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, []); // Empty dependency array to run only once
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -504,47 +540,49 @@ export default function ReportIncidentPage() {
   const validateForm = () => {
     // Step 1: Location must be captured first
     if (!location || !locationCaptured) {
-      setError("Please capture your location first")
-      return false
+      setError("Please capture your location first by clicking 'Use My Location' or waiting for automatic detection");
+      return false;
     }
+
+    // Step 2: Photo is now optional, so we don't require it anymore
 
     // Step 3: Description required
     if (!formData.description || formData.description.trim().length < 10) {
-      setError("Please provide a detailed description (at least 10 characters)")
-      return false
+      setError("Please provide a detailed description (at least 10 characters)");
+      return false;
     }
 
-    // Step 5: Barangay required
+    // Step 4: Barangay required
     if (!formData.barangay) {
-      setError("Please select a barangay")
-      return false
+      setError("Please select a barangay");
+      return false;
     }
 
-    // Step 6: Address required
+    // Step 5: Address required
     if (!formData.address || formData.address.trim().length < 5) {
-      setError("Please provide a valid address (at least 5 characters)")
-      return false
+      setError("Please provide a valid address (at least 5 characters)");
+      return false;
     }
 
     // Clear any previous errors
-    setError(null)
-    setSubmitStage(null)
-    return true
-  }
+    setError(null);
+    setSubmitStage(null);
+    return true;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError(null)
+    e.preventDefault();
+    setError(null);
 
     if (!user) {
-      const errorMsg = "You must be logged in to report an incident"
-      setError(errorMsg)
+      const errorMsg = "You must be logged in to report an incident";
+      setError(errorMsg);
       toast({
         variant: "destructive",
         title: "Authentication Error",
         description: errorMsg
-      })
-      return
+      });
+      return;
     }
 
     if (!validateForm()) {
@@ -552,17 +590,29 @@ export default function ReportIncidentPage() {
         variant: "destructive",
         title: "Validation Error",
         description: error
-      })
-      return
+      });
+      return;
+    }
+
+    // Additional location validation
+    if (!location || !locationCaptured) {
+      const errorMsg = "Location must be captured before submitting the report";
+      setError(errorMsg);
+      toast({
+        variant: "destructive",
+        title: "Location Required",
+        description: errorMsg
+      });
+      return;
     }
 
     // Check online status right before submission
     if (!navigator.onLine) {
-      setIsOffline(true)
+      setIsOffline(true);
     }
 
-    setLoading(true)
-    setSubmitStage(isOffline ? "Saving report for offline delivery…" : "Preparing your report…")
+    setLoading(true);
+    setSubmitStage(isOffline ? "Saving report for offline delivery…" : "Preparing your report…");
 
     // If offline, store the report locally
     if (!navigator.onLine || isOffline) {
@@ -780,18 +830,28 @@ export default function ReportIncidentPage() {
             <h2 className="text-lg font-semibold mb-4">
               Step 1: Location Capture {locationCaptured && "✅"}
             </h2>
-            <p className="text-sm text-gray-600 mb-4">Your location will be automatically captured via GPS (target accuracy: 5-10 meters)</p>
+            <p className="text-sm text-gray-600 mb-4">
+              Your location will be automatically captured via GPS (target accuracy: 5-10 meters). 
+              If it doesn't capture automatically, click "Use My Location" below.
+            </p>
             
             <div className="mb-6">
               <LocationTracker
                 onLocationUpdate={(location) => {
-                  setLocation([location.latitude, location.longitude])
-                  setLocationCaptured(true)
-                  setError(null)
+                  console.log("LocationTracker onLocationUpdate called:", location);
+                  setLocation([location.latitude, location.longitude]);
+                  setLocationCaptured(true);
+                  setError(null);
                 }}
                 showSettings={true}
                 className="mb-4"
               />
+              {!locationCaptured && (
+                <div className="mt-2 text-sm text-blue-600 flex items-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                  Detecting your location automatically...
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">

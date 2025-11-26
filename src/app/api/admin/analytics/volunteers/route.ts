@@ -14,6 +14,9 @@ const serviceClient = createClient(
 
 export const runtime = 'nodejs'
 
+let cachedMetrics: any = null
+let lastFetched = 0
+
 export async function GET(request: Request) {
   try {
     const supabase = await getServerSupabase()
@@ -39,6 +42,12 @@ export async function GET(request: Request) {
       const { data, error } = await serviceClient.rpc('volunteer_performance_kpis')
       if (error) throw error
       return NextResponse.json({ success: true, data })
+    }
+
+    // Check cache for metrics section
+    const now = Date.now()
+    if (section === 'metrics' && cachedMetrics && (now - lastFetched < 30000)) {
+      return NextResponse.json({ success: true, data: cachedMetrics })
     }
 
     const [
@@ -81,6 +90,12 @@ export async function GET(request: Request) {
       participating_activities: participatingRes.count ?? 0,
       scheduled_activities: scheduledRes.count ?? 0,
       accepted_activities: acceptedRes.count ?? 0,
+    }
+
+    // Update cache
+    if (section === 'metrics') {
+      cachedMetrics = metrics
+      lastFetched = now
     }
 
     return NextResponse.json({ success: true, data: metrics })

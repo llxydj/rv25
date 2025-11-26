@@ -61,20 +61,22 @@ export async function GET(request: NextRequest) {
       volunteerResponseMetrics
     ] = await Promise.all([
       // Total registered users by role
-      supabase
+      supabaseAdmin
         .from('users')
         .select('role')
         .then(result => {
           if (result.error) throw result.error
           const roles: Record<string, number> = {}
           result.data.forEach(user => {
-            roles[user.role] = (roles[user.role] || 0) + 1
+            // Convert role to string if it's an object or enum
+            const roleValue = typeof user.role === 'string' ? user.role : String(user.role)
+            roles[roleValue] = (roles[roleValue] || 0) + 1
           })
           return roles
         }),
       
       // Incidents by barangay with percentages
-      supabase
+      supabaseAdmin
         .from('incidents')
         .select('barangay')
         .then(result => {
@@ -100,7 +102,7 @@ export async function GET(request: NextRequest) {
       // System-wide metrics
       Promise.all([
         // Total active residents
-        supabase
+        supabaseAdmin
           .from('users')
           .select('*', { count: 'exact', head: true })
           .eq('role', 'resident')
@@ -110,7 +112,7 @@ export async function GET(request: NextRequest) {
           }),
         
         // Total handled incidents
-        supabase
+        supabaseAdmin
           .from('incidents')
           .select('*', { count: 'exact', head: true })
           .then(result => {
@@ -134,7 +136,7 @@ export async function GET(request: NextRequest) {
       })),
       
       // Volunteer response averages
-      supabase
+      supabaseAdmin
         .from('incidents')
         .select('created_at, assigned_at, resolved_at')
         .not('assigned_at', 'is', null)

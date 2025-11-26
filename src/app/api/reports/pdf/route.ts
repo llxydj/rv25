@@ -240,7 +240,7 @@ async function generateVolunteerPerformanceReport(filters: ReportFilters): Promi
     .from('volunteer_profiles')
     .select(`
       *,
-      users (
+      users!volunteer_profiles_volunteer_user_id_fkey (
         first_name,
         last_name,
         phone_number,

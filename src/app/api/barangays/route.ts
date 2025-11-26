@@ -22,7 +22,7 @@ export async function GET() {
 
     console.log("Barangays fetched successfully:", data?.length || 0, "items")
 
-    return NextResponse.json(data || [])
+    return NextResponse.json({ success: true, data: data || [] })
   } catch (error: any) {
     console.error("API error:", error)
     return NextResponse.json({ error: error.message }, { status: 500 })

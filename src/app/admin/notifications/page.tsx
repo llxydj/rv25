@@ -6,21 +6,14 @@ import { useAuth } from "@/lib/auth"
 import { supabase } from "@/lib/supabase"
 import { Bell, CheckCircle, Clock, AlertCircle } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { Database } from "@/types/supabase"
 
-interface Notification {
-  id: string
-  title: string
-  body: string
-  type: string
-  data?: any
-  read_at: string | null
-  created_at: string
-}
+type NotificationRow = Database['public']['Tables']['notifications']['Row']
 
 export default function AdminNotificationsPage() {
   const { user } = useAuth()
   const router = useRouter()
-  const [notifications, setNotifications] = useState<Notification[]>([])
+  const [notifications, setNotifications] = useState<NotificationRow[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<"all" | "unread">("all")
 
@@ -42,7 +35,7 @@ export default function AdminNotificationsPage() {
         const { data, error } = await query
 
         if (error) throw error
-        setNotifications(data || [])
+        setNotifications((data as unknown as NotificationRow[]) || [])
       } catch (error) {
         console.error("Failed to fetch notifications:", error)
       } finally {
@@ -65,10 +58,10 @@ export default function AdminNotificationsPage() {
         },
         (payload) => {
           if (payload.eventType === "INSERT") {
-            setNotifications((prev) => [payload.new as Notification, ...prev])
+            setNotifications((prev) => [payload.new as unknown as NotificationRow, ...prev])
           } else if (payload.eventType === "UPDATE") {
             setNotifications((prev) =>
-              prev.map((n) => (n.id === payload.new.id ? (payload.new as Notification) : n))
+              prev.map((n) => (n.id === payload.new.id ? (payload.new as unknown as NotificationRow) : n))
             )
           } else if (payload.eventType === "DELETE") {
             setNotifications((prev) => prev.filter((n) => n.id !== payload.old.id))
@@ -86,10 +79,13 @@ export default function AdminNotificationsPage() {
     try {
       const { error } = await supabase
         .from("notifications")
-        .update({ read_at: new Date().toISOString() } as any)
+        .update({ read_at: new Date().toISOString() })
         .eq("id", notificationId)
 
       if (error) throw error
+
+      // Optimistic update
+      setNotifications(prev => prev.map(n => n.id === notificationId ? { ...n, read_at: new Date().toISOString() } : n))
     } catch (error) {
       console.error("Failed to mark as read:", error)
     }
@@ -102,21 +98,24 @@ export default function AdminNotificationsPage() {
 
       const { error } = await supabase
         .from("notifications")
-        .update({ read_at: new Date().toISOString() } as any)
+        .update({ read_at: new Date().toISOString() })
         .in("id", unreadIds)
 
       if (error) throw error
+
+      // Optimistic update
+      setNotifications(prev => prev.map(n => ({ ...n, read_at: n.read_at || new Date().toISOString() })))
     } catch (error) {
       console.error("Failed to mark all as read:", error)
     }
   }
 
-  const handleNotificationClick = (notification: Notification) => {
+  const handleNotificationClick = (notification: NotificationRow) => {
     if (!notification.read_at) {
       markAsRead(notification.id)
     }
 
-    const data = notification.data || {}
+    const data = notification.data as any || {}
     if (data.incident_id) {
       router.push(`/admin/incidents/${data.incident_id}`)
     }
@@ -155,21 +154,19 @@ export default function AdminNotificationsPage() {
             <div className="flex gap-2">
               <button
                 onClick={() => setFilter("all")}
-                className={`px-4 py-2 rounded-md text-sm font-medium ${
-                  filter === "all"
+                className={`px-4 py-2 rounded-md text-sm font-medium ${filter === "all"
                     ? "bg-blue-100 text-blue-700"
                     : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                }`}
+                  }`}
               >
                 All ({notifications.length})
               </button>
               <button
                 onClick={() => setFilter("unread")}
-                className={`px-4 py-2 rounded-md text-sm font-medium ${
-                  filter === "unread"
+                className={`px-4 py-2 rounded-md text-sm font-medium ${filter === "unread"
                     ? "bg-blue-100 text-blue-700"
                     : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                }`}
+                  }`}
               >
                 Unread ({unreadCount})
               </button>
@@ -195,9 +192,8 @@ export default function AdminNotificationsPage() {
                 <div
                   key={notification.id}
                   onClick={() => handleNotificationClick(notification)}
-                  className={`p-6 hover:bg-gray-50 cursor-pointer transition-colors ${
-                    !notification.read_at ? "bg-blue-50" : ""
-                  }`}
+                  className={`p-6 hover:bg-gray-50 cursor-pointer transition-colors ${!notification.read_at ? "bg-blue-50" : ""
+                    }`}
                 >
                   <div className="flex gap-4">
                     <div className="flex-shrink-0 mt-1">{getNotificationIcon(notification.type)}</div>

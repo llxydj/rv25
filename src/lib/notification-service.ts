@@ -80,6 +80,95 @@ async function checkUserNotificationPreferences(
   }
 }
 
+/**
+ * Send push notification to user's devices
+ */
+async function sendPushNotification(
+  userId: string,
+  params: CreateNotificationParams
+): Promise<void> {
+  try {
+    // Get user's push subscriptions
+    const { data: subscriptions, error } = await supabaseAdmin
+      .from('push_subscriptions')
+      .select('subscription')
+      .eq('user_id', userId)
+
+    if (error) {
+      console.error(`[push] Failed to get subscriptions for user ${userId}:`, error)
+      return
+    }
+
+    if (!subscriptions || subscriptions.length === 0) {
+      // No subscriptions - this is normal, user may not have enabled push
+      return
+    }
+
+    const payload = {
+      title: params.title,
+      body: params.body,
+      icon: '/icons/icon-192x192.png',
+      badge: '/icons/badge-72x72.png',
+      data: params.data || {},
+      tag: params.type,
+      requireInteraction: params.type === 'incident_alert' || params.type === 'escalation_alert'
+    }
+
+    // Send push notifications to all user's devices
+    // Use internal API call (server-side)
+    const getBaseUrl = () => {
+      // In production (Vercel), use the public URL
+      if (process.env.NEXT_PUBLIC_APP_URL) {
+        return process.env.NEXT_PUBLIC_APP_URL
+      }
+      // In Vercel preview/deployment
+      if (process.env.VERCEL_URL) {
+        return `https://${process.env.VERCEL_URL}`
+      }
+      // Local development
+      return 'http://localhost:3000'
+    }
+    
+    const baseUrl = getBaseUrl()
+    
+    const results = await Promise.allSettled(
+      subscriptions.map(async (sub: any) => {
+        try {
+          // Use internal fetch - we're already on the server
+          const apiUrl = `${baseUrl}/api/notifications/send`
+          
+          const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              subscription: sub.subscription,
+              payload
+            })
+          })
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}))
+            throw new Error(errorData.message || `HTTP ${response.status}`)
+          }
+
+          return { success: true }
+        } catch (error: any) {
+          console.error(`[push] Failed to send push to user ${userId}:`, error.message)
+          return { success: false, error: error.message }
+        }
+      })
+    )
+
+    const successCount = results.filter(r => r.status === 'fulfilled' && r.value.success).length
+    if (successCount > 0) {
+      console.log(`[push] Sent push notification to ${successCount}/${subscriptions.length} device(s) for user ${userId}`)
+    }
+  } catch (error) {
+    console.error(`[push] Error sending push notification to user ${userId}:`, error)
+    // Don't throw - push failures shouldn't break notification flow
+  }
+}
+
 async function createNotification(
   userId: string,
   params: CreateNotificationParams
@@ -93,6 +182,7 @@ async function createNotification(
     return
   }
 
+  // Create database notification
   const { error } = await supabaseAdmin
     .from('notifications')
     .insert({
@@ -107,6 +197,11 @@ async function createNotification(
     console.error('Failed to create notification:', error)
     throw error
   }
+
+  // Send push notification (fire and forget)
+  sendPushNotification(userId, params).catch(err => {
+    console.error(`[push] Push notification failed for user ${userId}:`, err)
+  })
 }
 
 /**
@@ -281,6 +376,14 @@ export class NotificationService {
       body: `${incident_type} reported in ${barangay}`,
       type: 'incident_alert',
       data: { incident_id: id, url: `/barangay/dashboard?incident=${id}` },
+    })
+
+    // Notify all volunteers (for new incidents, they may want to respond)
+    await this.notifyAllVolunteers({
+      title: '🚨 New Incident Needs Response',
+      body: `${incident_type} in ${barangay} - Volunteers needed`,
+      type: 'incident_alert',
+      data: { incident_id: id, url: `/volunteer/incidents/${id}` },
     })
   }
 

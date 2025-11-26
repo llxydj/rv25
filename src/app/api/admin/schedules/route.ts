@@ -2,12 +2,18 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { getServerSupabase } from '@/lib/supabase-server'
 import webpush from 'web-push'
+import { Database } from '@/types/supabase'
 
-const supabaseAdmin = createClient(
+type ScheduleRow = Database['public']['Tables']['schedules']['Row']
+type ScheduleInsert = Database['public']['Tables']['schedules']['Insert']
+type ScheduleUpdate = Database['public']['Tables']['schedules']['Update']
+
+const supabaseAdmin = createClient<Database>(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
   { auth: { autoRefreshToken: false, persistSession: false } }
 )
+
 export async function GET(req: Request) {
   try {
     const supabase = await getServerSupabase()
@@ -53,7 +59,7 @@ function configureWebPush() {
   const priv = process.env.VAPID_PRIVATE_KEY
   const contact = process.env.WEB_PUSH_CONTACT || 'mailto:admin@example.com'
   if (pub && priv) {
-    try { webpush.setVapidDetails(contact, pub, priv) } catch {}
+    try { webpush.setVapidDetails(contact, pub, priv) } catch { }
   }
   return Boolean(pub && priv)
 }
@@ -68,11 +74,14 @@ async function sendPushToUser(userId: string, payload: any) {
     const configured = configureWebPush()
     if (!configured) return
     await Promise.allSettled(
-      subs.map(async (s: any) => {
-        try { await webpush.sendNotification(s.subscription as any, JSON.stringify(payload)) } catch {}
+      subs.map(async (s) => {
+        try {
+          const subscription = s.subscription as unknown as webpush.PushSubscription
+          await webpush.sendNotification(subscription, JSON.stringify(payload))
+        } catch { }
       })
     )
-  } catch {}
+  } catch { }
 }
 
 export async function POST(req: Request) {
@@ -90,18 +99,20 @@ export async function POST(req: Request) {
     const body = await req.json()
     const { volunteer_id, title, description, start_time, end_time, location, barangay } = body || {}
 
+    const payload: ScheduleInsert = {
+      volunteer_id,
+      title,
+      description: description ?? null,
+      start_time,
+      end_time,
+      location: location ?? null,
+      barangay: barangay ?? null,
+      created_by: uid,
+    }
+
     const { data, error } = await supabaseAdmin
       .from('schedules')
-      .insert({
-        volunteer_id,
-        title,
-        description: description ?? null,
-        start_time,
-        end_time,
-        location: location ?? null,
-        barangay: barangay ?? null,
-        created_by: uid,
-      })
+      .insert(payload)
       .select(`
         *,
         volunteer:users!schedules_volunteer_id_fkey (
@@ -147,7 +158,7 @@ export async function PATCH(req: Request) {
 
     const { data, error } = await supabaseAdmin
       .from('schedules')
-      .update(updates)
+      .update(updates as ScheduleUpdate)
       .eq('id', id)
       .select(`
         *,
@@ -163,11 +174,12 @@ export async function PATCH(req: Request) {
     if (error) return NextResponse.json({ success: false, message: error.message }, { status: 400 })
 
     // Notify volunteer about schedule update if volunteer_id present in updates or returned row
-    const volunteerId = (updates as any)?.volunteer_id || (data as any)?.volunteer_id
+    const volunteerId = (updates as ScheduleUpdate)?.volunteer_id || (data as unknown as ScheduleRow)?.volunteer_id
     if (volunteerId) {
+      const scheduleData = data as unknown as ScheduleRow
       await sendPushToUser(volunteerId, {
         title: 'Schedule Updated',
-        body: `${data?.title || 'Activity'} • ${new Date(data?.start_time).toLocaleString()} - ${new Date(data?.end_time).toLocaleString()}`,
+        body: `${scheduleData?.title || 'Activity'} • ${new Date(scheduleData?.start_time).toLocaleString()} - ${new Date(scheduleData?.end_time).toLocaleString()}`,
         url: '/volunteer/schedules',
       })
     }

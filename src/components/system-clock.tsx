@@ -37,8 +37,8 @@ export function SystemClock({ className = '' }: SystemClockProps) {
 
   return (
     <div className={`text-center ${className}`}>
-      <div className="text-xl font-bold">{formatTime(currentTime)}</div>
-      <div className="text-lg font-semibold">{formatDate(currentTime)}</div>
+      <div className="text-base sm:text-lg md:text-xl font-bold">{formatTime(currentTime)}</div>
+      <div className="text-xs sm:text-base md:text-lg font-semibold">{formatDate(currentTime)}</div>
     </div>
   )
 }

@@ -231,7 +231,7 @@ export default function ResidentLayout({ children }: ResidentLayoutProps) {
           <div className="bg-white border-b border-gray-200 px-4 py-2 flex justify-between items-center">
             <h1 className="text-lg font-semibold text-gray-800">Resident Portal</h1>
             <div className="flex items-center space-x-4">
-              <SystemClock className="hidden md:block" />
+              <SystemClock className="block" />
               <ResidentNotifications />
             </div>
           </div>

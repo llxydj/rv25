@@ -5,7 +5,7 @@
 import { useEffect, useState, useCallback, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { VolunteerLayout } from "@/components/layout/volunteer-layout"
-import { getIncidentById, updateIncidentStatus } from "@/lib/incidents"
+import { getIncidentById, updateIncidentStatus, getIncidentUpdates } from "@/lib/incidents"
 import { useAuth } from "@/lib/auth"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import { MapComponent } from "@/components/ui/map-component"
@@ -26,6 +26,7 @@ export default function VolunteerIncidentDetailPage() {
   const [updating, setUpdating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [updates, setUpdates] = useState<any[]>([])
   
   // Use refs to prevent re-render loops
   const isMountedRef = useRef(true)
@@ -125,11 +126,17 @@ export default function VolunteerIncidentDetailPage() {
       }, 30000)
       
       try {
-        const incidentData = await fetchIncidentData(idToUse, user.id, user.role)
+        const incidentData = await fetchIncidentData(idToUse, user?.id || '', user?.role || '')
         
         if (isMountedRef.current && incidentData) {
           setIncident(incidentData)
           setError(null)
+          
+          // Fetch incident updates
+          const updatesResult = await getIncidentUpdates(idToUse)
+          if (updatesResult.success) {
+            setUpdates(updatesResult.data || [])
+          }
         }
       } catch (err: any) {
         console.error("Error in loadData:", err)
@@ -593,7 +600,7 @@ export default function VolunteerIncidentDetailPage() {
                 <div className="bg-white p-6 rounded-lg shadow-md">
                   <h2 className="text-lg font-semibold text-black mb-4">Photo Evidence</h2>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {photoGallery.map((photo, idx) => (
+                    {photoGallery.map((photo: string, idx: number) => (
                       <div key={`${photo}-${idx}`} className="rounded-md overflow-hidden">
                         <img
                           src={photo}
@@ -631,7 +638,7 @@ export default function VolunteerIncidentDetailPage() {
                       console.log('Parent received status update:', newStatus)
                       
                       // Force immediate state update
-                      setIncident(prevIncident => ({
+                      setIncident((prevIncident: any) => ({
                         ...prevIncident,
                         status: newStatus,
                         responding_at: newStatus === "RESPONDING" ? new Date().toISOString() : prevIncident.responding_at,
@@ -672,6 +679,13 @@ export default function VolunteerIncidentDetailPage() {
                           severity: newSeverity
                         })
                         setSuccessMessage(`Severity updated to ${newSeverity}`)
+                        
+                        // Refresh updates to show the new severity update
+                        getIncidentUpdates(incident.id).then((result) => {
+                          if (result.success) {
+                            setUpdates(result.data || [])
+                          }
+                        })
                       }}
                     />
                   </div>
@@ -730,6 +744,7 @@ export default function VolunteerIncidentDetailPage() {
             <div className="bg-white p-6 rounded-lg shadow-md">
               <h2 className="text-lg font-semibold text-black mb-4">Timeline</h2>
               <div className="space-y-4">
+                {/* Static initial report entry */}
                 <div className="flex">
                   <div className="mr-3">
                     <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
@@ -742,7 +757,73 @@ export default function VolunteerIncidentDetailPage() {
                   </div>
                 </div>
 
-                {incident.assigned_at && (
+                {/* Dynamic updates from incident_updates table */}
+                {updates.map((update: any, index: number) => (
+                  <div key={index} className="flex">
+                    <div className="mr-3">
+                      <div
+                        className={`h-8 w-8 rounded-full flex items-center justify-center ${
+                          update.previous_status === "SEVERITY_UPDATE" && update.new_status === "SEVERITY_UPDATE"
+                            ? "bg-purple-100"
+                            : update.new_status === "PENDING"
+                              ? "bg-gray-200"
+                              : update.new_status === "ASSIGNED"
+                                ? "bg-blue-100"
+                                : update.new_status === "RESPONDING"
+                                  ? "bg-orange-100"
+                                  : update.new_status === "ARRIVED"
+                                    ? "bg-purple-100"
+                                    : update.new_status === "RESOLVED"
+                                      ? "bg-green-100"
+                                      : "bg-gray-200"
+                        }`}
+                      >
+                        {update.previous_status === "SEVERITY_UPDATE" && update.new_status === "SEVERITY_UPDATE" ? (
+                          <span className="text-purple-600">⚠</span>
+                        ) : update.new_status === "PENDING" ? (
+                          <AlertTriangle className="h-4 w-4 text-gray-600" />
+                        ) : update.new_status === "ASSIGNED" ? (
+                          <User className="h-4 w-4 text-blue-600" />
+                        ) : update.new_status === "RESPONDING" ? (
+                          <Clock className="h-4 w-4 text-orange-600" />
+                        ) : update.new_status === "ARRIVED" ? (
+                          <span className="text-purple-600">📍</span>
+                        ) : update.new_status === "RESOLVED" ? (
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                        ) : (
+                          <span className="text-gray-600">✕</span>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-black">
+                        {update.previous_status === "SEVERITY_UPDATE" && update.new_status === "SEVERITY_UPDATE"
+                          ? "Severity Updated"
+                          : update.new_status === "PENDING"
+                            ? "Incident Reported"
+                            : update.new_status === "ASSIGNED"
+                              ? "Assigned to You"
+                              : update.new_status === "RESPONDING"
+                                ? "On The Way (OTW)"
+                                : update.new_status === "ARRIVED"
+                                  ? "Arrived at Scene"
+                                  : update.new_status === "RESOLVED"
+                                    ? "Resolved"
+                                    : "Incident Update"}
+                      </p>
+                      <p className="text-xs text-gray-700">{formatDate(update.created_at)}</p>
+                      {update.notes && <p className="text-xs text-gray-700 mt-1">{update.notes}</p>}
+                      {update.updated_by && update.updated_by.first_name && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          By: {update.updated_by.first_name} {update.updated_by.last_name} ({update.updated_by.role})
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+
+                {/* Original static entries for backward compatibility */}
+                {incident.assigned_at && !updates.some(u => u.new_status === "ASSIGNED") && (
                   <div className="flex">
                     <div className="mr-3">
                       <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
@@ -756,7 +837,7 @@ export default function VolunteerIncidentDetailPage() {
                   </div>
                 )}
 
-                {incident.responding_at && (
+                {incident.responding_at && !updates.some(u => u.new_status === "RESPONDING") && (
                   <div className="flex">
                     <div className="mr-3">
                       <div className="h-8 w-8 rounded-full bg-orange-100 flex items-center justify-center">
@@ -770,7 +851,7 @@ export default function VolunteerIncidentDetailPage() {
                   </div>
                 )}
 
-                {incident.resolved_at && (
+                {incident.resolved_at && !updates.some(u => u.new_status === "RESOLVED") && (
                   <div className="flex">
                     <div className="mr-3">
                       <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">

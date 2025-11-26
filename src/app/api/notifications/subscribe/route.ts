@@ -11,32 +11,127 @@ export async function POST(request: NextRequest) {
 
     // Get authenticated user from session
     const supabase = await getServerSupabase()
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    if (!authUser?.id) {
-      return NextResponse.json({ success: false, code: 'UNAUTHORIZED', message: 'Not authenticated' }, { status: 401 })
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError) {
+      console.error('[subscribe] Auth error:', {
+        message: authError.message,
+        status: authError.status,
+        name: authError.name
+      })
+      return NextResponse.json({ 
+        success: false, 
+        code: 'AUTH_ERROR', 
+        message: 'Failed to verify authentication. Please log in and try again.' 
+      }, { status: 401 })
     }
 
-    const { subscription } = await request.json()
+    if (!authUser?.id) {
+      // Optional: Allow debug mode in development (useful for testing)
+      const isDev = process.env.NODE_ENV === 'development'
+      const allowDebug = process.env.ALLOW_UNAUTHENTICATED_SUBSCRIPTIONS === 'true'
+      
+      if (isDev && allowDebug) {
+        console.warn('[subscribe] WARNING: Saving subscription without authentication (DEBUG MODE)')
+        // In debug mode, you could use a test user_id, but it's better to require auth
+        // This is just for logging purposes
+        return NextResponse.json({ 
+          success: false, 
+          code: 'UNAUTHORIZED', 
+          message: 'Authentication required even in debug mode' 
+        }, { status: 401 })
+      } else {
+        console.warn('[subscribe] No authenticated user found - user must log in first')
+        return NextResponse.json({ 
+          success: false, 
+          code: 'UNAUTHORIZED', 
+          message: 'You must be logged in to enable push notifications. Please log in and try again.' 
+        }, { status: 401 })
+      }
+    }
+
+    // TypeScript now knows authUser is not null
+    const userId = authUser.id
+    const userEmail = authUser.email
+
+    console.log('[subscribe] Authenticated user:', {
+      userId,
+      email: userEmail
+    })
+
+    const body = await request.json().catch(() => ({}))
+    const { subscription } = body
+    
+    if (!subscription) {
+      console.error('[subscribe] Missing subscription in request body')
+      return NextResponse.json({ 
+        success: false, 
+        code: 'VALIDATION_ERROR', 
+        message: 'Missing subscription data in request' 
+      }, { status: 400 })
+    }
+
     if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
-      return NextResponse.json({ success: false, code: 'VALIDATION_ERROR', message: 'subscription with endpoint, p256dh, auth required' }, { status: 400 })
+      console.error('[subscribe] Invalid subscription data:', {
+        hasEndpoint: !!subscription?.endpoint,
+        hasP256dh: !!subscription?.keys?.p256dh,
+        hasAuth: !!subscription?.keys?.auth,
+        endpoint: subscription?.endpoint?.substring(0, 50) + '...' || 'missing'
+      })
+      return NextResponse.json({ 
+        success: false, 
+        code: 'VALIDATION_ERROR', 
+        message: 'Invalid subscription data. Required fields: endpoint, keys.p256dh, keys.auth' 
+      }, { status: 400 })
     }
 
     const payload: any = {
-      user_id: authUser.id,
+      user_id: userId,
       endpoint: subscription.endpoint as string,
       p256dh: subscription.keys.p256dh as string,
       auth: subscription.keys.auth as string,
       subscription,
     }
 
-    const { error } = await supabase
-      .from('push_subscriptions')
-      .upsert(payload, { onConflict: 'endpoint' })
+    console.log('[subscribe] Saving subscription:', {
+      userId,
+      endpoint: subscription.endpoint.substring(0, 50) + '...',
+      hasKeys: !!subscription.keys.p256dh && !!subscription.keys.auth
+    })
 
-    if (error) throw error
-    return NextResponse.json({ success: true })
+    const { error, data } = await supabase
+      .from('push_subscriptions')
+      .upsert(payload, { onConflict: 'user_id' })
+      .select()
+
+    if (error) {
+      console.error('[subscribe] Database error:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        userId
+      })
+      return NextResponse.json({ 
+        success: false, 
+        code: 'DATABASE_ERROR', 
+        message: 'Failed to save subscription. Please try again.' 
+      }, { status: 500 })
+    }
+
+    console.log('[subscribe] Subscription saved successfully:', {
+      userId,
+      recordCount: data?.length || 0,
+      endpoint: subscription.endpoint.substring(0, 50) + '...'
+    })
+    return NextResponse.json({ success: true, data })
   } catch (e: any) {
-    return NextResponse.json({ success: false, code: 'INTERNAL_ERROR', message: e?.message || 'Failed to subscribe' }, { status: 500 })
+    console.error('[subscribe] Internal error:', e?.message, e)
+    return NextResponse.json({ 
+      success: false, 
+      code: 'INTERNAL_ERROR', 
+      message: e?.message || 'Failed to subscribe' 
+    }, { status: 500 })
   }
 }
 

@@ -581,23 +581,31 @@ export default function IncidentDetailPage() {
                       <div className="flex-shrink-0">
                         <div
                           className={`flex items-center justify-center h-8 w-8 rounded-full ${
-                            update.new_status === "PENDING"
-                              ? "bg-yellow-100 text-yellow-600"
-                              : update.new_status === "ASSIGNED"
-                                ? "bg-blue-100 text-blue-600"
-                                : update.new_status === "RESPONDING"
-                                  ? "bg-orange-100 text-orange-600"
-                                  : update.new_status === "RESOLVED"
-                                    ? "bg-green-100 text-green-600"
-                                    : "bg-gray-100 text-gray-600"
+                            update.previous_status === "SEVERITY_UPDATE" && update.new_status === "SEVERITY_UPDATE"
+                              ? "bg-purple-100 text-purple-600"
+                              : update.new_status === "PENDING"
+                                ? "bg-yellow-100 text-yellow-600"
+                                : update.new_status === "ASSIGNED"
+                                  ? "bg-blue-100 text-blue-600"
+                                  : update.new_status === "RESPONDING"
+                                    ? "bg-orange-100 text-orange-600"
+                                    : update.new_status === "ARRIVED"
+                                      ? "bg-purple-100 text-purple-600"
+                                      : update.new_status === "RESOLVED"
+                                        ? "bg-green-100 text-green-600"
+                                        : "bg-gray-100 text-gray-600"
                           }`}
                         >
-                          {update.new_status === "PENDING" ? (
+                          {update.previous_status === "SEVERITY_UPDATE" && update.new_status === "SEVERITY_UPDATE" ? (
+                            <span className="text-purple-600">⚠</span>
+                          ) : update.new_status === "PENDING" ? (
                             <AlertTriangle className="h-5 w-5" />
                           ) : update.new_status === "ASSIGNED" ? (
                             <User className="h-5 w-5" />
                           ) : update.new_status === "RESPONDING" ? (
                             <span className="text-orange-600">⏱</span>
+                          ) : update.new_status === "ARRIVED" ? (
+                            <span className="text-purple-600">📍</span>
                           ) : update.new_status === "RESOLVED" ? (
                             <CheckCircle className="h-5 w-5" />
                           ) : (
@@ -607,15 +615,19 @@ export default function IncidentDetailPage() {
                       </div>
                       <div className="ml-4">
                         <p className="text-sm font-medium text-gray-900">
-                          {update.new_status === "PENDING"
-                            ? "Incident Reported"
-                            : update.new_status === "ASSIGNED"
-                              ? "Volunteer Assigned"
-                              : update.new_status === "RESPONDING"
-                                ? "Volunteer Responding"
-                                : update.new_status === "RESOLVED"
-                                  ? "Incident Resolved"
-                                  : "Incident Cancelled"}
+                          {update.previous_status === "SEVERITY_UPDATE" && update.new_status === "SEVERITY_UPDATE"
+                            ? "Severity Updated"
+                            : update.new_status === "PENDING"
+                              ? "Incident Reported"
+                              : update.new_status === "ASSIGNED"
+                                ? "Volunteer Assigned"
+                                : update.new_status === "RESPONDING"
+                                  ? "Volunteer Responding"
+                                  : update.new_status === "ARRIVED"
+                                    ? "Volunteer Arrived"
+                                    : update.new_status === "RESOLVED"
+                                      ? "Incident Resolved"
+                                      : "Incident Cancelled"}
                         </p>
                         <p className="text-sm text-gray-500">{formatDate(update.created_at)}</p>
                         {update.notes && <p className="mt-1 text-sm text-gray-700">{update.notes}</p>}

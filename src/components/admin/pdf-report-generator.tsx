@@ -37,19 +37,19 @@ export function PDFReportGenerator() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [filters, setFilters] = useState<Partial<ReportFilters>>({})
   const [error, setError] = useState<string | null>(null)
-  
+
   // ✅ DARK MODE DETECTION
   const [darkMode, setDarkMode] = useState(false)
 
   useEffect(() => {
     if (typeof window === "undefined") return
-    
+
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
     setDarkMode(mediaQuery.matches)
-    
+
     const handleChange = (e: MediaQueryListEvent) => setDarkMode(e.matches)
     mediaQuery.addEventListener('change', handleChange)
-    
+
     return () => mediaQuery.removeEventListener('change', handleChange)
   }, [])
 
@@ -128,7 +128,7 @@ export function PDFReportGenerator() {
 
       // Create blob and download
       const blob = await response.blob()
-      
+
       // ✅ VALIDATE BLOB SIZE
       if (blob.size === 0) {
         throw new Error('Generated PDF is empty')
@@ -140,7 +140,7 @@ export function PDFReportGenerator() {
       a.download = `${reportType}-report-${format(new Date(), 'yyyy-MM-dd')}.pdf`
       document.body.appendChild(a)
       a.click()
-      
+
       // ✅ CLEANUP
       setTimeout(() => {
         document.body.removeChild(a)
@@ -190,8 +190,8 @@ export function PDFReportGenerator() {
               </SelectTrigger>
               <SelectContent className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700">
                 {reportTypes.map((type) => (
-                  <SelectItem 
-                    key={type.value} 
+                  <SelectItem
+                    key={type.value}
                     value={type.value}
                     className="text-gray-900 dark:text-gray-100"
                   >
@@ -273,7 +273,7 @@ export function PDFReportGenerator() {
               <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">
                 Additional Filters (Optional)
               </h4>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-gray-700 dark:text-gray-300">Status</Label>
@@ -381,8 +381,8 @@ export function PDFReportGenerator() {
             </p>
             <p>
               <strong className="text-gray-900 dark:text-gray-100">Date Range:</strong>{' '}
-              {startDate && endDate 
-                ? `${format(startDate, 'MMM dd, yyyy')} - ${format(endDate, 'MMM dd, yyyy')}` 
+              {startDate && endDate
+                ? `${format(startDate, 'MMM dd, yyyy')} - ${format(endDate, 'MMM dd, yyyy')}`
                 : 'Not selected'}
             </p>
             <p>

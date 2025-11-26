@@ -28,74 +28,131 @@ export function LocationTracker({ onLocationUpdate, showSettings = true, classNa
   const locationListenerRef = useRef<((location: LocationData) => void) | null>(null)
 
   useEffect(() => {
-    if (!user) return
+    console.log("LocationTracker useEffect called", { user });
+    if (!user) return;
 
     const initializeLocationTracking = async () => {
-      setLoading(true)
+      console.log("Initializing location tracking");
+      setLoading(true);
       
       try {
         // Check if geolocation is supported
-        const supported = locationTrackingService.isSupported()
-        setIsSupported(supported)
+        const supported = locationTrackingService.isSupported();
+        setIsSupported(supported);
+        console.log("Geolocation supported:", supported);
         
         if (!supported) {
-          setLoading(false)
-          return
+          setLoading(false);
+          return;
         }
 
         // Check permission
-        const permission = await locationTrackingService.requestPermission()
-        setHasPermission(permission)
+        const permission = await locationTrackingService.requestPermission();
+        setHasPermission(permission);
+        console.log("Location permission:", permission);
 
         if (!permission) {
-          setLoading(false)
-          return
+          setLoading(false);
+          return;
         }
 
         // Initialize the service
-        const initialized = await locationTrackingService.initialize(user.id)
+        const initialized = await locationTrackingService.initialize(user.id);
+        console.log("Location tracking initialized:", initialized);
         if (!initialized) {
-          setLoading(false)
-          return
+          setLoading(false);
+          return;
         }
 
         // Load preferences
-        const prefs = await locationTrackingService.getLocationPreferences(user.id)
-        setPreferences(prefs)
+        const prefs = await locationTrackingService.getLocationPreferences(user.id);
+        setPreferences(prefs);
+        console.log("Location preferences:", prefs);
 
         // Set up location listener
         locationListenerRef.current = (location: LocationData) => {
-          setCurrentLocation(location)
-          onLocationUpdate?.(location)
+          console.log("Location listener called:", location);
+          setCurrentLocation(location);
+          onLocationUpdate?.(location);
         }
-        locationTrackingService.addLocationListener(locationListenerRef.current)
+        locationTrackingService.addLocationListener(locationListenerRef.current);
 
         // If tracking is enabled, start it
         if (prefs.enabled) {
-          const started = await locationTrackingService.startTracking()
-          setIsTracking(started)
+          console.log("Starting location tracking");
+          const started = await locationTrackingService.startTracking();
+          setIsTracking(started);
+          console.log("Location tracking started:", started);
+          
+          // Try to get current location immediately
+          if (started) {
+            console.log("Getting initial position");
+            // Get current position once when tracking starts
+            navigator.geolocation.getCurrentPosition(
+              (position) => {
+                console.log("Initial position acquired:", position);
+                const locationData: LocationData = {
+                  latitude: position.coords.latitude,
+                  longitude: position.coords.longitude,
+                  accuracy: position.coords.accuracy,
+                  timestamp: new Date(position.timestamp),
+                  heading: position.coords.heading || undefined,
+                  speed: position.coords.speed || undefined
+                };
+                setCurrentLocation(locationData);
+                onLocationUpdate?.(locationData);
+              },
+              (error) => {
+                console.warn('Failed to get initial position:', error);
+              },
+              { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
+          }
+        } else {
+          console.log("Location tracking disabled, getting current position once");
+          // Even if tracking is disabled, try to get current location once
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              console.log("Current position acquired:", position);
+              const locationData: LocationData = {
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude,
+                accuracy: position.coords.accuracy,
+                timestamp: new Date(position.timestamp),
+                heading: position.coords.heading || undefined,
+                speed: position.coords.speed || undefined
+              };
+              setCurrentLocation(locationData);
+              onLocationUpdate?.(locationData);
+            },
+            (error) => {
+              console.warn('Failed to get current position:', error);
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+          );
         }
 
       } catch (error) {
-        console.error('Failed to initialize location tracking:', error)
+        console.error('Failed to initialize location tracking:', error);
         toast({
           variant: "destructive",
           title: "Error",
           description: "Failed to initialize location tracking"
-        })
+        });
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
+    };
 
-    initializeLocationTracking()
+    initializeLocationTracking();
 
     return () => {
+      console.log("Cleaning up location tracker");
       if (locationListenerRef.current) {
-        locationTrackingService.removeLocationListener(locationListenerRef.current)
+        locationTrackingService.removeLocationListener(locationListenerRef.current);
       }
-      locationTrackingService.stopTracking()
-    }
+      locationTrackingService.stopTracking();
+    };
   }, [user, onLocationUpdate, toast])
 
   const handleToggleTracking = async () => {

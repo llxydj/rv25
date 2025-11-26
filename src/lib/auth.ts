@@ -3,6 +3,9 @@
 import { supabase } from "./supabase"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import { Database } from "@/types/supabase"
+
+type UserRow = Database['public']['Tables']['users']['Row']
 
 export type UserRole = "admin" | "volunteer" | "resident" | "barangay"
 
@@ -26,7 +29,7 @@ export const useAuth = () => {
   const fetchUserData = async (userId: string) => {
     try {
       // Get user profile data including role and other fields
-      const { data: userData, error: userError } = await supabase
+      const { data, error: userError } = await supabase
         .from("users")
         .select("role, first_name, last_name, phone_number, address, barangay")
         .eq("id", userId)
@@ -37,16 +40,18 @@ export const useAuth = () => {
         return null
       }
 
+      const userData = data as unknown as UserRow
+
       if (userData) {
         return {
           id: userId,
           email: user?.email || "",
-          role: (userData as any).role,
-          firstName: (userData as any).first_name,
-          lastName: (userData as any).last_name,
-          phone_number: (userData as any).phone_number,
-          address: (userData as any).address,
-          barangay: (userData as any).barangay,
+          role: userData.role,
+          firstName: userData.first_name,
+          lastName: userData.last_name,
+          phone_number: userData.phone_number || undefined,
+          address: userData.address || undefined,
+          barangay: userData.barangay || undefined,
         }
       }
       return null
@@ -86,7 +91,7 @@ export const useAuth = () => {
         if (session) {
           try {
             // Get user profile data including role
-            const { data: userData, error: userError } = await supabase
+            const { data, error: userError } = await supabase
               .from("users")
               .select("role, first_name, last_name, phone_number, address, barangay")
               .eq("id", session.user.id)
@@ -97,16 +102,18 @@ export const useAuth = () => {
               console.warn("User data fetch warning:", userError)
             }
 
+            const userData = data as unknown as UserRow
+
             if (userData) {
               setUser({
                 id: session.user.id,
                 email: session.user.email || "",
-                role: (userData as any).role,
-                firstName: (userData as any).first_name,
-                lastName: (userData as any).last_name,
-                phone_number: (userData as any).phone_number,
-                address: (userData as any).address,
-                barangay: (userData as any).barangay,
+                role: userData.role,
+                firstName: userData.first_name,
+                lastName: userData.last_name,
+                phone_number: userData.phone_number || undefined,
+                address: userData.address || undefined,
+                barangay: userData.barangay || undefined,
               })
             } else {
               // Just set basic user info if profile data isn't available
@@ -145,7 +152,7 @@ export const useAuth = () => {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "SIGNED_IN" && session) {
         // Get user profile data including role
-        const { data: userData, error: userError } = await supabase
+        const { data, error: userError } = await supabase
           .from("users")
           .select("role, first_name, last_name, phone_number, address, barangay")
           .eq("id", session.user.id)
@@ -164,33 +171,35 @@ export const useAuth = () => {
           return
         }
 
+        const userData = data as unknown as UserRow
+
         if (userData) {
           // If the user is a volunteer, update their last_active timestamp (non-blocking)
-          if ((userData as any).role === "volunteer") {
+          if (userData.role === "volunteer") {
             updateVolunteerLastActive(session.user.id).catch(console.error)
           }
 
           const userSession = {
             id: session.user.id,
             email: session.user.email || "",
-            role: (userData as any).role,
-            firstName: (userData as any).first_name,
-            lastName: (userData as any).last_name,
-            phone_number: (userData as any).phone_number,
-            address: (userData as any).address,
-            barangay: (userData as any).barangay,
+            role: userData.role,
+            firstName: userData.first_name,
+            lastName: userData.last_name,
+            phone_number: userData.phone_number || undefined,
+            address: userData.address || undefined,
+            barangay: userData.barangay || undefined,
           }
 
           setUser(userSession)
 
           // Redirect based on role
-          if ((userData as any).role === "admin") {
+          if (userData.role === "admin") {
             router.push("/admin/dashboard")
-          } else if ((userData as any).role === "volunteer") {
+          } else if (userData.role === "volunteer") {
             router.push("/volunteer/dashboard")
-          } else if ((userData as any).role === "resident") {
+          } else if (userData.role === "resident") {
             router.push("/resident/dashboard")
-          } else if ((userData as any).role === "barangay") {
+          } else if (userData.role === "barangay") {
             router.push("/barangay/dashboard")
           }
         } else {
@@ -371,33 +380,33 @@ export const signOut = async () => {
     if (typeof window !== 'undefined') {
       // Clear PIN session
       sessionStorage.removeItem('pin_unlocked_session')
-      
+
       // Clear Supabase auth tokens
       localStorage.removeItem('supabase.auth.token')
-      
+
       // Clear all Supabase-related storage
       Object.keys(localStorage).forEach(key => {
         if (key.startsWith('sb-') || key.includes('supabase')) {
           localStorage.removeItem(key)
         }
       })
-      
+
       Object.keys(sessionStorage).forEach(key => {
         if (key.startsWith('sb-') || key.includes('supabase')) {
           sessionStorage.removeItem(key)
         }
       })
-      
+
       // Remove any realtime subscriptions
       const subscriptions = supabase.channel('custom-all-channel').unsubscribe()
       // Also remove any presence subscriptions
       supabase.removeAllChannels()
-      
+
       // Force a page reload to clear any remaining state
       // This ensures all React state and hooks are reset
       window.location.href = '/login'
     }
-    
+
     return { success: true }
   } catch (error: any) {
     console.error('Sign out error:', error)
@@ -417,7 +426,7 @@ export const sendPasswordResetEmail = async (email: string) => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: typeof window !== 'undefined' ? `${window.location.origin}/reset-password` : '/reset-password',
     })
-    
+
     if (error) throw error
     return { success: true, message: "Password reset instructions sent to your email." }
   } catch (error: any) {
@@ -488,7 +497,7 @@ export const getCurrentUser = async () => {
     }
 
     // Get user profile data including role
-    const { data: userData, error: userError } = await supabase
+    const { data, error: userError } = await supabase
       .from("users")
       .select("role, first_name, last_name")
       .eq("id", user.id)
@@ -496,14 +505,16 @@ export const getCurrentUser = async () => {
 
     if (userError) throw userError
 
+    const userData = data as unknown as UserRow
+
     return {
       success: true,
       user: {
         id: user.id,
         email: user.email || "",
-        role: (userData as any)?.role,
-        firstName: (userData as any)?.first_name,
-        lastName: (userData as any)?.last_name,
+        role: userData?.role,
+        firstName: userData?.first_name,
+        lastName: userData?.last_name,
       },
     }
   } catch (error: any) {

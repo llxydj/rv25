@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import { FileText, Download } from "lucide-react"
-import { usePDF } from "@react-pdf/renderer"
+import { Document, Page, Text, View, usePDF } from "@react-pdf/renderer"
 
 interface YearlyPDFReportGeneratorProps {
   yearData: any
@@ -18,6 +18,16 @@ type YearlyReportDocumentComponent = ComponentType<{
   year: number
   templateNotes?: string
 }>
+
+const EmptyDocument = () => (
+  <Document>
+    <Page>
+      <View>
+        <Text>Preparing report...</Text>
+      </View>
+    </Page>
+  </Document>
+)
 
 export function YearlyPDFReportGenerator({ yearData, selectedYear, templateNotes = "" }: YearlyPDFReportGeneratorProps) {
   const [generating, setGenerating] = useState(false)
@@ -49,7 +59,7 @@ export function YearlyPDFReportGenerator({ yearData, selectedYear, templateNotes
   }, [DocumentComponent, yearData, selectedYear, templateNotes])
 
   const [instance, updateInstance] = usePDF({
-    document: documentElement || <></>
+    document: documentElement || <EmptyDocument />,
   })
 
   useEffect(() => {

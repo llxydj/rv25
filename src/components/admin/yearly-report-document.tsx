@@ -48,18 +48,22 @@ const styles = StyleSheet.create({
     color: "#6b7280"
   },
   section: {
-    marginVertical: 10
+    marginVertical: 15
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    marginBottom: 10,
-    color: "#1f2937"
+    marginBottom: 12,
+    color: "#1f2937",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+    paddingBottom: 5
   },
   summaryRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 5
+    marginBottom: 8,
+    paddingVertical: 4
   },
   summaryLabel: {
     fontSize: 12,
@@ -73,12 +77,12 @@ const styles = StyleSheet.create({
   },
   table: {
     display: "flex",
-    width: "auto",
+    width: "100%",
     borderStyle: "solid",
     borderWidth: 1,
     borderRightWidth: 0,
     borderBottomWidth: 0,
-    marginBottom: 10
+    marginBottom: 15
   },
   tableRow: {
     margin: "auto",
@@ -90,26 +94,24 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderLeftWidth: 0,
     borderTopWidth: 0,
-    backgroundColor: "#f3f4f6"
+    backgroundColor: "#f3f4f6",
+    paddingVertical: 6
   },
   tableCol: {
     width: "25%",
     borderStyle: "solid",
     borderWidth: 1,
     borderLeftWidth: 0,
-    borderTopWidth: 0
+    borderTopWidth: 0,
+    paddingVertical: 4
   },
   tableCellHeader: {
     margin: "auto",
-    marginTop: 5,
-    marginBottom: 5,
     fontSize: 10,
     fontWeight: "bold"
   },
   tableCell: {
     margin: "auto",
-    marginTop: 5,
-    marginBottom: 5,
     fontSize: 9
   },
   chartPlaceholder: {
@@ -143,31 +145,33 @@ const styles = StyleSheet.create({
     color: "#6b7280"
   },
   notesSection: {
-    marginVertical: 10,
-    padding: 10,
+    marginVertical: 15,
+    padding: 12,
     borderStyle: "solid",
     borderWidth: 1,
     borderColor: "#d1d5db",
-    borderRadius: 4,
+    borderRadius: 6,
     backgroundColor: "#f9fafb"
   },
   notesTitle: {
     fontSize: 14,
     fontWeight: "bold",
-    marginBottom: 5,
+    marginBottom: 8,
     color: "#1f2937"
   },
   notesText: {
     fontSize: 12,
-    color: "#374151"
+    color: "#374151",
+    lineHeight: 1.4
   },
   emptyState: {
-    padding: 20,
+    padding: 25,
     backgroundColor: "#fef3c7",
-    borderRadius: 4,
+    borderRadius: 6,
     borderStyle: "solid",
     borderWidth: 1,
-    borderColor: "#fbbf24"
+    borderColor: "#fbbf24",
+    marginVertical: 20
   },
   emptyStateText: {
     fontSize: 12,
@@ -207,8 +211,94 @@ export default function YearlyReportDocument({ yearData, year, templateNotes = "
 
   const mostCommonType = topIncidentTypes.length > 0 ? topIncidentTypes[0].type : "N/A"
 
+  // Helper function to safely render text values
+  const safeText = (value: any): string => {
+    if (value === null || value === undefined) return "N/A";
+    if (value === "") return "N/A";
+    return String(value);
+  };
+
+  // Helper function to format dates safely
+  const formatDate = (dateString: string | undefined): string => {
+    if (!dateString) return "N/A";
+    try {
+      return new Date(dateString).toLocaleDateString("en-US");
+    } catch {
+      return "Invalid Date";
+    }
+  };
+
   return (
     <Document>
+      {/* COVER PAGE */}
+      <Page size="A4" style={{
+        ...styles.page,
+        flexDirection: "column",
+        justifyContent: "center",
+        alignItems: "center",
+        backgroundColor: "#f8fafc"
+      }}>
+        <View style={{
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          width: "100%",
+          padding: 40
+        }}>
+          <Image
+            src="https://res.cloudinary.com/dfrzg0mbh/image/upload/radiant-logo_i7zwcd"
+            style={{
+              width: 120,
+              height: 120,
+              marginBottom: 30
+            }}
+          />
+          <Text style={{
+            fontSize: 32,
+            fontWeight: "bold",
+            color: "#2563eb",
+            marginBottom: 10,
+            textAlign: "center"
+          }}>
+            ANNUAL REPORT
+          </Text>
+          <Text style={{
+            fontSize: 28,
+            fontWeight: "bold",
+            color: "#1e293b",
+            marginBottom: 30,
+            textAlign: "center"
+          }}>
+            {year}
+          </Text>
+          <Text style={{
+            fontSize: 18,
+            color: "#64748b",
+            marginBottom: 10,
+            textAlign: "center"
+          }}>
+            Radiant Rescue Volunteers Inc.
+          </Text>
+          <Text style={{
+            fontSize: 14,
+            color: "#94a3b8",
+            textAlign: "center",
+            marginTop: 60
+          }}>
+            CONFIDENTIAL
+          </Text>
+          <Text style={{
+            fontSize: 12,
+            color: "#94a3b8",
+            textAlign: "center",
+            marginTop: 10
+          }}>
+            Generated on {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+          </Text>
+        </View>
+      </Page>
+      
+      {/* CONTENT PAGES */}
       <Page size="A4" style={styles.page}>
         
         {/* HEADER WITH CLOUDINARY LOGO */}
@@ -229,6 +319,7 @@ export default function YearlyReportDocument({ yearData, year, templateNotes = "
               Generated: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
             </Text>
             <Text style={styles.date}>Fiscal Year: {year}</Text>
+            <Text style={styles.date}>Report ID: RVOIS-{year}-{Math.floor(Math.random() * 10000)}</Text>
           </View>
         </View>
 
@@ -247,22 +338,27 @@ export default function YearlyReportDocument({ yearData, year, templateNotes = "
 
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Total Incidents:</Text>
-                <Text style={styles.summaryValue}>{totalIncidents}</Text>
+                <Text style={styles.summaryValue}>{safeText(totalIncidents)}</Text>
               </View>
 
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Reports Generated:</Text>
-                <Text style={styles.summaryValue}>{reports.length}</Text>
+                <Text style={styles.summaryValue}>{safeText(reports.length)}</Text>
               </View>
 
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Busiest Quarter:</Text>
-                <Text style={styles.summaryValue}>{busiestQuarter}</Text>
+                <Text style={styles.summaryValue}>{safeText(busiestQuarter)}</Text>
               </View>
 
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Most Common Incident Type:</Text>
-                <Text style={styles.summaryValue}>{mostCommonType}</Text>
+                <Text style={styles.summaryValue}>{safeText(mostCommonType)}</Text>
+              </View>
+
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Average Incidents Per Month:</Text>
+                <Text style={styles.summaryValue}>{quarters.length > 0 ? (totalIncidents / quarters.length).toFixed(1) : "0.0"}</Text>
               </View>
 
               {templateNotes && (
@@ -288,10 +384,10 @@ export default function YearlyReportDocument({ yearData, year, templateNotes = "
 
                   {quarters.map((q: any, i: number) => (
                     <View key={q?.quarter || i} style={styles.tableRow}>
-                      <View style={styles.tableCol}><Text style={styles.tableCell}>{q?.quarter || "N/A"}</Text></View>
-                      <View style={styles.tableCol}><Text style={styles.tableCell}>{q?.incident_count || 0}</Text></View>
-                      <View style={styles.tableCol}><Text style={styles.tableCell}>{q?.start ? new Date(q.start).toLocaleDateString("en-US") : "N/A"}</Text></View>
-                      <View style={styles.tableCol}><Text style={styles.tableCell}>{q?.end ? new Date(q.end).toLocaleDateString("en-US") : "N/A"}</Text></View>
+                      <View style={styles.tableCol}><Text style={styles.tableCell}>{safeText(q?.quarter)}</Text></View>
+                      <View style={styles.tableCol}><Text style={styles.tableCell}>{safeText(q?.incident_count || 0)}</Text></View>
+                      <View style={styles.tableCol}><Text style={styles.tableCell}>{formatDate(q?.start)}</Text></View>
+                      <View style={styles.tableCol}><Text style={styles.tableCell}>{formatDate(q?.end)}</Text></View>
                     </View>
                   ))}
                 </View>
@@ -308,14 +404,14 @@ export default function YearlyReportDocument({ yearData, year, templateNotes = "
                     <View style={styles.tableColHeader}><Text style={styles.tableCellHeader}>Incident Type</Text></View>
                     <View style={styles.tableColHeader}><Text style={styles.tableCellHeader}>Count</Text></View>
                     <View style={styles.tableColHeader}><Text style={styles.tableCellHeader}>Percentage</Text></View>
-                    <View style={styles.tableColHeader}><Text style={styles.tableCellHeader}>Chart</Text></View>
+                    <View style={styles.tableColHeader}><Text style={styles.tableCellHeader}>Visualization</Text></View>
                   </View>
 
                   {topIncidentTypes.map((item) => (
                     <View key={item.type} style={styles.tableRow}>
-                      <View style={styles.tableCol}><Text style={styles.tableCell}>{item.type}</Text></View>
-                      <View style={styles.tableCol}><Text style={styles.tableCell}>{item.count}</Text></View>
-                      <View style={styles.tableCol}><Text style={styles.tableCell}>{((item.count / totalIncidents) * 100).toFixed(1)}%</Text></View>
+                      <View style={styles.tableCol}><Text style={styles.tableCell}>{safeText(item.type)}</Text></View>
+                      <View style={styles.tableCol}><Text style={styles.tableCell}>{safeText(item.count)}</Text></View>
+                      <View style={styles.tableCol}><Text style={styles.tableCell}>{totalIncidents > 0 ? `${((item.count / totalIncidents) * 100).toFixed(1)}%` : "0.0%"}</Text></View>
                       <View style={styles.tableCol}>
                         <View style={styles.chartPlaceholder}>
                           <Text style={styles.chartPlaceholderText}>Chart Visualization</Text>
@@ -337,14 +433,14 @@ export default function YearlyReportDocument({ yearData, year, templateNotes = "
                     <View style={styles.tableColHeader}><Text style={styles.tableCellHeader}>Status</Text></View>
                     <View style={styles.tableColHeader}><Text style={styles.tableCellHeader}>Count</Text></View>
                     <View style={styles.tableColHeader}><Text style={styles.tableCellHeader}>Percentage</Text></View>
-                    <View style={styles.tableColHeader}><Text style={styles.tableCellHeader}>Chart</Text></View>
+                    <View style={styles.tableColHeader}><Text style={styles.tableCellHeader}>Visualization</Text></View>
                   </View>
 
                   {statusDistribution.map((item) => (
                     <View key={item.status} style={styles.tableRow}>
-                      <View style={styles.tableCol}><Text style={styles.tableCell}>{item.status}</Text></View>
-                      <View style={styles.tableCol}><Text style={styles.tableCell}>{item.count}</Text></View>
-                      <View style={styles.tableCol}><Text style={styles.tableCell}>{((item.count / totalIncidents) * 100).toFixed(1)}%</Text></View>
+                      <View style={styles.tableCol}><Text style={styles.tableCell}>{safeText(item.status)}</Text></View>
+                      <View style={styles.tableCol}><Text style={styles.tableCell}>{safeText(item.count)}</Text></View>
+                      <View style={styles.tableCol}><Text style={styles.tableCell}>{totalIncidents > 0 ? `${((item.count / totalIncidents) * 100).toFixed(1)}%` : "0.0%"}</Text></View>
                       <View style={styles.tableCol}>
                         <View style={styles.chartPlaceholder}>
                           <Text style={styles.chartPlaceholderText}>Chart Visualization</Text>
@@ -361,7 +457,7 @@ export default function YearlyReportDocument({ yearData, year, templateNotes = "
         {/* FOOTER */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>
-            Radiant Rescue Volunteers Inc. - Annual Report {year}
+            Radiant Rescue Volunteers Inc. - Annual Report {year} - CONFIDENTIAL
           </Text>
 
           <Text
