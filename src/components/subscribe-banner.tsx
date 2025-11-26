@@ -19,7 +19,7 @@ export default function SubscribeBanner({ userId }: { userId?: string }) {
   const registerServiceWorker = async () => {
     if (!supported) return null
     try {
-      const reg = await navigator.serviceWorker.register('/service-worker.js')
+      const reg = await navigator.serviceWorker.register('/sw.js')
       await navigator.serviceWorker.ready
       return reg
     } catch (e) {

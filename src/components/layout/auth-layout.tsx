@@ -32,8 +32,6 @@ export function AuthLayout({ children, redirectTo = "/login", allowedRoles = [] 
   }, [user, loading, redirectTo, router, allowedRoles])
 
   // Show loading state while checking auth or redirecting
-  // For resident dashboard, show a brief loading state while session refreshes
-  // instead of instantly redirecting to prevent blank screen
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -42,9 +40,8 @@ export function AuthLayout({ children, redirectTo = "/login", allowedRoles = [] 
     )
   }
   
-  // If user is not authenticated, redirect to login
+  // If user is not authenticated, show loading while redirecting
   if (!user) {
-    router.push(redirectTo)
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size="lg" text="Redirecting to login..." />
@@ -52,19 +49,16 @@ export function AuthLayout({ children, redirectTo = "/login", allowedRoles = [] 
     )
   }
   
-  // If specific roles are required and user doesn't have them, redirect appropriately
+  // If specific roles are required and user doesn't have them, show loading while redirecting
   if (allowedRoles.length > 0 && (!user.role || !allowedRoles.includes(user.role))) {
     // If user has no role but we require specific roles, redirect to registration for residents
     if (!user.role && allowedRoles.includes("resident")) {
-      router.push("/resident/register-google")
       return (
         <div className="flex items-center justify-center min-h-screen">
           <LoadingSpinner size="lg" text="Redirecting to profile setup..." />
         </div>
       )
     } else {
-      console.log('Unauthorized access attempt:', { userRole: user.role, allowedRoles })
-      router.push("/unauthorized")
       return (
         <div className="flex items-center justify-center min-h-screen">
           <LoadingSpinner size="lg" text="Redirecting..." />

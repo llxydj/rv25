@@ -9,23 +9,24 @@ export async function POST(request: NextRequest) {
     const rate = rateLimitAllowed(rateKeyFromRequest(request, 'notifications:subscribe:post'), 30)
     if (!rate.allowed) return NextResponse.json({ success: false, code: 'RATE_LIMITED', message: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(rate.retryAfter) } as any })
 
-    const { user_id, subscription } = await request.json()
-    if (!user_id || !subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
-      return NextResponse.json({ success: false, code: 'VALIDATION_ERROR', message: 'user_id, endpoint, p256dh, auth required' }, { status: 400 })
+    // Get authenticated user from session
+    const supabase = await getServerSupabase()
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    if (!authUser?.id) {
+      return NextResponse.json({ success: false, code: 'UNAUTHORIZED', message: 'Not authenticated' }, { status: 401 })
     }
 
-    const payload = {
-      user_id,
+    const { subscription } = await request.json()
+    if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
+      return NextResponse.json({ success: false, code: 'VALIDATION_ERROR', message: 'subscription with endpoint, p256dh, auth required' }, { status: 400 })
+    }
+
+    const payload: any = {
+      user_id: authUser.id,
       endpoint: subscription.endpoint as string,
       p256dh: subscription.keys.p256dh as string,
       auth: subscription.keys.auth as string,
       subscription,
-    }
-
-    const supabase = await getServerSupabase()
-    const { data: me } = await supabase.auth.getUser()
-    if (!me?.user?.id || me.user.id !== user_id) {
-      return NextResponse.json({ success: false, code: 'FORBIDDEN' }, { status: 403 })
     }
 
     const { error } = await supabase

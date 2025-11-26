@@ -20,6 +20,7 @@ interface Incident {
   priority: number
   severity: 'MINOR' | 'MODERATE' | 'SEVERE' | 'CRITICAL' | null
   created_at: string
+  created_at_local?: string
   assigned_at: string | null
   responding_at: string | null
   resolved_at: string | null
@@ -35,6 +36,10 @@ interface Incident {
   } | null
   _offline?: boolean
   is_overdue?: boolean
+  photoGallery?: string[]
+  isLegacyData?: boolean
+  dataFormatVersion?: 'legacy' | 'current'
+  displayDate?: string
 }
 
 interface IncidentsTableProps {
@@ -242,6 +247,14 @@ export function IncidentsTable({ incidents, onRowClick }: IncidentsTableProps) {
                 Offline
               </Badge>
             )}
+            {incident.isLegacyData && (
+              <Badge 
+                variant="outline" 
+                className="text-xs border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300"
+              >
+                Legacy Data
+              </Badge>
+            )}
             {incident.is_overdue && (
               <Badge className="text-xs bg-red-600 text-white dark:bg-red-700">
                 Overdue
@@ -306,7 +319,7 @@ export function IncidentsTable({ incidents, onRowClick }: IncidentsTableProps) {
             {getStatusBadge(incident.status)}
           </div>
           <div className="text-gray-500 dark:text-gray-400 text-right">
-            {formatDate(incident.created_at)}
+            {formatDate(incident.displayDate || incident.created_at)}
           </div>
         </div>
         
@@ -335,7 +348,7 @@ export function IncidentsTable({ incidents, onRowClick }: IncidentsTableProps) {
                   </div>
                   <div className="ml-2">
                     <p className="font-medium text-gray-900 dark:text-gray-100">Reported</p>
-                    <p className="text-gray-500 dark:text-gray-400">{formatDate(incident.created_at)}</p>
+                    <p className="text-gray-500 dark:text-gray-400">{formatDate(incident.displayDate || incident.created_at)}</p>
                   </div>
                 </div>
                 {incident.assigned_at && (
@@ -479,6 +492,11 @@ export function IncidentsTable({ incidents, onRowClick }: IncidentsTableProps) {
                             Offline
                           </Badge>
                         )}
+                        {incident.isLegacyData && (
+                          <Badge variant="outline" className="text-xs border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300">
+                            Legacy Data
+                          </Badge>
+                        )}
                         {incident.is_overdue && (
                           <Badge className="text-xs bg-red-600 text-white dark:bg-red-700">
                             Overdue
@@ -547,7 +565,7 @@ export function IncidentsTable({ incidents, onRowClick }: IncidentsTableProps) {
                     )}
                   </td>
                   <td className="px-4 lg:px-6 py-4 text-sm text-gray-500 dark:text-gray-400 cursor-pointer" onClick={() => onRowClick?.(incident)}>
-                    {formatDate(incident.created_at)}
+                    {formatDate(incident.displayDate || incident.created_at)}
                   </td>
                 </tr>
                 <tr>
@@ -566,7 +584,7 @@ export function IncidentsTable({ incidents, onRowClick }: IncidentsTableProps) {
                                   </div>
                                   <div className="ml-2">
                                     <p className="text-xs font-medium text-gray-900 dark:text-gray-100">Reported</p>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">{formatDate(incident.created_at)}</p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">{formatDate(incident.displayDate || incident.created_at)}</p>
                                   </div>
                                 </div>
                                 {incident.assigned_at && (
@@ -605,9 +623,9 @@ export function IncidentsTable({ incidents, onRowClick }: IncidentsTableProps) {
                               </div>
                             </div>
                             
-                            {/* Priority & Severity */}
+                            {/* Severity level (expert assessment) */}
                             <div>
-                              <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">Priority & Severity</h4>
+                              <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">Severity Level (expert assessment)</h4>
                               <div className="flex flex-wrap gap-2">
                                 {getPriorityBadge(incident.priority)}
                                 {incident.severity && getSeverityBadge(incident.severity)}

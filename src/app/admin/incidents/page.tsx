@@ -12,6 +12,7 @@ import { supabase } from "@/lib/supabase"
 import { AlertTriangle, Filter, Plus } from "lucide-react"
 import { IncidentsTable } from "@/components/admin/incidents-table"
 import { IncidentsFilter } from "@/components/admin/incidents-filter"
+import { normalizeIncident } from "@/lib/incident-utils"
 
 interface DateRange {
   from: Date | undefined
@@ -25,6 +26,7 @@ interface Filters {
   incidentType: string
   priority: string
   dateRange: DateRange
+  dataFormat: string
 }
 
 const INCIDENT_TYPES = [
@@ -70,7 +72,8 @@ export default function AdminIncidentsPage() {
     status: "ALL",
     incidentType: "",
     priority: "",
-    dateRange: { from: undefined, to: undefined }
+    dateRange: { from: undefined, to: undefined },
+    dataFormat: "ALL"
   })
 
   // -----------------------------
@@ -110,7 +113,7 @@ export default function AdminIncidentsPage() {
         setLoading(true)
         const result = await getAllIncidents()
         if (result.success) {
-          const base = result.data || []
+          const base = (result.data || []).map(normalizeIncident)
           setIncidents(base)
           setFilteredIncidents(base)
         } else {
@@ -183,6 +186,15 @@ export default function AdminIncidentsPage() {
     // Offline only
     if (offlineOnly) {
       filtered = filtered.filter((incident) => incident._offline)
+    }
+
+    // Data format filter
+    if (filters.dataFormat !== "ALL") {
+      if (filters.dataFormat === "LEGACY") {
+        filtered = filtered.filter((incident) => incident.isLegacyData)
+      } else if (filters.dataFormat === "CURRENT") {
+        filtered = filtered.filter((incident) => !incident.isLegacyData)
+      }
     }
 
     setFilteredIncidents(filtered)

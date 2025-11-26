@@ -9,6 +9,21 @@ const SeverityUpdateSchema = z.object({
   notes: z.string().optional()
 })
 
+// Keep priority aligned with expert-assessed severity
+const mapSeverityToPriority = (severity: 'MINOR' | 'MODERATE' | 'SEVERE' | 'CRITICAL'): number => {
+  switch (severity) {
+    case 'CRITICAL':
+      return 1
+    case 'SEVERE':
+      return 2
+    case 'MODERATE':
+      return 3
+    case 'MINOR':
+    default:
+      return 4
+  }
+}
+
 /**
  * PATCH /api/incidents/[id]/severity
  * Update incident severity - ONLY allowed when volunteer has ARRIVED at the scene
@@ -88,6 +103,15 @@ export async function PATCH(
       }, { status: 404 })
     }
 
+    // Only admins and volunteers may update severity
+    if (user.role !== 'admin' && user.role !== 'volunteer') {
+      return NextResponse.json({
+        success: false,
+        code: 'FORBIDDEN',
+        message: 'Only admins and assigned volunteers can update severity'
+      }, { status: 403 })
+    }
+
     // CRITICAL: Only allow severity update if:
     // 1. User is admin (can always update), OR
     // 2. User is volunteer AND incident is assigned to them AND status is ARRIVED
@@ -134,11 +158,14 @@ export async function PATCH(
       }, { status: 409 })
     }
 
-    // Update incident severity with conditional check to prevent concurrent updates
+    // Update incident severity (and keep priority in sync) with conditional check to prevent concurrent updates
+    const newPriority = mapSeverityToPriority(severity)
+
     const { data: updatedIncident, error: updateError } = await supabase
       .from('incidents')
       .update({ 
         severity,
+        priority: newPriority,
         updated_at: new Date().toISOString()
       })
       .eq('id', params.id)

@@ -69,10 +69,12 @@ class PushNotificationService {
 
   /**
    * Request notification permission from user
+   * @param skipRequest - If true, only check permission without requesting
    */
-  async requestPermission(): Promise<NotificationPermission> {
+  async requestPermission(skipRequest: boolean = false): Promise<NotificationPermission | null> {
     if (!this.isSupported()) {
-      throw new Error('Push notifications not supported')
+      console.warn('[push] Push notifications not supported')
+      return null
     }
 
     if (Notification.permission === 'granted') {
@@ -80,28 +82,49 @@ class PushNotificationService {
     }
 
     if (Notification.permission === 'denied') {
-      throw new Error('Notification permission denied')
+      console.warn('[push] Notifications blocked by user')
+      return 'denied'
     }
 
-    const permission = await Notification.requestPermission()
-    return permission
+    // If skipRequest is true, don't prompt the user
+    if (skipRequest) {
+      console.log('[push] Permission not yet granted, skipping auto-request')
+      return 'default'
+    }
+
+    try {
+      const permission = await Notification.requestPermission()
+      if (permission !== 'granted') {
+        console.warn('[push] Notification permission not granted:', permission)
+        return permission
+      }
+      return 'granted'
+    } catch (error: any) {
+      console.warn('[push] Error requesting permission:', error.message)
+      return null
+    }
   }
 
   /**
    * Initialize push notifications
    * Registers service worker and creates push subscription
+   * @param requestPermission - If true, will request notification permission. Default: false (check only)
    */
-  async initialize(): Promise<boolean> {
+  async initialize(requestPermission: boolean = false): Promise<boolean> {
     try {
       if (!this.isSupported()) {
-        console.warn('[push] Push notifications not supported')
+        console.log('[push] Push notifications not supported in this browser')
         return false
       }
 
-      // Request permission
-      const permission = await this.requestPermission()
+      // Check permission (don't request unless explicitly told to)
+      const permission = await this.requestPermission(!requestPermission)
       if (permission !== 'granted') {
-        console.warn('[push] Permission not granted:', permission)
+        if (permission === 'denied') {
+          console.log('[push] Notifications are blocked. User can enable them in browser settings.')
+        } else {
+          console.log('[push] Notification permission not granted. Will wait for user to enable.')
+        }
         return false
       }
 
@@ -126,9 +149,17 @@ class PushNotificationService {
 
       return true
     } catch (error: any) {
-      console.error('[push] Initialization error:', error)
+      console.log('[push] Could not initialize push notifications:', error.message)
       return false
     }
+  }
+
+  /**
+   * Manually enable push notifications (prompts user for permission)
+   * This should be called from a user interaction (button click) for better UX
+   */
+  async enable(): Promise<boolean> {
+    return this.initialize(true)
   }
 
   /**
@@ -162,7 +193,7 @@ class PushNotificationService {
 
       return this.subscription
     } catch (error: any) {
-      console.error('[push] Subscription error:', error)
+      console.log('[push] Could not subscribe:', error.message)
       return null
     }
   }
@@ -188,7 +219,7 @@ class PushNotificationService {
 
       return success
     } catch (error: any) {
-      console.error('[push] Unsubscribe error:', error)
+      console.log('[push] Could not unsubscribe:', error.message)
       return false
     }
   }
@@ -196,7 +227,7 @@ class PushNotificationService {
   /**
    * Send subscription to server for storage
    */
-  async sendSubscriptionToServer(subscription: PushSubscription): Promise<void> {
+  public async sendSubscriptionToServer(subscription: PushSubscription): Promise<void> {
     try {
       // Store the entire subscription object as JSONB (matches database schema)
       const subscriptionData = {
@@ -212,17 +243,18 @@ class PushNotificationService {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          subscription: subscriptionData // Send as JSONB object
+          subscription: subscriptionData
         })
       })
 
       if (!response.ok) {
-        throw new Error('Failed to save subscription')
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || `Server returned ${response.status}`)
       }
 
       console.log('[push] Subscription saved to server')
     } catch (error: any) {
-      console.error('[push] Error saving subscription:', error)
+      console.log('[push] Could not save subscription:', error.message)
       throw error
     }
   }
@@ -244,7 +276,7 @@ class PushNotificationService {
 
       console.log('[push] Subscription removed from server')
     } catch (error: any) {
-      console.error('[push] Error removing subscription:', error)
+      console.log('[push] Could not remove subscription:', error.message)
     }
   }
 
@@ -262,10 +294,9 @@ class PushNotificationService {
       badge: payload.badge || '/icons/badge-72x72.png',
       tag: payload.tag || 'default',
       data: payload.data,
-      actions: payload.actions,
       vibrate: [200, 100, 200],
       requireInteraction: true
-    })
+    } as any)
   }
 
   /**

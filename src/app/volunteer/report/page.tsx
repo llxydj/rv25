@@ -142,6 +142,50 @@ export default function VolunteerReportIncidentPage() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!isOffline && pendingReports.length > 0 && user) {
+      const submitPendingReports = async () => {
+        const updatedPendingReports = [...pendingReports]
+
+        for (let i = 0; i < updatedPendingReports.length; i++) {
+          const report = updatedPendingReports[i]
+          if (report.originRole && report.originRole !== "volunteer") {
+            continue
+          }
+          const reportLocation = report.location || TALISAY_CENTER
+
+          try {
+            const result = await createIncident(
+              user.id,
+              report.incidentType,
+              report.description,
+              reportLocation[0],
+              reportLocation[1],
+              report.address,
+              report.barangay,
+              [],
+              report.priority,
+              true,
+              report.createdAtLocal || report.createdAt,
+            )
+
+            if (result.success) {
+              updatedPendingReports.splice(i, 1)
+              i--
+            }
+          } catch (error) {
+            console.error("Failed to submit pending volunteer report:", error)
+          }
+        }
+
+        setPendingReports(updatedPendingReports)
+        localStorage.setItem("pendingIncidentReports", JSON.stringify(updatedPendingReports))
+      }
+
+      submitPendingReports()
+    }
+  }, [isOffline, pendingReports, user])
+
   // Reverse geocode when location changes and we're online
   useEffect(() => {
     let cancelled = false
@@ -423,6 +467,7 @@ export default function VolunteerReportIncidentPage() {
     // If offline, store the report locally
     if (isOffline) {
       try {
+        const submissionTimestamp = new Date().toISOString()
         const newReport = {
           incidentType: formData.incidentType,
           description: formData.description,
@@ -430,7 +475,9 @@ export default function VolunteerReportIncidentPage() {
           address: formData.address,
           barangay: formData.barangay,
           priority: Number.parseInt(formData.priority),
-          createdAt: new Date().toISOString(),
+          createdAtLocal: submissionTimestamp,
+          createdAt: submissionTimestamp,
+          originRole: "volunteer",
         }
 
         const updatedPendingReports = [...pendingReports, newReport]
@@ -480,6 +527,7 @@ export default function VolunteerReportIncidentPage() {
         throw new Error("Your session has expired. Please log in again.")
       }
 
+      const submissionTimestamp = new Date().toISOString()
       const result = await createIncident(
         user.id,
         formData.incidentType,
@@ -490,6 +538,8 @@ export default function VolunteerReportIncidentPage() {
         formData.barangay,
         photoFile ? [photoFile] : [],
         Number.parseInt(formData.priority),
+        false,
+        submissionTimestamp,
       )
 
       if (!result.success) {

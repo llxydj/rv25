@@ -4,7 +4,7 @@ import type React from "react"
 import { useState, useCallback, useMemo, useEffect, Suspense } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { AlertTriangle, Phone, User, X, Menu } from "lucide-react"
+import { AlertTriangle, Phone, User, X, BarChart3 } from "lucide-react"
 import { useNotificationsChannel } from '@/lib/use-notifications'
 import { signOut } from "@/lib/auth"
 import { AuthLayout } from "./auth-layout"
@@ -15,6 +15,8 @@ import SubscribeBanner from "@/components/subscribe-banner"
 import EmergencyCallButtonEnhanced from "@/components/emergency-call-button-enhanced"
 import { ResidentNotifications } from "@/components/resident/resident-notifications"
 import { SystemClock } from "@/components/system-clock"
+import { pushNotificationService } from "@/lib/push-notification-service"
+import { SignOutModal } from "@/components/ui/signout-modal"
 
 interface ResidentLayoutProps {
   children: React.ReactNode
@@ -25,11 +27,21 @@ export default function ResidentLayout({ children }: ResidentLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [isNavigating, setIsNavigating] = useState(false)
+  const [showSignOutModal, setShowSignOutModal] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
 
   // Notifications realtime subscription
   useNotificationsChannel()
+
+  // Initialize push notifications
+  useEffect(() => {
+    if (user?.id) {
+      pushNotificationService.initialize().catch((error) => {
+        console.log('[Resident] Push notification initialization skipped:', error.message)
+      })
+    }
+  }, [user?.id])
 
   // Memoize navigation items to prevent unnecessary re-renders
   const navigationItems = useMemo(() => [
@@ -184,15 +196,7 @@ export default function ResidentLayout({ children }: ResidentLayoutProps) {
             ))}
 
             <button
-              onClick={handleEmergencyCall}
-              className="flex items-center space-x-2 p-2 rounded-md w-full text-left bg-red-600 hover:bg-red-500 mt-4 transition-colors"
-            >
-              <Phone className="h-5 w-5" />
-              <span>Emergency Call</span>
-            </button>
-
-            <button
-              onClick={handleSignOut}
+              onClick={() => setShowSignOutModal(true)}
               disabled={loading}
               className="flex items-center space-x-2 p-2 rounded-md w-full text-left hover:bg-red-700 mt-4 disabled:opacity-50 transition-colors"
             >
@@ -217,7 +221,7 @@ export default function ResidentLayout({ children }: ResidentLayoutProps) {
               onClick={toggleSidebar}
               aria-label="Open menu"
             >
-              <Menu className="h-6 w-6" />
+              <BarChart3 className="h-6 w-6" />
             </button>
             <h1 className="text-lg font-semibold text-gray-800">RVOIS</h1>
             <div className="w-8" /> {/* Spacer for centering */}
@@ -248,6 +252,14 @@ export default function ResidentLayout({ children }: ResidentLayoutProps) {
           </Suspense>
         </div>
       </div>
+
+      <SignOutModal
+        open={showSignOutModal}
+        onConfirm={handleSignOut}
+        onCancel={() => setShowSignOutModal(false)}
+        loading={loading}
+        roleLabel="resident"
+      />
     </AuthLayout>
   )
 }

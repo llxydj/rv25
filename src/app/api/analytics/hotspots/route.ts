@@ -12,19 +12,19 @@ export async function GET(request: NextRequest) {
     const days = Math.max(1, Math.min(365, parseInt(searchParams.get('days') || '30', 10)))
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
 
-    // Fetch coordinates for incidents in the window
+    // Fetch coordinates AND barangay for incidents in the window
     const { data, error } = await supabase
       .from('incidents')
-      .select('location_lat, location_lng')
+      .select('location_lat, location_lng, barangay')
       .gte('created_at', since)
     if (error) throw error
 
     // Guard empty
-    const points = (data as Array<{ location_lat: number | null; location_lng: number | null }> | null) || []
+    const points = (data as Array<{ location_lat: number | null; location_lng: number | null; barangay: string | null }> | null) || []
 
     // Group by a small coordinate grid to reduce duplicates and produce counts
     const gridSize = 0.001 // ~100m depending on latitude; adjust if needed
-    const buckets: Record<string, { lat: number; lng: number; count: number }> = {}
+    const buckets: Record<string, { lat: number; lng: number; count: number; barangay: string }> = {}
 
     for (const p of points) {
       if (typeof p.location_lat !== 'number' || typeof p.location_lng !== 'number') continue
@@ -32,9 +32,16 @@ export async function GET(request: NextRequest) {
       const lngBucket = Math.round(p.location_lng / gridSize) * gridSize
       const key = `${latBucket.toFixed(3)},${lngBucket.toFixed(3)}`
       if (!buckets[key]) {
-        buckets[key] = { lat: latBucket, lng: lngBucket, count: 1 }
+        buckets[key] = { 
+          lat: latBucket, 
+          lng: lngBucket, 
+          count: 1, 
+          barangay: p.barangay || 'Unknown' 
+        }
       } else {
         buckets[key].count += 1
+        // Keep the first barangay name for the hotspot
+        // If you want the most common barangay, you'd need to track all barangays
       }
     }
 

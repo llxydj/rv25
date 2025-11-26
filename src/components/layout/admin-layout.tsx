@@ -4,7 +4,7 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { AlertTriangle, Phone, User, X, Home, FileText, MapPin, Calendar, BarChart3, Settings, Bell, Menu } from "lucide-react"
+import { AlertTriangle, Phone, User, X, Home, FileText, MapPin, Calendar, BarChart3, Settings, Bell } from "lucide-react"
 import { useNotificationsChannel } from '@/lib/use-notifications'
 import { signOut } from "@/lib/auth"
 import { AuthLayout } from "./auth-layout"
@@ -14,6 +14,8 @@ import { useAuth } from "@/lib/auth"
 import SubscribeBanner from "@/components/subscribe-banner"
 import { RealtimeStatusIndicator } from "@/components/realtime-status-indicator"
 import { SystemClock } from "@/components/system-clock"
+import { pushNotificationService } from "@/lib/push-notification-service"
+import { SignOutModal } from "@/components/ui/signout-modal"
 
 interface AdminLayoutProps {
   children: React.ReactNode
@@ -23,11 +25,27 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   const { user } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [showSignOutModal, setShowSignOutModal] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
   
   // Initialize notifications realtime listener
   useNotificationsChannel()
+
+  // Initialize push notifications (silently check permission, don't force request)
+  useEffect(() => {
+    if (user?.id) {
+      // Initialize without requesting permission (just checks if already granted)
+      pushNotificationService.initialize(false).then((success) => {
+        if (success) {
+          console.log('[Admin] Push notifications enabled')
+        } else {
+          // User can enable notifications later via settings or browser prompt
+          console.log('[Admin] Push notifications not enabled (permission needed)')
+        }
+      })
+    }
+  }, [user?.id])
 
   // Close sidebar when resizing to larger screens
   useEffect(() => {
@@ -281,7 +299,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
             <button
               onClick={() => {
                 setSidebarOpen(false);
-                handleSignOut();
+                setShowSignOutModal(true);
               }}
               disabled={loading}
               className="flex items-center space-x-3 p-3 rounded-lg w-full text-left text-white hover:bg-blue-700 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-white"
@@ -309,7 +327,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
               onClick={() => setSidebarOpen(true)}
               aria-label="Open sidebar menu"
             >
-              <Menu className="h-6 w-6" />
+              <BarChart3 className="h-6 w-6" />
             </button>
             <div className="flex items-center space-x-3">
               {/* <RealtimeStatusIndicator status="connected" /> */}
@@ -333,6 +351,14 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
           </main>
         </div>
       </div>
+
+      <SignOutModal
+        open={showSignOutModal}
+        onConfirm={handleSignOut}
+        onCancel={() => setShowSignOutModal(false)}
+        loading={loading}
+        roleLabel="admin"
+      />
     </AuthLayout>
   )
 }

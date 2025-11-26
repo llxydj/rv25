@@ -242,6 +242,10 @@ export default function ReportIncidentPage() {
 
         for (let i = 0; i < updatedPendingReports.length; i++) {
           const report = updatedPendingReports[i]
+          if (report.originRole && report.originRole !== "resident") {
+            continue
+          }
+          const reportLocation = report.location || TALISAY_CENTER
 
           try {
             // Try to submit the report
@@ -249,12 +253,14 @@ export default function ReportIncidentPage() {
               user.id,
               report.incidentType,
               report.description,
-              report.location[0],
-              report.location[1],
+              reportLocation[0],
+              reportLocation[1],
               report.address,
               report.barangay,
-              null, // Can't store File objects in localStorage, so photo is lost
+              [], // Photos can't be stored offline
               report.priority,
+              true,
+              report.createdAtLocal || report.createdAt,
             )
 
             if (result.success) {
@@ -561,6 +567,7 @@ export default function ReportIncidentPage() {
     // If offline, store the report locally
     if (!navigator.onLine || isOffline) {
       try {
+        const submissionTimestamp = new Date().toISOString()
         const newReport = {
           incidentType: formData.incidentType,
           description: formData.description,
@@ -568,7 +575,9 @@ export default function ReportIncidentPage() {
           address: formData.address,
           barangay: formData.barangay,
           priority: Number.parseInt(formData.priority),
-          createdAt: new Date().toISOString(),
+          createdAtLocal: submissionTimestamp,
+          createdAt: submissionTimestamp,
+          originRole: "resident",
         }
 
         const updatedPendingReports = [...pendingReports, newReport]
@@ -637,6 +646,7 @@ export default function ReportIncidentPage() {
         done: "Finalizing…",
       }
 
+      const submissionTimestamp = new Date().toISOString()
       const result = await createIncident(
         user.id,
         formData.incidentType,
@@ -648,7 +658,7 @@ export default function ReportIncidentPage() {
         photoFiles,
         Number.parseInt(formData.priority),
         false,
-        undefined,
+        submissionTimestamp,
         {
           sessionUserId: session.user.id,
           accessToken: session.access_token || undefined,

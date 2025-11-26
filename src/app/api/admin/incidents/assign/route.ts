@@ -97,6 +97,28 @@ export async function POST(request: Request) {
       } as any)
     } catch {}
 
+    // Notify volunteer via centralized notification service (best-effort)
+    try {
+      const { notificationService } = await import('@/lib/notification-service')
+      if (updated && (updated as any).id && (updated as any).incident_type && (updated as any).barangay) {
+        await notificationService.onVolunteerAssigned(cleanVolunteerId, {
+          id: (updated as any).id,
+          incident_type: (updated as any).incident_type,
+          barangay: (updated as any).barangay,
+        })
+      }
+    } catch (notifyErr) {
+      console.error('Failed to notify volunteer on manual assignment:', notifyErr)
+    }
+
+    // Start volunteer fallback monitoring to enable SMS backup (best-effort)
+    try {
+      const { volunteerFallbackService } = await import('@/lib/volunteer-fallback-service')
+      await volunteerFallbackService.startFallbackMonitoring(cleanIncidentId, cleanVolunteerId)
+    } catch (fallbackErr) {
+      console.error('Failed to start volunteer fallback monitoring on manual assignment:', fallbackErr)
+    }
+
     return NextResponse.json({ success: true, data: updated })
   } catch (e: any) {
     return NextResponse.json({ success: false, code: 'INTERNAL_ERROR', message: e?.message || 'Failed to assign incident' }, { status: 500 })

@@ -319,6 +319,8 @@ export const createIncident = async (
       }
     }
 
+    const submissionTimestamp = createdAtLocal ?? new Date().toISOString()
+
     const filesToUpload = Array.isArray(photoFiles) ? photoFiles.slice(0, 3) : []
     const uploadedPhotoPaths: string[] = []
 
@@ -384,7 +386,7 @@ export const createIncident = async (
         photo_url: uploadedPhotoPaths[0] ?? null,
         photo_urls: uploadedPhotoPaths,
         is_offline: !!isOffline,
-        created_at_local: createdAtLocal,
+        created_at_local: submissionTimestamp,
       })
     })
     const apiJson = await apiRes.json()

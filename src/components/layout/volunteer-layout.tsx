@@ -4,7 +4,7 @@ import type React from "react"
 import { useState, useCallback, useMemo, useEffect, Suspense } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { Bell, Calendar, User, X, AlertTriangle, Menu } from "lucide-react"
+import { Bell, Calendar, User, X, AlertTriangle, BarChart3 } from "lucide-react"
 import { useNotificationsChannel } from '@/lib/use-notifications'
 import { useAuth } from "@/hooks/use-auth"
 import { AuthLayout } from "./auth-layout"
@@ -12,6 +12,8 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import { supabase } from "@/lib/supabase"
 import { VolunteerNotificationsNew } from "@/components/volunteer/volunteer-notifications-new"
 import { SystemClock } from "@/components/system-clock"
+import { pushNotificationService } from "@/lib/push-notification-service"
+import { SignOutModal } from "@/components/ui/signout-modal"
 
 interface VolunteerLayoutProps {
   children: React.ReactNode
@@ -21,12 +23,22 @@ export const VolunteerLayout: React.FC<VolunteerLayoutProps> = ({ children }) =>
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [isNavigating, setIsNavigating] = useState(false)
+  const [showSignOutModal, setShowSignOutModal] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
   const { signOut, user } = useAuth()
 
   // Initialize notifications realtime listener
   useNotificationsChannel()
+
+  // Initialize push notifications
+  useEffect(() => {
+    if (user?.id) {
+      pushNotificationService.initialize().catch((error) => {
+        console.log('[Volunteer] Push notification initialization skipped:', error.message)
+      })
+    }
+  }, [user?.id])
 
   // Memoize navigation items to prevent unnecessary re-renders
   const navigationItems = useMemo(() => [
@@ -135,7 +147,7 @@ export const VolunteerLayout: React.FC<VolunteerLayoutProps> = ({ children }) =>
             ))}
 
             <button
-              onClick={handleSignOut}
+              onClick={() => setShowSignOutModal(true)}
               disabled={loading}
               className="flex items-center space-x-2 p-2 rounded-md w-full text-left text-white hover:bg-green-700 mt-4 disabled:opacity-50 transition-colors"
             >
@@ -160,7 +172,7 @@ export const VolunteerLayout: React.FC<VolunteerLayoutProps> = ({ children }) =>
                 onClick={() => setSidebarOpen(true)}
                 aria-label="Open menu"
               >
-                <Menu className="h-6 w-6" />
+                <BarChart3 className="h-6 w-6" />
               </button>
               <h1 className="text-lg font-semibold text-gray-800">RVOIS</h1>
               <div className="w-8" /> {/* Spacer for centering */}
@@ -189,6 +201,14 @@ export const VolunteerLayout: React.FC<VolunteerLayoutProps> = ({ children }) =>
             </Suspense>
           </div>
       </div>
+
+      <SignOutModal
+        open={showSignOutModal}
+        onConfirm={handleSignOut}
+        onCancel={() => setShowSignOutModal(false)}
+        loading={loading}
+        roleLabel="volunteer"
+      />
     </AuthLayout>
   )
 }

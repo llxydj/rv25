@@ -68,6 +68,22 @@ async function getKnownBarangaysCached(client: SupabaseClient): Promise<string[]
   return barangayCache.data
 }
 
+const sanitizeLocalTimestamp = (value?: string) => {
+  if (!value) return null
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return null
+
+  const now = Date.now()
+  const ms = parsed.getTime()
+  const maxPast = 1000 * 60 * 60 * 24 * 7 // 7 days
+  const maxFuture = 1000 * 60 * 5 // 5 minutes
+
+  if (ms < now - maxPast) return null
+  if (ms > now + maxFuture) return null
+
+  return parsed.toISOString()
+}
+
 
 export async function GET(request: Request) {
   try {
@@ -277,6 +293,7 @@ export async function POST(request: Request) {
     } = parsed.data
     const normalizedIncidentType = incident_type.trim().toUpperCase()
     const normalizedPriority = Number(priority)
+    const normalizedLocalTimestamp = is_offline ? sanitizeLocalTimestamp(created_at_local) : null
 
     if (normalizedIncidentType === "EMERGENCY INCIDENT" && normalizedPriority !== 1) {
       return NextResponse.json(
@@ -415,17 +432,25 @@ export async function POST(request: Request) {
       photo_urls: processedPhotoPaths.length ? processedPhotoPaths : null,
     }
 
+    if (normalizedLocalTimestamp) {
+      payload.created_at = normalizedLocalTimestamp
+    }
+
     const { data, error } = await supabase.from('incidents').insert(payload).select().single()
     if (error) throw error
     // If submitted offline, record an incident update for auditing
     if (is_offline && data?.id) {
       try {
+        const offlineNote = normalizedLocalTimestamp
+          ? `Submitted while offline at ${new Date(normalizedLocalTimestamp).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })} and synced when back online.`
+          : 'Submitted while offline; synced when back online.'
+
         await supabase.from('incident_updates').insert({
           incident_id: data.id,
           updated_by: reporter_id,
           previous_status: 'PENDING',
           new_status: 'PENDING',
-          notes: 'Submitted while offline; synced when back online.'
+          notes: offlineNote
         } as any)
       } catch {}
     }

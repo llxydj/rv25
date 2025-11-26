@@ -17,6 +17,7 @@ import { MapComponent } from "@/components/ui/map-component"
 import { AlertTriangle, CheckCircle, User } from "lucide-react"
 import { IncidentCallActions } from "@/components/incident-call-actions"
 import { ImageLightbox } from "@/components/ui/image-lightbox"
+import { normalizeIncident, formatDisplayDate } from "@/lib/incident-utils"
 
 export default function IncidentDetailPage() {
   const { id } = useParams()
@@ -51,7 +52,7 @@ export default function IncidentDetailPage() {
         if (incidentResult.success) {
           console.log("Incident data:", incidentResult.data); // Debug log
           console.log("Reporter data:", incidentResult.data?.reporter); // Debug log
-          setIncident(incidentResult.data)
+          setIncident(normalizeIncident(incidentResult.data))
         } else {
           setError(incidentResult.message || "Failed to fetch incident details")
         }
@@ -282,8 +283,7 @@ export default function IncidentDetailPage() {
   }
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleString()
+    return formatDisplayDate(dateString);
   }
 
   const handleCallReporter = () => {
@@ -480,7 +480,7 @@ export default function IncidentDetailPage() {
           <div>
             <h1 className="text-2xl font-bold text-foreground">Incident Details</h1>
             <p className="text-gray-600 mt-1">
-              Reported on {formatDate(incident.created_at)} • ID: {incident.id}
+              Reported on {formatDate(incident.displayDate || incident.created_at)} • ID: {incident.id}
             </p>
           </div>
           <div className="mt-4 md:mt-0 flex items-center gap-2">
@@ -532,6 +532,11 @@ export default function IncidentDetailPage() {
                         {incident.severity}
                       </span>
                     )}
+                    {incident.isLegacyData && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">
+                        Legacy Data
+                      </span>
+                    )}
                   </div>
                   <span
                     className={`mt-2 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusBadgeClass(
@@ -542,7 +547,7 @@ export default function IncidentDetailPage() {
                   </span>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm text-gray-500">Priority</p>
+                  <p className="text-sm text-gray-500">Severity Level (expert assessment)</p>
                   <div className="flex items-center mt-1">
                     {Array.from({ length: 5 }).map((_, i) => (
                       <div
@@ -628,30 +633,21 @@ export default function IncidentDetailPage() {
               </div>
             </div>
 
-            {(() => {
-              const photoGallery =
-                Array.isArray(incident.photo_urls) && incident.photo_urls.length > 0
-                  ? incident.photo_urls
-                  : incident.photo_url
-                    ? [incident.photo_url]
-                    : []
-              if (photoGallery.length === 0) return null
-              return (
-                <div className="bg-white p-6 rounded-lg shadow-md">
-                  <h3 className="text-sm font-medium text-gray-500 mb-4">Photo Evidence</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {photoGallery.map((photo, idx) => (
-                      <ImageLightbox
-                        key={`${photo}-${idx}`}
-                        src={photo}
-                        alt={`Incident photo ${idx + 1}`}
-                        className="w-full h-auto max-h-72 object-contain rounded-md"
-                      />
-                    ))}
-                  </div>
+            {incident.photoGallery && incident.photoGallery.length > 0 && (
+              <div className="bg-white p-6 rounded-lg shadow-md">
+                <h3 className="text-sm font-medium text-gray-500 mb-4">Photo Evidence</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {incident.photoGallery.map((photo: string, idx: number) => (
+                    <ImageLightbox
+                      key={`${photo}-${idx}`}
+                      src={photo}
+                      alt={`Incident photo ${idx + 1}`}
+                      className="w-full h-auto max-h-72 object-contain rounded-md"
+                    />
+                  ))}
                 </div>
-              )
-            })()}
+              </div>
+            )}
 
             <div className="bg-white p-6 rounded-lg shadow-md">
               <h3 className="text-sm font-medium text-gray-500 mb-4">Incident Location</h3>

@@ -131,8 +131,8 @@ export default function AdminReports() {
   // Report type & date range
   const [reportType, setReportType] = useState<"incidents" | "volunteers" | "schedules">("incidents")
   const [dateRange, setDateRange] = useState<"week" | "month" | "year" | "custom">("week")
-  const [dateFrom, setDateFrom] = useState(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000))
-  const [dateTo, setDateTo] = useState(new Date())
+  const [dateFrom, setDateFrom] = useState<Date | null>(null)
+  const [dateTo, setDateTo] = useState<Date | null>(null)
   
   // Dialog & loading states
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false)
@@ -207,8 +207,18 @@ export default function AdminReports() {
 
   // ✅ DATE RANGE PARAMS (MEMOIZED)
   const getDateRangeParams = useCallback(() => {
+    if (dateRange === "custom" && dateFrom && dateTo) {
+      const fromDate = new Date(dateFrom)
+      const toDate = new Date(dateTo)
+      const [start, end] = fromDate <= toDate ? [fromDate, toDate] : [toDate, fromDate]
+      return {
+        startDate: start.toISOString(),
+        endDate: end.toISOString()
+      }
+    }
+
     const endDate = new Date()
-    const startDate = new Date()
+    const startDate = new Date(endDate)
     
     switch (dateRange) {
       case "week":
@@ -226,7 +236,7 @@ export default function AdminReports() {
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString()
     }
-  }, [dateRange])
+  }, [dateRange, dateFrom, dateTo])
 
   // ✅ FETCH YEARS (CLEANUP)
   useEffect(() => {
@@ -313,9 +323,7 @@ export default function AdminReports() {
         setLoading(true)
         setError(null)
 
-        const { startDate, endDate } = dateFrom && dateTo 
-          ? { startDate: dateFrom.toISOString(), endDate: dateTo.toISOString() }
-          : getDateRangeParams()
+        const { startDate, endDate } = getDateRangeParams()
 
         if (reportType === "incidents") {
           const [incidentsRes, barangayRes, typeRes, statusRes] = await Promise.all([
@@ -363,19 +371,20 @@ export default function AdminReports() {
       clearTimeout(timeoutId)
       controller.abort()
     }
-  }, [reportType, dateRange, dateFrom, dateTo, getDateRangeParams])
+  }, [reportType, getDateRangeParams])
 
   // ✅ FILTER DATA BY DATE RANGE (MEMOIZED)
   const filterDataByDateRange = useCallback((data: any[]) => {
-    const startDate = dateFrom || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-    const endDate = dateTo || new Date()
+    const { startDate, endDate } = getDateRangeParams()
+    const rangeStart = new Date(startDate)
+    const rangeEnd = new Date(endDate)
 
     return data.filter(item => {
       if (!item?.created_at) return false
       const createdAt = new Date(item.created_at)
-      return createdAt >= startDate && createdAt <= endDate
+      return createdAt >= rangeStart && createdAt <= rangeEnd
     })
-  }, [dateFrom, dateTo])
+  }, [getDateRangeParams])
 
   // ✅ GENERATE REPORT (WITH ERROR HANDLING)
   const generateReport = useCallback(async () => {
@@ -395,9 +404,7 @@ export default function AdminReports() {
       })
 
       if (reportType === "incidents") {
-        const { startDate, endDate } = dateFrom && dateTo 
-          ? { startDate: dateFrom.toISOString(), endDate: dateTo.toISOString() }
-          : getDateRangeParams()
+        const { startDate, endDate } = getDateRangeParams()
 
         const result = await exportIncidentsToCSV(startDate, endDate)
         
@@ -429,7 +436,7 @@ export default function AdminReports() {
     } finally {
       setGeneratingReport(false)
     }
-  }, [user, reportType, dateFrom, dateTo, getDateRangeParams])
+  }, [user, reportType, getDateRangeParams])
 
   // ✅ ARCHIVE YEAR REPORTS
   const archiveYearReports = useCallback(async () => {
@@ -458,7 +465,7 @@ export default function AdminReports() {
           setYearData(refreshResult.data)
         }
 
-        setArchivedYears(prev => [...new Set([...prev, selectedYear])])
+        setArchivedYears(prev => Array.from(new Set([...prev, selectedYear])))
 
         // Log action
         await fetch("/api/admin/logs", {
@@ -600,6 +607,14 @@ export default function AdminReports() {
     const filteredSchedules = filterDataByDateRange(schedules)
     return { total: filteredSchedules.length }
   }, [loading, reportType, incidentsByStatus, incidentsByType, incidentsByBarangay, filterDataByDateRange, incidents, volunteers, schedules])
+
+  const busiestQuarter = useMemo(() => {
+    if (!yearData?.quarters?.length) return null
+    return yearData.quarters.reduce((max: any, quarter: any) => 
+      quarter.incident_count > max.incident_count ? quarter : max, 
+      yearData.quarters[0]
+    )
+  }, [yearData])
 
   // ✅ GET MONTHS FOR QUARTER (MEMOIZED)
   const getMonthsForQuarter = useCallback((quarter: string, year: number) => {
@@ -836,10 +851,7 @@ export default function AdminReports() {
                           Busiest Quarter
                         </p>
                         <p className="text-xl md:text-2xl font-bold text-purple-600 dark:text-purple-400">
-                          {yearData?.quarters?.reduce((max: any, q: any) => 
-                            (q.incident_count > max.incident_count) ? q : max, 
-                            yearData.quarters[0]
-                          )?.quarter || "N/A"}
+                          {busiestQuarter?.quarter || "N/A"}
                         </p>
                       </div>
                       
@@ -946,7 +958,7 @@ export default function AdminReports() {
                                     
                                     {expandedMonths[monthKey] && (
                                       <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-                                        {weeklySeries.some(p => p.incidents > 0) ? (
+                                        {weeklySeries.some((p: any) => p.incidents > 0) ? (
                                           <div className="w-full overflow-x-auto">
                                             <div style={{ minWidth: '280px', height: '180px' }}>
                                               <ResponsiveContainer width="100%" height="100%">
@@ -1188,7 +1200,7 @@ export default function AdminReports() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex flex-col md:flex-row md:flex-wrap gap-3">
                   <Select value={reportType} onValueChange={(value: any) => setReportType(value)}>
                     <SelectTrigger 
                       disabled={loading} 
@@ -1200,6 +1212,21 @@ export default function AdminReports() {
                       <SelectItem value="incidents">Incidents</SelectItem>
                       <SelectItem value="volunteers">Volunteers</SelectItem>
                       <SelectItem value="schedules">Schedules</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={dateRange} onValueChange={(value: any) => setDateRange(value)}>
+                    <SelectTrigger 
+                      disabled={loading} 
+                      className="w-full sm:w-48 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700"
+                    >
+                      <SelectValue placeholder="Select date range" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700">
+                      <SelectItem value="week">Last 7 Days</SelectItem>
+                      <SelectItem value="month">Last 30 Days</SelectItem>
+                      <SelectItem value="year">Last 12 Months</SelectItem>
+                      <SelectItem value="custom">Custom Range</SelectItem>
                     </SelectContent>
                   </Select>
                   
@@ -1216,6 +1243,44 @@ export default function AdminReports() {
                     )}
                   </Button>
                 </div>
+
+                {dateRange === "custom" && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label htmlFor="analytics-custom-start" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Start Date
+                      </label>
+                      <input
+                        id="analytics-custom-start"
+                        type="date"
+                        value={dateFrom ? format(dateFrom, "yyyy-MM-dd") : ""}
+                        max={dateTo ? format(dateTo, "yyyy-MM-dd") : new Date().toISOString().split("T")[0]}
+                        onChange={(e) => {
+                          const value = e.target.value
+                          setDateFrom(value ? new Date(value) : null)
+                        }}
+                        className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="analytics-custom-end" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        End Date
+                      </label>
+                      <input
+                        id="analytics-custom-end"
+                        type="date"
+                        value={dateTo ? format(dateTo, "yyyy-MM-dd") : ""}
+                        min={dateFrom ? format(dateFrom, "yyyy-MM-dd") : undefined}
+                        max={new Date().toISOString().split("T")[0]}
+                        onChange={(e) => {
+                          const value = e.target.value
+                          setDateTo(value ? new Date(value) : null)
+                        }}
+                        className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -1267,6 +1332,118 @@ export default function AdminReports() {
                     </Card>
                   )}
                 </div>
+
+                {/* INCIDENT DETAILS TABLE */}
+                {reportType === "incidents" && filterDataByDateRange(incidents).length > 0 && (
+                  <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base md:text-lg text-gray-900 dark:text-gray-100">
+                        Incident Details
+                      </CardTitle>
+                      <CardDescription className="text-sm text-gray-600 dark:text-gray-400">
+                        Detailed list of all incidents in selected date range
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
+                          <thead className="bg-gray-50 dark:bg-gray-900">
+                            <tr>
+                              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Date Reported
+                              </th>
+                              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Type
+                              </th>
+                              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Barangay
+                              </th>
+                              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Reporter
+                              </th>
+                              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Contact
+                              </th>
+                              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Status
+                              </th>
+                              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Priority
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-800">
+                            {filterDataByDateRange(incidents).slice(0, 50).map((incident: any) => (
+                              <tr key={incident.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
+                                  {new Date(incident.created_at).toLocaleDateString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </td>
+                                <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
+                                  {incident.incident_type}
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
+                                  {incident.barangay}
+                                </td>
+                                <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
+                                  {incident.reporter ? (
+                                    <div>
+                                      <div className="font-medium">
+                                        {incident.reporter.first_name && incident.reporter.last_name
+                                          ? `${incident.reporter.first_name} ${incident.reporter.last_name}`
+                                          : incident.reporter.first_name || incident.reporter.last_name || incident.reporter.email || "Unknown"}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <span className="text-gray-500 dark:text-gray-400">Anonymous</span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+                                  {incident.reporter?.phone_number || incident.reporter?.email || "—"}
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                    incident.status === 'PENDING' ? 'bg-yellow-100 dark:bg-yellow-950 text-yellow-800 dark:text-yellow-200' :
+                                    incident.status === 'ASSIGNED' ? 'bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-200' :
+                                    incident.status === 'RESPONDING' ? 'bg-orange-100 dark:bg-orange-950 text-orange-800 dark:text-orange-200' :
+                                    incident.status === 'RESOLVED' ? 'bg-green-100 dark:bg-green-950 text-green-800 dark:text-green-200' :
+                                    'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200'
+                                  }`}>
+                                    {incident.status}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                    incident.priority === 1 ? 'bg-red-600 text-white' :
+                                    incident.priority === 2 ? 'bg-orange-500 text-white' :
+                                    incident.priority === 3 ? 'bg-yellow-500 text-black dark:text-white' :
+                                    incident.priority === 4 ? 'bg-green-500 text-white' :
+                                    'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
+                                  }`}>
+                                    {incident.priority === 1 ? 'Critical' :
+                                     incident.priority === 2 ? 'High' :
+                                     incident.priority === 3 ? 'Medium' :
+                                     incident.priority === 4 ? 'Low' : 'Info'}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      {filterDataByDateRange(incidents).length > 50 && (
+                        <div className="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">
+                          Showing first 50 of {filterDataByDateRange(incidents).length} incidents. Export CSV for full list.
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
 
                 {reportType === "incidents" && incidentsByStatus.length > 0 && (
                   <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">

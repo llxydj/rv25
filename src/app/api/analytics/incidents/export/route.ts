@@ -16,7 +16,27 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from('incidents')
-      .select('id, created_at, incident_type, severity, barangay, status')
+      .select(`
+        id,
+        created_at,
+        incident_type,
+        severity,
+        barangay,
+        status,
+        priority,
+        description,
+        address,
+        reporter:users!incidents_reporter_id_fkey(
+          first_name,
+          last_name,
+          email,
+          phone_number
+        ),
+        assignee:users!incidents_assigned_to_fkey(
+          first_name,
+          last_name
+        )
+      `)
       .order('created_at', { ascending: true })
 
     if (start) query = query.gte('created_at', start)
@@ -27,13 +47,75 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query
     if (error) throw error
 
-    const rows = [
-      ['id','created_at','incident_type','severity','barangay','status'],
-      ...((data || []).map((r:any)=>[
-        r.id, r.created_at, r.incident_type, r.severity || '', r.barangay, r.status
-      ]))
+    // Helper function to escape CSV fields
+    const escapeCSV = (value: any): string => {
+      if (value === null || value === undefined) return ''
+      const str = String(value)
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`
+      }
+      return str
+    }
+
+    // Format data with reporter and assignee info
+    const formattedData = (data || []).map((incident: any) => {
+      const reporter = Array.isArray(incident.reporter) ? incident.reporter[0] : incident.reporter
+      const assignee = Array.isArray(incident.assignee) ? incident.assignee[0] : incident.assignee
+      
+      const reporterName = reporter 
+        ? (reporter.first_name && reporter.last_name 
+            ? `${reporter.first_name} ${reporter.last_name}` 
+            : reporter.first_name || reporter.last_name || reporter.email || 'Unknown')
+        : 'Anonymous'
+      
+      const reporterContact = reporter?.phone_number || reporter?.email || 'N/A'
+      
+      const assigneeName = assignee
+        ? (assignee.first_name && assignee.last_name
+            ? `${assignee.first_name} ${assignee.last_name}`
+            : assignee.first_name || assignee.last_name || 'Unknown')
+        : 'Unassigned'
+
+      return [
+        incident.id,
+        incident.created_at,
+        incident.incident_type,
+        incident.severity || '',
+        incident.barangay,
+        incident.status,
+        incident.priority,
+        incident.description || '',
+        incident.address || '',
+        reporterName,
+        reporterContact,
+        assigneeName
+      ]
+    })
+
+    const headers = [
+      'ID',
+      'Created At',
+      'Incident Type',
+      'Severity',
+      'Barangay',
+      'Status',
+      'Priority',
+      'Description',
+      'Address',
+      'Reporter Name',
+      'Reporter Contact',
+      'Assigned To'
     ]
-    const csv = rows.map(r => r.map(String).map(v => v.includes(',') ? `"${v.replace(/"/g,'""')}"` : v).join(',')).join('\n')
+
+    const rows = [
+      headers,
+      ...formattedData
+    ]
+
+    const csv = rows
+      .map(row => row.map(escapeCSV).join(','))
+      .join('\n')
+
     return new NextResponse(csv, {
       headers: {
         'Content-Type': 'text/csv; charset=utf-8',

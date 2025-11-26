@@ -19,6 +19,7 @@ import { MetricsChart } from "@/components/admin/metrics-chart"
 import { StatWidget } from "@/components/admin/stat-widget"
 import { AdminMetrics } from "@/types/admin-metrics"
 import { BackupMonitor } from "@/components/admin/backup-monitor"
+import { DataQualityDashboard } from "@/components/admin/data-quality-dashboard"
 
 export default function AdminDashboard() {
   const { user } = useAuth()
@@ -278,6 +279,9 @@ export default function AdminDashboard() {
               </div>
             </div>
 
+            {/* DATA QUALITY DASHBOARD */}
+            <DataQualityDashboard />
+            
             {/* ADMIN METRICS */}
             {metricsLoading ? (
               <div className="flex justify-center py-8">
@@ -681,7 +685,7 @@ function HotspotsList() {
     <div className="space-y-2 md:space-y-3">
       {items.slice(0, 10).map((row, index) => (
         <div 
-          key={row.barangay} 
+          key={`hotspot-${index}-${row.barangay}`} 
           className="flex items-center justify-between p-2 md:p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-150"
         >
           <div className="flex items-center gap-2 md:gap-3 flex-1 min-w-0">

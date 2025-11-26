@@ -10,7 +10,7 @@ import { format, subDays, startOfDay, endOfDay } from "date-fns"
 import { cn } from "@/lib/utils"
 import { DateRange } from "react-day-picker"
 
-type FilterType = 'searchTerm' | 'barangay' | 'status' | 'incidentType' | 'priority' | 'dateRange'
+type FilterType = 'searchTerm' | 'barangay' | 'status' | 'incidentType' | 'priority' | 'dateRange' | 'dataFormat'
 
 interface IncidentsFilterProps {
   onFilterChange: (filters: {
@@ -20,6 +20,7 @@ interface IncidentsFilterProps {
     incidentType: string
     priority: string
     dateRange: { from: Date | undefined; to: Date | undefined }
+    dataFormat: string
   }) => void
   barangays: string[]
   incidentTypes: string[]
@@ -36,6 +37,7 @@ export function IncidentsFilter({ onFilterChange, barangays, incidentTypes }: In
   const [priority, setPriority] = useState("")
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined })
   const [datePopoverOpen, setDatePopoverOpen] = useState(false)
+  const [dataFormat, setDataFormat] = useState("ALL")
 
   const notifyFilterChange = useCallback(() => {
     onFilterChange({
@@ -44,9 +46,10 @@ export function IncidentsFilter({ onFilterChange, barangays, incidentTypes }: In
       status,
       incidentType,
       priority,
-      dateRange: { from: dateRange.from, to: dateRange.to }
+      dateRange: { from: dateRange.from, to: dateRange.to },
+      dataFormat
     })
-  }, [searchTerm, barangay, status, incidentType, priority, dateRange, onFilterChange])
+  }, [searchTerm, barangay, status, incidentType, priority, dateRange, dataFormat, onFilterChange])
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -68,6 +71,7 @@ export function IncidentsFilter({ onFilterChange, barangays, incidentTypes }: In
     setIncidentType("")
     setPriority("")
     setDateRange({ from: undefined, to: undefined })
+    setDataFormat("ALL")
   }, [])
 
   const clearFilter = useCallback((filterType: FilterType) => {
@@ -90,12 +94,15 @@ export function IncidentsFilter({ onFilterChange, barangays, incidentTypes }: In
       case 'dateRange':
         setDateRange({ from: undefined, to: undefined })
         break
+      case 'dataFormat':
+        setDataFormat("ALL")
+        break
     }
   }, [])
 
   const hasActiveFilters = useMemo(() => 
-    Boolean(searchTerm.trim() || barangay || status !== "ALL" || incidentType || priority || dateRange.from || dateRange.to),
-    [searchTerm, barangay, status, incidentType, priority, dateRange]
+    Boolean(searchTerm.trim() || barangay || status !== "ALL" || incidentType || priority || dateRange.from || dateRange.to || dataFormat !== "ALL"),
+    [searchTerm, barangay, status, incidentType, priority, dateRange, dataFormat]
   )
 
   const formatDateRange = useCallback(() => {
@@ -127,8 +134,9 @@ export function IncidentsFilter({ onFilterChange, barangays, incidentTypes }: In
     { value: barangay, set: setBarangay, label: "All Barangays", options: barangays, name: 'barangay' as const },
     { value: status, set: setStatus, label: "All Statuses", options: STATUS_OPTIONS, name: 'status' as const },
     { value: incidentType, set: setIncidentType, label: "All Types", options: incidentTypes, name: 'incidentType' as const },
-    { value: priority, set: setPriority, label: "All Priorities", options: PRIORITY_OPTIONS, name: 'priority' as const }
-  ], [barangay, status, incidentType, priority, barangays, incidentTypes])
+    { value: priority, set: setPriority, label: "All Priorities", options: PRIORITY_OPTIONS, name: 'priority' as const },
+    { value: dataFormat, set: setDataFormat, label: "All Formats", options: ["ALL", "CURRENT", "LEGACY"], name: 'dataFormat' as const }
+  ], [barangay, status, incidentType, priority, dataFormat, barangays, incidentTypes])
 
   return (
     <div className="space-y-4 p-4 bg-background" role="search" aria-label="Incident filters">
