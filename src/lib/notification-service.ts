@@ -104,14 +104,29 @@ async function sendPushNotification(
       return
     }
 
+    // Enhanced payload for background notifications (works when app is closed)
     const payload = {
       title: params.title,
       body: params.body,
       icon: '/icons/icon-192x192.png',
-      badge: '/icons/badge-72x72.png',
-      data: params.data || {},
-      tag: params.type,
-      requireInteraction: params.type === 'incident_alert' || params.type === 'escalation_alert'
+      badge: '/icons/icon-192x192.png',
+      tag: params.type || 'rvois-notification',
+      data: {
+        ...params.data,
+        url: params.data?.url,
+        incident_id: params.data?.incident_id,
+        user_role: params.data?.user_role,
+        type: params.type,
+        timestamp: Date.now()
+      },
+      requireInteraction: params.type === 'incident_alert' || params.type === 'escalation_alert',
+      vibrate: [200, 100, 200],
+      actions: params.data?.incident_id ? [
+        { action: 'open', title: 'View Incident' },
+        { action: 'close', title: 'Dismiss' }
+      ] : [],
+      renotify: false,
+      silent: false
     }
 
     // Send push notifications to all user's devices

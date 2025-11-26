@@ -2,9 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import webpush from 'web-push'
 import { getServerSupabase } from '@/lib/supabase-server'
 
-// Configure web-push
+// Configure web-push with environment variable for email
+const vapidEmail = process.env.VAPID_EMAIL || process.env.WEB_PUSH_CONTACT || 'mailto:jlcbelonio.chmsu@gmail.com'
+
+if (!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) {
+  console.error('[send] Missing VAPID keys! Push notifications will not work.')
+  console.error('[send] Required env vars: NEXT_PUBLIC_VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY')
+}
+
 webpush.setVapidDetails(
-  'mailto:jlcbelonio.chmsu@gmail.com',
+  vapidEmail,
   process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
   process.env.VAPID_PRIVATE_KEY!
 )

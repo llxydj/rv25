@@ -100,21 +100,37 @@ export async function POST(request: Request) {
       })
     } catch { }
 
-    // Notify volunteer via centralized notification service (best-effort)
-    try {
-      const { notificationService } = await import('@/lib/notification-service')
-      if (updated) {
+    // NOTE: Notification is automatically created by database trigger
+    // (notify_volunteer_on_assignment) when assigned_to is updated
+    // No need to manually call notificationService here to avoid duplicates
+
+    // Send immediate SMS to assigned volunteer
+    if (volunteer.phone_number && updated) {
+      try {
+        const { smsService } = await import('@/lib/sms-service')
         const incidentData = updated as unknown as IncidentRow
-        if (incidentData.id && incidentData.incident_type && incidentData.barangay) {
-          await notificationService.onVolunteerAssigned(cleanVolunteerId, {
-            id: incidentData.id,
-            incident_type: incidentData.incident_type,
-            barangay: incidentData.barangay,
-          })
-        }
+        const referenceId = `INC-${incidentData.id.substring(0, 8).toUpperCase()}`
+        
+        await smsService.sendVolunteerAssignment(
+          cleanIncidentId,
+          referenceId,
+          volunteer.phone_number,
+          cleanVolunteerId,
+          {
+            type: incidentData.incident_type || 'Incident',
+            barangay: incidentData.barangay || 'Unknown',
+            time: new Date(incidentData.created_at || new Date()).toLocaleTimeString('en-US', { 
+              hour: '2-digit', 
+              minute: '2-digit',
+              hour12: true 
+            })
+          }
+        )
+        console.log('✅ Immediate SMS sent to assigned volunteer:', volunteer.phone_number.substring(0, 4) + '****')
+      } catch (smsErr) {
+        console.error('❌ Failed to send SMS to assigned volunteer:', smsErr)
+        // Don't fail assignment if SMS fails
       }
-    } catch (notifyErr) {
-      console.error('Failed to notify volunteer on manual assignment:', notifyErr)
     }
 
     // Start volunteer fallback monitoring to enable SMS backup (best-effort)

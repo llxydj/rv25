@@ -258,18 +258,26 @@ export default function AdminReports() {
         console.log("Years fetch result:", result) // Debug log
 
         if (isMounted && result.success && result.data) {
-          const yearList = result.data.map((item: any) => item.year)
+          // Keep full objects with year and incident_count
+          const yearList = result.data.map((item: any) => ({
+            year: item.year,
+            incident_count: item.incident_count || 0
+          }))
           setYears(yearList)
           if (yearList.length > 0 && !selectedYear) {
-            setSelectedYear(yearList[0])
+            setSelectedYear(yearList[0].year)
           }
         }
       } catch (err) {
         console.error("Error fetching years:", err)
-        // Set some default years if fetch fails
+        // Set some default years if fetch fails (as objects)
         if (isMounted) {
           const currentYear = new Date().getFullYear()
-          setYears([currentYear, currentYear - 1, currentYear - 2])
+          setYears([
+            { year: currentYear, incident_count: 0 },
+            { year: currentYear - 1, incident_count: 0 },
+            { year: currentYear - 2, incident_count: 0 }
+          ])
         }
       }
     }
@@ -804,15 +812,20 @@ export default function AdminReports() {
                           No years available
                         </div>
                       ) : (
-                        years.map((yearItem: any) => (
-                          <SelectItem
-                            key={yearItem.year}
-                            value={yearItem.year.toString()}
-                            className="text-gray-900 dark:text-gray-100"
-                          >
-                            {yearItem.year} ({yearItem.incident_count || 0} incidents)
-                          </SelectItem>
-                        ))
+                        years.map((yearItem: any) => {
+                          // Handle both object and number formats for safety
+                          const year = typeof yearItem === 'object' ? yearItem.year : yearItem
+                          const count = typeof yearItem === 'object' ? (yearItem.incident_count || 0) : 0
+                          return (
+                            <SelectItem
+                              key={year}
+                              value={year.toString()}
+                              className="text-gray-900 dark:text-gray-100"
+                            >
+                              {year} ({count} incidents)
+                            </SelectItem>
+                          )
+                        })
                       )}
                     </SelectContent>
                   </Select>

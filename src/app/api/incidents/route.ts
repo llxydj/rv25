@@ -455,19 +455,9 @@ export async function POST(request: Request) {
         } as any)
       } catch {}
     }
-    // Auto-generate notifications via centralized service
-    try {
-      const { notificationService } = await import('@/lib/notification-service')
-      await notificationService.onIncidentCreated({
-        id: data.id,
-        incident_type: data.incident_type,
-        barangay: data.barangay,
-        reporter_id: data.reporter_id
-      })
-    } catch (err) {
-      console.error('Failed to create notifications:', err)
-      // Don't fail incident creation if notifications fail
-    }
+    // NOTE: Notifications are automatically created by database triggers
+    // (notify_admins_on_new_incident, notify_barangay_on_new_incident)
+    // No need to manually call notificationService here to avoid duplicates
 
     // Auto-assignment: Try to automatically assign incident to available volunteer
     try {

@@ -352,7 +352,39 @@ export class SMSService {
   }
 
   /**
-   * Send volunteer fallback alert
+   * Send immediate volunteer assignment SMS
+   */
+  async sendVolunteerAssignment(
+    incidentId: string,
+    referenceId: string,
+    volunteerPhone: string,
+    volunteerUserId: string,
+    incidentData: {
+      type: string
+      barangay: string
+      time: string
+    }
+  ): Promise<SMSDeliveryResult> {
+    return this.sendSMS(
+      volunteerPhone,
+      'TEMPLATE_INCIDENT_ASSIGN',
+      {
+        ref: referenceId,
+        type: incidentData.type,
+        barangay: incidentData.barangay,
+        time: incidentData.time
+      },
+      {
+        incidentId,
+        referenceId,
+        triggerSource: 'Volunteer_Assignment_Immediate',
+        recipientUserId: volunteerUserId
+      }
+    )
+  }
+
+  /**
+   * Send volunteer fallback alert (if push notification not acknowledged)
    */
   async sendVolunteerFallback(
     incidentId: string,

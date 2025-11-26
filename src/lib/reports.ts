@@ -174,30 +174,44 @@ interface IncidentFromDB {
   assigned_to: AssignedToItem[];
 }
 
-// Export incidents to CSV
+// Export incidents to CSV - ENHANCED with all fields
 export const exportIncidentsToCSV = async (startDate?: string, endDate?: string) => {
   try {
     let query = supabase.from("incidents").select(`
         id,
         created_at,
+        updated_at,
         incident_type,
         description,
         location_lat,
         location_lng,
         address,
         barangay,
+        city,
+        province,
         status,
         priority,
+        severity,
         assigned_at,
         resolved_at,
+        resolution_notes,
+        photo_url,
+        photo_urls,
+        reporter_id,
+        assigned_to,
         reporter:users!incidents_reporter_id_fkey(
+          id,
           first_name,
           last_name,
+          email,
           phone_number
         ),
-        assigned_to:users!incidents_assigned_to_fkey(
+        assigned_to_user:users!incidents_assigned_to_fkey(
+          id,
           first_name,
-          last_name
+          last_name,
+          email,
+          phone_number
         )
       `)
 
@@ -213,33 +227,71 @@ export const exportIncidentsToCSV = async (startDate?: string, endDate?: string)
 
     if (error) throw error
 
-    // Format data for CSV
-    const csvData = data.map((incident: IncidentFromDB) => {
+    // Format data for CSV with complete information
+    const csvData = data.map((incident: any) => {
       // Access the reporter and assigned_to arrays (which might be empty)
       const reporterArray = incident.reporter || [];
-      const assignedToArray = incident.assigned_to || [];
+      const assignedToArray = incident.assigned_to_user || [];
       
       // Get the first item if exists
       const reporter = reporterArray.length > 0 ? reporterArray[0] : null;
       const assignedTo = assignedToArray.length > 0 ? assignedToArray[0] : null;
 
+      // Calculate response time (time from creation to assignment)
+      const responseTimeMinutes = incident.assigned_at && incident.created_at
+        ? Math.round((new Date(incident.assigned_at).getTime() - new Date(incident.created_at).getTime()) / (1000 * 60))
+        : null;
+
+      // Calculate resolution time (time from creation to resolution)
+      const resolutionTimeMinutes = incident.resolved_at && incident.created_at
+        ? Math.round((new Date(incident.resolved_at).getTime() - new Date(incident.created_at).getTime()) / (1000 * 60))
+        : null;
+
+      // Calculate assignment to resolution time
+      const assignmentToResolutionMinutes = incident.resolved_at && incident.assigned_at
+        ? Math.round((new Date(incident.resolved_at).getTime() - new Date(incident.assigned_at).getTime()) / (1000 * 60))
+        : null;
+
+      // Format time durations
+      const formatDuration = (minutes: number | null) => {
+        if (minutes === null) return "N/A";
+        if (minutes < 60) return `${minutes} min`;
+        const hours = Math.floor(minutes / 60);
+        const mins = minutes % 60;
+        return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+      };
+
       return {
-        ID: incident.id,
-        Date: new Date(incident.created_at).toLocaleString(),
-        Type: incident.incident_type,
-        Description: incident.description,
-        Location: `${incident.location_lat},${incident.location_lng}`,
-        Address: incident.address,
-        Barangay: incident.barangay,
-        Status: incident.status,
-        Priority: incident.priority,
-        Reporter: reporter ? `${reporter.first_name} ${reporter.last_name}` : "Unknown",
-        ReporterPhone: reporter ? reporter.phone_number : "N/A",
-        AssignedTo: assignedTo
-          ? `${assignedTo.first_name} ${assignedTo.last_name}`
-          : "Unassigned",
-        AssignedAt: incident.assigned_at ? new Date(incident.assigned_at).toLocaleString() : "N/A",
-        ResolvedAt: incident.resolved_at ? new Date(incident.resolved_at).toLocaleString() : "N/A",
+        "Incident ID": incident.id,
+        "Created At": new Date(incident.created_at).toLocaleString(),
+        "Updated At": incident.updated_at ? new Date(incident.updated_at).toLocaleString() : "N/A",
+        "Type": incident.incident_type,
+        "Description": incident.description || "",
+        "Latitude": incident.location_lat,
+        "Longitude": incident.location_lng,
+        "Address": incident.address || "",
+        "Barangay": incident.barangay,
+        "City": incident.city || "TALISAY CITY",
+        "Province": incident.province || "NEGROS OCCIDENTAL",
+        "Status": incident.status,
+        "Priority": incident.priority,
+        "Severity": incident.severity || "MODERATE",
+        "Reporter ID": incident.reporter_id || "N/A",
+        "Reporter Name": reporter ? `${reporter.first_name || ""} ${reporter.last_name || ""}`.trim() : "Unknown",
+        "Reporter Email": reporter?.email || "N/A",
+        "Reporter Phone": reporter?.phone_number || "N/A",
+        "Assigned To ID": incident.assigned_to || "N/A",
+        "Assigned To Name": assignedTo ? `${assignedTo.first_name || ""} ${assignedTo.last_name || ""}`.trim() : "Unassigned",
+        "Assigned To Email": assignedTo?.email || "N/A",
+        "Assigned To Phone": assignedTo?.phone_number || "N/A",
+        "Assigned At": incident.assigned_at ? new Date(incident.assigned_at).toLocaleString() : "N/A",
+        "Resolved At": incident.resolved_at ? new Date(incident.resolved_at).toLocaleString() : "N/A",
+        "Response Time": formatDuration(responseTimeMinutes),
+        "Resolution Time": formatDuration(resolutionTimeMinutes),
+        "Assignment to Resolution Time": formatDuration(assignmentToResolutionMinutes),
+        "Resolution Notes": incident.resolution_notes || "",
+        "Photo URL": incident.photo_url || "",
+        "Photo Count": Array.isArray(incident.photo_urls) ? incident.photo_urls.length : (incident.photo_url ? 1 : 0),
       }
     })
 

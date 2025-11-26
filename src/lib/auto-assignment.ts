@@ -88,8 +88,42 @@ export class AutoAssignmentService {
       const assignmentResult = await this.performAssignment(criteria.incidentId, bestMatch.volunteerId)
       
       if (assignmentResult.success) {
-      // 5. Send notification to assigned volunteer
-      await this.notifyAssignedVolunteer(bestMatch, criteria)
+      // NOTE: Notification is automatically created by database trigger
+      // (notify_volunteer_on_assignment) when assigned_to is updated
+      // No need to manually send notification here to avoid duplicates
+      
+      // 5. Send immediate SMS to assigned volunteer
+      try {
+        const { smsService } = await import('@/lib/sms-service')
+        const { data: incident } = await this.supabaseAdmin
+          .from('incidents')
+          .select('id, incident_type, barangay, created_at')
+          .eq('id', criteria.incidentId)
+          .single()
+
+        if (incident && bestMatch.phoneNumber) {
+          const referenceId = `INC-${incident.id.substring(0, 8).toUpperCase()}`
+          await smsService.sendVolunteerAssignment(
+            criteria.incidentId,
+            referenceId,
+            bestMatch.phoneNumber,
+            bestMatch.volunteerId,
+            {
+              type: incident.incident_type || 'Incident',
+              barangay: incident.barangay || 'Unknown',
+              time: new Date(incident.created_at || new Date()).toLocaleTimeString('en-US', { 
+                hour: '2-digit', 
+                minute: '2-digit',
+                hour12: true 
+              })
+            }
+          )
+          console.log('✅ Immediate SMS sent to auto-assigned volunteer')
+        }
+      } catch (smsErr) {
+        console.error('❌ Failed to send SMS to auto-assigned volunteer:', smsErr)
+        // Don't fail assignment if SMS fails
+      }
       
       // 6. Start fallback monitoring for SMS backup
       try {
@@ -366,25 +400,10 @@ export class AutoAssignmentService {
   }
 
   /**
-   * Send notification to assigned volunteer
+   * NOTE: Notification is automatically created by database trigger
+   * (notify_volunteer_on_assignment) when assigned_to is updated
+   * No need to manually send notification here to avoid duplicates
    */
-  private async notifyAssignedVolunteer(volunteer: VolunteerMatch, criteria: AssignmentCriteria): Promise<void> {
-    try {
-      // Use centralized notification service
-      const { notificationService } = await import('@/lib/notification-service')
-      const { data: incident } = await this.supabaseAdmin
-        .from('incidents')
-        .select('id, incident_type, barangay')
-        .eq('id', criteria.incidentId)
-        .single()
-
-      if (incident) {
-        await notificationService.onVolunteerAssigned(volunteer.volunteerId, incident)
-      }
-    } catch (error) {
-      console.error('Failed to notify assigned volunteer:', error)
-    }
-  }
 
   /**
    * Check if auto-assignment should be triggered

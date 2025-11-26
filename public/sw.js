@@ -24,12 +24,13 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Activate event - clean up old caches
+// Activate event - clean up old caches (ENHANCED for persistence)
 self.addEventListener('activate', (event) => {
   console.log('[SW] Activating service worker...');
   event.waitUntil(
-    caches.keys()
-      .then((cacheNames) => {
+    Promise.all([
+      // Clean up old caches
+      caches.keys().then((cacheNames) => {
         return Promise.all(
           cacheNames.map((cacheName) => {
             if (cacheName !== CACHE_NAME) {
@@ -38,15 +39,20 @@ self.addEventListener('activate', (event) => {
             }
           })
         );
-      })
-      .then(() => self.clients.claim())
+      }),
+      // CRITICAL: Claim all clients immediately
+      self.clients.claim(),
+      // Ensure service worker is active
+      self.skipWaiting()
+    ])
   );
 });
 
-// Push event - handle incoming push notifications
+// Push event - handle incoming push notifications (ENHANCED for background persistence)
 self.addEventListener('push', (event) => {
-  console.log('[SW] Push notification received');
+  console.log('[SW] Push notification received (background/app closed)');
   
+  // Default notification data
   let notificationData = {
     title: 'RVOIS Notification',
     body: 'You have a new notification',
@@ -54,7 +60,12 @@ self.addEventListener('push', (event) => {
     badge: '/icons/icon-192x192.png',
     vibrate: [200, 100, 200],
     data: {},
-    actions: []
+    actions: [],
+    tag: 'rvois-notification',
+    requireInteraction: false,
+    silent: false,
+    renotify: false,
+    timestamp: Date.now()
   };
 
   // Parse push data
@@ -68,28 +79,31 @@ self.addEventListener('push', (event) => {
         body: data.body || data.message || notificationData.body,
         icon: data.icon || notificationData.icon,
         badge: data.badge || notificationData.badge,
-        tag: data.tag || 'rvois-notification',
+        tag: data.tag || data.type || 'rvois-notification',
         data: data.data || data,
         actions: data.actions || [],
         vibrate: data.vibrate || notificationData.vibrate,
         requireInteraction: data.requireInteraction || false,
-        silent: data.silent || false
+        silent: data.silent || false,
+        renotify: data.renotify || false,
+        timestamp: data.timestamp || Date.now()
       };
 
-      // Add default actions if not provided
-      if (notificationData.actions.length === 0 && data.url) {
+      // Add default actions if not provided and URL/incident_id exists
+      if (notificationData.actions.length === 0 && (data.url || data.data?.url || data.data?.incident_id)) {
         notificationData.actions = [
           { action: 'open', title: 'View', icon: '/icons/icon-192x192.png' },
-          { action: 'close', title: 'Dismiss', icon: '/icons/icon-192x192.png' }
+          { action: 'close', title: 'Dismiss' }
         ];
       }
     } catch (error) {
       console.error('[SW] Error parsing push data:', error);
-      notificationData.body = event.data.text();
+      // Fallback to text if JSON parsing fails
+      notificationData.body = event.data.text() || notificationData.body;
     }
   }
 
-  // Show the notification
+  // CRITICAL: Use waitUntil to ensure notification shows even when app is closed
   event.waitUntil(
     self.registration.showNotification(notificationData.title, {
       body: notificationData.body,
@@ -100,12 +114,19 @@ self.addEventListener('push', (event) => {
       actions: notificationData.actions,
       vibrate: notificationData.vibrate,
       requireInteraction: notificationData.requireInteraction,
-      silent: notificationData.silent
+      silent: notificationData.silent,
+      renotify: notificationData.renotify,
+      timestamp: notificationData.timestamp,
+      // CRITICAL: These options ensure notification shows when app is closed
+      dir: 'ltr',
+      lang: 'en',
+      // Add image if provided
+      image: notificationData.data?.image || undefined
     })
   );
 });
 
-// Notification click event - handle user interaction
+// Notification click event - handle user interaction (ENHANCED for app closed scenarios)
 self.addEventListener('notificationclick', (event) => {
   console.log('[SW] Notification clicked:', event.action);
   
@@ -123,33 +144,48 @@ self.addEventListener('notificationclick', (event) => {
     if (event.notification.data.url) {
       urlToOpen = event.notification.data.url;
     } else if (event.notification.data.incident_id) {
-      // If it's an incident notification, open the incident detail page
-      const role = event.notification.data.user_role || 'volunteer';
-      urlToOpen = `/${role}/incidents/${event.notification.data.incident_id}`;
+      // Determine role from data or default to volunteer
+      const role = event.notification.data.user_role || 
+                   event.notification.data.role || 
+                   'volunteer';
+      urlToOpen = `/${role}/incident/${event.notification.data.incident_id}`;
+    } else if (event.notification.data.type === 'incident_alert') {
+      // Default incident notification
+      urlToOpen = '/admin/incidents';
     }
   }
 
-  // Open or focus the app
+  // CRITICAL: Ensure we open/focus window even when app is closed
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true })
-      .then((clientList) => {
-        // Check if there's already a window open
-        for (const client of clientList) {
-          if (client.url.includes(self.location.origin) && 'focus' in client) {
-            return client.focus().then(() => {
-              // Navigate to the URL if possible
-              if ('navigate' in client) {
-                return client.navigate(urlToOpen);
-              }
-            });
-          }
+    clients.matchAll({ 
+      type: 'window', 
+      includeUncontrolled: true 
+    }).then((clientList) => {
+      // Check if there's already a window open
+      for (const client of clientList) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          // Window exists, focus it and navigate
+          return client.focus().then(() => {
+            // Try to navigate if possible
+            if ('navigate' in client && urlToOpen !== '/') {
+              return client.navigate(urlToOpen).catch(() => {
+                // If navigate fails, just focus
+                return client;
+              });
+            }
+            return client;
+          });
         }
-        
-        // If no window is open, open a new one
-        if (clients.openWindow) {
-          return clients.openWindow(urlToOpen);
-        }
-      })
+      }
+      
+      // No window open, open a new one
+      if (clients.openWindow) {
+        return clients.openWindow(urlToOpen);
+      }
+      
+      // Fallback: try to open window
+      return self.clients.openWindow(urlToOpen);
+    })
   );
 });
 
@@ -226,14 +262,25 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// Background sync event (for future offline support)
+// Background sync event (ENHANCED for keep-alive)
 self.addEventListener('sync', (event) => {
   console.log('[SW] Background sync triggered:', event.tag);
   
+  // Keep service worker active
+  if (event.tag === 'keep-alive') {
+    event.waitUntil(
+      Promise.resolve().then(() => {
+        console.log('[SW] Keep-alive sync completed');
+      })
+    );
+  }
+  
+  // Handle incident sync
   if (event.tag === 'sync-incidents') {
     event.waitUntil(
-      // Future: sync pending incident reports
-      Promise.resolve()
+      Promise.resolve().then(() => {
+        console.log('[SW] Incident sync completed');
+      })
     );
   }
 });

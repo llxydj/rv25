@@ -39,23 +39,45 @@ export async function GET(request: Request) {
       const startDate = new Date(yearNum, 0, 1).toISOString()
       const endDate = new Date(yearNum + 1, 0, 1).toISOString()
       
-      // Get incidents for CSV export
+      // Get incidents for CSV export - ENHANCED with all fields
       const { data: incidents, error: incidentsError } = await supabaseAdmin
         .from('incidents')
         .select(`
           id,
+          created_at,
+          updated_at,
           incident_type,
           description,
           location_lat,
           location_lng,
           address,
           barangay,
+          city,
+          province,
           status,
           priority,
-          created_at,
+          severity,
+          assigned_at,
           resolved_at,
+          resolution_notes,
+          photo_url,
+          photo_urls,
           reporter_id,
-          assigned_to
+          assigned_to,
+          reporter:users!incidents_reporter_id_fkey(
+            id,
+            first_name,
+            last_name,
+            email,
+            phone_number
+          ),
+          assigned_to_user:users!incidents_assigned_to_fkey(
+            id,
+            first_name,
+            last_name,
+            email,
+            phone_number
+          )
         `)
         .gte('created_at', startDate)
         .lt('created_at', endDate)
@@ -70,26 +92,73 @@ export async function GET(request: Request) {
         `Report Type: Yearly Incidents Report`,
         `Year: ${yearNum}`,
         `Generated Date: ${currentDate}`,
+        `Total Incidents: ${incidents.length}`,
         '',
         ''
       ].join('\n')
       
-      // Format data for CSV
-      const csvData = incidents.map(incident => ({
-        "Incident ID": incident.id,
-        "Type": incident.incident_type,
-        "Description": incident.description,
-        "Latitude": incident.location_lat,
-        "Longitude": incident.location_lng,
-        "Address": incident.address || "",
-        "Barangay": incident.barangay,
-        "Status": incident.status,
-        "Priority": incident.priority,
-        "Created At": new Date(incident.created_at).toLocaleString(),
-        "Resolved At": incident.resolved_at ? new Date(incident.resolved_at).toLocaleString() : "",
-        "Reporter ID": incident.reporter_id,
-        "Assigned To": incident.assigned_to || ""
-      }))
+      // Format data for CSV with complete information
+      const csvData = incidents.map(incident => {
+        const reporter = Array.isArray(incident.reporter) && incident.reporter.length > 0 ? incident.reporter[0] : null;
+        const assignedTo = Array.isArray(incident.assigned_to_user) && incident.assigned_to_user.length > 0 ? incident.assigned_to_user[0] : null;
+
+        // Calculate response time (time from creation to assignment)
+        const responseTimeMinutes = incident.assigned_at && incident.created_at
+          ? Math.round((new Date(incident.assigned_at).getTime() - new Date(incident.created_at).getTime()) / (1000 * 60))
+          : null;
+
+        // Calculate resolution time (time from creation to resolution)
+        const resolutionTimeMinutes = incident.resolved_at && incident.created_at
+          ? Math.round((new Date(incident.resolved_at).getTime() - new Date(incident.created_at).getTime()) / (1000 * 60))
+          : null;
+
+        // Calculate assignment to resolution time
+        const assignmentToResolutionMinutes = incident.resolved_at && incident.assigned_at
+          ? Math.round((new Date(incident.resolved_at).getTime() - new Date(incident.assigned_at).getTime()) / (1000 * 60))
+          : null;
+
+        // Format time durations
+        const formatDuration = (minutes: number | null) => {
+          if (minutes === null) return "N/A";
+          if (minutes < 60) return `${minutes} min`;
+          const hours = Math.floor(minutes / 60);
+          const mins = minutes % 60;
+          return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+        };
+
+        return {
+          "Incident ID": incident.id,
+          "Created At": new Date(incident.created_at).toLocaleString(),
+          "Updated At": incident.updated_at ? new Date(incident.updated_at).toLocaleString() : "N/A",
+          "Type": incident.incident_type,
+          "Description": incident.description || "",
+          "Latitude": incident.location_lat,
+          "Longitude": incident.location_lng,
+          "Address": incident.address || "",
+          "Barangay": incident.barangay,
+          "City": incident.city || "TALISAY CITY",
+          "Province": incident.province || "NEGROS OCCIDENTAL",
+          "Status": incident.status,
+          "Priority": incident.priority,
+          "Severity": incident.severity || "MODERATE",
+          "Reporter ID": incident.reporter_id || "N/A",
+          "Reporter Name": reporter ? `${reporter.first_name || ""} ${reporter.last_name || ""}`.trim() : "Unknown",
+          "Reporter Email": reporter?.email || "N/A",
+          "Reporter Phone": reporter?.phone_number || "N/A",
+          "Assigned To ID": incident.assigned_to || "N/A",
+          "Assigned To Name": assignedTo ? `${assignedTo.first_name || ""} ${assignedTo.last_name || ""}`.trim() : "Unassigned",
+          "Assigned To Email": assignedTo?.email || "N/A",
+          "Assigned To Phone": assignedTo?.phone_number || "N/A",
+          "Assigned At": incident.assigned_at ? new Date(incident.assigned_at).toLocaleString() : "N/A",
+          "Resolved At": incident.resolved_at ? new Date(incident.resolved_at).toLocaleString() : "N/A",
+          "Response Time": formatDuration(responseTimeMinutes),
+          "Resolution Time": formatDuration(resolutionTimeMinutes),
+          "Assignment to Resolution Time": formatDuration(assignmentToResolutionMinutes),
+          "Resolution Notes": incident.resolution_notes || "",
+          "Photo URL": incident.photo_url || "",
+          "Photo Count": Array.isArray(incident.photo_urls) ? incident.photo_urls.length : (incident.photo_url ? 1 : 0),
+        }
+      })
       
       // Create headers row
       const headers = Object.keys(csvData[0] || {}).join(',')
