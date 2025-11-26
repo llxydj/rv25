@@ -1,0 +1,67 @@
+
+
+I'll open the authentication-related files to see how user data and roles are fetched and identify why the errors occur during login.
+
+I'll open the files that are logging these errors to identify the failing queries and improve error handling and role retrieval logic: `src/hooks/use-auth.tsx` and `src/app/login/page.tsx`.
+
+
+
+
+
+I'll update the Supabase queries to avoid failing when the `users` row doesn't exist yet. I'll switch `.single()` to `.maybeSingle()` and handle the case where no row is returned by defaulting the role (e.g., to resident) and proceeding without throwing errors. First, I'll update [src/lib/auth.ts](cci:7://file:///c:/Users/xeren/Downloads/rvoisddd_1/src/lib/auth.ts:0:0-0:0). Then, I'll make similar fixes in [src/hooks/use-auth.tsx](cci:7://file:///c:/Users/xeren/Downloads/rvoisddd_1/src/hooks/use-auth.tsx:0:0-0:0) and [src/app/login/page.tsx](cci:7://file:///c:/Users/xeren/Downloads/rvoisddd_1/src/app/login/page.tsx:0:0-0:0).
+
+
+
+
+
+
+
+Below are the fixes I implemented for the login errors and how to verify them.
+
+# Cause of Errors
+
+- The errors like “Error fetching user data: {}”, “Role lookup failed: {}”, and “Failed to fetch user role. Please try again.” were occurring because the code used `.single()` on the `users` table immediately after login.
+- When a `users` row does not exist yet for a freshly authenticated account, `.single()` throws a 406 error. The code treated this as a hard failure, blocking login and role routing.
+
+# What I Changed
+
+I made the role/profile lookups resilient to missing rows by switching to `.maybeSingle()` and handling the “no row” case gracefully. I also ensured we don’t block login just because the profile row is not there yet.
+
+- Updated [src/lib/auth.ts](cci:7://file:///c:/Users/xeren/Downloads/rvoisddd_1/src/lib/auth.ts:0:0-0:0):
+  - Changed all `users` table profile lookups from `.single()` to `.maybeSingle()`:
+    - In [fetchUserData()](cci:1://file:///c:/Users/xeren/Downloads/rvoisddd_1/src/lib/auth.ts:25:2-56:3)
+    - In the initial session load effect
+    - In the `onAuthStateChange` handler
+    - In [getCurrentUser()](cci:1://file:///c:/Users/xeren/Downloads/rvoisddd_1/src/lib/auth.ts:460:0-496:1)
+  - These calls now tolerate the profile being absent and won’t throw.
+
+- Updated [src/hooks/use-auth.tsx](cci:7://file:///c:/Users/xeren/Downloads/rvoisddd_1/src/hooks/use-auth.tsx:0:0-0:0):
+  - In [updateUserWithRole()](cci:1://file:///c:/Users/xeren/Downloads/rvoisddd_1/src/hooks/use-auth.tsx:28:2-46:3), switched to `.maybeSingle()` and return the session user even if the profile row isn’t found or there’s an error.
+  - The returned user can have an optional `role`.
+
+- Updated [src/app/login/page.tsx](cci:7://file:///c:/Users/xeren/Downloads/rvoisddd_1/src/app/login/page.tsx:0:0-0:0):
+  - Switched the role query to `.maybeSingle()`.
+  - If role lookup fails or no row exists, we no longer block login. We log the error and proceed.
+  - Default role for routing becomes `"resident"` if `userData` is null or lacks `role`.
+
+# Why This Works
+
+- `.maybeSingle()` avoids 406 when zero rows are returned.
+- We don’t assume the profile row exists at sign-in, so users aren’t stuck at login due to timing or seed data gaps.
+- Redirect logic now defaults safely to resident in absence of a profile row.
+
+# How to Verify
+
+- Attempt a login with a valid account that may or may not have a `users` row:
+  - You should no longer see the console errors blocking the flow.
+  - You should be redirected based on role if found.
+  - If no role/profile row exists, you will be routed to `'/resident/dashboard'` by default.
+- Check console:
+  - You may still see a console log noting the role fetch issue, but it will not stop the login.
+
+# Notes
+
+- If your workflow guarantees that a `users` row is always created at signup (e.g., [signUpResident()](cci:1://file:///c:/Users/xeren/Downloads/rvoisddd_1/src/lib/auth.ts:201:0-271:1) path), everything will continue to work as before; this change just prevents hard failures when it’s missing.
+- If you want a different default behavior (e.g., stop login when role is unknown), tell me and I can adjust the fallback logic in [src/app/login/page.tsx](cci:7://file:///c:/Users/xeren/Downloads/rvoisddd_1/src/app/login/page.tsx:0:0-0:0).
+
+If you’d like, I can also add a small helper that ensures a user profile row is created post-login if it’s missing, to eliminate the default-to-resident fallback entirely.

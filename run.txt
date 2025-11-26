@@ -1,0 +1,89 @@
+@echo off
+setlocal enabledelayedexpansion
+
+echo =====================================================
+echo 🚀 Starting RVOIS Project Portable Environment
+echo =====================================================
+
+:: =============================
+::  SETUP LOCAL NODE
+:: =============================
+set "NODE_DIR=%~dp0node-v22.21.0-win-x64"
+set "NODE_EXE=%NODE_DIR%\node.exe"
+set "NPM_CMD=%NODE_DIR%\node_modules\npm\bin\npm-cli.js"
+
+:: Verify Node exists
+if not exist "%NODE_EXE%" (
+    echo ❌ ERROR: Node not found in project folder.
+    echo Please include node-v22.21.0-win-x64 with this project.
+    pause
+    exit /b
+)
+
+echo ✅ Node version:
+"%NODE_EXE%" -v
+if %errorlevel% neq 0 (
+    echo ❌ Node failed to start.
+    pause
+    exit /b
+)
+
+:: =============================
+::  CHECK LOCAL PNPM
+:: =============================
+set "LOCAL_PNPM=%~dp0node_modules\.bin\pnpm.cmd"
+
+if not exist "%LOCAL_PNPM%" (
+    echo 📦 pnpm not found locally. Installing locally...
+    "%NODE_EXE%" "%NPM_CMD%" cache clean --force >nul 2>nul
+    "%NODE_EXE%" "%NPM_CMD%" install pnpm --save-dev --prefer-offline --no-audit --legacy-peer-deps
+    if %errorlevel% neq 0 (
+        echo ❌ Failed to install local pnpm.
+        echo 💡 Ensure you have internet connection.
+        pause
+        exit /b
+    )
+)
+
+set "PNPM_CMD=%LOCAL_PNPM%"
+
+:: =============================
+::  CLEANUP OLD NODE_MODULES AND LOCK FILES
+:: =============================
+echo 🧹 Cleaning old node_modules and lock files...
+if exist "node_modules" rmdir /s /q node_modules >nul 2>nul
+if exist "package-lock.json" del /f /q package-lock.json >nul 2>nul
+if exist "pnpm-lock.yaml" del /f /q pnpm-lock.yaml >nul 2>nul
+
+:: =============================
+::  INSTALL DEPENDENCIES
+:: =============================
+echo 🔧 Installing dependencies...
+call "%PNPM_CMD%" install --prefer-offline --no-audit --frozen-lockfile
+if %errorlevel% neq 0 (
+    echo ⚠️ Dependency installation failed, trying forced reinstall...
+    call "%PNPM_CMD%" install --force
+    if %errorlevel% neq 0 (
+        echo ❌ Failed to install dependencies.
+        pause
+        exit /b
+    )
+)
+
+:: =============================
+::  RUN DEVELOPMENT SERVER
+:: =============================
+echo 🚀 Launching development server...
+call "%PNPM_CMD%" run dev
+if %errorlevel% neq 0 (
+    echo ❌ Dev server failed to start.
+    pause
+    exit /b
+)
+
+echo =====================================================
+echo ✅ RVOIS Project stopped successfully.
+echo =====================================================
+
+endlocal
+pause

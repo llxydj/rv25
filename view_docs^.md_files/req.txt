@@ -1,0 +1,224 @@
+# RVOIS - Rescue Volunteers Operations Information System
+# Complete Technology Stack and Requirements
+
+## CORE FRAMEWORKS & RUNTIMES
+- Node.js 18.x or higher
+- Next.js 15.2.4 (React Framework)
+- React 18.2.0
+- React DOM 18.2.0
+- TypeScript 5.x
+
+## PACKAGE MANAGERS
+- pnpm 8.x or higher (Primary package manager)
+- npm (Alternative package manager)
+
+## FRONTEND TECHNOLOGIES
+- JavaScript (ES5+)
+- TypeScript
+- JSX/TSX
+- CSS3
+- HTML5
+
+## STYLING & UI FRAMEWORKS
+- Tailwind CSS 3.4.17
+- @tailwindcss/forms
+- @tailwindcss/typography
+- tailwindcss-animate
+- CSS Variables
+- PostCSS 8.x
+- Autoprefixer 10.4.20
+
+## UI COMPONENT LIBRARIES
+- Radix UI (Complete component system):
+  - @radix-ui/react-accordion
+  - @radix-ui/react-alert-dialog
+  - @radix-ui/react-aspect-ratio
+  - @radix-ui/react-avatar
+  - @radix-ui/react-checkbox
+  - @radix-ui/react-collapsible
+  - @radix-ui/react-context-menu
+  - @radix-ui/react-dialog
+  - @radix-ui/react-dropdown-menu
+  - @radix-ui/react-hover-card
+  - @radix-ui/react-label
+  - @radix-ui/react-menubar
+  - @radix-ui/react-navigation-menu
+  - @radix-ui/react-popover
+  - @radix-ui/react-progress
+  - @radix-ui/react-radio-group
+  - @radix-ui/react-scroll-area
+  - @radix-ui/react-select
+  - @radix-ui/react-separator
+  - @radix-ui/react-slider
+  - @radix-ui/react-slot
+  - @radix-ui/react-switch
+  - @radix-ui/react-tabs
+  - @radix-ui/react-toast
+  - @radix-ui/react-toggle
+  - @radix-ui/react-toggle-group
+  - @radix-ui/react-tooltip
+
+## FORM HANDLING & VALIDATION
+- React Hook Form 7.54.1
+- @hookform/resolvers 3.9.1
+- Zod 3.24.1 (Schema validation)
+
+## ICONS & VISUAL ELEMENTS
+- Lucide React 0.454.0
+- Custom SVG icons
+- PNG icons (192x192, 512x512)
+
+## MAPS & GEOLOCATION
+- Leaflet (Latest)
+- React Leaflet 4.2.1
+
+## CHARTS & DATA VISUALIZATION
+- Recharts 2.15.0
+
+## DATE & TIME HANDLING
+- date-fns 2.30.0
+- React Day Picker 8.10.1
+
+## THEMING & DARK MODE
+- next-themes 0.4.4
+
+## UTILITY LIBRARIES
+- clsx 2.1.1
+- tailwind-merge 2.6.0
+- class-variance-authority 0.7.1
+- cmdk 1.0.4 (Command palette)
+- input-otp 1.4.1
+- sonner 1.7.1 (Toast notifications)
+- vaul 0.9.6 (Drawer component)
+- embla-carousel-react 8.5.1
+- react-resizable-panels 2.1.7
+
+## BACKEND & DATABASE
+- Supabase (PostgreSQL)
+- @supabase/supabase-js (Latest)
+- @supabase/auth-helpers-nextjs (Latest)
+- PostgreSQL with extensions:
+  - uuid-ossp
+  - Row Level Security (RLS)
+  - Custom functions and triggers
+
+## AUTHENTICATION & AUTHORIZATION
+- Supabase Auth
+- JWT tokens
+- Role-based access control (admin, volunteer, resident, barangay)
+
+## PROGRESSIVE WEB APP (PWA)
+- next-pwa 5.6.0
+- Service Worker
+- Web App Manifest
+- Offline support
+- Push notifications
+- Cache strategies
+
+## TESTING FRAMEWORKS
+- Jest
+- @testing-library/jest-dom
+- next/jest
+- jsdom test environment
+
+## BUILD TOOLS & DEVELOPMENT
+- Next.js built-in bundler
+- TypeScript compiler
+- ESLint (Next.js config)
+- PostCSS
+- Autoprefixer
+
+## DEPLOYMENT & HOSTING
+- Vercel (Primary deployment platform)
+- Vercel Edge Functions
+- Singapore region (sin1)
+
+## SECURITY HEADERS
+- X-Content-Type-Options: nosniff
+- X-Frame-Options: DENY
+- X-XSS-Protection: 1; mode=block
+- Referrer-Policy: strict-origin-when-cross-origin
+
+## FILE FORMATS SUPPORTED
+- TypeScript (.ts, .tsx)
+- JavaScript (.js, .jsx)
+- CSS (.css)
+- JSON (.json)
+- SQL (.sql)
+- Markdown (.md)
+- SVG (.svg)
+- PNG (.png)
+- JPG/JPEG (.jpg, .jpeg)
+- WebP (.webp)
+
+## DATABASE SCHEMA FEATURES
+- UUID primary keys
+- Custom ENUM types
+- JSONB columns
+- Array columns
+- Timestamp with timezone
+- Foreign key constraints
+- Indexes for performance
+- Triggers for automation
+- Row Level Security policies
+
+## API & ROUTING
+- Next.js App Router
+- API Routes
+- Middleware
+- Dynamic routes
+- Route groups
+
+## ENVIRONMENT VARIABLES REQUIRED
+- NEXT_PUBLIC_SUPABASE_URL
+- NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+## BROWSER COMPATIBILITY
+- Modern browsers with ES5+ support
+- Service Worker support
+- Web App Manifest support
+- Geolocation API support
+
+## MOBILE SUPPORT
+- Responsive design
+- PWA installation
+- Touch-friendly interface
+- Mobile-optimized layouts
+
+## PERFORMANCE OPTIMIZATIONS
+- Image optimization
+- Code splitting
+- Lazy loading
+- Caching strategies
+- Bundle optimization
+
+## DEVELOPMENT TOOLS
+- TypeScript strict mode
+- Path aliases (@/*)
+- Hot reload
+- Source maps
+- Error boundaries
+
+## PROJECT STRUCTURE
+- Monorepo with pnpm workspaces
+- Component-based architecture
+- Feature-based folder structure
+- Shared UI components
+- Custom hooks
+- Utility functions
+
+## VERSION CONTROL
+- Git
+- GitHub (assumed)
+
+## DOCUMENTATION
+- README.md
+- Inline code comments
+- TypeScript type definitions
+- Database schema documentation
+
+## COMPLIANCE & STANDARDS
+- Web Content Accessibility Guidelines (WCAG)
+- Progressive Web App standards
+- Security best practices
+- Performance optimization standards

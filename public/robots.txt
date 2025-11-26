@@ -1,0 +1,16 @@
+# Allow all crawlers
+User-agent: *
+Allow: /
+
+# Disallow admin and sensitive routes
+Disallow: /admin/
+Disallow: /volunteer/
+Disallow: /resident/
+Disallow: /api/
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
+Disallow: /reset-password
+
+# Sitemap
+Sitemap: https://rvois.vercel.app/sitemap.xml

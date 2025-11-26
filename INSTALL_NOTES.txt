@@ -1,0 +1,59 @@
+This project uses pnpm.
+After downloading:
+Install Node.js
+
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+npm install -g pnpm
+pnpm install
+pnpm list --depth 0
+pnpm run dev
+
+pnpm run build
+pnpm run start
+
+# 1. Delete node_modules
+rimraf node_modules
+
+# 2. Delete pnpm lock file
+rimraf pnpm-lock.yaml
+
+# 3. Clean pnpm store
+pnpm store prune
+
+node -v  # recommend 20.x+
+pnpm -v  # latest stable v10+
+
+npm install react-leaflet-cluster
+npm install -D ts-node
+
+npx supabase gen types typescript --project-id zcgbzbviyaqqplpamcbh > types\supabase.ts
+
+"dependencies": {
+  "react": "18.3.1",
+  "react-dom": "18.3.1",
+  "next": "14.2.18",  ← LOCKED TO 14.2.18 (NOT 15.x!)
+  "@supabase/auth-helpers-nextjs": "0.10.0",
+  
+⚠️ IMPORTANT: Always use pnpm-lock.yaml
+- DO NOT delete pnpm-lock.yaml
+- DO NOT run pnpm update
+- Always commit pnpm-lock.yaml to Git
+  "@radix-ui/react-*": "*",  
+  ...
+},
+"devDependencies": {
+  "typescript": "5.9.3",
+  "@types/react": "19.2.2",
+  "@types/react-dom": "19.2.2",
+  "@types/node": "22.18.12",
+  "@types/minimatch": "^6.0.0",
+  "@next/eslint-plugin-next": "15.5.6"
+}
+
+pnpm install --shamefully-hoist
+pnpm exec tsc --noEmit #Fix TypeScript Errors
+
+pnpm exec eslint . --ext .ts,.tsx
+
+# NEED
+pnpm exec tsc --noEmit; if ($?) { pnpm exec eslint . --ext .ts,.tsx --max-warnings=0 }; if ($?) { pnpm run build }

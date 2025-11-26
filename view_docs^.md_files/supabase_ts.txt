@@ -1,0 +1,266 @@
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
+
+export interface Database {
+  public: {
+    Tables: {
+      users: {
+        Row: {
+          id: string
+          created_at: string
+          updated_at: string
+          email: string
+          first_name: string
+          last_name: string
+          role: "admin" | "volunteer" | "resident" | "barangay"
+          phone_number: string | null
+          address: string | null
+          barangay: string | null
+          city: string
+          province: string
+          confirmation_phrase: string | null
+          last_active: string
+        }
+        Insert: {
+          id: string
+          created_at?: string
+          updated_at?: string
+          email: string
+          first_name: string
+          last_name: string
+          role: "admin" | "volunteer" | "resident" | "barangay"
+          phone_number?: string | null
+          address?: string | null
+          barangay?: string | null
+          city?: string
+          province?: string
+          confirmation_phrase?: string | null
+          last_active?: string
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          updated_at?: string
+          email?: string
+          first_name?: string
+          last_name?: string
+          role?: "admin" | "volunteer" | "resident" | "barangay"
+          phone_number?: string | null
+          address?: string | null
+          barangay?: string | null
+          city?: string
+          province?: string
+          confirmation_phrase?: string | null
+          last_active?: string
+        }
+      }
+      volunteer_profiles: {
+        Row: {
+          volunteer_user_id: string
+          status: "ACTIVE" | "INACTIVE" | "SUSPENDED"
+          skills: string[] | null
+          availability: string[] | null
+          assigned_barangays: string[] | null
+          total_incidents_resolved: number
+          notes: string | null
+          admin_user_id: string | null
+          created_at: string
+          updated_at: string
+          last_active_at: string
+          last_status_change: string | null
+          last_status_changed_by: string | null
+          is_available: boolean
+        }
+        Insert: {
+          volunteer_user_id: string
+          status?: "ACTIVE" | "INACTIVE" | "SUSPENDED"
+          skills?: string[] | null
+          availability?: string[] | null
+          assigned_barangays?: string[] | null
+          total_incidents_resolved?: number
+          notes?: string | null
+          admin_user_id?: string | null
+          created_at?: string
+          updated_at?: string
+          last_active_at?: string
+          last_status_change?: string | null
+          last_status_changed_by?: string | null
+          is_available?: boolean
+        }
+        Update: {
+          volunteer_user_id?: string
+          status?: "ACTIVE" | "INACTIVE" | "SUSPENDED"
+          skills?: string[] | null
+          availability?: string[] | null
+          assigned_barangays?: string[] | null
+          total_incidents_resolved?: number
+          notes?: string | null
+          admin_user_id?: string | null
+          created_at?: string
+          updated_at?: string
+          last_active_at?: string
+          last_status_change?: string | null
+          last_status_changed_by?: string | null
+          is_available?: boolean
+        }
+      }
+      incidents: {
+        Row: {
+          id: string
+          created_at: string
+          updated_at: string
+          reporter_id: string | null
+          incident_type: string
+          description: string
+          location_lat: number
+          location_lng: number
+          address: string | null
+          barangay: string
+          city: string
+          province: string
+          status: "PENDING" | "ASSIGNED" | "RESPONDING" | "RESOLVED" | "CANCELLED"
+          priority: number
+          photo_url: string | null
+          assigned_to: string | null
+          assigned_at: string | null
+          resolved_at: string | null
+          resolution_notes: string | null
+          user_id: string | null
+          severity: "LOW" | "MODERATE" | "HIGH" | "CRITICAL"
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          updated_at?: string
+          reporter_id?: string | null
+          incident_type: string
+          description: string
+          location_lat: number
+          location_lng: number
+          address?: string | null
+          barangay: string
+          city?: string
+          province?: string
+          status?: "PENDING" | "ASSIGNED" | "RESPONDING" | "RESOLVED" | "CANCELLED"
+          priority?: number
+          photo_url?: string | null
+          assigned_to?: string | null
+          assigned_at?: string | null
+          resolved_at?: string | null
+          resolution_notes?: string | null
+          user_id?: string | null
+          severity?: "LOW" | "MODERATE" | "HIGH" | "CRITICAL"
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          updated_at?: string
+          reporter_id?: string | null
+          incident_type?: string
+          description?: string
+          location_lat?: number
+          location_lng?: number
+          address?: string | null
+          barangay?: string
+          city?: string
+          province?: string
+          status?: "PENDING" | "ASSIGNED" | "RESPONDING" | "RESOLVED" | "CANCELLED"
+          priority?: number
+          photo_url?: string | null
+          assigned_to?: string | null
+          assigned_at?: string | null
+          resolved_at?: string | null
+          resolution_notes?: string | null
+          user_id?: string | null
+          severity?: "LOW" | "MODERATE" | "HIGH" | "CRITICAL"
+        }
+      }
+      incident_updates: {
+        Row: {
+          id: string
+          incident_id: string
+          updated_by: string | null
+          previous_status: "PENDING" | "ASSIGNED" | "RESPONDING" | "RESOLVED" | "CANCELLED" | null
+          new_status: "PENDING" | "ASSIGNED" | "RESPONDING" | "RESOLVED" | "CANCELLED" | null
+          notes: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          incident_id: string
+          updated_by?: string | null
+          previous_status?: "PENDING" | "ASSIGNED" | "RESPONDING" | "RESOLVED" | "CANCELLED" | null
+          new_status?: "PENDING" | "ASSIGNED" | "RESPONDING" | "RESOLVED" | "CANCELLED" | null
+          notes?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          incident_id?: string
+          updated_by?: string | null
+          previous_status?: "PENDING" | "ASSIGNED" | "RESPONDING" | "RESOLVED" | "CANCELLED" | null
+          new_status?: "PENDING" | "ASSIGNED" | "RESPONDING" | "RESOLVED" | "CANCELLED" | null
+          notes?: string | null
+          created_at?: string
+        }
+      }
+      schedules: {
+        Row: {
+          id: string
+          volunteer_id: string
+          title: string
+          description: string | null
+          start_time: string
+          end_time: string
+          location: string | null
+          barangay: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          volunteer_id: string
+          title: string
+          description?: string | null
+          start_time: string
+          end_time: string
+          location?: string | null
+          barangay?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          volunteer_id?: string
+          title?: string
+          description?: string | null
+          start_time?: string
+          end_time?: string
+          location?: string | null
+          barangay?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      barangays: {
+        Row: {
+          id: number
+          name: string
+          boundaries: Json | null
+        }
+        Insert: {
+          id?: number
+          name: string
+          boundaries?: Json | null
+        }
+        Update: {
+          id?: number
+          name?: string
+          boundaries?: Json | null
+        }
+      }
+    }
+  }
+}
