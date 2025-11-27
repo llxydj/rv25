@@ -305,6 +305,17 @@ export default function ReportIncidentPage() {
   const getCurrentLocation = () => {
     console.log("getCurrentLocation called");
     setGettingLocation(true);
+    setError(null); // Clear previous errors
+    
+    // Check if geolocation is supported
+    if (!navigator.geolocation) {
+      setError("Geolocation is not supported by your browser.");
+      setGettingLocation(false);
+      setLocation(TALISAY_CENTER);
+      setLocationCaptured(true);
+      return;
+    }
+
     navigator.geolocation.getCurrentPosition(
       (position) => {
         console.log("Location acquired:", position);
@@ -327,15 +338,38 @@ export default function ReportIncidentPage() {
         // Check if location is within Talisay City
         if (!isWithinTalisayCity(lat, lng)) {
           setError("Your current location is outside Talisay City. You can only report incidents within Talisay City.");
+        } else {
+          toast({
+            title: "Location Captured",
+            description: `Location captured successfully (accuracy: ±${Math.round(accuracy)}m)`
+          });
         }
       },
       (error) => {
-        console.log("Geolocation error code:", error.code);
+        console.log("Geolocation error:", error);
         setGettingLocation(false);
-        // Default to Talisay City center if location access is denied
-        setLocation(TALISAY_CENTER);
-        setLocationCaptured(true);
-        setError("Unable to get your precise location. Using default location. You can click 'Use My Location' to try again.");
+        
+        let errorMessage = "Unable to get your precise location.";
+        
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage = "Location permission denied. Please click 'Grant Permission' above or enable location access in your browser settings, then click 'Use My Location' again.";
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMessage = "Location information is unavailable. Please check your GPS settings and try again.";
+            break;
+          case error.TIMEOUT:
+            errorMessage = "Location request timed out. Please try again or move to an area with better GPS signal.";
+            break;
+          default:
+            errorMessage = "Unable to get your precise location. Please try again or use the map to select your location.";
+            break;
+        }
+        
+        setError(errorMessage);
+        // Don't set default location automatically - let user try again
+        // setLocation(TALISAY_CENTER);
+        // setLocationCaptured(true);
       },
       { enableHighAccuracy: true, timeout: 30000, maximumAge: 60000 }
     );
@@ -350,7 +384,7 @@ export default function ReportIncidentPage() {
       // Add a small delay to ensure the component is fully mounted
       const timer = setTimeout(() => {
         getCurrentLocation();
-      }, 500);
+      }, 1000); // Increased delay to allow LocationTracker to initialize first
       
       return () => clearTimeout(timer);
     }

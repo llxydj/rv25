@@ -443,6 +443,43 @@ export class LocationTrackingService {
   }
 
   /**
+   * Check if location permission is granted (without requesting)
+   */
+  async checkPermission(): Promise<boolean> {
+    if (!this.isSupported()) {
+      return false
+    }
+
+    // Try using Permissions API first if available
+    if ('permissions' in navigator) {
+      try {
+        const permissionStatus = await navigator.permissions.query({ name: 'geolocation' as PermissionName })
+        return permissionStatus.state === 'granted'
+      } catch (permError) {
+        console.warn('Permissions API not fully supported:', permError)
+        // Fall through to geolocation API check
+      }
+    }
+
+    // Fallback: Try to get position with very short timeout to check permission
+    // This won't actually request permission if denied, but will fail fast if permission is denied
+    return new Promise((resolve) => {
+      const timeoutId = setTimeout(() => resolve(false), 100)
+      navigator.geolocation.getCurrentPosition(
+        () => {
+          clearTimeout(timeoutId)
+          resolve(true)
+        },
+        () => {
+          clearTimeout(timeoutId)
+          resolve(false)
+        },
+        { timeout: 100, maximumAge: Infinity }
+      )
+    })
+  }
+
+  /**
    * Request location permission
    */
   async requestPermission(): Promise<boolean> {
@@ -450,12 +487,47 @@ export class LocationTrackingService {
       return false
     }
 
+    // Try using Permissions API first if available (more reliable)
+    if ('permissions' in navigator) {
+      try {
+        const permissionStatus = await navigator.permissions.query({ name: 'geolocation' as PermissionName })
+        console.log('Permission status:', permissionStatus.state)
+        
+        if (permissionStatus.state === 'granted') {
+          return true
+        }
+        
+        if (permissionStatus.state === 'prompt') {
+          // Permission hasn't been asked yet, trigger the prompt
+          return new Promise((resolve) => {
+            navigator.geolocation.getCurrentPosition(
+              () => resolve(true),
+              () => resolve(false),
+              { timeout: 10000, enableHighAccuracy: false }
+            )
+          })
+        }
+        
+        if (permissionStatus.state === 'denied') {
+          console.warn('Location permission is denied')
+          return false
+        }
+      } catch (permError) {
+        console.warn('Permissions API not fully supported, falling back to geolocation:', permError)
+        // Fall through to geolocation API
+      }
+    }
+
+    // Fallback: Use geolocation API directly
     try {
       return new Promise((resolve) => {
         navigator.geolocation.getCurrentPosition(
           () => resolve(true),
-          () => resolve(false),
-          { timeout: 5000 }
+          (error) => {
+            console.warn('Geolocation permission error:', error)
+            resolve(false)
+          },
+          { timeout: 10000, enableHighAccuracy: false }
         )
       })
     } catch (error) {
