@@ -9,6 +9,7 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import { MapComponent } from "@/components/ui/map-component"
 import { AlertTriangle, CheckCircle, Clock, Phone, User } from "lucide-react"
 import FeedbackRating from "@/components/feedback-rating"
+import { AudioPlayer } from "@/components/audio-player"
 
 export default function ResidentIncidentDetailPage() {
   const { id } = useParams()
@@ -177,6 +178,11 @@ export default function ResidentIncidentDetailPage() {
               <div className="mt-6">
                 <h3 className="text-sm font-medium text-gray-500">Description</h3>
                 <p className="mt-2 text-gray-700">{incident.description}</p>
+                {incident.voice_url && (
+                  <div className="mt-4">
+                    <AudioPlayer voiceUrl={incident.voice_url} incidentId={incident.id} />
+                  </div>
+                )}
               </div>
 
               <div className="mt-6">

@@ -19,6 +19,7 @@ import { IncidentCallActions } from "@/components/incident-call-actions"
 import { ImageLightbox } from "@/components/ui/image-lightbox"
 import { normalizeIncident, formatDisplayDate } from "@/lib/incident-utils"
 import { IncidentFeedbackDisplay } from "@/components/incident-feedback-display"
+import { AudioPlayer } from "@/components/audio-player"
 
 export default function IncidentDetailPage() {
   const { id } = useParams()
@@ -565,6 +566,11 @@ export default function IncidentDetailPage() {
               <div className="mt-6">
                 <h3 className="text-sm font-medium text-gray-500">Description</h3>
                 <p className="mt-2 text-gray-700">{incident.description}</p>
+                {incident.voice_url && (
+                  <div className="mt-4">
+                    <AudioPlayer voiceUrl={incident.voice_url} incidentId={incident.id} />
+                  </div>
+                )}
               </div>
 
               <div className="mt-6">

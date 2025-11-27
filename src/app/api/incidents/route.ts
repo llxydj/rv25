@@ -290,6 +290,7 @@ export async function POST(request: Request) {
       priority,
       photo_url,
       photo_urls,
+      voice_url,
       is_offline,
       created_at_local
     } = parsed.data
@@ -432,6 +433,7 @@ export async function POST(request: Request) {
       severity: mapPriorityToSeverity(String(normalizedPriority)),
       photo_url: primaryPhotoPath,
       photo_urls: processedPhotoPaths.length ? processedPhotoPaths : null,
+      voice_url: voice_url || null,
     }
 
     if (normalizedLocalTimestamp) {

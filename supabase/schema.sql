@@ -185,6 +185,7 @@ CREATE TABLE public.incidents (
   severity USER-DEFINED DEFAULT 'MODERATE'::incident_severity,
   created_year integer,
   photo_urls ARRAY DEFAULT '{}'::text[],
+  voice_url text,
   CONSTRAINT incidents_pkey PRIMARY KEY (id),
   CONSTRAINT incidents_reporter_id_fkey FOREIGN KEY (reporter_id) REFERENCES public.users(id),
   CONSTRAINT incidents_assigned_to_fkey FOREIGN KEY (assigned_to) REFERENCES public.users(id),

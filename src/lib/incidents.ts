@@ -285,6 +285,7 @@ export const createIncident = async (
   priority = 3,
   isOffline = false,
   createdAtLocal?: string,
+  voiceBlob?: Blob | null,
   options?: CreateIncidentOptions,
 ) => {
   try {
@@ -360,10 +361,50 @@ export const createIncident = async (
       return uploadJson.path as string
     }
 
+    // Upload voice in parallel with photos (non-blocking)
+    let uploadedVoicePath: string | null = null
+    const uploadVoice = async (blob: Blob): Promise<string | null> => {
+      try {
+        const form = new FormData()
+        form.append('file', blob, 'voice.webm')
+        form.append('reporter_id', reporterId)
+
+        let accessToken = options?.accessToken
+        if (!accessToken) {
+          const { data: { session } } = await supabase.auth.getSession()
+          accessToken = session?.access_token || undefined
+        }
+        const headers: Record<string, string> = {}
+        if (accessToken) {
+          headers['Authorization'] = `Bearer ${accessToken}`
+        }
+
+        const uploadRes = await fetchWithTimeout('/api/incidents/upload-voice', {
+          method: 'POST',
+          body: form,
+          headers,
+          timeout: 60000 // 60 seconds for voice upload
+        })
+        const uploadJson = await uploadRes.json()
+        if (!uploadRes.ok || !uploadJson?.success || !uploadJson?.path) {
+          console.error('Voice upload failed:', uploadJson)
+          return null // Don't fail incident creation if voice upload fails
+        }
+        console.log('Voice uploaded successfully, path:', uploadJson.path)
+        return uploadJson.path as string
+      } catch (error) {
+        console.error('Failed to upload voice:', error)
+        return null // Don't fail incident creation if voice upload fails
+      }
+    }
+
+    // Upload photos and voice in parallel for optimal performance
+    const uploadPromises: Promise<any>[] = []
+    
     if (filesToUpload.length > 0) {
       notifyStage("upload-photo")
       // Upload all photos in parallel for faster submission
-      const uploadPromises = filesToUpload.map(async (file) => {
+      const photoPromises = filesToUpload.map(async (file) => {
         try {
           return await uploadSinglePhoto(file)
         } catch (error) {
@@ -372,8 +413,33 @@ export const createIncident = async (
           return null
         }
       })
-      const paths = await Promise.all(uploadPromises)
-      uploadedPhotoPaths.push(...paths.filter((path): path is string => path !== null))
+      uploadPromises.push(...photoPromises)
+    }
+
+    // Upload voice in parallel with photos (non-blocking - if it fails, continue without it)
+    if (voiceBlob) {
+      notifyStage("upload-photo") // Reuse same stage for voice
+      const voicePromise = uploadVoice(voiceBlob).catch((error) => {
+        console.error('Voice upload error (non-blocking):', error)
+        return null // Continue without voice
+      })
+      uploadPromises.push(voicePromise)
+    }
+
+    // Wait for all uploads (photos + voice) to complete in parallel
+    if (uploadPromises.length > 0) {
+      const results = await Promise.all(uploadPromises)
+      
+      // Separate photo paths from voice path
+      if (filesToUpload.length > 0) {
+        const photoResults = results.slice(0, filesToUpload.length)
+        uploadedPhotoPaths.push(...photoResults.filter((path): path is string => path !== null))
+      }
+      
+      if (voiceBlob) {
+        const voiceResult = results[filesToUpload.length]
+        uploadedVoicePath = voiceResult || null
+      }
     }
 
     // Send to API to perform server-side verification and normalization
@@ -395,6 +461,7 @@ export const createIncident = async (
         priority,
         photo_url: uploadedPhotoPaths[0] ?? null,
         photo_urls: uploadedPhotoPaths,
+        voice_url: uploadedVoicePath,
         is_offline: !!isOffline,
         created_at_local: submissionTimestamp,
       }),

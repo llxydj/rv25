@@ -15,6 +15,7 @@ import { LocationTracker } from "@/components/location-tracker"
 import { isWithinTalisayCity, TALISAY_CENTER } from "@/lib/geo-utils"
 import { useToast } from "@/components/ui/use-toast"
 import { supabase } from "@/lib/supabase"
+import { VoiceRecorder } from "@/components/voice-recorder"
 
 const MAX_PHOTOS = 3
 
@@ -41,6 +42,7 @@ export default function ReportIncidentPage() {
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null);
+  const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
   const previewUrlsRef = useRef<string[]>([]);
   
   // Add effect to log location changes
@@ -710,6 +712,7 @@ export default function ReportIncidentPage() {
         Number.parseInt(formData.priority),
         false,
         submissionTimestamp,
+        voiceBlob || undefined,
         {
           sessionUserId: session.user.id,
           accessToken: session.access_token || undefined,
@@ -744,6 +747,7 @@ export default function ReportIncidentPage() {
         priority: "3",
       })
       setLocation(null)
+      setVoiceBlob(null)
       clearPhotos()
 
       // Redirect to dashboard with success message
@@ -1155,21 +1159,39 @@ export default function ReportIncidentPage() {
           {/* STEP 5: User inputs description */}
           <div className="bg-white p-6 rounded-lg shadow-md">
             <h2 className="text-lg font-semibold mb-4">Step 5: What Happened?</h2>
-            <div>
-              <label htmlFor="description" className="block text-sm font-medium text-gray-700">
-                Description * (Short, clear description)
-              </label>
-              <textarea
-                id="description"
-                name="description"
-                rows={3}
-                required
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 sm:text-sm text-gray-900 bg-white"
-                placeholder="Please describe what happened..."
-                value={formData.description}
-                onChange={handleChange}
-                disabled={loading}
-              ></textarea>
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="description" className="block text-sm font-medium text-gray-700">
+                  Description * (Short, clear description)
+                </label>
+                <textarea
+                  id="description"
+                  name="description"
+                  rows={3}
+                  required
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 sm:text-sm text-gray-900 bg-white"
+                  placeholder="Please describe what happened..."
+                  value={formData.description}
+                  onChange={handleChange}
+                  disabled={loading}
+                ></textarea>
+              </div>
+              
+              {/* Optional Voice Message */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Voice Message (Optional)
+                </label>
+                <VoiceRecorder
+                  onRecordingComplete={(blob) => {
+                    setVoiceBlob(blob)
+                  }}
+                  onRecordingDelete={() => {
+                    setVoiceBlob(null)
+                  }}
+                  disabled={loading}
+                />
+              </div>
             </div>
           </div>
 

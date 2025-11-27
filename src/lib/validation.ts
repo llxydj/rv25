@@ -54,6 +54,7 @@ export const IncidentCreateSchema = z.object({
   priority: z.coerce.number().int().min(1).max(5).default(3),
   photo_url: z.string().nullable().optional(),
   photo_urls: z.array(z.string()).max(3).optional(),
+  voice_url: z.string().nullable().optional(),
   is_offline: z.coerce.boolean().optional(),
   created_at_local: z.string().optional(),
 })

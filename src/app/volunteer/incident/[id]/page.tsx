@@ -16,6 +16,7 @@ import IncidentOTWButton from "@/components/incident-otw-button"
 import IncidentStatusDropdown from "@/components/incident-status-dropdown"
 import IncidentSeverityUpdater from "@/components/incident-severity-updater"
 import { IncidentFeedbackDisplay } from "@/components/incident-feedback-display"
+import { AudioPlayer } from "@/components/audio-player"
 
 export default function VolunteerIncidentDetailPage() {
   const params = useParams()
@@ -513,6 +514,11 @@ export default function VolunteerIncidentDetailPage() {
               <div className="mt-4">
                 <h3 className="text-sm font-medium text-gray-700">Description</h3>
                 <p className="mt-1 text-black">{incident.description}</p>
+                {incident.voice_url && (
+                  <div className="mt-4">
+                    <AudioPlayer voiceUrl={incident.voice_url} incidentId={incident.id} />
+                  </div>
+                )}
               </div>
 
               <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
