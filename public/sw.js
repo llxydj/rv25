@@ -129,9 +129,10 @@ self.addEventListener('push', (event) => {
   }
 
   // CRITICAL: Use waitUntil to ensure notification shows even when app is closed
+  // This is essential for background notifications when browser/app is closed
   event.waitUntil(
     Promise.all([
-      // Show browser notification
+      // Show browser notification (works even when app is closed)
       self.registration.showNotification(notificationData.title, {
         body: notificationData.body,
         icon: notificationData.icon,
@@ -150,12 +151,13 @@ self.addEventListener('push', (event) => {
         // Add image if provided
         image: notificationData.data?.image || undefined
       }).then(() => {
-        console.log('[SW] ✅ Browser notification shown successfully:', notificationData.title);
+        console.log('[SW] ✅ Browser notification shown successfully (works when app closed):', notificationData.title);
         console.log('[SW] Notification details:', {
           title: notificationData.title,
           body: notificationData.body,
           tag: notificationData.tag,
-          hasData: !!notificationData.data
+          hasData: !!notificationData.data,
+          persistent: true
         });
       }).catch((err) => {
         console.error('[SW] ❌ Failed to show notification:', err);

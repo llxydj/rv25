@@ -1,5 +1,6 @@
 import { supabase } from "./supabase"
 import { Database } from "@/types/supabase"
+import { fetchWithTimeout } from "./fetch-with-timeout"
 
 // Use hyphen instead of underscore for the bucket name
 const BUCKET_NAME = "incident-photos"
@@ -341,10 +342,13 @@ export const createIncident = async (
       }
 
       console.time('createIncident.upload')
-      const uploadRes = await fetch('/api/incidents/upload', {
+      // Use fetchWithTimeout to prevent hanging on slow mobile networks
+      // Photo uploads can be large, so give them 60 seconds
+      const uploadRes = await fetchWithTimeout('/api/incidents/upload', {
         method: 'POST',
         body: form,
-        headers
+        headers,
+        timeout: 60000 // 60 seconds for photo uploads
       })
       const uploadJson = await uploadRes.json()
       console.timeEnd('createIncident.upload')
@@ -375,7 +379,9 @@ export const createIncident = async (
     // Send to API to perform server-side verification and normalization
     notifyStage("create-record")
     console.time('createIncident.api')
-    const apiRes = await fetch('/api/incidents', {
+    // Use fetchWithTimeout to prevent hanging on slow mobile networks
+    // Incident creation should be faster, so 30 seconds is enough
+    const apiRes = await fetchWithTimeout('/api/incidents', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -391,7 +397,8 @@ export const createIncident = async (
         photo_urls: uploadedPhotoPaths,
         is_offline: !!isOffline,
         created_at_local: submissionTimestamp,
-      })
+      }),
+      timeout: 30000 // 30 seconds for incident creation
     })
     const apiJson = await apiRes.json()
     console.timeEnd('createIncident.api')
