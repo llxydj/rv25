@@ -139,7 +139,7 @@ export default function UserDetailsPage({ params }: { params: { id: string } }) 
 
             // Fetch feedback count
             const { data: feedbackData } = await supabase
-              .from("feedback")
+              .from("incident_feedback")
               .select("rating")
               .in("incident_id", incidentsData.map((i: any) => i.id))
 
@@ -174,7 +174,7 @@ export default function UserDetailsPage({ params }: { params: { id: string } }) 
 
             // Fetch feedback for incidents assigned to this volunteer
             const { data: feedbackData } = await supabase
-              .from("feedback")
+              .from("incident_feedback")
               .select("rating")
               .in("incident_id", incidentsData.map((i: any) => i.id))
 
