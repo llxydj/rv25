@@ -105,16 +105,37 @@ export const useAuth = () => {
             const userData = data as unknown as UserRow
 
             if (userData) {
-              setUser({
-                id: session.user.id,
-                email: session.user.email || "",
-                role: userData.role,
-                firstName: userData.first_name,
-                lastName: userData.last_name,
-                phone_number: userData.phone_number || undefined,
-                address: userData.address || undefined,
-                barangay: userData.barangay || undefined,
-              })
+              // Check if profile is complete for residents
+              const isProfileComplete = userData.first_name && 
+                                        userData.last_name && 
+                                        userData.phone_number && 
+                                        userData.address && 
+                                        userData.barangay
+
+              // If resident profile is incomplete, don't set role to avoid redirect issues
+              if (userData.role === "resident" && !isProfileComplete) {
+                setUser({
+                  id: session.user.id,
+                  email: session.user.email || "",
+                  role: null, // Set to null so redirect logic can catch it
+                  firstName: userData.first_name || "",
+                  lastName: userData.last_name || "",
+                  phone_number: userData.phone_number || undefined,
+                  address: userData.address || undefined,
+                  barangay: userData.barangay || undefined,
+                })
+              } else {
+                setUser({
+                  id: session.user.id,
+                  email: session.user.email || "",
+                  role: userData.role,
+                  firstName: userData.first_name,
+                  lastName: userData.last_name,
+                  phone_number: userData.phone_number || undefined,
+                  address: userData.address || undefined,
+                  barangay: userData.barangay || undefined,
+                })
+              }
             } else {
               // Just set basic user info if profile data isn't available
               setUser({
@@ -174,6 +195,34 @@ export const useAuth = () => {
         const userData = data as unknown as UserRow
 
         if (userData) {
+          // Check if profile is complete for residents (all required fields must be present)
+          const isProfileComplete = userData.first_name && 
+                                    userData.last_name && 
+                                    userData.phone_number && 
+                                    userData.address && 
+                                    userData.barangay
+
+          // If user is a resident but profile is incomplete, redirect to registration
+          if (userData.role === "resident" && !isProfileComplete) {
+            console.log('Resident profile incomplete, redirecting to registration:', {
+              userId: session.user.id,
+              hasFirstName: !!userData.first_name,
+              hasLastName: !!userData.last_name,
+              hasPhone: !!userData.phone_number,
+              hasAddress: !!userData.address,
+              hasBarangay: !!userData.barangay
+            })
+            setUser({
+              id: session.user.id,
+              email: session.user.email || "",
+              role: null,
+              firstName: "",
+              lastName: "",
+            })
+            router.push("/resident/register-google")
+            return
+          }
+
           // If the user is a volunteer, update their last_active timestamp (non-blocking)
           if (userData.role === "volunteer") {
             updateVolunteerLastActive(session.user.id).catch(console.error)

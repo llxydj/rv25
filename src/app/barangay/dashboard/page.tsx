@@ -119,7 +119,7 @@ export default function BarangayDashboard() {
     <BarangayLayout>
       <div className="space-y-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-          <h1 className="text-2xl font-bold text-black">Barangay Dashboard</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Barangay Dashboard</h1>
           <Link
             href="/barangay/report"
             className="mt-4 md:mt-0 inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 shadow-sm hover:shadow-md active:scale-[0.98]"
@@ -129,9 +129,9 @@ export default function BarangayDashboard() {
           </Link>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow-md transition-all duration-200 hover:shadow-lg">
-          <h2 className="text-lg font-semibold mb-4">Welcome back, {user?.firstName}!</h2>
-          <p className="mt-1 text-sm text-gray-500">
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md transition-all duration-200 hover:shadow-lg">
+          <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Welcome back, {user?.firstName}!</h2>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Here's what's happening in {user?.barangay}
           </p>
         </div>
@@ -143,7 +143,7 @@ export default function BarangayDashboard() {
 
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div className="bg-white overflow-hidden shadow rounded-lg transition-all duration-200 hover:shadow-lg">
+          <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg transition-all duration-200 hover:shadow-lg">
             <div className="p-5">
               <div className="flex items-center">
                 <div className="flex-shrink-0">
@@ -151,15 +151,15 @@ export default function BarangayDashboard() {
                 </div>
                 <div className="ml-5 w-0 flex-1">
                   <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">Total Incidents</dt>
-                    <dd className="text-3xl font-semibold text-gray-900">{stats.total}</dd>
+                    <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">Total Incidents</dt>
+                    <dd className="text-3xl font-semibold text-gray-900 dark:text-white">{stats.total}</dd>
                   </dl>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="bg-white overflow-hidden shadow rounded-lg transition-all duration-200 hover:shadow-lg">
+          <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg transition-all duration-200 hover:shadow-lg">
             <div className="p-5">
               <div className="flex items-center">
                 <div className="flex-shrink-0">
@@ -167,15 +167,15 @@ export default function BarangayDashboard() {
                 </div>
                 <div className="ml-5 w-0 flex-1">
                   <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">Pending</dt>
-                    <dd className="text-3xl font-semibold text-gray-900">{stats.pending}</dd>
+                    <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">Pending</dt>
+                    <dd className="text-3xl font-semibold text-gray-900 dark:text-white">{stats.pending}</dd>
                   </dl>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="bg-white overflow-hidden shadow rounded-lg transition-all duration-200 hover:shadow-lg">
+          <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg transition-all duration-200 hover:shadow-lg">
             <div className="p-5">
               <div className="flex items-center">
                 <div className="flex-shrink-0">
@@ -183,8 +183,8 @@ export default function BarangayDashboard() {
                 </div>
                 <div className="ml-5 w-0 flex-1">
                   <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">Resolved</dt>
-                    <dd className="text-3xl font-semibold text-gray-900">{stats.resolved}</dd>
+                    <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">Resolved</dt>
+                    <dd className="text-3xl font-semibold text-gray-900 dark:text-white">{stats.resolved}</dd>
                   </dl>
                 </div>
               </div>
@@ -193,22 +193,22 @@ export default function BarangayDashboard() {
         </div>
 
         {/* Recent Activity */}
-        <div className="bg-white p-6 rounded-lg shadow-md transition-all duration-200 hover:shadow-lg">
-          <h2 className="text-lg font-semibold mb-4">Recent Activity</h2>
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md transition-all duration-200 hover:shadow-lg">
+          <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Recent Activity</h2>
           {error ? (
-            <div className="bg-red-50 border-l-4 border-red-500 p-4">
+            <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 dark:border-red-400 p-4">
               <div className="flex">
                 <div className="flex-shrink-0">
-                  <AlertTriangle className="h-5 w-5 text-red-500" />
+                  <AlertTriangle className="h-5 w-5 text-red-500 dark:text-red-400" />
                 </div>
                 <div className="ml-3">
-                  <p className="text-sm text-red-700">{error}</p>
+                  <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
                 </div>
               </div>
             </div>
           ) : incidents.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-gray-500">No incidents reported in your barangay yet.</p>
+              <p className="text-gray-500 dark:text-gray-400">No incidents reported in your barangay yet.</p>
               <Link
                 href="/barangay/report"
                 className="mt-4 inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
@@ -220,15 +220,15 @@ export default function BarangayDashboard() {
           ) : (
             <div className="space-y-4">
               {incidents.slice(0, 3).map((incident) => (
-                <div key={incident.id} className="flex items-start space-x-4 p-4 bg-gray-50 rounded-lg">
+                <div key={incident.id} className="flex items-start space-x-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
                   <div className={`p-2 rounded-full ${
                     incident.status === "PENDING"
-                      ? "bg-yellow-100 text-yellow-600"
+                      ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-300"
                       : incident.status === "ASSIGNED"
-                        ? "bg-blue-100 text-blue-600"
+                        ? "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300"
                         : incident.status === "RESPONDING"
-                          ? "bg-orange-100 text-orange-600"
-                          : "bg-green-100 text-green-600"
+                          ? "bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-300"
+                          : "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-300"
                   }`}>
                     {incident.status === "PENDING" ? (
                       <AlertTriangle className="h-5 w-5" />
@@ -242,29 +242,29 @@ export default function BarangayDashboard() {
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-medium text-gray-900">{incident.type}</h3>
+                      <h3 className="text-sm font-medium text-gray-900 dark:text-white">{incident.type}</h3>
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                         incident.status === "PENDING"
-                          ? "bg-yellow-100 text-yellow-800"
+                          ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300"
                           : incident.status === "ASSIGNED"
-                            ? "bg-blue-100 text-blue-800"
+                            ? "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300"
                             : incident.status === "RESPONDING"
-                              ? "bg-orange-100 text-orange-800"
-                              : "bg-green-100 text-green-800"
+                              ? "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300"
+                              : "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300"
                       }`}>
                         {incident.status}
                       </span>
                     </div>
-                    <p className="mt-1 text-sm text-gray-600">
+                    <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
                       {incident.location} • {new Date(incident.created_at).toLocaleDateString()}
                     </p>
                     {incident.assigned_to && (
-                      <p className="mt-1 text-sm text-gray-500">
+                      <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                         Assigned to: {incident.assigned_to.first_name} {incident.assigned_to.last_name}
                       </p>
                     )}
                     {incident.reporter && (
-                      <p className="mt-1 text-sm text-gray-500">
+                      <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                         Reported by: {incident.reporter.first_name} {incident.reporter.last_name}
                       </p>
                     )}
@@ -294,21 +294,21 @@ export default function BarangayDashboard() {
         </div>
 
         {/* All Incidents Table */}
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <h2 className="text-lg font-semibold mb-4">All Incidents in {user?.barangay}</h2>
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+          <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">All Incidents in {user?.barangay}</h2>
           {error ? (
-            <div className="bg-red-50 border-l-4 border-red-500 p-4">
+            <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 dark:border-red-400 p-4">
               <div className="flex">
                 <div className="flex-shrink-0">
-                  <AlertTriangle className="h-5 w-5 text-red-500" />
+                  <AlertTriangle className="h-5 w-5 text-red-500 dark:text-red-400" />
                 </div>
                 <div className="ml-3">
-                  <p className="text-sm text-red-700">{error}</p>
+                  <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
                 </div>
               </div>
             </div>
           ) : incidents.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
               No incidents reported in your barangay yet.
             </div>
           ) : (
@@ -318,27 +318,27 @@ export default function BarangayDashboard() {
                 {incidents.map((incident) => (
                   <div
                     key={incident.id}
-                    className="border rounded-lg p-4 bg-white hover:bg-gray-50 transition-colors touch-manipulation"
+                    className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors touch-manipulation"
                   >
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-sm font-semibold text-gray-900 truncate">{incident.type}</h3>
+                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white truncate">{incident.type}</h3>
                       </div>
                       <span
                         className={`px-2 py-1 inline-flex text-xs leading-4 font-semibold rounded-full flex-shrink-0 ml-2 ${
                           incident.status === "PENDING"
-                            ? "bg-yellow-100 text-yellow-800"
+                            ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300"
                             : incident.status === "ASSIGNED"
-                              ? "bg-blue-100 text-blue-800"
+                              ? "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300"
                               : incident.status === "RESPONDING"
-                                ? "bg-orange-100 text-orange-800"
-                                : "bg-green-100 text-green-800"
+                                ? "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300"
+                                : "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300"
                         }`}
                       >
                         {incident.status}
                       </span>
                     </div>
-                    <div className="text-xs text-gray-500 space-y-1">
+                    <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
                       <div>Date: {new Date(incident.created_at).toLocaleDateString()}</div>
                       <div>Location: {incident.location}</div>
                       {incident.reporter && (incident.reporter.first_name || incident.reporter.last_name) && (
@@ -395,51 +395,51 @@ export default function BarangayDashboard() {
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                     {incidents.map((incident) => (
-                      <tr key={incident.id} className="hover:bg-gray-50">
+                      <tr key={incident.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                         <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">{incident.type}</div>
+                          <div className="text-sm font-medium text-gray-900 dark:text-white">{incident.type}</div>
                         </td>
                         <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-500">
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
                             {new Date(incident.created_at).toLocaleDateString()}
                           </div>
                         </td>
                         <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-500">{incident.location}</div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">{incident.location}</div>
                         </td>
                         <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
                           <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                             incident.status === "PENDING"
-                              ? "bg-yellow-100 text-yellow-800"
+                              ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300"
                               : incident.status === "ASSIGNED"
-                                ? "bg-blue-100 text-blue-800"
+                                ? "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300"
                                 : incident.status === "RESPONDING"
-                                  ? "bg-orange-100 text-orange-800"
-                                  : "bg-green-100 text-green-800"
+                                  ? "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300"
+                                  : "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300"
                           }`}>
                             {incident.status}
                           </span>
                         </td>
                         <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
                           {incident.reporter && (incident.reporter.first_name || incident.reporter.last_name) ? (
-                            <div className="text-sm text-gray-500">
+                            <div className="text-sm text-gray-500 dark:text-gray-400">
                               {incident.reporter.first_name && incident.reporter.last_name
                                 ? `${incident.reporter.first_name} ${incident.reporter.last_name}`
                                 : incident.reporter.first_name || incident.reporter.last_name
                                 ? (incident.reporter.first_name || incident.reporter.last_name)
                                 : "Anonymous Reporter"}
                               <br />
-                              <span className="text-xs text-gray-400">
+                              <span className="text-xs text-gray-400 dark:text-gray-500">
                                 ({incident.reporter.role || 'Resident'})
                               </span>
                             </div>
                           ) : (
-                            <div className="text-sm text-gray-500">Anonymous Reporter</div>
+                            <div className="text-sm text-gray-500 dark:text-gray-400">Anonymous Reporter</div>
                           )}
                         </td>
-                        <td className="px-4 lg:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className="px-4 lg:px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                           {incident.assigned_to
                             ? `${incident.assigned_to.first_name} ${incident.assigned_to.last_name}`
                             : "Unassigned"}
@@ -447,7 +447,7 @@ export default function BarangayDashboard() {
                         <td className="px-4 lg:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <Link
                             href={`/barangay/incident/${incident.id}`}
-                            className="text-blue-600 hover:text-blue-900 touch-manipulation"
+                            className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 touch-manipulation"
                           >
                             View Details
                           </Link>
@@ -462,11 +462,11 @@ export default function BarangayDashboard() {
         </div>
 
         {/* Incident Map */}
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <h2 className="text-lg font-semibold mb-4">Incident Map</h2>
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+          <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Incident Map</h2>
           <div className="flex items-center gap-2 mb-3">
             <input id="toggle-volunteers" type="checkbox" checked={showVolunteers} onChange={(e)=> setShowVolunteers(e.target.checked)} />
-            <label htmlFor="toggle-volunteers" className="text-sm text-gray-700">Show volunteer locations</label>
+            <label htmlFor="toggle-volunteers" className="text-sm text-gray-700 dark:text-gray-300">Show volunteer locations</label>
           </div>
           <div className="h-[400px] w-full rounded-lg overflow-hidden">
             {typeof window !== 'undefined' && 

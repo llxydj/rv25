@@ -52,17 +52,17 @@ export default function ResidentIncidentDetailPage() {
   const getStatusBadgeClass = (status: string) => {
     switch (status) {
       case "PENDING":
-        return "bg-yellow-100 text-yellow-800"
+        return "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300"
       case "ASSIGNED":
-        return "bg-blue-100 text-blue-800"
+        return "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300"
       case "RESPONDING":
-        return "bg-orange-100 text-orange-800"
+        return "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300"
       case "RESOLVED":
-        return "bg-green-100 text-green-800"
+        return "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300"
       case "CANCELLED":
-        return "bg-gray-100 text-gray-800"
+        return "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300"
       default:
-        return "bg-gray-100 text-gray-800"
+        return "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300"
     }
   }
 
@@ -90,13 +90,13 @@ export default function ResidentIncidentDetailPage() {
   if (error) {
     return (
       <ResidentLayout>
-        <div className="bg-red-50 border-l-4 border-red-500 p-4">
+        <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 dark:border-red-400 p-4">
           <div className="flex">
             <div className="flex-shrink-0">
-              <AlertTriangle className="h-5 w-5 text-red-500" />
+              <AlertTriangle className="h-5 w-5 text-red-500 dark:text-red-400" />
             </div>
             <div className="ml-3">
-              <p className="text-sm text-red-700">{error}</p>
+              <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
               <button
                 className="mt-2 text-sm font-medium text-red-700 hover:text-red-600"
                 onClick={() => router.back()}
@@ -138,7 +138,7 @@ export default function ResidentIncidentDetailPage() {
           </div>
           <div className="mt-4 md:mt-0">
             <button
-              className="inline-flex items-center px-4 py-2 border border-gray-300 bg-white rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600"
               onClick={() => router.back()}
             >
               Back to History
@@ -148,7 +148,7 @@ export default function ResidentIncidentDetailPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white p-6 rounded-lg shadow-md">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
               <div className="flex justify-between items-start">
                 <div>
                   <h2 className="text-xl font-semibold">{incident.incident_type}</h2>
@@ -203,7 +203,7 @@ export default function ResidentIncidentDetailPage() {
                       </div>
                     </div>
                     <div className="ml-4">
-                      <p className="text-sm font-medium text-gray-900">Incident Reported</p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">Incident Reported</p>
                       <p className="text-sm text-gray-500">{formatDate(incident.created_at)}</p>
                     </div>
                   </div>
@@ -247,7 +247,7 @@ export default function ResidentIncidentDetailPage() {
                         </div>
                       </div>
                       <div className="ml-4">
-                        <p className="text-sm font-medium text-gray-900">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">
                           {update.previous_status === "SEVERITY_UPDATE" && update.new_status === "SEVERITY_UPDATE"
                             ? "Severity Updated"
                             : update.new_status === "PENDING"
@@ -282,7 +282,7 @@ export default function ResidentIncidentDetailPage() {
                         </div>
                       </div>
                       <div className="ml-4">
-                        <p className="text-sm font-medium text-gray-900">Volunteer Assigned</p>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">Volunteer Assigned</p>
                         <p className="text-sm text-gray-500">{formatDate(incident.assigned_at)}</p>
                       </div>
                     </div>
@@ -296,7 +296,7 @@ export default function ResidentIncidentDetailPage() {
                         </div>
                       </div>
                       <div className="ml-4">
-                        <p className="text-sm font-medium text-gray-900">Volunteer On The Way (OTW)</p>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">Volunteer On The Way (OTW)</p>
                         <p className="text-sm text-gray-500">A volunteer is on the way to your location</p>
                         {incident.responding_at && (
                           <p className="text-xs text-gray-500 mt-1">Confirmed at {formatDate(incident.responding_at)}</p>
@@ -313,7 +313,7 @@ export default function ResidentIncidentDetailPage() {
                         </div>
                       </div>
                       <div className="ml-4">
-                        <p className="text-sm font-medium text-gray-900">Incident Resolved</p>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">Incident Resolved</p>
                         <p className="text-sm text-gray-500">{formatDate(incident.resolved_at)}</p>
                         {incident.resolution_notes && (
                           <p className="mt-1 text-sm text-gray-700">{incident.resolution_notes}</p>
@@ -334,7 +334,7 @@ export default function ResidentIncidentDetailPage() {
                     : []
               if (!photoGallery.length) return null
               return (
-                <div className="bg-white p-6 rounded-lg shadow-md">
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
                   <h3 className="text-sm font-medium text-gray-500 mb-4">Photo Evidence</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {photoGallery.map((photo: string, idx: number) => (
@@ -350,7 +350,7 @@ export default function ResidentIncidentDetailPage() {
               )
             })()}
 
-            <div className="bg-white p-6 rounded-lg shadow-md">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
               <h3 className="text-sm font-medium text-gray-500 mb-4">Incident Location</h3>
               <MapComponent
                 center={[incident.location_lat, incident.location_lng]}
@@ -370,7 +370,7 @@ export default function ResidentIncidentDetailPage() {
           </div>
 
           <div className="space-y-6">
-            <div className="bg-white p-6 rounded-lg shadow-md">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
               <h3 className="text-sm font-medium text-gray-500 mb-4">Status Information</h3>
               <div className="space-y-4">
                 <div>
@@ -406,7 +406,7 @@ export default function ResidentIncidentDetailPage() {
             </div>
 
             {incident.assigned_to && (
-              <div className="bg-white p-6 rounded-lg shadow-md">
+              <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
                 <h3 className="text-sm font-medium text-gray-500 mb-4">Assigned Volunteer</h3>
                 <div>
                   <p className="font-medium">
@@ -427,7 +427,7 @@ export default function ResidentIncidentDetailPage() {
 
             {/* Feedback Section - Only show for resolved incidents */}
             {incident.status === 'RESOLVED' && (
-              <div className="bg-white p-6 rounded-lg shadow-md">
+              <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
                 <h3 className="text-sm font-medium text-gray-500 mb-4">Rate Your Experience</h3>
                 <p className="text-sm text-gray-600 mb-4">
                   Help us improve our emergency response by rating your experience with this incident.
@@ -442,7 +442,7 @@ export default function ResidentIncidentDetailPage() {
               </div>
             )}
 
-            <div className="bg-white p-6 rounded-lg shadow-md">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
               <h3 className="text-sm font-medium text-gray-500 mb-4">Need Help?</h3>
               <p className="text-sm text-gray-600 mb-4">
                 If you need immediate assistance or have questions about this incident, please contact emergency

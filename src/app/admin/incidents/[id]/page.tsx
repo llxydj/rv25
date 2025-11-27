@@ -487,13 +487,13 @@ export default function IncidentDetailPage() {
           </div>
           <div className="mt-4 md:mt-0 flex items-center gap-2">
             <button
-              className="inline-flex items-center px-4 py-2 border border-gray-300 bg-white rounded-md shadow-sm text-sm font-medium text-gray-900"
+              className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm text-sm font-medium text-gray-900 dark:text-white"
               onClick={() => router.back()}
             >
               Back to List
             </button>
             <button
-              className="inline-flex items-center px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm text-sm font-medium text-gray-900"
+              className="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm text-sm font-medium text-gray-900 dark:text-white"
               onClick={() => router.push(`/admin/incidents/${incident.id}/brief`)}
               title="Open printable brief"
             >
@@ -501,17 +501,17 @@ export default function IncidentDetailPage() {
             </button>
             <a
               href={emailHref()}
-              className="inline-flex items-center px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm text-sm font-medium text-gray-900"
+              className="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm text-sm font-medium text-gray-900 dark:text-white"
               title="Email summary"
             >Email</a>
             <a
               href={smsHref()}
-              className="inline-flex items-center px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm text-sm font-medium text-gray-900"
+              className="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm text-sm font-medium text-gray-900 dark:text-white"
               title="SMS summary"
             >SMS</a>
             <button
               onClick={copyDetails}
-              className="inline-flex items-center px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm text-sm font-medium text-gray-900"
+              className="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm text-sm font-medium text-gray-900 dark:text-white"
               title="Copy details"
             >Copy</button>
           </div>
@@ -519,7 +519,7 @@ export default function IncidentDetailPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white p-6 rounded-lg shadow-md">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
               <div className="flex justify-between items-start">
                 <div>
                   <div className="flex items-center gap-2">
@@ -621,7 +621,7 @@ export default function IncidentDetailPage() {
                         </div>
                       </div>
                       <div className="ml-4">
-                        <p className="text-sm font-medium text-gray-900">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">
                           {update.previous_status === "SEVERITY_UPDATE" && update.new_status === "SEVERITY_UPDATE"
                             ? "Severity Updated"
                             : update.new_status === "PENDING"
@@ -660,7 +660,7 @@ export default function IncidentDetailPage() {
             )}
 
             {incident.photoGallery && incident.photoGallery.length > 0 && (
-              <div className="bg-white p-6 rounded-lg shadow-md">
+              <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
                 <h3 className="text-sm font-medium text-gray-500 mb-4">Photo Evidence</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {incident.photoGallery.map((photo: string, idx: number) => (
@@ -675,7 +675,7 @@ export default function IncidentDetailPage() {
               </div>
             )}
 
-            <div className="bg-white p-6 rounded-lg shadow-md">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
               <h3 className="text-sm font-medium text-gray-500 mb-4">Incident Location</h3>
               <MapComponent
                 center={[incident.location_lat, incident.location_lng]}
@@ -696,7 +696,7 @@ export default function IncidentDetailPage() {
           </div>
 
           <div className="space-y-6">
-            <div className="bg-white p-6 rounded-lg shadow-md">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
               <h3 className="text-sm font-medium text-gray-500 mb-4">Reporter Information</h3>
               {incident.reporter ? (
                 (() => {
@@ -710,7 +710,7 @@ export default function IncidentDetailPage() {
                   
                   return (
                     <div>
-                      <p className="text-lg font-medium text-gray-900">
+                      <p className="text-lg font-medium text-gray-900 dark:text-white">
                         {reporterData.first_name && reporterData.last_name
                           ? `${reporterData.first_name} ${reporterData.last_name}`
                           : reporterData.first_name || reporterData.last_name
@@ -753,12 +753,12 @@ export default function IncidentDetailPage() {
             />
 
             {incident.status === "PENDING" && user?.role === "admin" ? (
-              <div className="bg-white p-6 rounded-lg shadow-md">
+              <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
                 <h3 className="text-sm font-medium text-gray-500 mb-4">Assign Volunteer</h3>
                 {volunteers && volunteers.length > 0 ? (
                   <div>
                     <select
-                      className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:border-blue-500 sm:text-sm rounded-md text-gray-900"
+                      className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:border-blue-500 sm:text-sm rounded-md text-gray-900 dark:text-white bg-white dark:bg-gray-700"
                       value={selectedVolunteer}
                       onChange={(e) => setSelectedVolunteer(e.target.value)}
                       disabled={assigning}
@@ -773,7 +773,7 @@ export default function IncidentDetailPage() {
                           <option 
                             key={volunteer.id} 
                             value={volunteer.id} 
-                            className={`text-gray-900 ${needsActivation ? "font-bold text-yellow-700" : ""}`}
+                            className={`text-gray-900 dark:text-white ${needsActivation ? "font-bold text-yellow-700 dark:text-yellow-400" : ""}`}
                           >
                             {volunteer.first_name} {volunteer.last_name} - {volunteer.barangay || "Unknown location"}
                             {statusLabel}
@@ -800,7 +800,7 @@ export default function IncidentDetailPage() {
                 )}
               </div>
             ) : incident.assigned_to ? (
-              <div className="bg-white p-6 rounded-lg shadow-md">
+              <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
                 <h3 className="text-sm font-medium text-gray-500 mb-4">Assigned Volunteer</h3>
                 <div>
                   <p className="text-lg font-medium text-gray-900">
@@ -825,7 +825,7 @@ export default function IncidentDetailPage() {
 
             {/* Admin actions */}
             {user?.role === "admin" && incident.status !== "RESOLVED" && incident.status !== "CANCELLED" && (
-              <div className="bg-white p-6 rounded-lg shadow-md">
+              <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
                 <h3 className="text-sm font-medium text-gray-500 mb-4">Admin Actions</h3>
 
                 {incident.status === "ASSIGNED" || incident.status === "RESPONDING" ? (

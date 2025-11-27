@@ -378,20 +378,20 @@ export default function VolunteerIncidentDetailPage() {
     }
   }
 
-  const getStatusBadgeClass = (status: string) => {
+  const getStatusBadgeClass = (status: string): string => {
     switch (status) {
       case "PENDING":
-        return "bg-yellow-100 text-yellow-800"
+        return "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300"
       case "ASSIGNED":
-        return "bg-blue-100 text-blue-800"
+        return "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300"
       case "RESPONDING":
-        return "bg-orange-100 text-orange-800"
+        return "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300"
       case "RESOLVED":
-        return "bg-green-100 text-green-800"
+        return "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300"
       case "CANCELLED":
-        return "bg-gray-100 text-gray-800"
+        return "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300"
       default:
-        return "bg-gray-100 text-gray-800"
+        return "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300"
     }
   }
 
@@ -450,9 +450,9 @@ export default function VolunteerIncidentDetailPage() {
     return (
       <VolunteerLayout>
         <div className="text-center py-12">
-          <p className="text-black">Incident not found</p>
+          <p className="text-gray-900 dark:text-white">Incident not found</p>
           <button
-            className="mt-4 inline-flex items-center px-4 py-2 border border-gray-300 text-gray-900 bg-white rounded-md shadow-sm hover:bg-gray-50"
+            className="mt-4 inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white bg-white dark:bg-gray-700 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600"
             onClick={() => router.back()}
           >
             Go Back
@@ -467,14 +467,14 @@ export default function VolunteerIncidentDetailPage() {
       <div className="space-y-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-black">Incident Details</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Incident Details</h1>
             <p className="text-gray-600 mt-1">
               Reported on {formatDate(incident.created_at)} • ID: {incident.id}
             </p>
           </div>
           <div className="mt-4 md:mt-0">
             <button
-              className="inline-flex items-center px-4 py-2 border border-gray-300 bg-white rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600"
               onClick={() => router.back()}
             >
               Back to List
@@ -484,10 +484,10 @@ export default function VolunteerIncidentDetailPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white p-6 rounded-lg shadow-md">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
               <div className="flex justify-between items-start">
                 <div>
-                  <h2 className="text-xl font-semibold text-black">{incident.incident_type}</h2>
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{incident.incident_type}</h2>
                   <span
                     className={`mt-2 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusBadgeClass(
                       incident.status,
@@ -513,7 +513,7 @@ export default function VolunteerIncidentDetailPage() {
 
               <div className="mt-4">
                 <h3 className="text-sm font-medium text-gray-700">Description</h3>
-                <p className="mt-1 text-black">{incident.description}</p>
+                <p className="mt-1 text-gray-900 dark:text-white">{incident.description}</p>
                 {incident.voice_url && (
                   <div className="mt-4">
                     <AudioPlayer voiceUrl={incident.voice_url} incidentId={incident.id} />
@@ -524,7 +524,7 @@ export default function VolunteerIncidentDetailPage() {
               <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <h3 className="text-sm font-medium text-gray-700">Location</h3>
-                  <p className="mt-1 text-black">
+                  <p className="mt-1 text-gray-900 dark:text-white">
                     {incident.address}, {incident.barangay}, {incident.city}
                   </p>
                 </div>
@@ -533,7 +533,7 @@ export default function VolunteerIncidentDetailPage() {
                   {incident.reporter ? (
                     <div className="mt-1 flex items-center">
                       <User className="h-4 w-4 text-gray-500 mr-1" />
-                      <p className="text-black">
+                      <p className="text-gray-900 dark:text-white">
                         {incident.reporter.first_name && incident.reporter.last_name
                           ? `${incident.reporter.first_name} ${incident.reporter.last_name}`
                           : incident.reporter.first_name || incident.reporter.last_name
@@ -550,7 +550,7 @@ export default function VolunteerIncidentDetailPage() {
               <div className="mt-6 flex flex-wrap gap-3">
                 {incident.reporter?.phone_number && (
                   <button
-                    className="inline-flex items-center px-4 py-2 border border-gray-300 text-gray-900 bg-white rounded-md shadow-sm hover:bg-gray-50"
+                    className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white bg-white dark:bg-gray-700 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600"
                     onClick={handleCallReporter}
                   >
                     <Phone className="h-4 w-4 mr-2" />
@@ -558,7 +558,7 @@ export default function VolunteerIncidentDetailPage() {
                   </button>
                 )}
                 <button
-                  className="inline-flex items-center px-4 py-2 border border-gray-300 text-gray-900 bg-white rounded-md shadow-sm hover:bg-gray-50"
+                  className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white bg-white dark:bg-gray-700 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600"
                   onClick={getDirections}
                 >
                   Get Directions
@@ -575,8 +575,8 @@ export default function VolunteerIncidentDetailPage() {
               }}
             />
 
-            <div className="bg-white p-6 rounded-lg shadow-md">
-              <h2 className="text-lg font-semibold text-black mb-4">Location</h2>
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Location</h2>
               <div className="h-64 rounded-md overflow-hidden">
                 {incident.location_lat && incident.location_lng && (
                   <MapComponent
@@ -604,8 +604,8 @@ export default function VolunteerIncidentDetailPage() {
                     : []
               if (!photoGallery.length) return null
               return (
-                <div className="bg-white p-6 rounded-lg shadow-md">
-                  <h2 className="text-lg font-semibold text-black mb-4">Photo Evidence</h2>
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Photo Evidence</h2>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {photoGallery.map((photo: string, idx: number) => (
                       <div key={`${photo}-${idx}`} className="rounded-md overflow-hidden">
@@ -625,8 +625,8 @@ export default function VolunteerIncidentDetailPage() {
           </div>
 
           <div className="space-y-6">
-            <div className="bg-white p-6 rounded-lg shadow-md">
-              <h2 className="text-lg font-semibold text-black mb-4">Status Update</h2>
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Status Update</h2>
               
               <div className="space-y-4">
                 <p className="text-gray-700">
@@ -707,14 +707,14 @@ export default function VolunteerIncidentDetailPage() {
                       id="resolutionNotes"
                       name="resolutionNotes"
                       rows={3}
-                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm text-black"
+                      className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-700"
                       placeholder="Describe how the incident was resolved..."
                       value={resolutionNotes}
                       onChange={(e) => setResolutionNotes(e.target.value)}
                       disabled={updating}
                     />
                     <button
-                      className="mt-2 w-full inline-flex justify-center items-center px-4 py-2 border border-gray-300 text-gray-900 bg-white rounded-md shadow-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="mt-2 w-full inline-flex justify-center items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white bg-white dark:bg-gray-700 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
                       onClick={() => handleUpdateStatus("RESOLVED")}
                       disabled={updating || !resolutionNotes.trim()}
                     >
@@ -741,14 +741,14 @@ export default function VolunteerIncidentDetailPage() {
                   {incident.resolution_notes && (
                     <div className="mt-2">
                       <h3 className="text-sm font-medium text-gray-700">Resolution Notes</h3>
-                      <p className="mt-1 text-black">{incident.resolution_notes}</p>
+                      <p className="mt-1 text-gray-900 dark:text-white">{incident.resolution_notes}</p>
                     </div>
                   )}
                 </div>
               )}
             </div>
 
-            <div className="bg-white p-6 rounded-lg shadow-md">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
               <h2 className="text-lg font-semibold text-black mb-4">Timeline</h2>
               <div className="space-y-4">
                 {/* Static initial report entry */}

@@ -250,27 +250,27 @@ export default function AdminIncidentsPage() {
         </div>
 
         {error && (
-          <div className="bg-red-50 border-l-4 border-red-500 p-4">
+          <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 dark:border-red-400 p-4">
             <div className="flex">
               <div className="flex-shrink-0">
-                <AlertTriangle className="h-5 w-5 text-red-500" />
+                <AlertTriangle className="h-5 w-5 text-red-500 dark:text-red-400" />
               </div>
               <div className="ml-3">
-                <p className="text-sm text-red-700">{error}</p>
+                <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
               </div>
             </div>
           </div>
         )}
 
-        <div className="bg-white shadow-md rounded-lg overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden">
           <IncidentsFilter 
             onFilterChange={handleFilterChange}
             barangays={barangays}
             incidentTypes={INCIDENT_TYPES}
           />
 
-          <div className="px-4 py-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
-            <div className="text-sm text-gray-700">
+          <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex items-center justify-between">
+            <div className="text-sm text-gray-700 dark:text-gray-300">
               Showing {filteredIncidents.length} incident{filteredIncidents.length !== 1 ? 's' : ''}
             </div>
           </div>
@@ -281,9 +281,9 @@ export default function AdminIncidentsPage() {
             </div>
           ) : filteredIncidents.length === 0 ? (
             <div className="p-6 text-center">
-              <AlertTriangle className="mx-auto h-12 w-12 text-gray-400" />
-              <h3 className="mt-2 text-sm font-medium text-gray-900">No incidents found</h3>
-              <p className="mt-1 text-sm text-gray-500">
+              <AlertTriangle className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" />
+              <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No incidents found</h3>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {searchTerm || statusFilter !== "ALL" ? "Try adjusting your filters." : "Start by creating a new incident."}
               </p>
             </div>
@@ -293,25 +293,25 @@ export default function AdminIncidentsPage() {
                 incidents={visibleIncidents} 
                 onRowClick={(incident) => router.push(`/admin/incidents/${incident.id}`)}
               />
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t border-gray-200">
-                <div className="text-xs sm:text-sm text-gray-600 text-center sm:text-left">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 text-center sm:text-left">
                   Showing {filteredIncidents.length === 0 ? 0 : startIndex + 1}–{Math.min(startIndex + pageSize, filteredIncidents.length)} of {filteredIncidents.length}
                 </div>
                 <div className="flex items-center gap-2">
                   <button
                     disabled={currentPage <= 1}
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    className="px-3 py-2 rounded-md border text-sm disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation min-h-[2.5rem] min-w-[5rem]"
+                    className="px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation min-h-[2.5rem] min-w-[5rem]"
                   >
                     Previous
                   </button>
-                  <span className="text-xs sm:text-sm text-gray-700 px-2">
+                  <span className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 px-2">
                     Page {currentPage} of {totalPages}
                   </span>
                   <button
                     disabled={currentPage >= totalPages}
                     onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    className="px-3 py-2 rounded-md border text-sm text-gray-800 bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed min-h-[2.5rem] min-w-[5rem]"
+                    className="px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-sm text-gray-800 dark:text-white bg-white dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed min-h-[2.5rem] min-w-[5rem]"
                   >
                     Next
                   </button>

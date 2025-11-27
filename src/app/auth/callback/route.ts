@@ -52,10 +52,10 @@ export async function GET(request: Request) {
         const userId = user.id
         const userEmail = user.email
 
-        // Check if this user has a profile row
+        // Check if this user has a profile row with all required fields
         const { data: userRow, error: checkError } = await supabase
           .from('users')
-          .select('id, role, email')
+          .select('id, role, email, first_name, last_name, phone_number, address, barangay')
           .eq('id', userId)
           .maybeSingle()
 
@@ -70,7 +70,27 @@ export async function GET(request: Request) {
           return NextResponse.redirect(new URL('/resident/register-google', requestUrl.origin))
         }
 
-        // User exists - check and assign role if needed
+        // Check if profile is complete for residents (all required fields must be present)
+        const isProfileComplete = userRow.first_name && 
+                                  userRow.last_name && 
+                                  userRow.phone_number && 
+                                  userRow.address && 
+                                  userRow.barangay
+
+        // If profile is incomplete, redirect to registration
+        if (!isProfileComplete) {
+          console.log('Profile incomplete, redirecting to registration:', {
+            userId,
+            hasFirstName: !!userRow.first_name,
+            hasLastName: !!userRow.last_name,
+            hasPhone: !!userRow.phone_number,
+            hasAddress: !!userRow.address,
+            hasBarangay: !!userRow.barangay
+          })
+          return NextResponse.redirect(new URL('/resident/register-google', requestUrl.origin))
+        }
+
+        // User exists with complete profile - check and assign role if needed
         let userRole = userRow.role
         
         if (!userRole) {

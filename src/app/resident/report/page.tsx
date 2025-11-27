@@ -782,7 +782,7 @@ export default function ReportIncidentPage() {
           <h1 className="text-2xl font-bold text-foreground">
             {isEmergency ? "🚨 EMERGENCY REPORT" : "📋 Non-Emergency Report"}
           </h1>
-          <p className="text-gray-600 mt-1">
+          <p className="text-gray-600 dark:text-gray-400 mt-1">
             {isEmergency
               ? "Life-threatening situation – focus on the essentials and submit as soon as you can."
               : "Please provide as much detail as possible to help emergency responders."}
@@ -790,13 +790,13 @@ export default function ReportIncidentPage() {
         </div>
 
         {isOffline && (
-          <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4">
+          <div className="bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-500 dark:border-yellow-400 p-4">
             <div className="flex">
               <div className="flex-shrink-0">
-                <AlertTriangle className="h-5 w-5 text-yellow-500" />
+                <AlertTriangle className="h-5 w-5 text-yellow-500 dark:text-yellow-400" />
               </div>
               <div className="ml-3">
-                <p className="text-sm text-yellow-700">
+                <p className="text-sm text-yellow-700 dark:text-yellow-300">
                   You are currently offline. Your report will be saved locally and submitted when you're back online.
                 </p>
               </div>
@@ -805,10 +805,10 @@ export default function ReportIncidentPage() {
         )}
 
         {pendingReports.length > 0 && (
-          <div className="bg-blue-50 border-l-4 border-blue-500 p-4">
+          <div className="bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 dark:border-blue-400 p-4">
             <div className="flex">
               <div className="ml-3">
-                <p className="text-sm text-blue-700">
+                <p className="text-sm text-blue-700 dark:text-blue-300">
                   You have {pendingReports.length} pending report(s) that will be submitted when you're online.
                 </p>
               </div>
@@ -831,11 +831,11 @@ export default function ReportIncidentPage() {
           )}
 
           {/* STEP 1: Automatic Location Capture */}
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <h2 className="text-lg font-semibold mb-4">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+            <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
               Step 1: Location Capture {locationCaptured && "✅"}
             </h2>
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
               Your location will be automatically captured via GPS (target accuracy: 5-10 meters). 
               If it doesn't capture automatically, click "Use My Location" below.
             </p>
@@ -869,7 +869,7 @@ export default function ReportIncidentPage() {
                   id="address"
                   name="address"
                   required
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 sm:text-sm text-gray-900 bg-white"
+                  className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 sm:text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-700"
                   placeholder="Street address"
                   value={formData.address}
                   onChange={handleChange}
@@ -889,7 +889,7 @@ export default function ReportIncidentPage() {
                   id="barangay"
                   name="barangay"
                   required
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 sm:text-sm text-gray-900 bg-white"
+                  className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 sm:text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-700"
                   value={formData.barangay}
                   onChange={handleChange}
                   disabled={loading || (autoGeoLock.barangay && !isOffline)}
@@ -982,7 +982,7 @@ export default function ReportIncidentPage() {
           </div>
 
           {/* STEP 2: Optional Photo Upload */}
-          <div className="bg-white p-6 rounded-lg shadow-md">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
             <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
               <div>
                 <h2 className="text-lg font-semibold">
@@ -1056,12 +1056,12 @@ export default function ReportIncidentPage() {
           </div>
 
           {/* STEP 3: Incident Classification */}
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <h2 className="text-lg font-semibold mb-4">Step 3: Incident Classification</h2>
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+            <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Step 3: Incident Classification</h2>
             <div className="space-y-4">
               <div className="p-4 border border-gray-200 rounded-md bg-gray-50">
                 <p className="text-sm text-gray-600">Current incident type</p>
-                <p className="text-base font-semibold text-gray-900">{formData.incidentType}</p>
+                <p className="text-base font-semibold text-gray-900 dark:text-white">{formData.incidentType}</p>
                 <p className="text-xs text-gray-500 mt-1">
                   Pick the option that matches what is happening. You can switch below if you tapped the wrong entry point.
                 </p>
@@ -1110,8 +1110,8 @@ export default function ReportIncidentPage() {
           </div>
 
           {/* STEP 4: Auto-populated fields (user info, timestamp) - shown as read-only */}
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <h2 className="text-lg font-semibold mb-4">Step 4: Your Information (Auto-filled)</h2>
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+            <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Step 4: Your Information (Auto-filled)</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700">Your Name</label>
@@ -1157,8 +1157,8 @@ export default function ReportIncidentPage() {
           </div>
 
           {/* STEP 5: User inputs description */}
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <h2 className="text-lg font-semibold mb-4">Step 5: What Happened?</h2>
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+            <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Step 5: What Happened?</h2>
             <div className="space-y-4">
               <div>
                 <label htmlFor="description" className="block text-sm font-medium text-gray-700">
@@ -1169,7 +1169,7 @@ export default function ReportIncidentPage() {
                   name="description"
                   rows={3}
                   required
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 sm:text-sm text-gray-900 bg-white"
+                  className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 sm:text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-700"
                   placeholder="Please describe what happened..."
                   value={formData.description}
                   onChange={handleChange}
@@ -1200,7 +1200,7 @@ export default function ReportIncidentPage() {
             <button
               type="button"
               onClick={() => router.push("/resident/dashboard")}
-              className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-900 bg-white hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-colors"
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-900 dark:text-white bg-white dark:bg-gray-700 hover:bg-accent dark:hover:bg-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-colors"
               disabled={loading}
               aria-label="Cancel and return to dashboard"
             >
@@ -1236,7 +1236,7 @@ export default function ReportIncidentPage() {
               <button
                 type="button"
                 onClick={() => setSelectedPhotoIndex(null)}
-                className="absolute top-4 right-4 bg-white text-gray-800 p-2 rounded-full hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-white z-10"
+                className="absolute top-4 right-4 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-white dark:focus-visible:ring-gray-800 z-10"
                 aria-label="Close photo viewer"
               >
                 <X className="h-6 w-6" />
@@ -1259,11 +1259,11 @@ export default function ReportIncidentPage() {
                           : photoPreviews.length - 1
                       );
                     }}
-                    className="bg-white text-gray-800 px-4 py-2 rounded-md hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-white"
+                    className="bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 px-4 py-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-white dark:focus-visible:ring-gray-800"
                   >
                     Previous
                   </button>
-                  <span className="bg-white text-gray-800 px-4 py-2 rounded-md">
+                  <span className="bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 px-4 py-2 rounded-md">
                     {selectedPhotoIndex + 1} / {photoPreviews.length}
                   </span>
                   <button
@@ -1276,7 +1276,7 @@ export default function ReportIncidentPage() {
                           : 0
                       );
                     }}
-                    className="bg-white text-gray-800 px-4 py-2 rounded-md hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-white"
+                    className="bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 px-4 py-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-white dark:focus-visible:ring-gray-800"
                   >
                     Next
                   </button>
