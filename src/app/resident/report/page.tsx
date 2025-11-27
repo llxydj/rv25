@@ -337,7 +337,7 @@ export default function ReportIncidentPage() {
         setLocationCaptured(true);
         setError("Unable to get your precise location. Using default location. You can click 'Use My Location' to try again.");
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 30000, maximumAge: 60000 }
     );
   };
 
@@ -683,7 +683,10 @@ export default function ReportIncidentPage() {
         address: formData.address,
         barangay: formData.barangay,
         priority: formData.priority,
-        photoCount: photoFiles.length
+        photoCount: photoFiles.length,
+        hasVoiceBlob: !!voiceBlob,
+        voiceBlobSize: voiceBlob?.size || 0,
+        voiceBlobType: voiceBlob?.type || 'none'
       })
 
       // Verify user session is still valid

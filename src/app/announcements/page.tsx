@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Calendar, MapPin, Users, AlertCircle, CheckCircle, User, Clock, Filter } from "lucide-react"
+import { Calendar, MapPin, Users, AlertCircle, CheckCircle, User, Clock, Filter, Facebook, ExternalLink } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
@@ -25,6 +25,9 @@ interface Announcement {
     last_name: string
     email: string
   } | null
+  facebook_post_url?: string | null
+  facebook_embed_data?: any | null
+  source_type?: 'MANUAL' | 'FACEBOOK' | null
 }
 
 const TYPE_CONFIG = {
@@ -115,6 +118,62 @@ export default function AnnouncementsPage() {
     if (priorityDiff !== 0) return priorityDiff
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   })
+
+  // Parse Facebook XFBML when announcements change or component mounts
+  useEffect(() => {
+    if (loading) return
+
+    // Check if there are Facebook posts
+    const hasFacebookPosts = sortedAnnouncements.some(ann => ann.source_type === 'FACEBOOK')
+    if (!hasFacebookPosts) return
+
+    const parseFacebookPosts = () => {
+      // Wait for Facebook SDK to load and initialize
+      if (typeof window !== 'undefined' && (window as any).FB && (window as any).FB.XFBML) {
+        try {
+          // Check if fb-post elements exist in DOM
+          const fbPosts = document.querySelectorAll('.fb-post')
+          if (fbPosts.length > 0) {
+            // Parse the entire document to render all Facebook posts
+            (window as any).FB.XFBML.parse()
+            console.log(`Facebook posts parsed successfully (${fbPosts.length} posts found)`)
+          } else {
+            console.log('No fb-post elements found in DOM yet')
+          }
+        } catch (error) {
+          console.error('Error parsing Facebook posts:', error)
+        }
+      } else {
+        // Retry after a short delay if SDK not loaded yet
+        let attempts = 0
+        const maxAttempts = 50 // 5 seconds max
+        const checkInterval = setInterval(() => {
+          attempts++
+          if (typeof window !== 'undefined' && (window as any).FB && (window as any).FB.XFBML) {
+            try {
+              const fbPosts = document.querySelectorAll('.fb-post')
+              if (fbPosts.length > 0) {
+                (window as any).FB.XFBML.parse()
+                console.log(`Facebook posts parsed successfully (retry, ${fbPosts.length} posts found)`)
+              }
+            } catch (error) {
+              console.error('Error parsing Facebook posts:', error)
+            }
+            clearInterval(checkInterval)
+          } else if (attempts >= maxAttempts) {
+            console.warn('Facebook SDK not loaded after max attempts')
+            clearInterval(checkInterval)
+          }
+        }, 100)
+      }
+    }
+
+    // Wait for DOM to be fully updated, then parse
+    // Use requestAnimationFrame to ensure DOM is ready
+    requestAnimationFrame(() => {
+      setTimeout(parseFacebookPosts, 500)
+    })
+  }, [loading, sortedAnnouncements])
 
   if (loading) {
     return (
@@ -218,9 +277,46 @@ export default function AnnouncementsPage() {
                 </CardHeader>
 
                 <CardContent className="space-y-4">
-                  <p className="text-sm md:text-base text-gray-700 dark:text-gray-300 leading-relaxed">
-                    {announcement.content}
-                  </p>
+                  {/* Facebook Post Indicator */}
+                  {announcement.source_type === 'FACEBOOK' && (
+                    <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                      <Facebook className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                      <span className="text-sm font-medium text-blue-900 dark:text-blue-300">Facebook Post</span>
+                      {announcement.facebook_post_url && (
+                        <a
+                          href={announcement.facebook_post_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="ml-auto inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                        >
+                          View on Facebook <ExternalLink className="h-3 w-3" />
+                        </a>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Facebook Embed */}
+                  {announcement.source_type === 'FACEBOOK' && announcement.facebook_post_url ? (
+                    <div className="space-y-2">
+                      <div className="facebook-embed-container my-4" key={`fb-${announcement.id}`}>
+                        <div
+                          className="fb-post"
+                          data-href={announcement.facebook_post_url}
+                          data-width="500"
+                          data-show-text="true"
+                          data-lazy="false"
+                        />
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 italic">
+                        💡 If the post doesn't appear, ensure it's public and use the direct post URL (not a share link).
+                      </div>
+                    </div>
+                  ) : (
+                    /* Regular Content */
+                    <p className="text-sm md:text-base text-gray-700 dark:text-gray-300 leading-relaxed">
+                      {announcement.content}
+                    </p>
+                  )}
 
                   {/* Details Grid */}
                   {(announcement.location || announcement.date) && (

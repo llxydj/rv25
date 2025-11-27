@@ -66,13 +66,25 @@ export async function POST(request: Request) {
     const ext = file.name.split('.').pop()?.toLowerCase() || 'webm'
     const path = `${reporterId}/${Date.now()}.${ext}`
 
+    // Normalize MIME type for Supabase Storage
+    // Supabase doesn't accept MIME types with codecs parameter (e.g., audio/webm;codecs=opus)
+    // Strip the codecs parameter and use base MIME type
+    let contentType = file.type || 'audio/webm'
+    if (contentType.includes(';')) {
+      contentType = contentType.split(';')[0].trim()
+    }
+    // Map to supported types
+    if (contentType === 'audio/webm' || contentType === 'audio/webm;codecs=opus') {
+      contentType = 'audio/webm'
+    }
+
     // Upload to Supabase Storage
     const arrayBuf = await file.arrayBuffer()
     const { error: upErr } = await supabaseAdmin
       .storage
       .from(BUCKET)
       .upload(path, Buffer.from(arrayBuf), {
-        contentType: file.type || 'audio/webm',
+        contentType: contentType,
         upsert: false,
         cacheControl: '3600',
       })

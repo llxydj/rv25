@@ -105,7 +105,7 @@ export function LocationTracker({ onLocationUpdate, showSettings = true, classNa
               (error) => {
                 console.warn('Failed to get initial position:', error);
               },
-              { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+              { enableHighAccuracy: true, timeout: 30000, maximumAge: 60000 }
             );
           }
         } else {

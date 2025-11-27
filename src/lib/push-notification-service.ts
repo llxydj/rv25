@@ -366,7 +366,7 @@ class PushNotificationService {
 
     await this.registration.showNotification(payload.title, {
       body: payload.body,
-      icon: payload.icon || '/icons/icon-192x192.png',
+      icon: payload.icon || '/favicon/android-chrome-192x192.png',
       badge: payload.badge || '/icons/badge-72x72.png',
       tag: payload.tag || 'default',
       data: payload.data,

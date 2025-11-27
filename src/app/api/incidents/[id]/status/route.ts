@@ -153,8 +153,8 @@ export async function PATCH(request: Request, { params }: { params: { id: string
         await sendPushToUser(updatedIncident.reporter_id, {
           title: '📋 Incident Status Update',
           body: message,
-          icon: '/icons/icon-192x192.png',
-          badge: '/icons/icon-192x192.png',
+          icon: '/favicon/android-chrome-192x192.png',
+          badge: '/favicon/android-chrome-192x192.png',
           tag: 'status_update',
           data: {
             incident_id: params.id,

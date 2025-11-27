@@ -194,8 +194,8 @@ export const VolunteerLayout: React.FC<VolunteerLayoutProps> = ({ children }) =>
                 <LoadingSpinner size="lg" />
               </div>
             }>
-              <main className="flex-1 overflow-auto text-gray-900 bg-gray-50" style={{ color: '#111827' }}>
-                <div style={{ color: '#111827' }}>
+              <main className="flex-1 overflow-y-auto overflow-x-hidden text-gray-900 bg-gray-50" style={{ color: '#111827' }}>
+                <div className="min-h-full" style={{ color: '#111827' }}>
                   {children}
                 </div>
               </main>

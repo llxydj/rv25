@@ -418,12 +418,15 @@ export const createIncident = async (
 
     // Upload voice in parallel with photos (non-blocking - if it fails, continue without it)
     if (voiceBlob) {
+      console.log('🎤 Voice blob detected, size:', voiceBlob.size, 'type:', voiceBlob.type)
       notifyStage("upload-photo") // Reuse same stage for voice
       const voicePromise = uploadVoice(voiceBlob).catch((error) => {
-        console.error('Voice upload error (non-blocking):', error)
+        console.error('❌ Voice upload error (non-blocking):', error)
         return null // Continue without voice
       })
       uploadPromises.push(voicePromise)
+    } else {
+      console.log('⚠️ No voice blob provided - voice recording was not made')
     }
 
     // Wait for all uploads (photos + voice) to complete in parallel
@@ -439,6 +442,11 @@ export const createIncident = async (
       if (voiceBlob) {
         const voiceResult = results[filesToUpload.length]
         uploadedVoicePath = voiceResult || null
+        if (uploadedVoicePath) {
+          console.log('✅ Voice uploaded successfully, path:', uploadedVoicePath)
+        } else {
+          console.warn('⚠️ Voice upload returned null - voice will not be included in incident')
+        }
       }
     }
 
@@ -461,7 +469,7 @@ export const createIncident = async (
         priority,
         photo_url: uploadedPhotoPaths[0] ?? null,
         photo_urls: uploadedPhotoPaths,
-        voice_url: uploadedVoicePath,
+        voice_url: uploadedVoicePath || null,
         is_offline: !!isOffline,
         created_at_local: submissionTimestamp,
       }),

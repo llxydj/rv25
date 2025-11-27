@@ -243,9 +243,11 @@ export default function ResidentLayout({ children }: ResidentLayoutProps) {
             </div>
           }>
             {/* Add bottom padding so floating FAB doesn't overlap interactive controls */}
-            <main className="flex-1 overflow-auto pb-24">
-              <SubscribeBanner userId={user?.id} />
-              {children}
+            <main className="flex-1 overflow-y-auto overflow-x-hidden pb-24">
+              <div className="min-h-full">
+                <SubscribeBanner userId={user?.id} />
+                {children}
+              </div>
             </main>
             {/* Floating emergency call button, visible across resident pages (except report as handled internally) */}
             <EmergencyCallButtonEnhanced />

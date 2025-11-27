@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { AlertTriangle, Calendar, Edit3, MapPin, Plus, Trash2, X, ArrowLeft } from "lucide-react"
+import { AlertTriangle, Calendar, Edit3, MapPin, Plus, Trash2, X, ArrowLeft, Facebook, ExternalLink } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 
 type Announcement = {
@@ -24,6 +24,9 @@ type Announcement = {
   created_at: string
   created_by?: string | null
   published?: boolean
+  facebook_post_url?: string | null
+  facebook_embed_data?: any | null
+  source_type?: 'MANUAL' | 'FACEBOOK' | null
 }
 
 export default function AdminAnnouncementsPage() {
@@ -41,7 +44,10 @@ export default function AdminAnnouncementsPage() {
     date: "",
     time: "",
     requirements: "",
+    facebook_post_url: "",
   })
+  const [facebookPreview, setFacebookPreview] = useState<any>(null)
+  const [loadingPreview, setLoadingPreview] = useState(false)
 
   const fetchList = async () => {
     try {
@@ -68,8 +74,9 @@ export default function AdminAnnouncementsPage() {
   }, [])
 
   const resetForm = () => {
-    setForm({ title: "", content: "", type: "GENERAL", priority: "LOW", location: "", date: "", time: "", requirements: "" })
+    setForm({ title: "", content: "", type: "GENERAL", priority: "LOW", location: "", date: "", time: "", requirements: "", facebook_post_url: "" })
     setEditing(null)
+    setFacebookPreview(null)
   }
 
   const openCreate = () => { resetForm(); setShowForm(true) }
@@ -84,8 +91,49 @@ export default function AdminAnnouncementsPage() {
       date: a.date || "",
       time: a.time || "",
       requirements: (a.requirements || []).join(', '),
+      facebook_post_url: a.facebook_post_url || "",
     })
+    setFacebookPreview(a.facebook_embed_data || null)
     setShowForm(true)
+  }
+
+  const fetchFacebookPreview = async (url: string) => {
+    if (!url || !url.includes('facebook.com')) {
+      setFacebookPreview(null)
+      return
+    }
+
+    setLoadingPreview(true)
+    try {
+      const res = await fetch(`/api/facebook/oembed?url=${encodeURIComponent(url)}`)
+      const json = await res.json()
+      if (json.success && json.data) {
+        setFacebookPreview(json.data)
+      } else {
+        setFacebookPreview(null)
+      }
+    } catch (error) {
+      console.error('Failed to fetch Facebook preview:', error)
+      setFacebookPreview(null)
+    } finally {
+      setLoadingPreview(false)
+    }
+  }
+
+  const handleFacebookUrlChange = (url: string) => {
+    setForm({ ...form, facebook_post_url: url })
+    // Clear existing timeout
+    if ((window as any).facebookPreviewTimeout) {
+      clearTimeout((window as any).facebookPreviewTimeout)
+    }
+    // Debounce preview fetch
+    if (url && url.includes('facebook.com')) {
+      (window as any).facebookPreviewTimeout = setTimeout(() => {
+        fetchFacebookPreview(url)
+      }, 1000)
+    } else {
+      setFacebookPreview(null)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -103,6 +151,8 @@ export default function AdminAnnouncementsPage() {
       requirements: form.requirements
         ? form.requirements.split(',').map(s => s.trim()).filter(Boolean)
         : [],
+      facebook_post_url: form.facebook_post_url.trim() || null,
+      source_type: form.facebook_post_url.trim() ? 'FACEBOOK' : 'MANUAL',
     }
 
     try {
@@ -404,6 +454,62 @@ export default function AdminAnnouncementsPage() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Requirements (comma-separated)</label>
                     <Input placeholder="e.g., Valid ID, Medical Certificate" value={form.requirements} onChange={e => setForm({ ...form, requirements: e.target.value })} />
+                  </div>
+
+                  {/* Facebook Post Integration */}
+                  <div className="border-t pt-4 mt-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Facebook className="h-4 w-4 text-blue-600" />
+                      <label className="block text-sm font-medium text-gray-700">Facebook Post URL (Optional)</label>
+                    </div>
+                    <Input 
+                      type="url"
+                      placeholder="https://www.facebook.com/..."
+                      value={form.facebook_post_url} 
+                      onChange={e => handleFacebookUrlChange(e.target.value)}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Paste a Facebook post URL to embed it. Leave empty for regular announcement.
+                    </p>
+                    <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                      <p className="text-xs text-blue-800 dark:text-blue-300 font-medium mb-1">📌 How to get the correct URL:</p>
+                      <ol className="text-xs text-blue-700 dark:text-blue-400 list-decimal list-inside space-y-1">
+                        <li>Go to the Facebook post</li>
+                        <li>Click on the post's <strong>timestamp</strong> (e.g., "2 hours ago")</li>
+                        <li>Copy the URL from your browser's address bar</li>
+                        <li>Make sure the post is <strong>public</strong> (world icon visible)</li>
+                        <li>Don't use share links (facebook.com/share/...)</li>
+                      </ol>
+                    </div>
+                    
+                    {/* Facebook Preview */}
+                    {loadingPreview && (
+                      <div className="mt-3 p-4 border border-gray-200 rounded-lg bg-gray-50">
+                        <p className="text-sm text-gray-600">Loading preview...</p>
+                      </div>
+                    )}
+                    {facebookPreview && !loadingPreview && (
+                      <div className="mt-3 p-4 border border-blue-200 rounded-lg bg-blue-50">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Facebook className="h-4 w-4 text-blue-600" />
+                          <span className="text-sm font-medium text-blue-900">Facebook Post Preview</span>
+                        </div>
+                        <div 
+                          className="text-sm text-gray-700"
+                          dangerouslySetInnerHTML={{ __html: facebookPreview.html || '' }}
+                        />
+                        {facebookPreview.url && (
+                          <a 
+                            href={facebookPreview.url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline mt-2"
+                          >
+                            View on Facebook <ExternalLink className="h-3 w-3" />
+                          </a>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex justify-end gap-3 pt-4">

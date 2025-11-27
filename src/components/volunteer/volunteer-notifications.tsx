@@ -60,7 +60,7 @@ export const VolunteerNotifications = () => {
         if (Notification.permission === "granted") {
           new Notification("New Incident Assignment", {
             body: `You've been assigned to a ${newRecord.incident_type} in ${newRecord.barangay}`,
-            icon: "/icons/icon-192x192.png",
+            icon: "/favicon/android-chrome-192x192.png",
           })
         }
 

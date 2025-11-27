@@ -152,8 +152,8 @@ export class NotificationService {
         payload.title,
         ({
           body: payload.body,
-          icon: payload.icon || '/icons/icon-192x192.png',
-          badge: payload.badge || '/icons/icon-192x192.png',
+          icon: payload.icon || '/favicon/android-chrome-192x192.png',
+          badge: payload.badge || '/favicon/android-chrome-192x192.png',
           data: payload.data,
           requireInteraction: true,
           silent: false,

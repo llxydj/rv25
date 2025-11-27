@@ -262,7 +262,7 @@ export default function VolunteerReportIncidentPage() {
         // Default to Talisay City center if location access is denied
         setLocation(TALISAY_CENTER)
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+      { enableHighAccuracy: true, timeout: 30000, maximumAge: 60000 },
     )
   }
 
@@ -451,8 +451,8 @@ export default function VolunteerReportIncidentPage() {
       return
     }
 
-    // Validate photo if required
-    if (!photoFile) {
+    // Validate photo if required (only when online - photos can't be stored offline)
+    if (!isOffline && !photoFile) {
       setError("Please take a photo of the incident")
       toast({
         variant: "destructive",

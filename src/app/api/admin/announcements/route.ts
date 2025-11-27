@@ -37,13 +37,31 @@ export async function POST(request: Request) {
     const parsed = AnnouncementCreateSchema.safeParse(await request.json())
     if (!parsed.success) return NextResponse.json({ success: false, message: 'Invalid payload', issues: parsed.error.flatten() }, { status: 400 })
 
-    const { title, content, type, priority, location, date, time, requirements } = parsed.data
+    const { title, content, type, priority, location, date, time, requirements, facebook_post_url, source_type } = parsed.data
 
     // Authenticated user
     const { data: userRes, error: userErr } = await supabase.auth.getUser()
     if (userErr || !userRes?.user?.id) throw new Error('Not authenticated')
     const userId = userRes.user.id
     await assertAdmin(supabase, userId)
+
+    // If Facebook URL is provided, fetch embed data
+    let facebookEmbedData = null
+    if (facebook_post_url) {
+      try {
+        const origin = new URL(request.url).origin
+        const oembedRes = await fetch(`${origin}/api/facebook/oembed?url=${encodeURIComponent(facebook_post_url)}`)
+        if (oembedRes.ok) {
+          const oembedJson = await oembedRes.json()
+          if (oembedJson.success && oembedJson.data) {
+            facebookEmbedData = oembedJson.data
+          }
+        }
+      } catch (fetchError) {
+        console.warn('Failed to fetch Facebook oEmbed data:', fetchError)
+        // Continue without embed data - will use fallback
+      }
+    }
 
     const payload: AnnouncementInsert = {
       title,
@@ -54,7 +72,10 @@ export async function POST(request: Request) {
       date,
       time,
       requirements,
-      created_by: userId
+      created_by: userId,
+      facebook_post_url: facebook_post_url || null,
+      facebook_embed_data: facebookEmbedData,
+      source_type: source_type || (facebook_post_url ? 'FACEBOOK' : 'MANUAL'),
     }
 
     const { data, error } = await supabase
@@ -80,11 +101,29 @@ export async function PUT(request: Request) {
     const parsed = AnnouncementUpdateSchema.safeParse(await request.json())
     if (!parsed.success) return NextResponse.json({ success: false, message: 'Invalid payload', issues: parsed.error.flatten() }, { status: 400 })
 
-    const { id, title, content, type, priority, location, date, time, requirements } = parsed.data
+    const { id, title, content, type, priority, location, date, time, requirements, facebook_post_url, source_type } = parsed.data
 
     const { data: userRes, error: userErr } = await supabase.auth.getUser()
     if (userErr || !userRes?.user?.id) throw new Error('Not authenticated')
     await assertAdmin(supabase, userRes.user.id)
+
+    // If Facebook URL is provided, fetch embed data
+    let facebookEmbedData = null
+    if (facebook_post_url) {
+      try {
+        const origin = new URL(request.url).origin
+        const oembedRes = await fetch(`${origin}/api/facebook/oembed?url=${encodeURIComponent(facebook_post_url)}`)
+        if (oembedRes.ok) {
+          const oembedJson = await oembedRes.json()
+          if (oembedJson.success && oembedJson.data) {
+            facebookEmbedData = oembedJson.data
+          }
+        }
+      } catch (fetchError) {
+        console.warn('Failed to fetch Facebook oEmbed data:', fetchError)
+        // Continue without embed data - will use fallback
+      }
+    }
 
     const payload: AnnouncementUpdate = {
       title,
@@ -94,7 +133,10 @@ export async function PUT(request: Request) {
       location,
       date,
       time,
-      requirements
+      requirements,
+      facebook_post_url: facebook_post_url || null,
+      facebook_embed_data: facebookEmbedData,
+      source_type: source_type || (facebook_post_url ? 'FACEBOOK' : 'MANUAL'),
     }
 
     const { data, error } = await supabase

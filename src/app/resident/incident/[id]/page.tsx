@@ -29,6 +29,8 @@ export default function ResidentIncidentDetailPage() {
         // Fetch incident details
         const incidentResult = await getIncidentById(id as string)
         if (incidentResult.success) {
+          console.log("Resident - Incident data:", incidentResult.data); // Debug log
+          console.log("Resident - Voice URL:", incidentResult.data?.voice_url); // Debug voice URL
           setIncident(incidentResult.data)
         } else {
           setError(incidentResult.message || "Failed to fetch incident details")
@@ -178,9 +180,15 @@ export default function ResidentIncidentDetailPage() {
               <div className="mt-6">
                 <h3 className="text-sm font-medium text-gray-500">Description</h3>
                 <p className="mt-2 text-gray-700">{incident.description}</p>
-                {incident.voice_url && (
+                {incident.voice_url ? (
                   <div className="mt-4">
                     <AudioPlayer voiceUrl={incident.voice_url} incidentId={incident.id} />
+                  </div>
+                ) : (
+                  <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                    <p className="text-sm text-gray-500 dark:text-gray-400 italic">
+                      No voice message recorded for this incident
+                    </p>
                   </div>
                 )}
               </div>

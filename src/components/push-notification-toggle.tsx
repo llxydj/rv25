@@ -190,7 +190,7 @@ export function PushNotificationToggle() {
         await pushNotificationService.showNotification({
           title: '🔔 Test Notification',
           body: 'Push notifications are working perfectly!',
-          icon: '/icons/icon-192x192.png',
+          icon: '/favicon/android-chrome-192x192.png',
           data: { type: 'test' }
         })
         console.log('[push-toggle] Local notification sent')
@@ -206,7 +206,7 @@ export function PushNotificationToggle() {
             payload: {
               title: '🔔 Test Notification',
               body: 'Push notifications are working perfectly!',
-              icon: '/icons/icon-192x192.png',
+              icon: '/favicon/android-chrome-192x192.png',
               data: { type: 'test' }
             }
           })

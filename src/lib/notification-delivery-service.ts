@@ -271,8 +271,8 @@ export class NotificationDeliveryService {
           const payload = {
             title: notification.title,
             body: notification.body,
-            icon: '/icons/icon-192x192.png',
-            badge: '/icons/icon-72x72.png',
+            icon: '/favicon/android-chrome-192x192.png',
+            badge: '/favicon/android-chrome-192x192.png',
             data: {
               ...notification.data,
               notificationId: notificationRecord.id

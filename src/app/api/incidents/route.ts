@@ -43,6 +43,20 @@ export const runtime = 'nodejs'
 const BARANGAY_CACHE_TTL = 10 * 60 * 1000 // 10 minutes
 let barangayCache: { data: string[]; expiresAt: number } = { data: [], expiresAt: 0 }
 
+// Cache Supabase service role client globally to avoid recreating on every request
+let cachedServiceRoleClient: SupabaseClient | null = null
+
+function getServiceRoleClient(): SupabaseClient {
+  if (!cachedServiceRoleClient) {
+    cachedServiceRoleClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { persistSession: false } }
+    )
+  }
+  return cachedServiceRoleClient
+}
+
 async function getKnownBarangaysCached(client: SupabaseClient): Promise<string[]> {
   const now = Date.now()
   if (barangayCache.data.length && barangayCache.expiresAt > now) {
@@ -267,12 +281,8 @@ export async function PUT(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    // Use service role client to bypass RLS for incident creation
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { persistSession: false } }
-    )
+    // Use cached service role client to bypass RLS for incident creation
+    const supabase = getServiceRoleClient()
     const rate = rateLimitAllowed(rateKeyFromRequest(request, 'incidents:post'), 30)
     if (!rate.allowed) return NextResponse.json({ success: false, code: 'RATE_LIMITED', message: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(rate.retryAfter) } as any })
 
@@ -329,42 +339,57 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, code: 'OUT_OF_BOUNDS', message: 'Location must be within Talisay City' }, { status: 400 })
     }
 
-    // Reverse-geocode via internal proxy and normalize barangay
+    // Use provided address/barangay initially, geocode in background (non-blocking)
+    // This allows us to save the incident immediately and enrich data later
     let resolvedAddress = address ?? null
     let resolvedBarangay = barangay?.toUpperCase() ?? ''
-    try {
-      const origin = new URL(request.url).origin
-      const reverseUrl = `${origin}/api/geocode/reverse?lat=${encodeURIComponent(String(location_lat))}&lon=${encodeURIComponent(String(location_lng))}&zoom=16&addressdetails=1`
+    
+    // Start reverse geocoding in background (fire-and-forget) for data enrichment
+    // Don't block incident creation on geocoding API response
+    const geocodePromise = (async () => {
+      try {
+        const origin = new URL(request.url).origin
+        const reverseUrl = `${origin}/api/geocode/reverse?lat=${encodeURIComponent(String(location_lat))}&lon=${encodeURIComponent(String(location_lng))}&zoom=16&addressdetails=1`
 
-      const [geoData, knownBarangays] = await Promise.all([
-        (async () => {
-          try {
-            const geoRes = await fetch(reverseUrl, { cache: 'no-store' })
-            if (!geoRes.ok) return null
-            return geoRes.json()
-          } catch {
-            return null
+        const [geoData, knownBarangays] = await Promise.all([
+          (async () => {
+            try {
+              const geoRes = await fetch(reverseUrl, { cache: 'no-store' })
+              if (!geoRes.ok) return null
+              return geoRes.json()
+            } catch {
+              return null
+            }
+          })(),
+          getKnownBarangaysCached(supabase),
+        ])
+
+        if (geoData) {
+          const addr = geoData?.address || {}
+          const candidate = addr?.suburb || addr?.village || addr?.neighbourhood || addr?.city_district || addr?.quarter || addr?.town || addr?.county
+          const normalized = normalizeBarangay(candidate, knownBarangays)
+          
+          // Return update data if geocoding succeeded
+          if (normalized || geoData?.display_name) {
+            const updateData: any = {}
+            if (normalized) updateData.barangay = normalized
+            if (geoData?.display_name) {
+              updateData.address = geoData.display_name
+            } else if (addr) {
+              const line = [addr.road, addr.suburb || addr.village || addr.neighbourhood, addr.city || addr.town || 'Talisay City'].filter(Boolean).join(', ')
+              if (line) updateData.address = line
+            }
+            return updateData
           }
-        })(),
-        getKnownBarangaysCached(supabase),
-      ])
-
-      if (geoData) {
-        const addr = geoData?.address || {}
-        const candidate = addr?.suburb || addr?.village || addr?.neighbourhood || addr?.city_district || addr?.quarter || addr?.town || addr?.county
-        const normalized = normalizeBarangay(candidate, knownBarangays)
-        if (normalized) resolvedBarangay = normalized
-        const display = geoData?.display_name
-        if (display) {
-          resolvedAddress = display
-        } else if (addr) {
-          const line = [addr.road, addr.suburb || addr.village || addr.neighbourhood, addr.city || addr.town || 'Talisay City'].filter(Boolean).join(', ')
-          if (line) resolvedAddress = line
         }
+      } catch (geoError) {
+        console.warn('Background geocoding failed (non-critical):', geoError)
       }
-    } catch (geoError) {
-      console.warn('Geocoding failed, using provided data:', geoError)
-    }
+      return null
+    })()
+    
+    // Don't await - let it run in background
+    // We'll use the result to update the incident after creation
 
     // If photos were uploaded, ensure they exist and move them under processed/ for consistency
     const incomingPhotoPaths: string[] = Array.isArray(photo_urls) && photo_urls.length > 0
@@ -405,15 +430,19 @@ export async function POST(request: Request) {
       return processedPath
     }
 
-    for (const path of incomingPhotoPaths.slice(0, 3)) {
-      try {
-        const ensured = await ensurePhotoPath(path)
-        if (ensured) {
-          processedPhotoPaths.push(ensured)
+    // Process all photos in parallel for faster submission
+    if (incomingPhotoPaths.length > 0) {
+      const photoProcessingPromises = incomingPhotoPaths.slice(0, 3).map(async (path) => {
+        try {
+          return await ensurePhotoPath(path)
+        } catch (photoError: any) {
+          console.warn('Failed to process uploaded photo:', photoError?.message || photoError)
+          return null
         }
-      } catch (photoError: any) {
-        console.warn('Failed to process uploaded photo:', photoError?.message || photoError)
-      }
+      })
+      
+      const photoResults = await Promise.all(photoProcessingPromises)
+      processedPhotoPaths.push(...photoResults.filter((path): path is string => path !== null))
     }
 
     const primaryPhotoPath = processedPhotoPaths[0] ?? null
@@ -442,6 +471,25 @@ export async function POST(request: Request) {
 
     const { data, error } = await supabase.from('incidents').insert(payload).select().single()
     if (error) throw error
+    
+    // Update incident with enriched geocoding data if available (non-blocking)
+    geocodePromise.then((updateData) => {
+      if (updateData && data?.id) {
+        supabase
+          .from('incidents')
+          .update(updateData)
+          .eq('id', data.id)
+          .then(() => {
+            console.log('✅ Incident address/barangay enriched from geocoding')
+          })
+          .catch((err) => {
+            console.warn('⚠️ Failed to update incident with geocoding data (non-critical):', err)
+          })
+      }
+    }).catch(() => {
+      // Silently fail - geocoding is non-critical
+    })
+    
     // If submitted offline, record an incident update for auditing
     if (is_offline && data?.id) {
       try {
@@ -572,8 +620,8 @@ export async function POST(request: Request) {
             const payload = {
               title: '🚨 New Incident Reported',
               body: `${data.incident_type} in ${data.barangay}`,
-              icon: '/icons/icon-192x192.png',
-              badge: '/icons/icon-192x192.png',
+              icon: '/favicon/android-chrome-192x192.png',
+              badge: '/favicon/android-chrome-192x192.png',
               tag: 'incident_alert',
               data: {
                 incident_id: data.id,
@@ -717,8 +765,8 @@ export async function POST(request: Request) {
             await sendPushToUser(assignmentResult.assignedVolunteer.volunteerId, {
               title: '📋 New Incident Assignment',
               body: `You have been auto-assigned to a ${data.incident_type || 'incident'} in ${data.barangay || 'your area'}`,
-              icon: '/icons/icon-192x192.png',
-              badge: '/icons/icon-192x192.png',
+              icon: '/favicon/android-chrome-192x192.png',
+              badge: '/favicon/android-chrome-192x192.png',
               tag: 'assignment_alert',
               data: {
                 incident_id: data.id,
@@ -760,147 +808,148 @@ export async function POST(request: Request) {
         ? referenceResult.referenceId 
         : generateReferenceId(data.id) // Fallback to simple ID
       
-      // Get resident phone number - ALWAYS send confirmation to reporter
-      const { data: resident, error: residentError } = await supabase
-        .from('users')
-        .select('phone_number, first_name, last_name, email')
-        .eq('id', data.reporter_id)
-        .single()
-
-      if (residentError) {
-        console.error('❌ Error fetching resident for SMS:', residentError.message)
-      } else if (resident?.phone_number) {
-        console.log('📱 Attempting to send SMS confirmation to resident:', {
-          phoneNumber: resident.phone_number,
-          residentId: data.reporter_id,
-          residentName: `${resident.first_name || ''} ${resident.last_name || ''}`.trim() || resident.email,
-          incidentId: data.id,
-          referenceId: referenceId
-        })
-        
+      // Send SMS notifications in background (non-blocking)
+      // This allows incident to be saved and displayed immediately
+      // SMS will be sent asynchronously without blocking the response
+      (async () => {
         try {
-          const smsResult = await smsService.sendIncidentConfirmation(
-            data.id,
-            referenceId,
-            resident.phone_number,
-            data.reporter_id,
-            {
-              type: data.incident_type,
-              barangay: data.barangay,
-              time: new Date(data.created_at).toLocaleTimeString('en-US', { 
-                hour: '2-digit', 
-                minute: '2-digit',
-                hour12: true 
-              })
-            }
-          )
+          // Get resident phone number - ALWAYS send confirmation to reporter
+          const { data: resident, error: residentError } = await supabase
+            .from('users')
+            .select('phone_number, first_name, last_name, email')
+            .eq('id', data.reporter_id)
+            .single()
 
-          if (smsResult.success) {
-            console.log('✅ SMS confirmation sent to resident:', {
-              phone: resident.phone_number.substring(0, 4) + '****',
-              referenceId
-            })
-          } else {
-            console.error('❌ SMS confirmation failed:', {
-              error: smsResult.error,
-              retryable: smsResult.retryable,
-              phoneNumber: resident.phone_number.substring(0, 4) + '****',
+          if (residentError) {
+            console.error('❌ Error fetching resident for SMS:', residentError.message)
+          } else if (resident?.phone_number) {
+            console.log('📱 Attempting to send SMS confirmation to resident:', {
+              phoneNumber: resident.phone_number,
               residentId: data.reporter_id,
-              incidentType: data.incident_type,
-              barangay: data.barangay
+              residentName: `${resident.first_name || ''} ${resident.last_name || ''}`.trim() || resident.email,
+              incidentId: data.id,
+              referenceId: referenceId
+            })
+            
+            const smsResult = await smsService.sendIncidentConfirmation(
+              data.id,
+              referenceId,
+              resident.phone_number,
+              data.reporter_id,
+              {
+                type: data.incident_type,
+                barangay: data.barangay,
+                time: new Date(data.created_at).toLocaleTimeString('en-US', { 
+                  hour: '2-digit', 
+                  minute: '2-digit',
+                  hour12: true 
+                })
+              }
+            )
+
+            if (smsResult.success) {
+              console.log('✅ SMS confirmation sent to resident:', {
+                phone: resident.phone_number.substring(0, 4) + '****',
+                referenceId
+              })
+            } else {
+              console.error('❌ SMS confirmation failed:', {
+                error: smsResult.error,
+                retryable: smsResult.retryable,
+                phoneNumber: resident.phone_number.substring(0, 4) + '****',
+                residentId: data.reporter_id,
+                incidentType: data.incident_type,
+                barangay: data.barangay
+              })
+            }
+          } else {
+            console.log('⚠️ No phone number found for resident:', {
+              residentId: data.reporter_id,
+              hasPhone: !!resident?.phone_number,
+              email: resident?.email || 'N/A'
             })
           }
-        } catch (smsError: any) {
-          console.error('❌ SMS send exception:', {
-            error: smsError.message,
-            stack: smsError.stack,
-            phoneNumber: resident.phone_number.substring(0, 4) + '****'
-          })
-        }
-      } else {
-        console.log('⚠️ No phone number found for resident:', {
-          residentId: data.reporter_id,
-          hasPhone: !!resident?.phone_number,
-          email: resident?.email || 'N/A'
-        })
-      }
 
-      // ALWAYS send critical alert SMS to admins for ALL incidents (not just high priority)
-      const { data: admins } = await supabase
-        .from('users')
-        .select('id, phone_number')
-        .eq('role', 'admin')
-        .not('phone_number', 'is', null)
+          // ALWAYS send critical alert SMS to admins for ALL incidents (not just high priority)
+          const { data: admins } = await supabase
+            .from('users')
+            .select('id, phone_number')
+            .eq('role', 'admin')
+            .not('phone_number', 'is', null)
 
-      if (admins && admins.length > 0) {
-        const adminPhones = admins.map(admin => admin.phone_number).filter(Boolean)
-        const adminUserIds = admins.map(admin => admin.id)
+          if (admins && admins.length > 0) {
+            const adminPhones = admins.map(admin => admin.phone_number).filter(Boolean)
+            const adminUserIds = admins.map(admin => admin.id)
 
-        if (adminPhones.length > 0) {
-          const adminSMSResult = await smsService.sendAdminCriticalAlert(
-            data.id,
-            referenceId,
-            adminPhones,
-            adminUserIds,
-            {
-              type: data.incident_type,
-              barangay: data.barangay,
-              time: new Date(data.created_at).toLocaleTimeString('en-US', { 
-                hour: '2-digit', 
-                minute: '2-digit',
-                hour12: true 
-              })
+            if (adminPhones.length > 0) {
+              const adminSMSResult = await smsService.sendAdminCriticalAlert(
+                data.id,
+                referenceId,
+                adminPhones,
+                adminUserIds,
+                {
+                  type: data.incident_type,
+                  barangay: data.barangay,
+                  time: new Date(data.created_at).toLocaleTimeString('en-US', { 
+                    hour: '2-digit', 
+                    minute: '2-digit',
+                    hour12: true 
+                  })
+                }
+              )
+
+              if (adminSMSResult.success) {
+                console.log('✅ Critical alert SMS sent to', adminPhones.length, 'admins')
+              } else {
+                console.log('❌ Critical alert SMS failed:', adminSMSResult.results)
+              }
             }
-          )
-
-          if (adminSMSResult.success) {
-            console.log('✅ Critical alert SMS sent to', adminPhones.length, 'admins')
           } else {
-            console.log('❌ Critical alert SMS failed:', adminSMSResult.results)
+            console.log('⚠️ No admin phone numbers found for SMS alerts')
           }
-        }
-      } else {
-        console.log('⚠️ No admin phone numbers found for SMS alerts')
-      }
 
-      // Send barangay alert if incident is in a specific barangay
-      if (data.barangay && data.barangay !== 'UNKNOWN') {
-        const { data: barangaySecretary } = await supabase
-          .from('users')
-          .select('id, phone_number')
-          .eq('role', 'barangay')
-          .ilike('barangay', data.barangay)
-          .not('phone_number', 'is', null)
-          .single()
+          // Send barangay alert if incident is in a specific barangay
+          if (data.barangay && data.barangay !== 'UNKNOWN') {
+            const { data: barangaySecretary } = await supabase
+              .from('users')
+              .select('id, phone_number')
+              .eq('role', 'barangay')
+              .ilike('barangay', data.barangay)
+              .not('phone_number', 'is', null)
+              .single()
 
-        if (barangaySecretary?.phone_number) {
-          const barangaySMSResult = await smsService.sendBarangayAlert(
-            data.id,
-            referenceId,
-            barangaySecretary.phone_number,
-            barangaySecretary.id,
-            {
-              type: data.incident_type,
-              barangay: data.barangay,
-              time: new Date(data.created_at).toLocaleTimeString('en-US', { 
-                hour: '2-digit', 
-                minute: '2-digit',
-                hour12: true 
-              })
+            if (barangaySecretary?.phone_number) {
+              const barangaySMSResult = await smsService.sendBarangayAlert(
+                data.id,
+                referenceId,
+                barangaySecretary.phone_number,
+                barangaySecretary.id,
+                {
+                  type: data.incident_type,
+                  barangay: data.barangay,
+                  time: new Date(data.created_at).toLocaleTimeString('en-US', { 
+                    hour: '2-digit', 
+                    minute: '2-digit',
+                    hour12: true 
+                  })
+                }
+              )
+
+              if (barangaySMSResult.success) {
+                console.log('✅ Barangay alert SMS sent to secretary')
+              } else {
+                console.log('❌ Barangay alert SMS failed:', barangaySMSResult.error)
+              }
             }
-          )
-
-          if (barangaySMSResult.success) {
-            console.log('✅ Barangay alert SMS sent to secretary')
-          } else {
-            console.log('❌ Barangay alert SMS failed:', barangaySMSResult.error)
           }
+        } catch (err) {
+          console.error('❌ SMS background error:', err)
+          // Don't fail the incident creation if SMS fails
         }
-      }
-
-    } catch (err) {
-      console.error('❌ SMS fallback error:', err)
-      // Don't fail the incident creation if SMS fails
+      })() // Fire and forget - don't await
+    } catch (smsErr) {
+      console.error('❌ SMS setup error (non-fatal):', smsErr)
+      // Don't fail the incident creation if SMS setup fails
     }
 
     return NextResponse.json({ success: true, data })

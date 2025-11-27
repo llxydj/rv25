@@ -117,8 +117,8 @@ export default function PushTestPage() {
             payload: {
               title: '🔔 Test Push Notification',
               body: 'If you see this, push notifications are working!',
-              icon: '/icons/icon-192x192.png',
-              badge: '/icons/icon-192x192.png',
+              icon: '/favicon/android-chrome-192x192.png',
+              badge: '/favicon/android-chrome-192x192.png',
               tag: 'test-notification',
               data: {
                 type: 'test',

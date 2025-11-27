@@ -25,6 +25,9 @@ CREATE TABLE public.announcements (
   requirements ARRAY,
   created_by uuid,
   created_at timestamp with time zone DEFAULT now(),
+  facebook_post_url text,
+  facebook_embed_data jsonb,
+  source_type text DEFAULT 'MANUAL'::text CHECK (source_type = ANY (ARRAY['MANUAL'::text, 'FACEBOOK'::text])),
   CONSTRAINT announcements_pkey PRIMARY KEY (id),
   CONSTRAINT announcements_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
 );

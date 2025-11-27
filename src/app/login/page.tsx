@@ -4,7 +4,8 @@ import type React from "react"
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { AlertTriangle, User, Shield, Mail, Lock, ArrowRight } from "lucide-react"
+import Image from "next/image"
+import { AlertTriangle, User, Mail, Lock, ArrowRight } from "lucide-react"
 import { signIn } from "@/lib/auth"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import { supabase } from "@/lib/supabase"
@@ -48,9 +49,15 @@ export default function LoginPage() {
         <div className="text-center">
           <div className="flex justify-center mb-4">
             <div className="relative">
-              <div className="absolute inset-0 bg-red-600 rounded-full blur-xl opacity-20 dark:opacity-30"></div>
-              <div className="relative bg-red-600 p-4 rounded-full shadow-lg">
-                <Shield className="h-12 w-12 text-white" />
+              <div className="relative shadow-lg flex items-center justify-center">
+                <Image
+                  src="/radiant_logo.png"
+                  alt="RVOIS Logo"
+                  width={120}
+                  height={120}
+                  className="w-24 h-24 md:w-32 md:h-32 object-contain"
+                  priority
+                />
               </div>
             </div>
           </div>
@@ -224,7 +231,7 @@ export default function LoginPage() {
           {/* Footer Note */}
           <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
             <p className="text-xs text-center text-gray-500 dark:text-gray-400">
-              For Admins, Volunteers, and Talisay Residents
+              For Admins, Radiants, and Talisay Residents
             </p>
           </div>
         </div>

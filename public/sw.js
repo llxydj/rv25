@@ -5,8 +5,10 @@ const CACHE_NAME = 'rvois-cache-v1';
 const STATIC_CACHE = [
   '/',
   '/manifest.json',
-  '/icons/icon-192x192.png',
-  '/icons/icon-512x512.png'
+  '/favicon/android-chrome-192x192.png',
+  '/favicon/android-chrome-512x512.png',
+  '/favicon/apple-touch-icon.png',
+  '/favicon.ico'
 ];
 
 // Install event - cache static assets
@@ -64,8 +66,8 @@ self.addEventListener('push', (event) => {
   let notificationData = {
     title: 'RVOIS Notification',
     body: 'You have a new notification',
-    icon: '/icons/icon-192x192.png',
-    badge: '/icons/icon-192x192.png',
+    icon: '/favicon/android-chrome-192x192.png',
+    badge: '/favicon/android-chrome-192x192.png',
     vibrate: [200, 100, 200],
     data: {},
     actions: [],
@@ -117,7 +119,7 @@ self.addEventListener('push', (event) => {
       // Add default actions if not provided and URL/incident_id exists
       if (notificationData.actions.length === 0 && (data.url || data.data?.url || data.data?.incident_id)) {
         notificationData.actions = [
-          { action: 'open', title: 'View', icon: '/icons/icon-192x192.png' },
+          { action: 'open', title: 'View', icon: '/favicon/android-chrome-192x192.png' },
           { action: 'close', title: 'Dismiss' }
         ];
       }

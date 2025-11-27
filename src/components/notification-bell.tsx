@@ -59,8 +59,8 @@ export function NotificationBell({ userId, userRole, onNotificationClick }: Noti
         payload: {
           title: notification.title,
           body: notification.body,
-          icon: '/icons/icon-192x192.png',
-          badge: '/icons/icon-72x72.png',
+          icon: '/favicon/android-chrome-192x192.png',
+          badge: '/favicon/android-chrome-192x192.png',
           tag: notification.id,
           url: notification.data?.incident_id 
             ? `/${userRole}/incident/${notification.data.incident_id}`
@@ -143,8 +143,8 @@ export function NotificationBell({ userId, userRole, onNotificationClick }: Noti
                 try {
                   new Notification(newNotif.title, {
                     body: newNotif.body,
-                    icon: '/icons/icon-192x192.png',
-                    badge: '/icons/icon-72x72.png',
+                    icon: '/favicon/android-chrome-192x192.png',
+                    badge: '/favicon/android-chrome-192x192.png',
                     tag: newNotif.id
                   })
                 } catch (err) {

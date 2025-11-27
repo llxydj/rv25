@@ -54,7 +54,10 @@ export default function IncidentDetailPage() {
         if (incidentResult.success) {
           console.log("Incident data:", incidentResult.data); // Debug log
           console.log("Reporter data:", incidentResult.data?.reporter); // Debug log
-          setIncident(normalizeIncident(incidentResult.data))
+          console.log("Voice URL:", incidentResult.data?.voice_url); // Debug voice URL
+          const normalized = normalizeIncident(incidentResult.data)
+          console.log("Normalized incident voice_url:", normalized.voice_url); // Debug normalized
+          setIncident(normalized)
         } else {
           setError(incidentResult.message || "Failed to fetch incident details")
         }
@@ -566,9 +569,15 @@ export default function IncidentDetailPage() {
               <div className="mt-6">
                 <h3 className="text-sm font-medium text-gray-500">Description</h3>
                 <p className="mt-2 text-gray-700">{incident.description}</p>
-                {incident.voice_url && (
+                {incident.voice_url ? (
                   <div className="mt-4">
                     <AudioPlayer voiceUrl={incident.voice_url} incidentId={incident.id} />
+                  </div>
+                ) : (
+                  <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                    <p className="text-sm text-gray-500 dark:text-gray-400 italic">
+                      No voice message recorded for this incident
+                    </p>
                   </div>
                 )}
               </div>

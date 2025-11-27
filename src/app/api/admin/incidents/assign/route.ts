@@ -113,8 +113,8 @@ export async function POST(request: Request) {
         await sendPushToUser(cleanVolunteerId, {
           title: '📋 New Incident Assignment',
           body: `You have been assigned to a ${incidentData.incident_type || 'incident'} in ${incidentData.barangay || 'your area'}`,
-          icon: '/icons/icon-192x192.png',
-          badge: '/icons/icon-192x192.png',
+          icon: '/favicon/android-chrome-192x192.png',
+          badge: '/favicon/android-chrome-192x192.png',
           tag: 'assignment_alert',
           data: {
             incident_id: cleanIncidentId,

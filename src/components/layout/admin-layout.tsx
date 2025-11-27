@@ -365,8 +365,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
           </header>
 
           {/* Page content */}
-          <main className="flex-1 overflow-y-auto p-4 text-gray-900 bg-gray-50" style={{ color: '#111827' }}>
-            <div style={{ color: '#111827' }}>
+          <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 text-gray-900 bg-gray-50" style={{ color: '#111827' }}>
+            <div className="min-h-full" style={{ color: '#111827' }}>
               <SubscribeBanner userId={user?.id} />
               {children}
             </div>

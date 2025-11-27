@@ -10,6 +10,8 @@ export const AnnouncementCreateSchema = z.object({
   time: z.string().nullable().optional(),
   requirements: z.union([z.string(), z.array(z.string())]).optional(),
   created_by: z.string().uuid().optional(),
+  facebook_post_url: z.string().url().nullable().optional(),
+  source_type: z.enum(['MANUAL', 'FACEBOOK']).optional(),
 })
 
 export const AnnouncementUpdateSchema = z.object({
@@ -23,6 +25,8 @@ export const AnnouncementUpdateSchema = z.object({
   time: z.string().nullable().optional(),
   requirements: z.union([z.string(), z.array(z.string())]).optional(),
   updated_by: z.string().uuid().optional(),
+  facebook_post_url: z.string().url().nullable().optional(),
+  source_type: z.enum(['MANUAL', 'FACEBOOK']).optional(),
 })
 
 export const AnnouncementDeleteSchema = z.object({
