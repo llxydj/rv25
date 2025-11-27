@@ -447,7 +447,7 @@ export function LocationTrackingToggle() {
               />
             </div>
             
-            {pushEnabled && notificationService.isSupported() && (
+            {pushEnabled && pushNotificationService.isSupported() && (
               <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
                 <p className="text-xs text-green-800">
                   ✅ You'll receive instant notifications when assigned to incidents
@@ -455,7 +455,7 @@ export function LocationTrackingToggle() {
               </div>
             )}
             
-            {!notificationService.isSupported() && (
+            {!pushNotificationService.isSupported() && (
               <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                 <p className="text-xs text-yellow-800">
                   ⚠️ Push notifications not supported on this browser

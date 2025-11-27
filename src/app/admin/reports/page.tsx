@@ -2177,6 +2177,129 @@ export default function AdminReports() {
                   </Card>
                 )}
 
+                {/* PEAK PERIODS ANALYSIS */}
+                {reportType === "incidents" && residentAnalytics && (
+                  <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base md:text-lg text-gray-900 dark:text-gray-100">
+                        Peak Periods Analysis
+                      </CardTitle>
+                      <CardDescription className="text-sm text-gray-600 dark:text-gray-400">
+                        Days, weeks, and months with the most incidents reported
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {residentAnalytics.trends ? (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          {/* Peak Day */}
+                          {residentAnalytics.trends.daily && residentAnalytics.trends.daily.length > 0 ? (() => {
+                            const peakDay = residentAnalytics.trends.daily.reduce((max: any, day: any) => 
+                              (day.count || 0) > (max.count || 0) ? day : max, residentAnalytics.trends.daily[0])
+                            const peakDate = new Date(peakDay.date)
+                            return (
+                              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <CalendarIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                                  <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Peak Day</h4>
+                                </div>
+                                <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mb-1">
+                                  {peakDay.count || 0}
+                                </p>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                  {format(peakDate, 'MMM dd, yyyy')}
+                                </p>
+                                <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                                  {format(peakDate, 'EEEE')}
+                                </p>
+                              </div>
+                            )
+                          })() : (
+                            <div className="p-4 bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 rounded-lg">
+                              <div className="flex items-center gap-2 mb-2">
+                                <CalendarIcon className="h-5 w-5 text-gray-400" />
+                                <h4 className="text-sm font-semibold text-gray-500 dark:text-gray-400">Peak Day</h4>
+                              </div>
+                              <p className="text-sm text-gray-500 dark:text-gray-400">No daily data available</p>
+                            </div>
+                          )}
+
+                          {/* Peak Week */}
+                          {residentAnalytics.trends.weekly && residentAnalytics.trends.weekly.length > 0 ? (() => {
+                            const peakWeek = residentAnalytics.trends.weekly.reduce((max: any, week: any) => 
+                              (week.count || 0) > (max.count || 0) ? week : max, residentAnalytics.trends.weekly[0])
+                            const weekStart = new Date(peakWeek.week)
+                            const weekEnd = new Date(weekStart)
+                            weekEnd.setDate(weekEnd.getDate() + 6)
+                            return (
+                              <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Activity className="h-5 w-5 text-green-600 dark:text-green-400" />
+                                  <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Peak Week</h4>
+                                </div>
+                                <p className="text-2xl font-bold text-green-600 dark:text-green-400 mb-1">
+                                  {peakWeek.count || 0}
+                                </p>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                  {format(weekStart, 'MMM dd')} - {format(weekEnd, 'MMM dd, yyyy')}
+                                </p>
+                                <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                                  Week of {format(weekStart, 'MMM yyyy')}
+                                </p>
+                              </div>
+                            )
+                          })() : (
+                            <div className="p-4 bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 rounded-lg">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Activity className="h-5 w-5 text-gray-400" />
+                                <h4 className="text-sm font-semibold text-gray-500 dark:text-gray-400">Peak Week</h4>
+                              </div>
+                              <p className="text-sm text-gray-500 dark:text-gray-400">No weekly data available</p>
+                            </div>
+                          )}
+
+                          {/* Peak Month */}
+                          {residentAnalytics.trends.monthly && residentAnalytics.trends.monthly.length > 0 ? (() => {
+                            const peakMonth = residentAnalytics.trends.monthly.reduce((max: any, month: any) => 
+                              (month.count || 0) > (max.count || 0) ? month : max, residentAnalytics.trends.monthly[0])
+                            const monthDate = new Date(peakMonth.month + '-01')
+                            return (
+                              <div className="p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Clock className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                                  <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Peak Month</h4>
+                                </div>
+                                <p className="text-2xl font-bold text-purple-600 dark:text-purple-400 mb-1">
+                                  {peakMonth.count || 0}
+                                </p>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                  {format(monthDate, 'MMMM yyyy')}
+                                </p>
+                                <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                                  {residentAnalytics.overall?.totalIncidents > 0 
+                                    ? `${((peakMonth.count / residentAnalytics.overall.totalIncidents) * 100).toFixed(1)}% of total`
+                                    : 'No data'}
+                                </p>
+                              </div>
+                            )
+                          })() : (
+                            <div className="p-4 bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 rounded-lg">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Clock className="h-5 w-5 text-gray-400" />
+                                <h4 className="text-sm font-semibold text-gray-500 dark:text-gray-400">Peak Month</h4>
+                              </div>
+                              <p className="text-sm text-gray-500 dark:text-gray-400">No monthly data available</p>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="p-8 text-center">
+                          <p className="text-gray-500 dark:text-gray-400">No trend data available for the selected period.</p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
                 {/* RESIDENT TREND CHART */}
                 {reportType === "incidents" && residentAnalytics?.trends && (
                   <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">

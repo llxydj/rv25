@@ -5,7 +5,6 @@ import { AdminLayout } from "@/components/layout/admin-layout"
 import { MapPin, Users, Radio, Filter, RefreshCw, Clock } from "lucide-react"
 import dynamic from "next/dynamic"
 import { useAuth } from "@/hooks/use-auth"
-import { supabase } from "@/lib/supabase"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 
 const MapComponent = dynamic(() => import("@/components/ui/map-enhanced"), {
@@ -29,52 +28,30 @@ export default function VolunteerMapPage() {
     try {
       setLoading(true)
       
-      // FIXED: Removed nested volunteer_profiles to avoid ambiguous FK error
-      const { data, error } = await supabase
-        .from('volunteer_locations')
-        .select(`
-          user_id,
-          lat,
-          lng,
-          accuracy,
-          created_at,
-          users!volunteer_locations_user_id_fkey (
-            first_name,
-            last_name,
-            email,
-            phone_number
-          )
-        `)
-        .order('created_at', { ascending: false })
+      // Use the admin API endpoint which uses the active_volunteers_with_location view
+      const response = await fetch('/api/admin/volunteers/locations')
+      const json = await response.json()
 
-      if (error) throw error
+      if (!response.ok || !json.success) {
+        throw new Error(json.message || 'Failed to fetch volunteer locations')
+      }
 
-      // Get unique volunteers (latest location per user)
-      const uniqueVolunteers = new Map<string, any>()
-      data?.forEach((loc: any) => {
-        if (!uniqueVolunteers.has(loc.user_id)) {
-          uniqueVolunteers.set(loc.user_id, loc)
-        }
-      })
-
-      // Transform the data
-      const transformed = Array.from(uniqueVolunteers.values())
-        .filter(v => v.users)
-        .map(v => ({
-          id: v.user_id,
-          user_id: v.user_id,
-          first_name: v.users?.first_name,
-          last_name: v.users?.last_name,
-          email: v.users?.email,
-          phone_number: v.users?.phone_number,
-          latitude: v.lat,
-          longitude: v.lng,
-          accuracy: v.accuracy,
-          last_location_update: v.created_at,
-          status: 'available',
-          skills: [],
-          assigned_barangays: []
-        }))
+      // Transform the data from API format
+      const transformed = (json.data || []).map((loc: any) => ({
+        id: loc.user_id,
+        user_id: loc.user_id,
+        first_name: loc.first_name,
+        last_name: loc.last_name,
+        email: loc.email || '',
+        phone_number: loc.phone_number || '',
+        latitude: loc.lat,
+        longitude: loc.lng,
+        accuracy: loc.accuracy,
+        last_location_update: loc.created_at,
+        status: loc.status || 'offline',
+        skills: loc.skills || [],
+        assigned_barangays: loc.assigned_barangays || []
+      }))
 
       setVolunteers(transformed)
       setLastUpdate(new Date())
