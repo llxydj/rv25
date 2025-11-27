@@ -134,6 +134,51 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       analyticsCache.invalidateForVolunteer(currentIncident.assigned_to)
     }
 
+    // Send push notification to resident (reporter) when status changes
+    // NOTE: Database trigger creates notification record, but push needs to be sent manually
+    if (updatedIncident && updatedIncident.reporter_id) {
+      try {
+        const { sendPushToUser } = await import('@/lib/push-notification-helper')
+        
+        const statusMessages: Record<string, string> = {
+          ASSIGNED: 'Your incident has been assigned to a volunteer',
+          RESPONDING: 'A volunteer is responding to your incident',
+          ARRIVED: 'A volunteer has arrived at the incident location',
+          RESOLVED: 'Your incident has been resolved',
+          CANCELLED: 'Your incident has been cancelled'
+        }
+        
+        const message = statusMessages[status] || `Your incident status has been updated to ${status}`
+        
+        await sendPushToUser(updatedIncident.reporter_id, {
+          title: '📋 Incident Status Update',
+          body: message,
+          icon: '/icons/icon-192x192.png',
+          badge: '/icons/icon-192x192.png',
+          tag: 'status_update',
+          data: {
+            incident_id: params.id,
+            url: `/resident/history?incident=${params.id}`,
+            status: status,
+            type: 'status_update',
+            timestamp: Date.now()
+          },
+          requireInteraction: status === 'RESOLVED',
+          vibrate: [200, 100, 200],
+          actions: [
+            { action: 'open', title: 'View Incident' },
+            { action: 'close', title: 'Dismiss' }
+          ],
+          renotify: false,
+          silent: false
+        })
+        console.log('✅ Push notification sent to resident for status update')
+      } catch (pushErr) {
+        console.error('❌ Failed to send push notification to resident:', pushErr)
+        // Don't fail status update if push fails
+      }
+    }
+
     // Log admin action for audit trail
     const { data: userData } = await supabase
       .from('users')

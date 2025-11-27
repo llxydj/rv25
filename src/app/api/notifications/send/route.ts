@@ -114,8 +114,16 @@ export async function POST(req: NextRequest) {
           return { success: false, error: 'Invalid subscription data' }
         }
 
-        await webpush.sendNotification(sub.subscription, JSON.stringify(payload))
-        console.log('[send] Notification sent successfully to:', sub.subscription.endpoint.substring(0, 50) + '...')
+        const payloadString = JSON.stringify(payload)
+        console.log('[send] Sending push notification:', {
+          endpoint: sub.subscription.endpoint.substring(0, 50) + '...',
+          title: payload.title,
+          body: payload.body,
+          payloadSize: payloadString.length
+        })
+        
+        await webpush.sendNotification(sub.subscription, payloadString)
+        console.log('[send] ✅ Notification sent successfully to:', sub.subscription.endpoint.substring(0, 50) + '...')
         return { success: true, endpoint: sub.subscription.endpoint }
       } catch (err: any) {
         const endpoint = sub.subscription?.endpoint

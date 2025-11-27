@@ -28,6 +28,7 @@ export function NotificationBell({ userId, userRole, onNotificationClick }: Noti
   const [showDropdown, setShowDropdown] = useState(false)
   const [loading, setLoading] = useState(true)
   const [hasNewNotification, setHasNewNotification] = useState(false)
+  const [channelStatus, setChannelStatus] = useState<string>('connecting')
   const router = useRouter()
 
   // Send notification to Service Worker for system notification
@@ -95,10 +96,15 @@ export function NotificationBell({ userId, userRole, onNotificationClick }: Noti
 
   // Subscribe to real-time notification updates
   useEffect(() => {
+    if (!userId) return
+
+    // Initial fetch
     fetchNotifications()
 
-    const channel = supabase
-      .channel(`notifications:${userId}`)
+    // Create a unique channel name to avoid conflicts
+    const channelName = `notifications:${userId}:${Date.now()}`
+    let channel = supabase
+      .channel(channelName)
       .on(
         "postgres_changes",
         {
@@ -108,14 +114,19 @@ export function NotificationBell({ userId, userRole, onNotificationClick }: Noti
           filter: `user_id=eq.${userId}`,
         },
         (payload) => {
-          console.log('📬 Notification realtime event:', payload.eventType)
+          console.log('📬 Notification realtime event:', payload.eventType, payload.new?.id)
           
           if (payload.eventType === "INSERT") {
             const newNotif = payload.new as Notification
             
+            // Update notifications list
             setNotifications((prev) => {
               // Prevent duplicates
-              if (prev.some(n => n.id === newNotif.id)) return prev
+              if (prev.some(n => n.id === newNotif.id)) {
+                console.log('⚠️ Duplicate notification ignored:', newNotif.id)
+                return prev
+              }
+              console.log('✅ New notification added:', newNotif.title)
               return [newNotif, ...prev]
             })
             
@@ -150,25 +161,88 @@ export function NotificationBell({ userId, userRole, onNotificationClick }: Noti
           }
         }
       )
-      .subscribe((status) => {
+      .subscribe((status, err) => {
         console.log('🔔 Notification channel status:', status)
+        setChannelStatus(status)
+        
+        if (err) {
+          console.error('❌ Notification channel error:', err)
+        }
+        
+        // If channel closed or timed out, try to reconnect
+        if (status === 'CLOSED' || status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
+          console.log('🔄 Channel disconnected, reconnecting in 2 seconds...')
+          setTimeout(() => {
+            fetchNotifications() // Refresh notifications immediately
+          }, 2000)
+        } else if (status === 'SUBSCRIBED') {
+          console.log('✅ Notification channel connected')
+        }
       })
 
+    // Set up periodic refresh as backup (every 30 seconds)
+    const refreshInterval = setInterval(() => {
+      fetchNotifications()
+    }, 30000)
+
     return () => {
-      supabase.removeChannel(channel)
+      clearInterval(refreshInterval)
+      try {
+        supabase.removeChannel(channel)
+      } catch (err) {
+        console.error('Error removing channel:', err)
+      }
     }
   }, [userId, fetchNotifications, triggerSystemNotification])
 
-  // Request notification permissions on mount
+  // Request notification permissions on mount and set up service worker listener
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
-      if (Notification.permission === 'default') {
-        Notification.requestPermission().then(permission => {
-          console.log('🔔 Notification permission:', permission)
+      const permission = Notification.permission
+      console.log('🔔 Current notification permission:', permission)
+      
+      if (permission === 'default') {
+        Notification.requestPermission().then(newPermission => {
+          console.log('🔔 Notification permission after request:', newPermission)
         })
+      } else if (permission === 'granted') {
+        console.log('✅ Notification permission granted')
+      } else {
+        console.warn('⚠️ Notification permission denied - user needs to enable in browser settings')
       }
     }
-  }, [])
+    
+    // Listen for push notifications from service worker
+    if ('serviceWorker' in navigator) {
+      // Check service worker status
+      navigator.serviceWorker.ready.then((registration) => {
+        console.log('✅ Service worker ready for push notifications')
+        console.log('📡 Service worker scope:', registration.scope)
+      }).catch((err) => {
+        console.error('❌ Service worker not ready:', err)
+      })
+      
+      // Listen for messages from service worker
+      const messageHandler = (event: MessageEvent) => {
+        if (event.data && event.data.type === 'PUSH_NOTIFICATION') {
+          console.log('📬 Received push notification message from service worker:', event.data.notification)
+          
+          // Refresh notifications to get the latest from database
+          fetchNotifications()
+          
+          // Trigger pulse animation
+          setHasNewNotification(true)
+          setTimeout(() => setHasNewNotification(false), 2000)
+        }
+      }
+      
+      navigator.serviceWorker.addEventListener('message', messageHandler)
+      
+      return () => {
+        navigator.serviceWorker.removeEventListener('message', messageHandler)
+      }
+    }
+  }, [fetchNotifications])
 
   // Mark notification as read
   const markAsRead = useCallback(async (notificationId: string) => {
@@ -281,8 +355,25 @@ export function NotificationBell({ userId, userRole, onNotificationClick }: Noti
       {showDropdown && (
         <div className="fixed right-4 top-16 w-96 max-w-[calc(100vw-2rem)] bg-white rounded-lg shadow-xl z-[100] max-h-[80vh] overflow-hidden border border-gray-200">
           <div className="p-3 border-b border-gray-200 flex justify-between items-center bg-gray-50">
-            <h3 className="text-sm font-semibold text-gray-900">Notifications</h3>
             <div className="flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-gray-900">Notifications</h3>
+              {channelStatus !== 'SUBSCRIBED' && (
+                <span className="text-xs text-yellow-600" title="Real-time connection issue - using polling">
+                  ⚠️
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  setLoading(true)
+                  fetchNotifications()
+                }}
+                className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                title="Refresh notifications"
+              >
+                ↻
+              </button>
               {unreadCount > 0 && (
                 <button
                   onClick={markAllAsRead}

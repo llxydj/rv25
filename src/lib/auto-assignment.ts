@@ -90,9 +90,47 @@ export class AutoAssignmentService {
       if (assignmentResult.success) {
       // NOTE: Notification is automatically created by database trigger
       // (notify_volunteer_on_assignment) when assigned_to is updated
-      // No need to manually send notification here to avoid duplicates
+      // However, push notifications need to be sent manually since triggers can't send push
       
-      // 5. Send immediate SMS to assigned volunteer
+      // 5. Send push notification to assigned volunteer
+      try {
+        const { sendPushToUser } = await import('@/lib/push-notification-helper')
+        const { data: incident } = await this.supabaseAdmin
+          .from('incidents')
+          .select('id, incident_type, barangay')
+          .eq('id', criteria.incidentId)
+          .single()
+        
+        if (incident) {
+          await sendPushToUser(bestMatch.volunteerId, {
+            title: '📋 New Incident Assignment',
+            body: `You have been auto-assigned to a ${incident.incident_type || 'incident'} in ${incident.barangay || 'your area'}`,
+            icon: '/icons/icon-192x192.png',
+            badge: '/icons/icon-192x192.png',
+            tag: 'assignment_alert',
+            data: {
+              incident_id: criteria.incidentId,
+              url: `/volunteer/incident/${criteria.incidentId}`,
+              type: 'assignment_alert',
+              timestamp: Date.now()
+            },
+            requireInteraction: true,
+            vibrate: [200, 100, 200],
+            actions: [
+              { action: 'open', title: 'View Incident' },
+              { action: 'close', title: 'Dismiss' }
+            ],
+            renotify: false,
+            silent: false
+          })
+          console.log('✅ Push notification sent to auto-assigned volunteer')
+        }
+      } catch (pushErr) {
+        console.error('❌ Failed to send push notification to auto-assigned volunteer:', pushErr)
+        // Don't fail assignment if push fails
+      }
+      
+      // 6. Send immediate SMS to assigned volunteer
       try {
         const { smsService } = await import('@/lib/sms-service')
         const { data: incident } = await this.supabaseAdmin

@@ -40,6 +40,7 @@ export default function ReportIncidentPage() {
   const [location, setLocation] = useState<[number, number] | null>(null);
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
+  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null);
   const previewUrlsRef = useRef<string[]>([]);
   
   // Add effect to log location changes
@@ -999,7 +1000,8 @@ export default function ReportIncidentPage() {
                     <img
                       src={preview}
                       alt={`Incident photo ${index + 1}`}
-                      className="h-40 w-full object-cover"
+                      className="h-40 w-full object-cover cursor-pointer"
+                      onClick={() => setSelectedPhotoIndex(index)}
                     />
                     <button
                       type="button"
@@ -1201,6 +1203,66 @@ export default function ReportIncidentPage() {
             <p className="text-right text-xs text-gray-500">{submitStage}</p>
           )}
         </form>
+
+        {/* Photo Viewer Modal */}
+        {selectedPhotoIndex !== null && photoPreviews[selectedPhotoIndex] && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75"
+            onClick={() => setSelectedPhotoIndex(null)}
+          >
+            <div className="relative max-w-4xl max-h-[90vh] p-4">
+              <button
+                type="button"
+                onClick={() => setSelectedPhotoIndex(null)}
+                className="absolute top-4 right-4 bg-white text-gray-800 p-2 rounded-full hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-white z-10"
+                aria-label="Close photo viewer"
+              >
+                <X className="h-6 w-6" />
+              </button>
+              <img
+                src={photoPreviews[selectedPhotoIndex]}
+                alt={`Incident photo ${selectedPhotoIndex + 1}`}
+                className="max-w-full max-h-[90vh] object-contain rounded-lg"
+                onClick={(e) => e.stopPropagation()}
+              />
+              {photoPreviews.length > 1 && (
+                <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedPhotoIndex(
+                        selectedPhotoIndex > 0
+                          ? selectedPhotoIndex - 1
+                          : photoPreviews.length - 1
+                      );
+                    }}
+                    className="bg-white text-gray-800 px-4 py-2 rounded-md hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-white"
+                  >
+                    Previous
+                  </button>
+                  <span className="bg-white text-gray-800 px-4 py-2 rounded-md">
+                    {selectedPhotoIndex + 1} / {photoPreviews.length}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedPhotoIndex(
+                        selectedPhotoIndex < photoPreviews.length - 1
+                          ? selectedPhotoIndex + 1
+                          : 0
+                      );
+                    }}
+                    className="bg-white text-gray-800 px-4 py-2 rounded-md hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-white"
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </ResidentLayout>
   )

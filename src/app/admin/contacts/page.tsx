@@ -6,7 +6,7 @@ import { AdminLayout } from "@/components/layout/admin-layout"
 import { useAuth } from "@/lib/auth"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/components/ui/use-toast"
 import { Database } from "@/types/supabase"
@@ -187,76 +187,95 @@ export default function AdminContactsPage() {
           </div>
         </Card>
 
-        <Card className="p-4">
-          {loading ? (
-            <div className="text-gray-600">Loading contacts...</div>
-          ) : filtered.length === 0 ? (
-            <div className="text-gray-600">No contacts found.</div>
-          ) : (
-            <div className="space-y-3">
-              {filtered.map(c => (
-                <div key={c.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium text-gray-900 truncate">{c.name}</p>
-                      <Badge variant="secondary" className="text-xs">{c.type}</Badge>
-                      {!c.is_active && (
-                        <Badge className="bg-gray-200 text-gray-700 text-xs">Inactive</Badge>
+        <Card>
+          <CardContent className="p-4 md:p-6">
+            {loading ? (
+              <div className="text-center py-12 text-gray-600">Loading contacts...</div>
+            ) : filtered.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-gray-600 mb-4">No contacts found.</p>
+                <Button onClick={startCreate} variant="outline">Add First Contact</Button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {filtered.map(c => (
+                  <div key={c.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <p className="font-medium text-gray-900">{c.name}</p>
+                        <Badge variant="secondary" className="text-xs">{c.type}</Badge>
+                        {!c.is_active && (
+                          <Badge variant="outline" className="bg-gray-200 text-gray-700 text-xs">Inactive</Badge>
+                        )}
+                        <Badge variant="outline" className="text-xs">Priority {c.priority}</Badge>
+                      </div>
+                      <p className="text-sm text-gray-700 font-mono">{c.number}</p>
+                      {c.description && (
+                        <p className="text-xs text-gray-500 mt-1">{c.description}</p>
                       )}
                     </div>
-                    <p className="text-sm text-gray-700">{c.number}</p>
-                    {c.description && (
-                      <p className="text-xs text-gray-500 mt-1 truncate">{c.description}</p>
-                    )}
+                    <div className="flex items-center gap-2 sm:ml-4 shrink-0">
+                      <Button size="sm" variant="ghost" onClick={() => startEdit(c)} className="flex-1 sm:flex-none">Edit</Button>
+                      <Button 
+                        size="sm" 
+                        className={c.is_active ? "bg-yellow-600 hover:bg-yellow-700 text-white" : "bg-green-600 hover:bg-green-700 text-white"} 
+                        onClick={() => toggleActive(c)}
+                      >
+                        {c.is_active ? "Deactivate" : "Activate"}
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 ml-4 shrink-0">
-                    <Badge variant="outline" className="text-xs">Priority {c.priority}</Badge>
-                    <Button size="sm" variant="ghost" onClick={() => startEdit(c)}>Edit</Button>
-                    <Button size="sm" className={c.is_active ? "bg-yellow-600 hover:bg-yellow-700" : "bg-green-600 hover:bg-green-700"} onClick={() => toggleActive(c)}>
-                      {c.is_active ? "Deactivate" : "Activate"}
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
+          </CardContent>
         </Card>
 
         {showForm && (
-          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-            <Card className="bg-white rounded-lg w-full max-w-xl p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">{editId ? "Edit Contact" : "Add Contact"}</h3>
-                <Button variant="ghost" onClick={() => setShowForm(false)}>Close</Button>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Name</label>
-                  <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto">
+            <Card className="w-full max-w-xl max-h-[90vh] overflow-y-auto">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle>{editId ? "Edit Contact" : "Add Contact"}</CardTitle>
+                  <Button variant="ghost" size="sm" onClick={() => setShowForm(false)}>Close</Button>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Number</label>
-                  <Input value={form.number} onChange={e => setForm({ ...form, number: e.target.value })} />
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                    <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Number</label>
+                    <Input value={form.number} onChange={e => setForm({ ...form, number: e.target.value })} required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                    <select 
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                      value={form.type} 
+                      onChange={e => setForm({ ...form, type: e.target.value })}
+                    >
+                      {CONTACT_TYPES.map(t => (<option key={t.value} value={t.value}>{t.label}</option>))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Priority (1 = highest)</label>
+                    <Input type="number" min={1} max={99} value={form.priority} onChange={e => setForm({ ...form, priority: Number(e.target.value) })} />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                    <Input value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Type</label>
-                  <select className="w-full px-3 py-2 border border-gray-300 rounded-md" value={form.type} onChange={e => setForm({ ...form, type: e.target.value })}>
-                    {CONTACT_TYPES.map(t => (<option key={t.value} value={t.value}>{t.label}</option>))}
-                  </select>
+                <div className="flex justify-end gap-2 pt-4">
+                  <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
+                  <Button disabled={saving} className="bg-blue-600 hover:bg-blue-700 text-white" onClick={save}>
+                    {saving ? "Saving..." : (editId ? "Update" : "Create")}
+                  </Button>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Priority (1 = highest)</label>
-                  <Input type="number" min={1} max={99} value={form.priority} onChange={e => setForm({ ...form, priority: Number(e.target.value) })} />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700">Description</label>
-                  <Input value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
-                </div>
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button variant="ghost" onClick={() => setShowForm(false)}>Cancel</Button>
-                <Button disabled={saving} className="bg-blue-600 hover:bg-blue-700 text-white" onClick={save}>{saving ? "Saving..." : (editId ? "Update" : "Create")}</Button>
-              </div>
+              </CardContent>
             </Card>
           </div>
         )}

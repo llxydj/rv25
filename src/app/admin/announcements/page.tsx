@@ -4,7 +4,11 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { AdminLayout } from "@/components/layout/admin-layout"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
-import { AlertTriangle, Calendar, CheckCircle, Edit3, MapPin, Plus, Trash2, X, ArrowLeft } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
+import { AlertTriangle, Calendar, Edit3, MapPin, Plus, Trash2, X, ArrowLeft } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 
 type Announcement = {
@@ -144,143 +148,275 @@ export default function AdminAnnouncementsPage() {
     }
   }
 
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'CRITICAL': return 'bg-red-100 text-red-800'
+      case 'HIGH': return 'bg-orange-100 text-orange-800'
+      case 'MEDIUM': return 'bg-yellow-100 text-yellow-800'
+      case 'LOW': return 'bg-blue-100 text-blue-800'
+      default: return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  const getTypeColor = (type: string) => {
+    switch (type) {
+      case 'ALERT': return 'bg-red-100 text-red-800'
+      case 'TRAINING': return 'bg-blue-100 text-blue-800'
+      case 'MEETING': return 'bg-purple-100 text-purple-800'
+      case 'GENERAL': return 'bg-gray-100 text-gray-800'
+      default: return 'bg-gray-100 text-gray-800'
+    }
+  }
+
   return (
     <AdminLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="space-y-6 p-4 md:p-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-4">
             <Link
               href="/admin/dashboard"
               className="inline-flex items-center text-gray-600 hover:text-gray-900 transition-colors"
               title="Back to Dashboard"
             >
-              <ArrowLeft className="h-5 w-5 mr-2" />
+              <ArrowLeft className="h-5 w-5" />
             </Link>
             <div>
-              <h1 className="text-2xl font-bold text-black">Announcements</h1>
-              <p className="text-gray-600">Create and manage system announcements.</p>
+              <h1 className="text-2xl font-bold text-gray-900">Announcements</h1>
+              <p className="text-sm text-gray-600 mt-1">Create and manage system announcements</p>
             </div>
           </div>
-          <button
-            onClick={openCreate}
-            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-          >
+          <Button onClick={openCreate} className="bg-blue-600 hover:bg-blue-700 text-white">
             <Plus className="h-4 w-4 mr-2"/> New Announcement
-          </button>
+          </Button>
         </div>
 
+        {/* Error Alert */}
         {error && (
-          <div className="bg-red-50 border-l-4 border-red-500 p-4">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <AlertTriangle className="h-5 w-5 text-red-500" />
-              </div>
-              <div className="ml-3">
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="pt-6">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
                 <p className="text-sm text-red-700">{error}</p>
               </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         )}
 
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        {/* Desktop Table View */}
+        <Card className="hidden md:block">
+          <CardContent className="p-0">
+            {loading ? (
+              <div className="flex justify-center py-12">
+                <LoadingSpinner size="lg" />
+              </div>
+            ) : items.length === 0 ? (
+              <div className="text-center py-12 text-gray-500">
+                <p>No announcements yet</p>
+                <Button onClick={openCreate} variant="outline" className="mt-4">
+                  <Plus className="h-4 w-4 mr-2"/> Create First Announcement
+                </Button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Priority</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">When/Where</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {items.map(a => (
+                      <tr key={a.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 text-sm font-medium text-gray-900">{a.title}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <Badge className={getTypeColor(a.type)}>{a.type}</Badge>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <Badge className={getPriorityColor(a.priority)}>{a.priority}</Badge>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-700">
+                          <div className="flex flex-col gap-1">
+                            {a.date && (
+                              <span className="inline-flex items-center gap-1 text-xs">
+                                <Calendar className="h-3 w-3" />
+                                {a.date} {a.time}
+                              </span>
+                            )}
+                            {a.location && (
+                              <span className="inline-flex items-center gap-1 text-xs">
+                                <MapPin className="h-3 w-3" />
+                                {a.location}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                          <div className="flex items-center justify-end gap-2">
+                            <Button variant="ghost" size="sm" onClick={() => openEdit(a)}>
+                              <Edit3 className="h-4 w-4 mr-1"/>Edit
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => handleDelete(a.id)} className="text-red-600 hover:text-red-700">
+                              <Trash2 className="h-4 w-4 mr-1"/>Delete
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Mobile Card View */}
+        <div className="md:hidden space-y-4">
           {loading ? (
-            <div className="flex justify-center py-12">
-              <LoadingSpinner size="lg" />
-            </div>
+            <Card>
+              <CardContent className="py-12">
+                <div className="flex justify-center">
+                  <LoadingSpinner size="lg" />
+                </div>
+              </CardContent>
+            </Card>
+          ) : items.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <p className="text-gray-500 mb-4">No announcements yet</p>
+                <Button onClick={openCreate} variant="outline">
+                  <Plus className="h-4 w-4 mr-2"/> Create First Announcement
+                </Button>
+              </CardContent>
+            </Card>
           ) : (
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Priority</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">When/Where</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {items.map(a => (
-                  <tr key={a.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{a.title}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{a.type}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{a.priority}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                      <div className="flex items-center gap-2">
-                        {a.date && (
-                          <span className="inline-flex items-center gap-1"><Calendar className="h-4 w-4" />{a.date} {a.time}</span>
-                        )}
-                        {a.location && (
-                          <span className="inline-flex items-center gap-1"><MapPin className="h-4 w-4" />{a.location}</span>
-                        )}
+            items.map(a => (
+              <Card key={a.id}>
+                <CardHeader>
+                  <div className="flex items-start justify-between gap-2">
+                    <CardTitle className="text-lg">{a.title}</CardTitle>
+                    <div className="flex gap-2 flex-shrink-0">
+                      <Button variant="ghost" size="sm" onClick={() => openEdit(a)}>
+                        <Edit3 className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => handleDelete(a.id)} className="text-red-600">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <Badge className={getTypeColor(a.type)}>{a.type}</Badge>
+                    <Badge className={getPriorityColor(a.priority)}>{a.priority}</Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2 text-sm">
+                    {a.date && (
+                      <div className="flex items-center gap-2 text-gray-600">
+                        <Calendar className="h-4 w-4" />
+                        <span>{a.date} {a.time}</span>
                       </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                      <button onClick={() => openEdit(a)} className="text-blue-600 hover:text-blue-800 inline-flex items-center mr-3"><Edit3 className="h-4 w-4 mr-1"/>Edit</button>
-                      <button onClick={() => handleDelete(a.id)} className="text-red-600 hover:text-red-800 inline-flex items-center"><Trash2 className="h-4 w-4 mr-1"/>Delete</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    )}
+                    {a.location && (
+                      <div className="flex items-center gap-2 text-gray-600">
+                        <MapPin className="h-4 w-4" />
+                        <span>{a.location}</span>
+                      </div>
+                    )}
+                    {a.content && (
+                      <p className="text-gray-700 mt-2 line-clamp-2">{a.content}</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))
           )}
         </div>
 
+        {/* Form Modal */}
         {showForm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg max-w-2xl w-full p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">{editing ? 'Edit' : 'New'} Announcement</h3>
-                <button onClick={() => { setShowForm(false); resetForm(); }} className="text-gray-500 hover:text-gray-700"><X className="h-5 w-5"/></button>
-              </div>
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto">
+            <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <CardTitle>{editing ? 'Edit' : 'New'} Announcement</CardTitle>
+                  <Button variant="ghost" size="sm" onClick={() => { setShowForm(false); resetForm(); }}>
+                    <X className="h-5 w-5"/>
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                    <Input required value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Content</label>
+                    <textarea 
+                      className="w-full border border-gray-300 rounded-md py-2 px-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                      rows={4} 
+                      required 
+                      value={form.content} 
+                      onChange={e => setForm({ ...form, content: e.target.value })} 
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                      <select 
+                        className="w-full border border-gray-300 rounded-md py-2 px-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                        value={form.type} 
+                        onChange={e => setForm({ ...form, type: e.target.value as any })}
+                      >
+                        {['TRAINING','MEETING','ALERT','GENERAL'].map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+                      <select 
+                        className="w-full border border-gray-300 rounded-md py-2 px-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                        value={form.priority} 
+                        onChange={e => setForm({ ...form, priority: e.target.value as any })}
+                      >
+                        {['LOW','MEDIUM','HIGH','CRITICAL'].map(p => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                      <Input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Time</label>
+                      <Input type="time" value={form.time} onChange={e => setForm({ ...form, time: e.target.value })} />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                      <Input placeholder="Venue or address" value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Requirements (comma-separated)</label>
+                    <Input placeholder="e.g., Valid ID, Medical Certificate" value={form.requirements} onChange={e => setForm({ ...form, requirements: e.target.value })} />
+                  </div>
 
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Title</label>
-                  <input className="mt-1 block w-full border border-gray-300 rounded-md py-2 px-3 text-gray-900" required value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Content</label>
-                  <textarea className="mt-1 block w-full border border-gray-300 rounded-md py-2 px-3 text-gray-900" rows={4} required value={form.content} onChange={e => setForm({ ...form, content: e.target.value })} />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Type</label>
-                    <select className="mt-1 block w-full border border-gray-300 rounded-md py-2 px-3 text-gray-900" value={form.type} onChange={e => setForm({ ...form, type: e.target.value as any })}>
-                      {['TRAINING','MEETING','ALERT','GENERAL'].map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
+                  <div className="flex justify-end gap-3 pt-4">
+                    <Button type="button" variant="outline" onClick={() => { setShowForm(false); resetForm(); }}>
+                      Cancel
+                    </Button>
+                    <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white">
+                      {editing ? 'Update' : 'Create'}
+                    </Button>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Priority</label>
-                    <select className="mt-1 block w-full border border-gray-300 rounded-md py-2 px-3 text-gray-900" value={form.priority} onChange={e => setForm({ ...form, priority: e.target.value as any })}>
-                      {['LOW','MEDIUM','HIGH','CRITICAL'].map(p => <option key={p} value={p}>{p}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Date</label>
-                    <input type="date" className="mt-1 block w-full border border-gray-300 rounded-md py-2 px-3 text-gray-900" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Time</label>
-                    <input type="time" className="mt-1 block w-full border border-gray-300 rounded-md py-2 px-3 text-gray-900" value={form.time} onChange={e => setForm({ ...form, time: e.target.value })} />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700">Location</label>
-                    <input className="mt-1 block w-full border border-gray-300 rounded-md py-2 px-3 text-gray-900" placeholder="Venue or address" value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Requirements (comma-separated)</label>
-                  <input className="mt-1 block w-full border border-gray-300 rounded-md py-2 px-3 text-gray-900" placeholder="e.g., Valid ID, Medical Certificate" value={form.requirements} onChange={e => setForm({ ...form, requirements: e.target.value })} />
-                </div>
-
-                <div className="flex justify-end gap-3 pt-2">
-                  <button type="button" onClick={() => { setShowForm(false); resetForm(); }} className="px-4 py-2 border rounded-md">Cancel</button>
-                  <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md">{editing ? 'Update' : 'Create'}</button>
-                </div>
-              </form>
-            </div>
+                </form>
+              </CardContent>
+            </Card>
           </div>
         )}
       </div>

@@ -50,7 +50,15 @@ self.addEventListener('activate', (event) => {
 
 // Push event - handle incoming push notifications (ENHANCED for background persistence)
 self.addEventListener('push', (event) => {
-  console.log('[SW] Push notification received (background/app closed)');
+  console.log('[SW] 🔔 Push notification received (background/app closed)');
+  console.log('[SW] Event data type:', event.data ? event.data.type : 'no data');
+  
+  // Notify all clients that push was received
+  self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+    clients.forEach((client) => {
+      client.postMessage({ type: 'PUSH_RECEIVED' }).catch(() => {})
+    })
+  })
   
   // Default notification data
   let notificationData = {
@@ -71,8 +79,25 @@ self.addEventListener('push', (event) => {
   // Parse push data
   if (event.data) {
     try {
-      const data = event.data.json();
-      console.log('[SW] Push data:', data);
+      // Try to parse as JSON first
+      let data;
+      if (typeof event.data.json === 'function') {
+        data = event.data.json();
+      } else if (typeof event.data.text === 'function') {
+        const text = event.data.text();
+        data = JSON.parse(text);
+      } else {
+        // Fallback: try to use data directly
+        data = event.data;
+      }
+      
+      console.log('[SW] Push data parsed:', {
+        title: data.title,
+        body: data.body,
+        hasData: !!data.data,
+        type: data.type || data.tag,
+        fullData: data
+      });
       
       notificationData = {
         title: data.title || notificationData.title,
@@ -105,24 +130,57 @@ self.addEventListener('push', (event) => {
 
   // CRITICAL: Use waitUntil to ensure notification shows even when app is closed
   event.waitUntil(
-    self.registration.showNotification(notificationData.title, {
-      body: notificationData.body,
-      icon: notificationData.icon,
-      badge: notificationData.badge,
-      tag: notificationData.tag,
-      data: notificationData.data,
-      actions: notificationData.actions,
-      vibrate: notificationData.vibrate,
-      requireInteraction: notificationData.requireInteraction,
-      silent: notificationData.silent,
-      renotify: notificationData.renotify,
-      timestamp: notificationData.timestamp,
-      // CRITICAL: These options ensure notification shows when app is closed
-      dir: 'ltr',
-      lang: 'en',
-      // Add image if provided
-      image: notificationData.data?.image || undefined
-    })
+    Promise.all([
+      // Show browser notification
+      self.registration.showNotification(notificationData.title, {
+        body: notificationData.body,
+        icon: notificationData.icon,
+        badge: notificationData.badge,
+        tag: notificationData.tag,
+        data: notificationData.data,
+        actions: notificationData.actions,
+        vibrate: notificationData.vibrate,
+        requireInteraction: notificationData.requireInteraction,
+        silent: notificationData.silent,
+        renotify: notificationData.renotify,
+        timestamp: notificationData.timestamp,
+        // CRITICAL: These options ensure notification shows when app is closed
+        dir: 'ltr',
+        lang: 'en',
+        // Add image if provided
+        image: notificationData.data?.image || undefined
+      }).then(() => {
+        console.log('[SW] ✅ Browser notification shown successfully:', notificationData.title);
+        console.log('[SW] Notification details:', {
+          title: notificationData.title,
+          body: notificationData.body,
+          tag: notificationData.tag,
+          hasData: !!notificationData.data
+        });
+      }).catch((err) => {
+        console.error('[SW] ❌ Failed to show notification:', err);
+        console.error('[SW] Error details:', {
+          message: err.message,
+          name: err.name,
+          stack: err.stack
+        });
+      }),
+      
+      // Also notify all clients (if app is open)
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+        if (clients.length > 0) {
+          console.log('[SW] Notifying', clients.length, 'client(s) about new notification');
+          clients.forEach((client) => {
+            client.postMessage({
+              type: 'PUSH_NOTIFICATION',
+              notification: notificationData
+            }).catch((err) => {
+              console.warn('[SW] Failed to post message to client:', err);
+            });
+          });
+        }
+      })
+    ])
   );
 });
 

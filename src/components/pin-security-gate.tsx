@@ -17,8 +17,14 @@ export function PinSecurityGate({ children }: { children: React.ReactNode }) {
   const [showSettings, setShowSettings] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [mounted, setMounted] = useState(false)
 
   const bypassPin = true // TEMPORARY: disable PIN
+
+  // Set mounted flag to prevent hydration mismatch
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // Handle bypass in useEffect to avoid re-render loop
   useEffect(() => {
@@ -167,6 +173,11 @@ export function PinSecurityGate({ children }: { children: React.ReactNode }) {
     } finally {
       setSaving(false)
     }
+  }
+
+  // Prevent hydration mismatch - show children during SSR
+  if (!mounted) {
+    return <>{children}</>
   }
 
   // Loading screen

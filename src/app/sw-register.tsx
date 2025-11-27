@@ -59,6 +59,13 @@ export default function ServiceWorkerRegistration() {
             }
           })
           
+          // Listen for push events from service worker (for debugging)
+          navigator.serviceWorker.addEventListener('message', (event) => {
+            if (event.data && event.data.type === 'PUSH_RECEIVED') {
+              console.log('[sw-register] Service worker received push event')
+            }
+          })
+          
           // Listen for messages from service worker
           navigator.serviceWorker.addEventListener('message', (event) => {
             if (event.data && event.data.type === 'INCIDENT_QUEUED') {

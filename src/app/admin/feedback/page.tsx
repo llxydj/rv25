@@ -112,6 +112,52 @@ export default function AdminFeedbackPage() {
     fetchFeedback()
   }, [])
 
+  // Filter feedback
+  const getFilteredFeedback = (): FeedbackItem[] => {
+    let filtered = [...feedback]
+
+    // Date filter
+    if (dateFilter !== "all") {
+      const now = Date.now()
+      let cutoff = now
+
+      switch (dateFilter) {
+        case "week":
+          cutoff = now - 7 * 24 * 60 * 60 * 1000
+          break
+        case "month":
+          cutoff = now - 30 * 24 * 60 * 60 * 1000
+          break
+        case "year":
+          cutoff = now - 365 * 24 * 60 * 60 * 1000
+          break
+      }
+
+      filtered = filtered.filter(f => new Date(f.created_at).getTime() > cutoff)
+    }
+
+    // Rating filter
+    if (ratingFilter !== "all") {
+      filtered = filtered.filter(f => f.rating === parseInt(ratingFilter))
+    }
+
+    // Search filter
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase()
+      filtered = filtered.filter(f => 
+        f.comment?.toLowerCase().includes(term) ||
+        f.incident?.incident_type.toLowerCase().includes(term) ||
+        f.incident?.barangay.toLowerCase().includes(term) ||
+        f.users?.first_name.toLowerCase().includes(term) ||
+        f.users?.last_name.toLowerCase().includes(term)
+      )
+    }
+
+    return filtered.sort((a, b) => 
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    )
+  }
+
   // Calculate statistics
   const stats: FeedbackStats = useMemo(() => {
     const filtered = getFilteredFeedback()
@@ -160,52 +206,6 @@ export default function AdminFeedbackPage() {
       recentTrend
     }
   }, [feedback, dateFilter, ratingFilter, searchTerm])
-
-  // Filter feedback
-  const getFilteredFeedback = (): FeedbackItem[] => {
-    let filtered = [...feedback]
-
-    // Date filter
-    if (dateFilter !== "all") {
-      const now = Date.now()
-      let cutoff = now
-
-      switch (dateFilter) {
-        case "week":
-          cutoff = now - 7 * 24 * 60 * 60 * 1000
-          break
-        case "month":
-          cutoff = now - 30 * 24 * 60 * 60 * 1000
-          break
-        case "year":
-          cutoff = now - 365 * 24 * 60 * 60 * 1000
-          break
-      }
-
-      filtered = filtered.filter(f => new Date(f.created_at).getTime() > cutoff)
-    }
-
-    // Rating filter
-    if (ratingFilter !== "all") {
-      filtered = filtered.filter(f => f.rating === parseInt(ratingFilter))
-    }
-
-    // Search filter
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase()
-      filtered = filtered.filter(f => 
-        f.comment?.toLowerCase().includes(term) ||
-        f.incident?.incident_type.toLowerCase().includes(term) ||
-        f.incident?.barangay.toLowerCase().includes(term) ||
-        f.users?.first_name.toLowerCase().includes(term) ||
-        f.users?.last_name.toLowerCase().includes(term)
-      )
-    }
-
-    return filtered.sort((a, b) => 
-      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    )
-  }
 
   const filteredFeedback = getFilteredFeedback()
 

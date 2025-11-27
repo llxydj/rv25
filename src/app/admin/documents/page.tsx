@@ -278,13 +278,28 @@ export default function AdminDocumentsPage() {
       })
 
       const json = uploadJson
-      if (!json.success) throw new Error(json.message || "Upload failed")
+      if (!json.success) {
+        // Handle partial success
+        if (json.errors && Array.isArray(json.errors)) {
+          const errorMessages = json.errors.map((e: any) => `${e.fileName}: ${e.reason}`).join('; ')
+          throw new Error(`Upload failed: ${errorMessages}`)
+        }
+        throw new Error(json.message || "Upload failed")
+      }
 
       const uploadedNames: string[] = (json.data && Array.isArray(json.data))
         ? json.data.map((it: any) => it.display_name || it.file_name)
         : valid.map((f) => f.name)
 
-      setUploadResult({ uploaded: uploadedNames, skipped })
+      // Combine skipped files with any errors from the API
+      const allSkipped = [...skipped]
+      if (json.errors && Array.isArray(json.errors)) {
+        json.errors.forEach((err: any) => {
+          allSkipped.push({ name: err.fileName, reason: err.reason })
+        })
+      }
+
+      setUploadResult({ uploaded: uploadedNames, skipped: allSkipped })
       setShowUploadModal(true)
 
       setFiles([])
@@ -487,9 +502,37 @@ export default function AdminDocumentsPage() {
                 aria-label="Choose files to upload"
               />
               {files.length > 0 && (
-                <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
-                  {files.length} file{files.length !== 1 ? 's' : ''} selected
-                </p>
+                <div className="mt-2 space-y-1">
+                  <p className="text-xs text-gray-600 dark:text-gray-400">
+                    {files.length} file{files.length !== 1 ? 's' : ''} selected
+                  </p>
+                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                    {files.map((f, idx) => {
+                      const ext = f.name.split('.').pop()?.toLowerCase() || ''
+                      const isValidType = ALLOW.includes(ext)
+                      const isValidSize = f.size <= MAX_FILE_SIZE_BYTES
+                      const sizeMB = (f.size / 1024 / 1024).toFixed(2)
+                      
+                      return (
+                        <div 
+                          key={idx} 
+                          className={`text-xs p-2 rounded border ${
+                            isValidType && isValidSize 
+                              ? 'bg-green-50 border-green-200 text-green-800 dark:bg-green-900/20 dark:border-green-800 dark:text-green-300' 
+                              : 'bg-red-50 border-red-200 text-red-800 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300'
+                          }`}
+                        >
+                          <div className="font-medium truncate">{f.name}</div>
+                          <div className="text-[10px] mt-0.5">
+                            {sizeMB} MB
+                            {!isValidType && <span className="ml-2">⚠️ Type not allowed</span>}
+                            {!isValidSize && <span className="ml-2">⚠️ Too large (max 10MB)</span>}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
               )}
             </div>
             <Button

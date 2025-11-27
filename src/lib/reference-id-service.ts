@@ -42,7 +42,13 @@ export class ReferenceIdService {
    */
   async createReferenceId(incidentId: string): Promise<{ success: boolean; referenceId?: string; error?: string }> {
     try {
-      const serverSupabase = getSimpleServerSupabase()
+      let serverSupabase
+      try {
+        serverSupabase = getSimpleServerSupabase()
+      } catch (supabaseError: any) {
+        console.warn('Reference ID service unavailable - Supabase client initialization failed:', supabaseError?.message)
+        return { success: false, error: 'Reference ID service unavailable' }
+      }
       // Check if reference ID already exists
       const { data: existing, error: checkError } = await (serverSupabase as SupabaseClient)
         .from('incident_reference_ids')
@@ -112,7 +118,13 @@ export class ReferenceIdService {
    */
   async getReferenceId(incidentId: string): Promise<{ success: boolean; referenceId?: string; error?: string }> {
     try {
-      const serverSupabase = getSimpleServerSupabase()
+      let serverSupabase
+      try {
+        serverSupabase = getSimpleServerSupabase()
+      } catch (supabaseError: any) {
+        console.warn('Reference ID service unavailable - Supabase client initialization failed:', supabaseError?.message)
+        return { success: false, error: 'Reference ID service unavailable' }
+      }
       const { data, error } = await (serverSupabase as SupabaseClient)
         .from('incident_reference_ids')
         .select('reference_id')
@@ -153,7 +165,13 @@ export class ReferenceIdService {
    */
   async getIncidentId(referenceId: string): Promise<{ success: boolean; incidentId?: string; error?: string }> {
     try {
-      const serverSupabase = getSimpleServerSupabase()
+      let serverSupabase
+      try {
+        serverSupabase = getSimpleServerSupabase()
+      } catch (supabaseError: any) {
+        console.warn('Reference ID service unavailable - Supabase client initialization failed:', supabaseError?.message)
+        return { success: false, error: 'Reference ID service unavailable' }
+      }
       const { data, error } = await (serverSupabase as SupabaseClient)
         .from('incident_reference_ids')
         .select('incident_id')
@@ -185,7 +203,13 @@ export class ReferenceIdService {
    */
   async getUserReferenceIds(userId: string): Promise<{ success: boolean; mappings?: ReferenceIdMapping[]; error?: string }> {
     try {
-      const serverSupabase = getSimpleServerSupabase()
+      let serverSupabase
+      try {
+        serverSupabase = getSimpleServerSupabase()
+      } catch (supabaseError: any) {
+        console.warn('Reference ID service unavailable - Supabase client initialization failed:', supabaseError?.message)
+        return { success: false, error: 'Reference ID service unavailable' }
+      }
       const { data, error } = await (serverSupabase as SupabaseClient)
         .from('incident_reference_ids')
         .select(`

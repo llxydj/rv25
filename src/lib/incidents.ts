@@ -358,10 +358,18 @@ export const createIncident = async (
 
     if (filesToUpload.length > 0) {
       notifyStage("upload-photo")
-      for (const file of filesToUpload) {
-        const path = await uploadSinglePhoto(file)
-        uploadedPhotoPaths.push(path)
-      }
+      // Upload all photos in parallel for faster submission
+      const uploadPromises = filesToUpload.map(async (file) => {
+        try {
+          return await uploadSinglePhoto(file)
+        } catch (error) {
+          console.error('Failed to upload photo:', error)
+          // Continue with other uploads even if one fails
+          return null
+        }
+      })
+      const paths = await Promise.all(uploadPromises)
+      uploadedPhotoPaths.push(...paths.filter((path): path is string => path !== null))
     }
 
     // Send to API to perform server-side verification and normalization

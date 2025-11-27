@@ -5,7 +5,11 @@ export const runtime = "nodejs"
 
 // PDF Generation using jsPDF
 import jsPDF from 'jspdf'
+// Import jspdf-autotable - in v5.x it extends jsPDF automatically
 import 'jspdf-autotable'
+
+// Also import as a function for direct use if needed
+import autoTable from 'jspdf-autotable'
 
 // Extend jsPDF type to include autoTable
 declare module 'jspdf' {
@@ -206,7 +210,7 @@ async function generateIncidentReport(filters: ReportFilters): Promise<Buffer> {
       incident.resolved_at ? new Date(incident.resolved_at).toLocaleDateString() : 'N/A'
     ])
 
-    doc.autoTable({
+    autoTable(doc, {
       head: [['ID', 'Type', 'Status', 'Severity', 'Barangay', 'Created', 'Assigned', 'Resolved']],
       body: tableData,
       startY: yPos,
@@ -319,7 +323,7 @@ async function generateVolunteerPerformanceReport(filters: ReportFilters): Promi
       `${volunteer.resolutionRate}%`
     ])
 
-    doc.autoTable({
+    autoTable(doc, {
       head: [['Name', 'Phone', 'Skills', 'Assigned', 'Resolved', 'Resolution Rate']],
       body: tableData,
       startY: 140,
@@ -425,7 +429,7 @@ async function generateAnalyticsReport(filters: ReportFilters): Promise<Buffer> 
     `${((count as number) / totalIncidents * 100).toFixed(1)}%`
   ])
 
-  doc.autoTable({
+  autoTable(doc, {
     head: [['Status', 'Count', 'Percentage']],
     body: statusData,
     startY: yPos,
@@ -447,7 +451,7 @@ async function generateAnalyticsReport(filters: ReportFilters): Promise<Buffer> 
     `${((count as number) / totalIncidents * 100).toFixed(1)}%`
   ])
 
-  doc.autoTable({
+  autoTable(doc, {
     head: [['Type', 'Count', 'Percentage']],
     body: typeData,
     startY: yPos,
@@ -472,7 +476,7 @@ async function generateAnalyticsReport(filters: ReportFilters): Promise<Buffer> 
       `${((count as number) / totalIncidents * 100).toFixed(1)}%`
     ])
 
-  doc.autoTable({
+  autoTable(doc, {
     head: [['Barangay', 'Count', 'Percentage']],
     body: barangayData,
     startY: yPos,

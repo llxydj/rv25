@@ -102,7 +102,41 @@ export async function POST(request: Request) {
 
     // NOTE: Notification is automatically created by database trigger
     // (notify_volunteer_on_assignment) when assigned_to is updated
-    // No need to manually call notificationService here to avoid duplicates
+    // However, push notifications need to be sent manually since triggers can't send push
+
+    // Send push notification to assigned volunteer
+    if (updated) {
+      try {
+        const { sendPushToUser } = await import('@/lib/push-notification-helper')
+        const incidentData = updated as unknown as IncidentRow
+        
+        await sendPushToUser(cleanVolunteerId, {
+          title: '📋 New Incident Assignment',
+          body: `You have been assigned to a ${incidentData.incident_type || 'incident'} in ${incidentData.barangay || 'your area'}`,
+          icon: '/icons/icon-192x192.png',
+          badge: '/icons/icon-192x192.png',
+          tag: 'assignment_alert',
+          data: {
+            incident_id: cleanIncidentId,
+            url: `/volunteer/incident/${cleanIncidentId}`,
+            type: 'assignment_alert',
+            timestamp: Date.now()
+          },
+          requireInteraction: true,
+          vibrate: [200, 100, 200],
+          actions: [
+            { action: 'open', title: 'View Incident' },
+            { action: 'close', title: 'Dismiss' }
+          ],
+          renotify: false,
+          silent: false
+        })
+        console.log('✅ Push notification sent to assigned volunteer')
+      } catch (pushErr) {
+        console.error('❌ Failed to send push notification to assigned volunteer:', pushErr)
+        // Don't fail assignment if push fails
+      }
+    }
 
     // Send immediate SMS to assigned volunteer
     if (volunteer.phone_number && updated) {

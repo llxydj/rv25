@@ -654,8 +654,20 @@ export default function AdminReports() {
       }, {})
 
       const volunteersByAvailability = filteredVolunteers.reduce((acc: Record<string, number>, volunteer) => {
-        const availability = volunteer.volunteer_profiles?.availability || "UNKNOWN"
-        acc[availability] = (acc[availability] || 0) + 1
+        const availability = volunteer.volunteer_profiles?.availability
+        let availabilityStr = "Not Set"
+        
+        if (Array.isArray(availability)) {
+          // If availability is an array
+          if (availability.length > 0) {
+            availabilityStr = availability.join(', ')
+          }
+        } else if (typeof availability === 'string' && availability.trim()) {
+          // If availability is a string
+          availabilityStr = availability
+        }
+        
+        acc[availabilityStr] = (acc[availabilityStr] || 0) + 1
         return acc
       }, {})
 
@@ -685,7 +697,7 @@ export default function AdminReports() {
       }, {})
 
       const schedulesByType = filteredSchedules.reduce((acc: Record<string, number>, schedule) => {
-        const type = schedule.activity_type || "UNKNOWN"
+        const type = schedule.title || schedule.activity_type || "Not Set"
         acc[type] = (acc[type] || 0) + 1
         return acc
       }, {})

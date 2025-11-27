@@ -401,6 +401,16 @@ CREATE TABLE public.system_logs (
   CONSTRAINT system_logs_pkey PRIMARY KEY (id),
   CONSTRAINT system_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
+CREATE TABLE public.training_enrollments (
+  id bigint NOT NULL DEFAULT nextval('training_enrollments_id_seq'::regclass),
+  training_id bigint NOT NULL,
+  user_id uuid NOT NULL,
+  enrolled_at timestamp with time zone NOT NULL DEFAULT now(),
+  attended boolean DEFAULT false,
+  CONSTRAINT training_enrollments_pkey PRIMARY KEY (id),
+  CONSTRAINT training_enrollments_training_id_fkey FOREIGN KEY (training_id) REFERENCES public.trainings(id),
+  CONSTRAINT training_enrollments_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
 CREATE TABLE public.training_evaluations (
   id bigint NOT NULL DEFAULT nextval('training_evaluations_id_seq'::regclass),
   training_id bigint NOT NULL,
@@ -411,6 +421,21 @@ CREATE TABLE public.training_evaluations (
   CONSTRAINT training_evaluations_pkey PRIMARY KEY (id),
   CONSTRAINT training_evaluations_training_id_fkey FOREIGN KEY (training_id) REFERENCES public.trainings(id)
 );
+CREATE TABLE public.training_evaluations_admin (
+  id bigint NOT NULL DEFAULT nextval('training_evaluations_admin_id_seq'::regclass),
+  training_id bigint NOT NULL,
+  user_id uuid NOT NULL,
+  evaluated_by uuid NOT NULL,
+  performance_rating integer NOT NULL CHECK (performance_rating >= 1 AND performance_rating <= 5),
+  skills_assessment jsonb,
+  comments text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT training_evaluations_admin_pkey PRIMARY KEY (id),
+  CONSTRAINT training_evaluations_admin_training_id_fkey FOREIGN KEY (training_id) REFERENCES public.trainings(id),
+  CONSTRAINT training_evaluations_admin_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT training_evaluations_admin_evaluated_by_fkey FOREIGN KEY (evaluated_by) REFERENCES public.users(id)
+);
 CREATE TABLE public.trainings (
   id bigint NOT NULL DEFAULT nextval('trainings_id_seq'::regclass),
   title text NOT NULL,
@@ -420,6 +445,8 @@ CREATE TABLE public.trainings (
   location text,
   created_by uuid,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
+  capacity integer,
+  status text DEFAULT 'SCHEDULED'::text CHECK (status = ANY (ARRAY['SCHEDULED'::text, 'ONGOING'::text, 'COMPLETED'::text, 'CANCELLED'::text])),
   CONSTRAINT trainings_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.users (

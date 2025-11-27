@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { AdminLayout } from "@/components/layout/admin-layout"
-import { Card } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { StarRating } from "@/components/ui/star-rating"
 import { BarChart3, TrendingUp, Star, MessageSquare, Users as UsersIcon } from "lucide-react"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
@@ -38,61 +38,84 @@ export default function AdminTrainingEvaluationsPage() {
   const [loading, setLoading] = useState(false)
   const [analytics, setAnalytics] = useState<Analytics | null>(null)
 
+  const [error, setError] = useState<string | null>(null)
+
   useEffect(() => {
     if (!FEATURE_ENABLED) return
     ;(async () => {
       setLoading(true)
+      setError(null)
       try {
         // Fetch evaluations with user data
-        const res = await fetch('/api/training-evaluations?include_user=true')
+        const res = await fetch('/api/training-evaluations?include_user=true', {
+          credentials: 'include',
+          cache: 'no-store'
+        })
         const json = await res.json()
-        if (res.ok && json.success) {
-          setItems(json.data || [])
-          
-          // Calculate analytics
-          const evaluations = json.data || []
-          if (evaluations.length > 0) {
-            const totalEvaluations = evaluations.length
-            const averageRating = evaluations.reduce((sum: number, e: Evaluation) => sum + e.rating, 0) / totalEvaluations
-            
-            // Rating distribution
-            const distribution = [1, 2, 3, 4, 5].map(rating => ({
-              rating,
-              count: evaluations.filter((e: Evaluation) => e.rating === rating).length
-            }))
-            
-            // Recent trend (last 7 days vs previous 7 days)
-            const now = Date.now()
-            const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000
-            const fourteenDaysAgo = now - 14 * 24 * 60 * 60 * 1000
-            
-            const recentEvals = evaluations.filter((e: Evaluation) => 
-              new Date(e.created_at).getTime() > sevenDaysAgo
-            )
-            const previousEvals = evaluations.filter((e: Evaluation) => {
-              const time = new Date(e.created_at).getTime()
-              return time > fourteenDaysAgo && time <= sevenDaysAgo
-            })
-            
-            const recentAvg = recentEvals.length > 0 
-              ? recentEvals.reduce((sum: number, e: Evaluation) => sum + e.rating, 0) / recentEvals.length
-              : 0
-            const previousAvg = previousEvals.length > 0
-              ? previousEvals.reduce((sum: number, e: Evaluation) => sum + e.rating, 0) / previousEvals.length
-              : 0
-            
-            const recentTrend = recentAvg > previousAvg ? 'up' : recentAvg < previousAvg ? 'down' : 'stable'
-            
-            setAnalytics({
-              totalEvaluations,
-              averageRating,
-              ratingDistribution: distribution,
-              recentTrend
-            })
-          }
+        
+        if (!res.ok || !json.success) {
+          throw new Error(json.message || 'Failed to load training evaluations')
         }
-      } catch { void 0 }
-      setLoading(false)
+        
+        const evaluations = json.data || []
+        setItems(evaluations)
+        
+        // Calculate analytics
+        if (evaluations.length > 0) {
+          const totalEvaluations = evaluations.length
+          const averageRating = evaluations.reduce((sum: number, e: Evaluation) => sum + e.rating, 0) / totalEvaluations
+          
+          // Rating distribution
+          const distribution = [1, 2, 3, 4, 5].map(rating => ({
+            rating,
+            count: evaluations.filter((e: Evaluation) => e.rating === rating).length
+          }))
+          
+          // Recent trend (last 7 days vs previous 7 days)
+          const now = Date.now()
+          const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000
+          const fourteenDaysAgo = now - 14 * 24 * 60 * 60 * 1000
+          
+          const recentEvals = evaluations.filter((e: Evaluation) => 
+            new Date(e.created_at).getTime() > sevenDaysAgo
+          )
+          const previousEvals = evaluations.filter((e: Evaluation) => {
+            const time = new Date(e.created_at).getTime()
+            return time > fourteenDaysAgo && time <= sevenDaysAgo
+          })
+          
+          const recentAvg = recentEvals.length > 0 
+            ? recentEvals.reduce((sum: number, e: Evaluation) => sum + e.rating, 0) / recentEvals.length
+            : 0
+          const previousAvg = previousEvals.length > 0
+            ? previousEvals.reduce((sum: number, e: Evaluation) => sum + e.rating, 0) / previousEvals.length
+            : 0
+          
+          const recentTrend = recentAvg > previousAvg ? 'up' : recentAvg < previousAvg ? 'down' : 'stable'
+          
+          setAnalytics({
+            totalEvaluations,
+            averageRating,
+            ratingDistribution: distribution,
+            recentTrend
+          })
+        } else {
+          // No evaluations yet - set default analytics
+          setAnalytics({
+            totalEvaluations: 0,
+            averageRating: 0,
+            ratingDistribution: [1, 2, 3, 4, 5].map(r => ({ rating: r, count: 0 })),
+            recentTrend: 'stable'
+          })
+        }
+      } catch (e: any) {
+        console.error('Error loading training evaluations:', e)
+        setError(e?.message || 'Failed to load training evaluations')
+        setItems([])
+        setAnalytics(null)
+      } finally {
+        setLoading(false)
+      }
     })()
   }, [])
 
@@ -112,6 +135,21 @@ export default function AdminTrainingEvaluationsPage() {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Training Evaluations</h1>
           <p className="text-gray-600">Monitor and analyze training feedback from volunteers and residents</p>
         </div>
+
+        {/* Error Display */}
+        {error && (
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="pt-6">
+              <div className="flex items-start gap-3">
+                <div className="text-red-500">⚠️</div>
+                <div>
+                  <h3 className="text-sm font-medium text-red-800">Error Loading Evaluations</h3>
+                  <p className="text-sm text-red-700 mt-1">{error}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {loading ? (
           <div className="flex justify-center items-center h-64">
@@ -156,11 +194,11 @@ export default function AdminTrainingEvaluationsPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-gray-600">7-Day Trend</p>
-                      <p className="text-3xl font-bold mt-2 ${
+                      <p className={`text-3xl font-bold mt-2 ${
                         analytics.recentTrend === 'up' ? 'text-green-600' :
                         analytics.recentTrend === 'down' ? 'text-red-600' :
                         'text-gray-900'
-                      }">
+                      }`}>
                         {analytics.recentTrend === 'up' ? '↑' : analytics.recentTrend === 'down' ? '↓' : '→'}
                       </p>
                       <p className="text-xs text-gray-500 mt-1">

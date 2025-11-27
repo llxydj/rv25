@@ -264,7 +264,6 @@ export class NotificationDeliveryService {
         .from('push_subscriptions')
         .select('subscription')
         .eq('user_id', userId)
-        .eq('is_active', true)
         .limit(1)
 
       if (subscriptions && subscriptions.length > 0) {

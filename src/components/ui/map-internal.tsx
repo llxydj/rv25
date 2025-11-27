@@ -106,7 +106,26 @@ function RecenterMap({ center }: { center: [number, number] }) {
   const map = useMap()
   
   useEffect(() => {
-    map.setView(center, map.getZoom())
+    // Guard against accessing map when it's not ready
+    if (!map || !map.getContainer || !map.setView) return
+    
+    // Use a small delay to ensure map is fully initialized
+    // This prevents errors during zoom transitions when DOM elements might not be ready
+    const timeout = setTimeout(() => {
+      try {
+        const container = map.getContainer()
+        // Only proceed if container is ready
+        if (container && container._leaflet_id) {
+          // Use animate: false to prevent conflicts with ongoing transitions
+          map.setView(center, map.getZoom(), { animate: false })
+        }
+      } catch (err) {
+        // Silently handle errors during map initialization/transitions
+        // This prevents crashes when map is accessing _leaflet_pos during transitions
+      }
+    }, 150)
+    
+    return () => clearTimeout(timeout)
   }, [center, map])
   
   return null
@@ -118,37 +137,57 @@ function TalisayCityBoundary() {
   const boundaryLayerRef = useRef<L.GeoJSON<any> | null>(null)
   
   useEffect(() => {
-    // Load GeoJSON boundary
-    fetch('/talisay.geojson')
-      .then(response => response.json())
-      .then(data => {
-        // Basic validation for GeoJSON
-        const isFeatureCollection = data && data.type === 'FeatureCollection' && Array.isArray(data.features)
-        const isFeature = data && data.type === 'Feature' && data.geometry
-        if (!isFeatureCollection && !isFeature) {
-          throw new Error('Loaded file is not valid GeoJSON (Feature/FeatureCollection)')
+    if (!map || !map.getContainer) return
+    
+    // Wait for map to be ready before loading boundary
+    const loadBoundary = () => {
+      try {
+        const container = map.getContainer()
+        if (!container || !container._leaflet_id) {
+          // Map not ready, retry
+          setTimeout(loadBoundary, 100)
+          return
         }
-
-        // Remove previous boundary layer if any
-        if (boundaryLayerRef.current) {
-          map.removeLayer(boundaryLayerRef.current)
-          boundaryLayerRef.current = null
-        }
-
-        const geoJsonLayer = L.geoJSON(data, {
-          style: {
-            color: '#3b82f6',
-            weight: 2,
-            opacity: 0.8,
-            fillOpacity: 0.1
+      } catch (err) {
+        return
+      }
+      
+      // Load GeoJSON boundary
+      fetch('/talisay.geojson')
+        .then(response => response.json())
+        .then(data => {
+          // Basic validation for GeoJSON
+          const isFeatureCollection = data && data.type === 'FeatureCollection' && Array.isArray(data.features)
+          const isFeature = data && data.type === 'Feature' && data.geometry
+          if (!isFeatureCollection && !isFeature) {
+            throw new Error('Loaded file is not valid GeoJSON (Feature/FeatureCollection)')
           }
-        }).addTo(map)
 
-        boundaryLayerRef.current = geoJsonLayer
+          // Remove previous boundary layer if any
+          if (boundaryLayerRef.current && map.removeLayer) {
+            try {
+              map.removeLayer(boundaryLayerRef.current)
+            } catch (err) {
+              // Ignore errors when removing layer
+            }
+            boundaryLayerRef.current = null
+          }
 
-        // Expose polygon coordinates (lat, lng) globally for guards if available
-        try {
-          const first = (data.type === 'FeatureCollection' ? data.features?.[0] : data) as any
+          try {
+            const geoJsonLayer = L.geoJSON(data, {
+              style: {
+                color: '#3b82f6',
+                weight: 2,
+                opacity: 0.8,
+                fillOpacity: 0.1
+              }
+            }).addTo(map)
+
+            boundaryLayerRef.current = geoJsonLayer
+
+            // Expose polygon coordinates (lat, lng) globally for guards if available
+            try {
+              const first = (data.type === 'FeatureCollection' ? data.features?.[0] : data) as any
           const geom = first?.geometry
           if (geom?.type === 'Polygon' && Array.isArray(geom.coordinates?.[0])) {
             // GeoJSON is [lng, lat]; convert to [lat, lng]
@@ -163,24 +202,35 @@ function TalisayCityBoundary() {
           console.error('Failed to expose polygon coordinates:', err)
         }
 
-        // Fit map to boundary bounds once loaded
-        try {
-          const bounds = geoJsonLayer.getBounds()
-          if (bounds && bounds.isValid()) {
-            map.fitBounds(bounds, { padding: [20, 20] })
+            // Fit map to boundary bounds once loaded
+            try {
+              const bounds = geoJsonLayer.getBounds()
+              if (bounds && bounds.isValid() && map.fitBounds) {
+                map.fitBounds(bounds, { padding: [20, 20] })
+              }
+            } catch (err) {
+              console.error('Failed to fit bounds to boundary:', err)
+            }
+          } catch (err) {
+            console.error('Failed to add boundary layer to map:', err)
           }
-        } catch (err) {
-          console.error('Failed to fit bounds to boundary:', err)
-        }
-      })
-      .catch(error => {
-        console.error('Error loading boundary:', error)
-      })
+        })
+        .catch(error => {
+          console.error('Error loading boundary:', error)
+        })
+    }
+    
+    loadBoundary()
+    
     return () => {
-      if (boundaryLayerRef.current) {
-        map.removeLayer(boundaryLayerRef.current)
-        boundaryLayerRef.current = null
+      if (boundaryLayerRef.current && map && map.removeLayer) {
+        try {
+          map.removeLayer(boundaryLayerRef.current)
+        } catch (err) {
+          // Ignore cleanup errors
+        }
       }
+      boundaryLayerRef.current = null
     }
   }, [map])
   
@@ -205,21 +255,40 @@ function VolunteerLocations({ showVolunteerLocations }: { showVolunteerLocations
   
   // Get map center once and memoize it to prevent infinite re-renders
   const [mapCenter, setMapCenter] = useState<[number, number]>(() => {
-    const center = map.getCenter()
-    return [center.lat, center.lng]
+    try {
+      if (!map || !map.getCenter) return TALISAY_CENTER
+      const center = map.getCenter()
+      return [center.lat, center.lng]
+    } catch (err) {
+      console.warn('Failed to get initial map center:', err)
+      return TALISAY_CENTER
+    }
   })
 
   // Update map center only when the map moves (not on every render)
   useEffect(() => {
+    if (!map || !map.getCenter || !map.on) return
+    
     const handleMoveEnd = () => {
-      const center = map.getCenter()
-      setMapCenter([center.lat, center.lng])
+      try {
+        if (!map || !map.getCenter) return
+        const center = map.getCenter()
+        setMapCenter([center.lat, center.lng])
+      } catch (err) {
+        console.warn('Failed to update map center:', err)
+      }
     }
 
     map.on('moveend', handleMoveEnd)
     
     return () => {
-      map.off('moveend', handleMoveEnd)
+      try {
+        if (map && map.off) {
+          map.off('moveend', handleMoveEnd)
+        }
+      } catch (err) {
+        console.warn('Failed to remove moveend listener:', err)
+      }
     }
   }, [map])
 

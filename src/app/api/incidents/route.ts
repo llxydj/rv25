@@ -7,6 +7,7 @@ import { mapPriorityToSeverity } from '@/lib/incident-utils'
 import { normalizeBarangay } from '@/lib/barangay-mapping'
 import { getServerSupabase } from '@/lib/supabase-server'
 import { analyticsCache } from '@/app/api/volunteers/analytics/cache'
+import webpush from 'web-push'
 
 // Helper function to get required skills for incident type
 function getRequiredSkillsForIncidentType(incidentType: string): string[] {
@@ -457,7 +458,228 @@ export async function POST(request: Request) {
     }
     // NOTE: Notifications are automatically created by database triggers
     // (notify_admins_on_new_incident, notify_barangay_on_new_incident)
-    // No need to manually call notificationService here to avoid duplicates
+    // However, push notifications need to be sent manually since triggers can't send push
+    
+    // Send push notifications to admins (database records already created by trigger)
+    try {
+      // First get all admin user IDs
+      const { data: admins } = await supabase
+        .from('users')
+        .select('id')
+        .eq('role', 'admin')
+
+      if (!admins || admins.length === 0) {
+        console.log('⚠️ No admin users found')
+      } else {
+        // Get all admin push subscriptions
+        const adminIds = admins.map(admin => admin.id)
+        console.log(`[push] Looking for subscriptions for ${adminIds.length} admin(s):`, adminIds)
+        
+        const { data: adminSubscriptions, error: subError } = await supabase
+          .from('push_subscriptions')
+          .select('subscription, user_id, endpoint')
+          .in('user_id', adminIds)
+
+        if (subError) {
+          console.error('[push] Error fetching admin subscriptions:', subError)
+          console.log('⚠️ Skipping push notifications due to subscription fetch error')
+        } else {
+          console.log(`[push] Found ${adminSubscriptions?.length || 0} total subscription(s) for admins`)
+          
+          // Filter valid subscriptions (must have subscription object with endpoint)
+          const validSubscriptions = (adminSubscriptions || []).filter((sub: any) => {
+            // Check if subscription exists and has the right structure
+            if (!sub.subscription) {
+              console.warn(`[push] Subscription missing for admin ${sub.user_id}`)
+              return false
+            }
+            
+            // Handle both JSONB object and string formats
+            let subscriptionObj = sub.subscription
+            if (typeof subscriptionObj === 'string') {
+              try {
+                subscriptionObj = JSON.parse(subscriptionObj)
+              } catch (e) {
+                console.warn(`[push] Invalid subscription JSON for admin ${sub.user_id}:`, e)
+                return false
+              }
+            }
+            
+            // Check if subscription has required fields
+            const hasEndpoint = subscriptionObj?.endpoint || sub.endpoint
+            const hasKeys = subscriptionObj?.keys?.p256dh && subscriptionObj?.keys?.auth
+            
+            if (!hasEndpoint || !hasKeys) {
+              console.warn(`[push] Invalid subscription structure for admin ${sub.user_id}:`, {
+                hasEndpoint: !!hasEndpoint,
+                hasKeys: !!hasKeys
+              })
+              return false
+            }
+            
+            return true
+          })
+          
+          console.log(`[push] Found ${validSubscriptions.length} valid subscription(s) for admins`)
+          
+          if (validSubscriptions.length > 0) {
+            // Log subscription details for debugging
+            validSubscriptions.forEach((sub: any) => {
+              let subscriptionObj = sub.subscription
+              if (typeof subscriptionObj === 'string') {
+                try {
+                  subscriptionObj = JSON.parse(subscriptionObj)
+                } catch (e) {
+                  subscriptionObj = null
+                }
+              }
+              
+              console.log(`[push] ✅ Valid subscription for admin ${sub.user_id}:`, {
+                endpoint: subscriptionObj?.endpoint?.substring(0, 50) + '...' || sub.endpoint?.substring(0, 50) + '...',
+                hasKeys: !!(subscriptionObj?.keys?.p256dh && subscriptionObj?.keys?.auth)
+              })
+            })
+          } else {
+            console.log('⚠️ No valid push subscriptions found for admins after filtering')
+          }
+        }
+
+        // Re-filter to ensure we have valid subscriptions (in case of error above)
+        const validSubscriptions = (adminSubscriptions || []).filter((sub: any) => {
+          if (!sub.subscription) return false
+          
+          let subscriptionObj = sub.subscription
+          if (typeof subscriptionObj === 'string') {
+            try {
+              subscriptionObj = JSON.parse(subscriptionObj)
+            } catch {
+              return false
+            }
+          }
+          
+          return subscriptionObj?.endpoint && subscriptionObj?.keys?.p256dh && subscriptionObj?.keys?.auth
+        })
+
+        if (validSubscriptions && validSubscriptions.length > 0) {
+          // Check if VAPID keys are configured before attempting to send
+          if (!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) {
+            console.error('[push] ❌ Cannot send push notifications: VAPID keys not configured')
+            console.log('⚠️ Skipping push notifications - incident will still be created')
+          } else {
+            // Prepare push payload (using relative URLs for production compatibility)
+            const payload = {
+              title: '🚨 New Incident Reported',
+              body: `${data.incident_type} in ${data.barangay}`,
+              icon: '/icons/icon-192x192.png',
+              badge: '/icons/icon-192x192.png',
+              tag: 'incident_alert',
+              data: {
+                incident_id: data.id,
+                url: `/admin/incidents/${data.id}`, // Relative URL works in production
+                severity: data.severity,
+                type: 'incident_alert',
+                timestamp: Date.now()
+              },
+              requireInteraction: true,
+              vibrate: [200, 100, 200],
+              actions: [
+                { action: 'open', title: 'View Incident' },
+                { action: 'close', title: 'Dismiss' }
+              ],
+              renotify: false,
+              silent: false
+            }
+
+            // Configure webpush if not already configured (only set once per process)
+            const vapidEmail = process.env.VAPID_EMAIL || process.env.WEB_PUSH_CONTACT || 'mailto:jlcbelonio.chmsu@gmail.com'
+            const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+            const privateKey = process.env.VAPID_PRIVATE_KEY
+            
+            if (!publicKey || !privateKey) {
+              console.error('[push] ❌ Missing VAPID keys! Push notifications will not work.')
+              console.error('[push] Required environment variables:')
+              console.error('[push]   - NEXT_PUBLIC_VAPID_PUBLIC_KEY')
+              console.error('[push]   - VAPID_PRIVATE_KEY')
+              console.error('[push] Generate keys with: npx web-push generate-vapid-keys')
+              // Don't throw - allow incident creation to succeed even if push fails
+            } else {
+              try {
+                webpush.setVapidDetails(vapidEmail, publicKey, privateKey)
+                console.log('[push] ✅ VAPID keys configured successfully')
+              } catch (configError: any) {
+                console.error('[push] ❌ Failed to configure VAPID keys:', configError.message)
+              }
+            }
+            
+            // Send push notifications directly using webpush (more reliable than HTTP calls)
+            const results = await Promise.allSettled(
+              validSubscriptions.map(async (sub: any) => {
+            try {
+              // Ensure subscription is in the correct format
+              let subscriptionObj = sub.subscription
+              if (typeof subscriptionObj === 'string') {
+                subscriptionObj = JSON.parse(subscriptionObj)
+              }
+              
+              // Validate subscription structure
+              if (!subscriptionObj?.endpoint || !subscriptionObj?.keys?.p256dh || !subscriptionObj?.keys?.auth) {
+                throw new Error('Invalid subscription structure')
+              }
+              
+              console.log(`[push] Sending to admin ${sub.user_id} at ${subscriptionObj.endpoint.substring(0, 50)}...`)
+              
+              // Send push notification directly using webpush
+              const payloadString = JSON.stringify(payload)
+              await webpush.sendNotification(
+                subscriptionObj as webpush.PushSubscription,
+                payloadString
+              )
+              
+              console.log(`[push] ✅ Successfully sent push to admin ${sub.user_id}`)
+              return { success: true }
+            } catch (error: any) {
+              console.error(`[push] ❌ Failed to send push to admin ${sub.user_id}:`, {
+                message: error.message,
+                statusCode: error.statusCode,
+                endpoint: sub.subscription?.endpoint?.substring(0, 50) || 'unknown'
+              })
+              
+              // If subscription expired (410), remove it from database
+              if (error.statusCode === 410 && sub.subscription?.endpoint) {
+                console.log(`[push] Removing expired subscription for admin ${sub.user_id}`)
+                try {
+                  await supabase
+                    .from('push_subscriptions')
+                    .delete()
+                    .eq('endpoint', sub.subscription.endpoint)
+                } catch (deleteError) {
+                  console.error('[push] Failed to delete expired subscription:', deleteError)
+                }
+              }
+              
+              return { success: false, error: error.message }
+            }
+              })
+            )
+
+            const successCount = results.filter(r => r.status === 'fulfilled' && r.value.success).length
+            const failureCount = results.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.success)).length
+            
+            if (successCount > 0) {
+              console.log(`✅ Push notifications sent to ${successCount}/${validSubscriptions.length} admin device(s)`)
+            }
+            if (failureCount > 0) {
+              console.warn(`⚠️ Failed to send ${failureCount} push notification(s)`)
+            }
+          }
+        } else {
+          console.log('⚠️ No active push subscriptions found for admins')
+        }
+      }
+    } catch (pushError) {
+      console.error('❌ Push notification error (non-fatal):', pushError)
+      // Don't fail the incident creation if push notifications fail
+    }
 
     // Auto-assignment: Try to automatically assign incident to available volunteer
     try {
@@ -479,12 +701,43 @@ export async function POST(request: Request) {
 
         const assignmentResult = await autoAssignmentService.assignIncident(assignmentCriteria)
         
-        if (assignmentResult.success) {
+        if (assignmentResult.success && assignmentResult.assignedVolunteer?.volunteerId) {
           console.log('Auto-assignment successful:', assignmentResult.message)
           // Update the response data to include assignment info
-          data.assigned_to = assignmentResult.assignedVolunteer?.volunteerId
+          data.assigned_to = assignmentResult.assignedVolunteer.volunteerId
           data.assigned_at = new Date().toISOString()
           data.status = 'ASSIGNED'
+          
+          // Send push notification to auto-assigned volunteer
+          try {
+            const { sendPushToUser } = await import('@/lib/push-notification-helper')
+            
+            await sendPushToUser(assignmentResult.assignedVolunteer.volunteerId, {
+              title: '📋 New Incident Assignment',
+              body: `You have been auto-assigned to a ${data.incident_type || 'incident'} in ${data.barangay || 'your area'}`,
+              icon: '/icons/icon-192x192.png',
+              badge: '/icons/icon-192x192.png',
+              tag: 'assignment_alert',
+              data: {
+                incident_id: data.id,
+                url: `/volunteer/incident/${data.id}`,
+                type: 'assignment_alert',
+                timestamp: Date.now()
+              },
+              requireInteraction: true,
+              vibrate: [200, 100, 200],
+              actions: [
+                { action: 'open', title: 'View Incident' },
+                { action: 'close', title: 'Dismiss' }
+              ],
+              renotify: false,
+              silent: false
+            })
+            console.log('✅ Push notification sent to auto-assigned volunteer')
+          } catch (pushErr) {
+            console.error('❌ Failed to send push notification to auto-assigned volunteer:', pushErr)
+            // Don't fail assignment if push fails
+          }
         } else {
           console.log('Auto-assignment failed:', assignmentResult.message)
         }
