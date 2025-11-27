@@ -6,11 +6,29 @@ export async function GET(request: Request) {
   try {
     const rate = rateLimitAllowed(rateKeyFromRequest(request, 'announcements:get'), 120)
     if (!rate.allowed) return NextResponse.json({ success: false, code: 'RATE_LIMITED', message: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(rate.retryAfter) } as any })
+    
+    const { searchParams } = new URL(request.url)
+    const limit = searchParams.get('limit')
+    
     const supabase = await getServerSupabase()
-    const { data, error } = await supabase
+    let query = supabase
       .from('announcements')
-      .select('*')
+      .select(`
+        *,
+        creator:users!announcements_created_by_fkey (
+          id,
+          first_name,
+          last_name,
+          email
+        )
+      `)
       .order('created_at', { ascending: false })
+    
+    if (limit) {
+      query = query.limit(Number.parseInt(limit))
+    }
+    
+    const { data, error } = await query
 
     if (error) throw error
     return NextResponse.json({ success: true, data })

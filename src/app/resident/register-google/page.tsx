@@ -39,14 +39,54 @@ export default function RegisterGoogleResidentPage() {
   const phoneValid = /^09\d{9}$/.test(phoneNumber)
   const allFieldsValid = firstValid && lastValid && addressValid && phoneValid && barangay && termsAccepted
 
-  // Load Google session email
+  // Load Google session email and pre-fill name from metadata
+  // Also check if user already has a complete profile
   useEffect(() => {
     const load = async () => {
       const { data: { session } } = await supabase.auth.getSession()
-      setEmail(session?.user?.email || "")
+      if (session?.user) {
+        setEmail(session.user.email || "")
+        
+        // Check if user already has a complete profile
+        const { data: userProfile } = await supabase
+          .from('users')
+          .select('id, role, first_name, last_name, phone_number, address, barangay')
+          .eq('id', session.user.id)
+          .maybeSingle()
+        
+        // If user has a complete profile with all required fields, redirect to dashboard
+        if (userProfile?.role === 'resident' && 
+            userProfile.first_name && 
+            userProfile.last_name && 
+            userProfile.phone_number && 
+            userProfile.address && 
+            userProfile.barangay) {
+          router.replace('/resident/dashboard')
+          return
+        }
+        
+        // Pre-fill name from Google OAuth metadata if available
+        const fullName = session.user.user_metadata?.full_name || session.user.user_metadata?.name || ''
+        if (fullName && !userProfile?.first_name) {
+          const nameParts = fullName.split(' ')
+          if (nameParts.length > 0) {
+            setFirstName(nameParts[0] || '')
+            if (nameParts.length > 1) {
+              setLastName(nameParts.slice(1).join(' ') || '')
+            }
+          }
+        } else if (userProfile?.first_name && userProfile?.last_name) {
+          // Pre-fill from existing profile if available
+          setFirstName(userProfile.first_name)
+          setLastName(userProfile.last_name)
+          setPhoneNumber(userProfile.phone_number || '')
+          setAddress(userProfile.address || '')
+          setBarangay(userProfile.barangay || '')
+        }
+      }
     }
     load()
-  }, [])
+  }, [router])
 
   // Fetch barangays
   useEffect(() => {

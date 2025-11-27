@@ -64,35 +64,10 @@ export async function GET(request: Request) {
           return NextResponse.redirect(new URL('/login?error=user_check_failed', requestUrl.origin))
         }
 
-        // If user doesn't have a profile, CREATE ONE for Google OAuth users
+        // If user doesn't have a profile, redirect to registration to complete profile
         if (!userRow) {
-          const fullName = user.user_metadata?.full_name || 'Google User'
-          const nameParts = fullName.split(' ')
-          const firstName = nameParts[0] || 'Google'
-          const lastName = nameParts.slice(1).join(' ') || 'User'
-
-          const { error: createError } = await supabase.from('users').insert({
-            id: userId,
-            email: userEmail,
-            first_name: firstName,
-            last_name: lastName,
-            role: 'resident',
-            phone_number: user.user_metadata?.phone_number || '',
-            address: '',
-            barangay: '',
-            city: 'TALISAY CITY',
-            province: 'NEGROS OCCIDENTAL',
-            confirmation_phrase: '',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-
-          if (createError) {
-            console.error('Error creating user profile:', createError)
-            return NextResponse.redirect(new URL('/login?error=profile_creation_failed', requestUrl.origin))
-          }
-
-          return NextResponse.redirect(new URL('/resident/dashboard', requestUrl.origin))
+          // New Google OAuth user - redirect to registration page to complete profile
+          return NextResponse.redirect(new URL('/resident/register-google', requestUrl.origin))
         }
 
         // User exists - check and assign role if needed

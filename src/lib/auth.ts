@@ -211,8 +211,8 @@ export const useAuth = () => {
             firstName: "",
             lastName: "",
           })
-          // Default redirect for users without profile
-          router.push("/resident/dashboard")
+          // Redirect to registration to complete profile
+          router.push("/resident/register-google")
         }
       } else if (event === "SIGNED_OUT") {
         setUser(null)
