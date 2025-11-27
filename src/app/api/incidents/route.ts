@@ -402,32 +402,57 @@ export async function POST(request: Request) {
       const cleanedPath = storedPath.trim()
       if (!cleanedPath) return ''
 
-      const { error: signErr } = await supabase
-        .storage
-        .from('incident-photos')
-        .createSignedUrl(cleanedPath, 60)
-
-      if (signErr) {
-        throw new Error('Uploaded photo not found or inaccessible')
-      }
-
+      // If already in processed/, skip verification and return immediately
       if (cleanedPath.startsWith('processed/')) {
         return cleanedPath
       }
 
-      const baseName = cleanedPath.split('/').pop() || `${reporter_id}-${Date.now()}.jpg`
-      const processedPath = `processed/${baseName}`
-      const { error: copyErr } = await supabase
-        .storage
-        .from('incident-photos')
-        .copy(cleanedPath, processedPath)
-
-      if (copyErr) {
-        console.warn('Photo copy failed, keeping original path:', copyErr?.message)
-        return cleanedPath
+      // Quick verification with timeout - don't block on slow storage operations
+      try {
+        const verifyPromise = supabase.storage.from('incident-photos').createSignedUrl(cleanedPath, 60)
+        const timeoutPromise = new Promise<{ error: { message: string } }>((resolve) => 
+          setTimeout(() => resolve({ error: { message: 'Verification timeout' } }), 2000)
+        )
+        
+        const result = await Promise.race([verifyPromise, timeoutPromise])
+        
+        if ('error' in result && result.error) {
+          // Only throw if it's a real error, not a timeout
+          if (result.error.message !== 'Verification timeout') {
+            throw new Error('Uploaded photo not found or inaccessible')
+          }
+          // Timeout is OK - proceed anyway
+        }
+      } catch (err: any) {
+        // If verification fails, still try to proceed with copy
+        if (err?.message !== 'Uploaded photo not found or inaccessible') {
+          console.warn('Photo verification issue, proceeding anyway:', err?.message)
+        } else {
+          throw err
+        }
       }
 
-      return processedPath
+      // Move to processed/ folder (non-blocking - don't fail if this doesn't work)
+      const baseName = cleanedPath.split('/').pop() || `${reporter_id}-${Date.now()}.jpg`
+      const processedPath = `processed/${baseName}`
+      
+      try {
+        const { error: copyErr } = await supabase
+          .storage
+          .from('incident-photos')
+          .copy(cleanedPath, processedPath)
+
+        if (copyErr) {
+          console.warn('Photo copy failed, keeping original path:', copyErr?.message)
+          return cleanedPath
+        }
+
+        return processedPath
+      } catch (err) {
+        // If copy fails, just use original path - don't block incident creation
+        console.warn('Photo copy error, using original path:', err)
+        return cleanedPath
+      }
     }
 
     // Process all photos in parallel for faster submission
