@@ -28,12 +28,16 @@ export class LocationTrackingService {
   private prefCache: Map<string, { value: { enabled: boolean; accuracy: string }; ts: number }> = new Map()
   private prefTTLms = 60_000 // cache for 60s
   private prefInFlight: Map<string, Promise<{ enabled: boolean; accuracy: string }>> = new Map()
+  // Timeout error tracking
+  private timeoutErrorCount: number = 0
+  private lastTimeoutErrorTime: number = 0
+  private readonly MAX_TIMEOUT_ERRORS_PER_MINUTE = 3
 
   private constructor() {
     this.config = {
       enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 30000, // 30 seconds
+      timeout: 30000, // Increased to 30 seconds for better GPS acquisition
+      maximumAge: 60000, // 60 seconds - allow older cached positions
       distanceFilter: 10 // 10 meters
     }
   }
@@ -103,8 +107,16 @@ export class LocationTrackingService {
     }
 
     try {
+      // Reset timeout error tracking when starting fresh
+      this.timeoutErrorCount = 0
+      this.lastTimeoutErrorTime = 0
+      
       this.watchId = navigator.geolocation.watchPosition(
-        (position) => this.handleLocationUpdate(position),
+        (position) => {
+          // Reset timeout error count on successful position update
+          this.timeoutErrorCount = 0
+          this.handleLocationUpdate(position)
+        },
         (error) => this.handleLocationError(error),
         {
           enableHighAccuracy: this.config.enableHighAccuracy,
@@ -242,18 +254,38 @@ export class LocationTrackingService {
    * Handle location error
    */
   private handleLocationError(error: GeolocationPositionError): void {
-    console.error('Location tracking error:', error)
+    const now = Date.now()
     
     switch (error.code) {
       case error.PERMISSION_DENIED:
         console.error('Location access denied by user')
+        // Stop tracking if permission is denied
+        this.stopTracking()
         break
       case error.POSITION_UNAVAILABLE:
-        console.error('Location information unavailable')
+        console.warn('Location information unavailable - GPS signal may be weak')
+        // This is recoverable, don't stop tracking
         break
       case error.TIMEOUT:
-        console.error('Location request timed out')
+        // Timeout errors are common and recoverable - don't spam the console
+        // Only log if we haven't logged too many timeouts recently
+        if (now - this.lastTimeoutErrorTime > 60000) {
+          // Reset counter if it's been more than a minute
+          this.timeoutErrorCount = 0
+        }
+        
+        this.timeoutErrorCount++
+        this.lastTimeoutErrorTime = now
+        
+        // Only log as warning and only if not spamming
+        if (this.timeoutErrorCount <= this.MAX_TIMEOUT_ERRORS_PER_MINUTE) {
+          console.warn('Location request timed out - GPS signal may be weak. Retrying...')
+        }
+        // Timeout errors are expected in some scenarios (indoor, weak GPS signal)
+        // The watchPosition will automatically retry, so we don't need to do anything
         break
+      default:
+        console.warn('Location tracking error:', error.message || 'Unknown error')
     }
   }
 

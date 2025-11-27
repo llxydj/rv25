@@ -103,7 +103,10 @@ export function LocationTracker({ onLocationUpdate, showSettings = true, classNa
                 onLocationUpdate?.(locationData);
               },
               (error) => {
-                console.warn('Failed to get initial position:', error);
+                // Don't log timeout errors as warnings - they're expected
+                if (error.code !== error.TIMEOUT) {
+                  console.warn('Failed to get initial position:', error.message || error);
+                }
               },
               { enableHighAccuracy: true, timeout: 30000, maximumAge: 60000 }
             );
@@ -126,9 +129,12 @@ export function LocationTracker({ onLocationUpdate, showSettings = true, classNa
               onLocationUpdate?.(locationData);
             },
             (error) => {
-              console.warn('Failed to get current position:', error);
+              // Don't log timeout errors as warnings - they're expected
+              if (error.code !== error.TIMEOUT) {
+                console.warn('Failed to get current position:', error.message || error);
+              }
             },
-            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            { enableHighAccuracy: true, timeout: 30000, maximumAge: 60000 }
           );
         }
 
