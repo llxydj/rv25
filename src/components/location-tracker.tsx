@@ -46,17 +46,10 @@ export function LocationTracker({ onLocationUpdate, showSettings = true, classNa
           return;
         }
 
-        // Check permission status first (without requesting)
-        const hasPerm = await locationTrackingService.checkPermission();
-        setHasPermission(hasPerm);
-        console.log("Location permission status:", hasPerm);
-        
-        // If permission is not granted, try requesting it
-        if (!hasPerm) {
-          const permission = await locationTrackingService.requestPermission();
-          setHasPermission(permission);
-          console.log("Location permission after request:", permission);
-        }
+        // Check permission
+        const permission = await locationTrackingService.requestPermission();
+        setHasPermission(permission);
+        console.log("Location permission:", permission);
 
         if (!permission) {
           setLoading(false);
@@ -250,51 +243,9 @@ export function LocationTracker({ onLocationUpdate, showSettings = true, classNa
           </div>
           <Button
             size="sm"
-            onClick={async () => {
-              setLoading(true);
-              const granted = await locationTrackingService.requestPermission();
-              setHasPermission(granted);
-              setLoading(false);
-              if (granted) {
-                toast({
-                  title: "Permission Granted",
-                  description: "Location access has been granted. Getting your location..."
-                });
-                // Re-initialize location tracking after permission is granted
-                if (user) {
-                  const initialized = await locationTrackingService.initialize(user.id);
-                  if (initialized) {
-                    navigator.geolocation.getCurrentPosition(
-                      (position) => {
-                        const locationData: LocationData = {
-                          latitude: position.coords.latitude,
-                          longitude: position.coords.longitude,
-                          accuracy: position.coords.accuracy,
-                          timestamp: new Date(position.timestamp),
-                          heading: position.coords.heading || undefined,
-                          speed: position.coords.speed || undefined
-                        };
-                        setCurrentLocation(locationData);
-                        onLocationUpdate?.(locationData);
-                      },
-                      (error) => {
-                        console.warn('Failed to get position after permission grant:', error);
-                      },
-                      { enableHighAccuracy: true, timeout: 30000, maximumAge: 60000 }
-                    );
-                  }
-                }
-              } else {
-                toast({
-                  variant: "destructive",
-                  title: "Permission Denied",
-                  description: "Location access is required to use this feature. Please enable it in your browser settings."
-                });
-              }
-            }}
-            disabled={loading}
+            onClick={() => locationTrackingService.requestPermission()}
           >
-            {loading ? "Requesting..." : "Grant Permission"}
+            Grant Permission
           </Button>
         </div>
       </Card>
