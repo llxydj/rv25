@@ -19,7 +19,7 @@ export function PinSecurityGate({ children }: { children: React.ReactNode }) {
   const [saving, setSaving] = useState(false)
   const [mounted, setMounted] = useState(false)
 
-  const bypassPin = true // TEMPORARY: disable PIN
+  const bypassPin = false // PIN security enabled
 
   // Set mounted flag to prevent hydration mismatch
   useEffect(() => {

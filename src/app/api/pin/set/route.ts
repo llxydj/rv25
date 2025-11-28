@@ -1,8 +1,16 @@
 import { NextResponse } from 'next/server'
 import { getServerSupabase } from '@/lib/supabase-server'
+import { createClient } from '@supabase/supabase-js'
 import bcrypt from 'bcryptjs'
 
 export const dynamic = "force-dynamic"
+
+// Service role client for admin operations (bypasses RLS)
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  { auth: { persistSession: false } }
+)
 
 // Common PINs to prevent (weak security)
 const COMMON_PINS = ['0000', '1111', '1234', '2222', '3333', '4444', '5555', '6666', '7777', '8888', '9999', '0123', '3210']
@@ -47,8 +55,10 @@ export async function POST(request: Request) {
     // Hash PIN with bcrypt
     const pinHash = await bcrypt.hash(pin, 10)
 
-    // Update user's PIN
-    const { error: updateError } = await supabase
+    console.log('📌 [PIN Set] Updating PIN for user:', userId)
+
+    // Update user's PIN using service role client (bypasses RLS)
+    const { error: updateError } = await supabaseAdmin
       .from('users')
       .update({ 
         pin_hash: pinHash,
@@ -57,15 +67,19 @@ export async function POST(request: Request) {
       .eq('id', userId)
 
     if (updateError) {
-      console.error('Failed to set PIN:', updateError)
+      console.error('❌ [PIN Set] Failed to set PIN:', updateError)
       return NextResponse.json({ success: false, message: 'Failed to set PIN' }, { status: 500 })
     }
 
+    console.log('✅ [PIN Set] PIN hash saved successfully')
+
     // Clear any failed attempts when PIN is set/reset
-    await supabase
+    await supabaseAdmin
       .from('pin_attempts')
       .delete()
       .eq('user_id', userId)
+      .then(() => console.log('✅ [PIN Set] Cleared PIN attempts'))
+      .catch((err) => console.warn('⚠️ [PIN Set] Could not clear attempts:', err))
 
     return NextResponse.json({ 
       success: true, 
