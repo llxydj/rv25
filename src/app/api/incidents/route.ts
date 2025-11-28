@@ -520,19 +520,39 @@ export async function POST(request: Request) {
       }
     }
 
-    // Process all photos in parallel for faster submission
+    // PERFORMANCE FIX: Process photos in background (non-blocking)
+    // Don't wait for photo processing - create incident immediately
+    // Photos will be processed and updated in background
     if (incomingPhotoPaths.length > 0) {
-      const photoProcessingPromises = incomingPhotoPaths.slice(0, 3).map(async (path) => {
+      // Process photos in background (fire and forget)
+      ;(async () => {
         try {
-          return await ensurePhotoPath(path)
-        } catch (photoError: any) {
-          console.warn('Failed to process uploaded photo:', photoError?.message || photoError)
-          return null
+          const photoProcessingPromises = incomingPhotoPaths.slice(0, 3).map(async (path) => {
+            try {
+              return await ensurePhotoPath(path)
+            } catch (photoError: any) {
+              console.warn('Failed to process uploaded photo:', photoError?.message || photoError)
+              return null
+            }
+          })
+          
+          const photoResults = await Promise.all(photoProcessingPromises)
+          const processed = photoResults.filter((path): path is string => path !== null)
+          
+          // Update incident with processed photo paths in background
+          if (processed.length > 0 && data?.id) {
+            await supabase
+              .from('incidents')
+              .update({
+                photo_url: processed[0],
+                photo_urls: processed
+              })
+              .eq('id', data.id)
+          }
+        } catch (err) {
+          console.warn('Background photo processing error (non-critical):', err)
         }
-      })
-      
-      const photoResults = await Promise.all(photoProcessingPromises)
-      processedPhotoPaths.push(...photoResults.filter((path): path is string => path !== null))
+      })()
     }
 
     const primaryPhotoPath = processedPhotoPaths[0] ?? null
