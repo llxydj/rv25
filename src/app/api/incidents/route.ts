@@ -9,6 +9,8 @@ import { getServerSupabase } from '@/lib/supabase-server'
 import { analyticsCache } from '@/app/api/volunteers/analytics/cache'
 import webpush from 'web-push'
 
+export const dynamic = 'force-dynamic'
+
 // Helper function to get required skills for incident type
 function getRequiredSkillsForIncidentType(incidentType: string): string[] {
   const skillMapping: Record<string, string[]> = {

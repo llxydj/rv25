@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { getServerSupabase } from '@/lib/supabase-server'
 import { z } from 'zod'
 
+export const dynamic = 'force-dynamic'
+
 function toSentenceCase(s?: string | null) {
   try {
     const lower = (s || '').toLowerCase()

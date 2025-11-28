@@ -4,6 +4,7 @@ import { getServerSupabase } from "@/lib/supabase-server"
 import type { Database } from "@/types/supabase"
 
 export const runtime = "nodejs"
+export const dynamic = 'force-dynamic'
 
 const supabaseAdmin = createClient<Database>(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",

@@ -3,6 +3,8 @@ import { getServerSupabase } from '@/lib/supabase-server'
 import { z } from 'zod'
 import { analyticsCache } from '@/app/api/volunteers/analytics/cache'
 
+export const dynamic = 'force-dynamic'
+
 const SeverityUpdateSchema = z.object({
   severity: z.enum(['MINOR', 'MODERATE', 'SEVERE', 'CRITICAL']),
   updated_by: z.string().optional(),

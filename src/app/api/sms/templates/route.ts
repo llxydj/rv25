@@ -6,6 +6,7 @@ import { rateKeyFromRequest, rateLimitAllowed } from '@/lib/rate-limit'
 import { z } from 'zod'
 
 export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 const SMSTemplateSchema = z.object({
   code: z.string().min(1),

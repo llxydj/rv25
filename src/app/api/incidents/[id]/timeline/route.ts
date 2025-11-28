@@ -6,6 +6,7 @@ import { getServerSupabase } from '@/lib/supabase-server'
 import { getIncidentTimeline } from '@/lib/incident-timeline'
 
 export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 /**
  * GET /api/incidents/[id]/timeline

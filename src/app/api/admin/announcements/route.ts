@@ -5,6 +5,8 @@ import { rateKeyFromRequest, rateLimitAllowed } from '@/lib/rate-limit'
 import { getServerSupabase } from '@/lib/supabase-server'
 import { Database } from '@/types/supabase'
 
+export const dynamic = 'force-dynamic'
+
 type AnnouncementInsert = Database['public']['Tables']['announcements']['Insert']
 type AnnouncementUpdate = Database['public']['Tables']['announcements']['Update']
 

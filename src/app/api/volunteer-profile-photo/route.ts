@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { getServerSupabase } from '@/lib/supabase-server'
 
+export const dynamic = 'force-dynamic'
+
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024 // 5MB
 const BUCKET = 'volunteer-profile-photos'
 const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']

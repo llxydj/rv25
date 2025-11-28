@@ -6,6 +6,7 @@ import { rateKeyFromRequest, rateLimitAllowed } from '@/lib/rate-limit'
 import { getServerSupabase } from '@/lib/supabase-server'
 
 export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 // =======================
 // Helper: Admin Access

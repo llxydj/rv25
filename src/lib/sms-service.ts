@@ -49,14 +49,27 @@ export interface SMSDeliveryResult {
 export class SMSService {
   private static instance: SMSService
   private supabaseAdmin: any
-  private config: SMSConfig
+  private config: SMSConfig | null = null
   private rateLimitTracker: Map<string, number[]> = new Map()
   // Daily SMS limit protection
   private dailySMSCount: number = 0
   private dailyResetTime: number = Date.now() + (24 * 60 * 60 * 1000)
   private readonly dailySMSLimit: number = parseInt(process.env.SMS_DAILY_LIMIT || '1000')
+  private initialized: boolean = false
 
   constructor() {
+    // Lazy initialization - don't do anything in constructor
+    // This prevents logging during Next.js static generation
+  }
+
+  /**
+   * Initialize the SMS service (lazy initialization)
+   * Only runs once when actually needed, not during build
+   */
+  private ensureInitialized(): void {
+    if (this.initialized) return
+    this.initialized = true
+
     this.supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -75,14 +88,17 @@ export class SMSService {
       isEnabled: (process.env.SMS_ENABLED || 'true').toLowerCase() === 'true'
     }
 
-    console.log('📱 SMS Service Configuration Loaded:', {
-      apiUrl: this.config.apiUrl,
-      hasApiKey: !!this.config.apiKey,
-      sender: this.config.sender,
-      isEnabled: this.config.isEnabled
-    })
+    // Only log in runtime, not during build
+    if (typeof window !== 'undefined' || process.env.NODE_ENV !== 'production' || process.env.VERCEL) {
+      console.log('📱 SMS Service Configuration Loaded:', {
+        apiUrl: this.config.apiUrl,
+        hasApiKey: !!this.config.apiKey,
+        sender: this.config.sender,
+        isEnabled: this.config.isEnabled
+      })
+    }
     
-    // Validate API key on startup (non-blocking)
+    // Validate API key on startup (non-blocking) - only at runtime
     if (this.config.isEnabled && this.config.apiKey) {
       this.validateAPIKey().catch(err => {
         console.warn('⚠️ SMS API key validation failed (non-critical):', err.message)
@@ -90,6 +106,14 @@ export class SMSService {
     } else if (this.config.isEnabled && !this.config.apiKey) {
       console.error('❌ SMS is enabled but API key is missing! SMS will not work.')
     }
+  }
+
+  /**
+   * Get config with lazy initialization
+   */
+  private getConfig(): SMSConfig {
+    this.ensureInitialized()
+    return this.config!
   }
   
   /**
@@ -99,12 +123,13 @@ export class SMSService {
     try {
       // Try a simple API call to validate key
       // Most SMS APIs have a status/balance endpoint
-      const testUrl = this.config.apiUrl.replace('/sms_messages', '/status')
+      // Note: this.config is guaranteed to be set since this is called from ensureInitialized
+      const testUrl = this.config!.apiUrl.replace('/sms_messages', '/status')
       
       const response = await fetch(testUrl, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${this.config.apiKey}`,
+          'Authorization': `Bearer ${this.config!.apiKey}`,
           'Content-Type': 'application/json'
         },
         // Timeout after 5 seconds
@@ -152,8 +177,9 @@ export class SMSService {
     }
   ): Promise<SMSDeliveryResult> {
     try {
+      const config = this.getConfig()
       // Check if SMS is enabled
-      if (!this.config.isEnabled) {
+      if (!config.isEnabled) {
         console.log('SMS service is disabled')
         return { success: false, error: 'SMS service disabled', retryable: false }
       }
@@ -552,8 +578,9 @@ export class SMSService {
 
   private async sendViaAPI(phoneNumber: string, message: string): Promise<SMSDeliveryResult> {
     try {
+      const config = this.getConfig()
       // Validate configuration
-      if (!this.config.apiKey) {
+      if (!config.apiKey) {
         return {
           success: false,
           error: 'SMS API key not configured',
@@ -563,8 +590,8 @@ export class SMSService {
 
       // Prepare the API request
       const payload = new URLSearchParams({
-        api_token: this.config.apiKey,
-        sender: this.config.sender,
+        api_token: config.apiKey,
+        sender: config.sender,
         number: phoneNumber,
         message: message
       })
@@ -572,9 +599,9 @@ export class SMSService {
       // Send the request with retry logic
       let lastError: any = null
       
-      for (let attempt = 0; attempt <= this.config.retryAttempts; attempt++) {
+      for (let attempt = 0; attempt <= config.retryAttempts; attempt++) {
         try {
-          const response = await fetch(this.config.apiUrl, {
+          const response = await fetch(config.apiUrl, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/x-www-form-urlencoded',
@@ -605,7 +632,7 @@ export class SMSService {
             lastError = new Error(responseData.message || responseData.error || `HTTP ${response.status}: ${response.statusText}`)
             
             // If this is the last attempt, return the error
-            if (attempt === this.config.retryAttempts) {
+            if (attempt === config.retryAttempts) {
               return {
                 success: false,
                 error: lastError.message,
@@ -617,7 +644,7 @@ export class SMSService {
           lastError = error
           
           // If this is the last attempt, return the error
-          if (attempt === this.config.retryAttempts) {
+          if (attempt === config.retryAttempts) {
             return {
               success: false,
               error: error instanceof Error ? error.message : String(error),
@@ -627,8 +654,8 @@ export class SMSService {
         }
         
         // Wait before retrying (exponential backoff)
-        if (attempt < this.config.retryAttempts) {
-          const delay = this.config.retryDelayMs * Math.pow(2, attempt)
+        if (attempt < config.retryAttempts) {
+          const delay = config.retryDelayMs * Math.pow(2, attempt)
           await new Promise(resolve => setTimeout(resolve, delay))
         }
       }
@@ -815,11 +842,12 @@ export class SMSService {
     const hourlyTimestamps = timestamps.filter(timestamp => timestamp > hourAgo)
 
     // Check limits
-    if (recentTimestamps.length >= this.config.rateLimitPerMinute) {
+    const config = this.getConfig()
+    if (recentTimestamps.length >= config.rateLimitPerMinute) {
       return false
     }
     
-    if (hourlyTimestamps.length >= this.config.rateLimitPerHour) {
+    if (hourlyTimestamps.length >= config.rateLimitPerHour) {
       return false
     }
 
@@ -968,11 +996,13 @@ export class SMSService {
     results: Array<{ logId: string; success: boolean; error?: string }>
   }> {
     try {
+      this.ensureInitialized()
+      const config = this.getConfig()
       const { data: failedLogs } = await this.supabaseAdmin
         .from('sms_logs')
         .select('*')
         .eq('delivery_status', 'FAILED')
-        .lt('retry_count', this.config.retryAttempts)
+        .lt('retry_count', config.retryAttempts)
         .gte('timestamp_sent', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // Last 24 hours
         .limit(10) // Limit retries
 

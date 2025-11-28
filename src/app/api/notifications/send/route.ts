@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import webpush from 'web-push'
 import { getServerSupabase } from '@/lib/supabase-server'
 
+export const dynamic = 'force-dynamic'
+
 // Configure web-push with environment variable for email
 const vapidEmail = process.env.VAPID_EMAIL || process.env.WEB_PUSH_CONTACT || 'mailto:jlcbelonio.chmsu@gmail.com'
 

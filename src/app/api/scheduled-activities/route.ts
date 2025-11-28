@@ -3,6 +3,8 @@ import { rateKeyFromRequest, rateLimitAllowed } from '@/lib/rate-limit'
 import { z } from 'zod'
 import { getServerSupabase } from '@/lib/supabase-server'
 
+export const dynamic = 'force-dynamic'
+
 // Supabase client is created per-request in handlers using getServerSupabase()
 
 const ScheduledActivityCreateSchema = z.object({

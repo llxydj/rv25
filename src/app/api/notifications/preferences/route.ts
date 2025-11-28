@@ -4,6 +4,7 @@ import { rateKeyFromRequest, rateLimitAllowed } from '@/lib/rate-limit'
 import { z } from 'zod'
 
 export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 // Notification preferences schema
 const NotificationPreferencesSchema = z.object({

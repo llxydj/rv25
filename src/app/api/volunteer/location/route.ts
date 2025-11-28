@@ -7,6 +7,8 @@ import {
   GEOLOCATION_CONFIG 
 } from '@/lib/geolocation-config'
 
+export const dynamic = 'force-dynamic'
+
 /**
  * Validate location using database function (fail-closed)
  * Note: The database trigger will automatically set is_within_talisay_city column

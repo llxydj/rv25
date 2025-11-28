@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { rateKeyFromRequest, rateLimitAllowed } from '@/lib/rate-limit'
 import { getServerSupabase } from '@/lib/supabase-server'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: Request) {
   try {
     const rate = rateLimitAllowed(rateKeyFromRequest(request, 'announcements:get'), 120)

@@ -3,6 +3,8 @@ import { getServerSupabase } from '@/lib/supabase-server'
 import { z } from 'zod'
 import { analyticsCache } from '@/app/api/volunteers/analytics/cache'
 
+export const dynamic = 'force-dynamic'
+
 const StatusUpdateSchema = z.object({
   status: z.enum(['PENDING', 'ASSIGNED', 'RESPONDING', 'ARRIVED', 'RESOLVED', 'CANCELLED']),
   updated_by: z.string().optional(),

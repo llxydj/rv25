@@ -1,40 +1,31 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import dynamic from "next/dynamic"
 import { AdminLayout } from "@/components/layout/admin-layout"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { MapContainer, TileLayer, Circle, Popup, Rectangle } from "react-leaflet"
-import L from "leaflet"
-import "leaflet/dist/leaflet.css"
-import { TALISAY_CENTER, TALISAY_BOUNDARIES } from "@/lib/geo-utils"
-import { AlertTriangle, MapPin, TrendingUp, Calendar, Filter } from "lucide-react"
+import { AlertTriangle, MapPin, Filter } from "lucide-react"
+import type { AreaData } from "./area-map-internal"
 
-// Fix for default marker icons
-if (typeof window !== 'undefined') {
-  delete (L.Icon.Default.prototype as any)._getIconUrl
-  L.Icon.Default.mergeOptions({
-    iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-  })
-}
-
-interface AreaData {
-  barangay: string
-  count: number
-  lat: number
-  lng: number
-  risk_level: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
-  top_incident_type: string
-  top_type_count: number
-  status_breakdown: Record<string, number>
-}
+// Dynamically import the map component with SSR disabled to avoid "window is not defined" error
+const AreaMapInternal = dynamic(() => import("./area-map-internal"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-[600px] flex items-center justify-center bg-gray-50 dark:bg-gray-800 rounded-lg">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+        <p className="mt-2 text-gray-600 dark:text-gray-400">Loading map...</p>
+      </div>
+    </div>
+  )
+})
 
 interface AreaMapResponse {
   success: boolean
+  message?: string
   data: {
     areas: AreaData[]
     total_incidents: number
@@ -81,21 +72,6 @@ export default function AreaMapPage() {
   useEffect(() => {
     fetchData()
   }, [days])
-
-  const getCircleRadius = (count: number) => {
-    // Base radius on count, with min/max bounds
-    return Math.min(Math.max(count * 50, 200), 2000)
-  }
-
-  const getCircleOpacity = (riskLevel: string) => {
-    switch (riskLevel) {
-      case 'CRITICAL': return 0.6
-      case 'HIGH': return 0.5
-      case 'MEDIUM': return 0.4
-      case 'LOW': return 0.3
-      default: return 0.3
-    }
-  }
 
   return (
     <AdminLayout>
@@ -208,76 +184,7 @@ export default function AreaMapPage() {
                     <LoadingSpinner size="lg" />
                   </div>
                 ) : data && data.areas.length > 0 ? (
-                  <div className="h-[600px] w-full relative">
-                    <MapContainer
-                      center={TALISAY_CENTER}
-                      zoom={13}
-                      style={{ height: '100%', width: '100%', zIndex: 0 }}
-                      scrollWheelZoom={true}
-                    >
-                      <TileLayer
-                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                      />
-                      
-                      {/* City Boundary */}
-                      <Rectangle
-                        bounds={[
-                          [TALISAY_BOUNDARIES[2][0], TALISAY_BOUNDARIES[2][1]],
-                          [TALISAY_BOUNDARIES[0][0], TALISAY_BOUNDARIES[0][1]]
-                        ]}
-                        pathOptions={{
-                          color: '#3b82f6',
-                          fillColor: 'transparent',
-                          fillOpacity: 0,
-                          weight: 3,
-                          dashArray: '10, 5'
-                        }}
-                      />
-
-                      {/* Area Circles */}
-                      {data.areas.map((area, idx) => (
-                        <Circle
-                          key={idx}
-                          center={[area.lat, area.lng]}
-                          radius={getCircleRadius(area.count)}
-                          pathOptions={{
-                            color: RISK_COLORS[area.risk_level],
-                            fillColor: RISK_COLORS[area.risk_level],
-                            fillOpacity: getCircleOpacity(area.risk_level),
-                            weight: 2
-                          }}
-                        >
-                          <Popup>
-                            <div className="p-2 min-w-[200px]">
-                              <h3 className="font-bold text-lg mb-2">{area.barangay}</h3>
-                              <div className="space-y-1 text-sm">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-gray-600">Incidents:</span>
-                                  <span className="font-semibold">{area.count}</span>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                  <span className="text-gray-600">Risk Level:</span>
-                                  <Badge
-                                    style={{
-                                      backgroundColor: RISK_COLORS[area.risk_level],
-                                      color: 'white'
-                                    }}
-                                  >
-                                    {RISK_LABELS[area.risk_level]}
-                                  </Badge>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                  <span className="text-gray-600">Top Type:</span>
-                                  <span className="font-medium">{area.top_incident_type} ({area.top_type_count})</span>
-                                </div>
-                              </div>
-                            </div>
-                          </Popup>
-                        </Circle>
-                      ))}
-                    </MapContainer>
-                  </div>
+                  <AreaMapInternal areas={data.areas} />
                 ) : (
                   <div className="h-[600px] flex items-center justify-center text-gray-500">
                     <div className="text-center">
@@ -375,4 +282,3 @@ export default function AreaMapPage() {
     </AdminLayout>
   )
 }
-

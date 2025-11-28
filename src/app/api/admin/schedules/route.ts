@@ -5,6 +5,8 @@ import webpush from 'web-push'
 import { Database } from '@/types/supabase'
 import { smsService } from '@/lib/sms-service'
 
+export const dynamic = 'force-dynamic'
+
 type ScheduleRow = Database['public']['Tables']['schedules']['Row']
 type ScheduleInsert = Database['public']['Tables']['schedules']['Insert']
 type ScheduleUpdate = Database['public']['Tables']['schedules']['Update']

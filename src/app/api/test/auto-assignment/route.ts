@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { autoAssignmentTester } from '@/lib/test-auto-assignment'
 import { getServerSupabase } from '@/lib/supabase-server'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   try {
     const supabase = await getServerSupabase()

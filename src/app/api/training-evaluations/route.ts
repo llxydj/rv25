@@ -3,6 +3,8 @@ import { getServerSupabase } from '@/lib/supabase-server'
 import { TrainingEvaluationCreateSchema } from '@/lib/validation'
 import { rateKeyFromRequest, rateLimitAllowed } from '@/lib/rate-limit'
 
+export const dynamic = 'force-dynamic'
+
 const FEATURE_ENABLED = process.env.NEXT_PUBLIC_FEATURE_TRAININGS_ENABLED === 'true'
 
 export async function GET(request: Request) {

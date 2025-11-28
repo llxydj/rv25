@@ -3,6 +3,8 @@ import { rateKeyFromRequest, rateLimitAllowed } from '@/lib/rate-limit'
 import { z } from 'zod'
 import { getServerSupabase } from '@/lib/supabase-server'
 
+export const dynamic = 'force-dynamic'
+
 const LocationTrackingSchema = z.object({
   user_id: z.string(),
   latitude: z.number(),

@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { getServerSupabase } from '@/lib/supabase-server'
 import { smsService } from '@/lib/sms-service'
 
+export const dynamic = 'force-dynamic'
+
 /**
  * SMS Health Check Endpoint
  * GET /api/sms/health
