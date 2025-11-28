@@ -404,29 +404,29 @@ export const createIncident = async (
     // Send to API to create incident immediately (without waiting for photos)
     notifyStage("create-record")
     console.time('createIncident.api')
+    // Build payload according to schema
+    // photo_urls must be undefined (not null) or an array - omit it if not available
+    const payload: any = {
+      reporter_id: reporterId,
+      incident_type: incidentType,
+      description,
+      location_lat: locationLat || 10.2465,
+      location_lng: locationLng || 122.9735,
+      address: address && address.trim() ? address.trim() : null,
+      barangay,
+      priority,
+      photo_url: null, // Will be updated after upload
+      voice_url: null, // Will be updated after upload
+      is_offline: !!isOffline,
+      created_at_local: submissionTimestamp,
+    }
+    // Only include photo_urls if we have photos (omit it otherwise to avoid null)
+    // photo_urls will be added after background upload completes
+    
     const apiRes = await fetchWithTimeout('/api/incidents', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        reporter_id: reporterId,
-        incident_type: incidentType,
-        description,
-        location_lat: locationLat || 10.2465,
-        location_lng: locationLng || 122.9735,
-        address: address ? address.trim() : null,
-        barangay,
-        priority,
-        photo_url: null, // Will be updated after upload
-        photo_urls: null, // Will be updated after upload
-        voice_url: null, // Will be updated after upload
-        is_offline: !!isOffline,
-        created_at_local: submissionTimestamp,
-        // Pass photo files and voice blob for background upload
-        _background_uploads: {
-          photos: filesToUpload.length > 0,
-          voice: !!voiceBlob
-        }
-      }),
+      body: JSON.stringify(payload),
       timeout: 10000 // 10 seconds max for incident creation (should be <2s)
     })
     const apiJson = await apiRes.json()

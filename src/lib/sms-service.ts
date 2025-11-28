@@ -1235,22 +1235,87 @@ export class SMSService {
       }
 
       // Check delivery status from API response
-      // iProgSMS typically returns: { status: 'delivered' | 'pending' | 'failed', ... }
-      const deliveryStatus = statusData.status || statusData.delivery_status || statusData.message_status
+      // IMPORTANT: "status" field is HTTP status code (200), NOT delivery status!
+      // We need to use "message_status" field for actual delivery status
+      // IMPORTANT: "Completed" in IPROG means "sent to carrier", NOT "delivered to phone"
+      // We need to distinguish between:
+      // - "queued" / "pending" = waiting to be sent
+      // - "completed" / "sent" = sent to carrier (but may not reach phone)
+      // - "delivered" = actually received by phone (this is what we want)
+      
+      // Prioritize message_status over status (status is HTTP code, not delivery status)
+      const deliveryStatusRaw = statusData.message_status || statusData.delivery_status || statusData.status
+      
+      // Log the full response for debugging
+      console.log(`📱 [SMS] Status API response for ${logId}:`, {
+        httpStatus: statusData.status, // HTTP status code (200)
+        messageStatus: statusData.message_status, // Actual delivery status
+        deliveryStatus: statusData.delivery_status,
+        selectedStatus: deliveryStatusRaw,
+        fullResponse: JSON.stringify(statusData).substring(0, 400)
+      })
+      
+      // Ensure deliveryStatus is a string before processing
+      // Skip HTTP status codes (200, 404, etc.) - these are not delivery statuses
+      let deliveryStatus: string
+      if (typeof deliveryStatusRaw === 'string') {
+        // Skip numeric strings that look like HTTP status codes
+        if (/^\d{3}$/.test(deliveryStatusRaw.trim())) {
+          // This is likely an HTTP status code, not a delivery status
+          console.warn(`📱 [SMS] ⚠️ Got HTTP status code instead of delivery status: ${deliveryStatusRaw}`)
+          deliveryStatus = '' // Will fall back to PENDING
+        } else {
+          deliveryStatus = deliveryStatusRaw
+        }
+      } else if (typeof deliveryStatusRaw === 'object' && deliveryStatusRaw !== null) {
+        deliveryStatus = JSON.stringify(deliveryStatusRaw)
+      } else {
+        deliveryStatus = String(deliveryStatusRaw || '')
+      }
       
       let dbStatus: 'PENDING' | 'SUCCESS' | 'FAILED' = 'PENDING'
+      let errorDetails: any = null
       
-      if (deliveryStatus) {
+      if (deliveryStatus && typeof deliveryStatus === 'string' && deliveryStatus.trim().length > 0) {
         const statusLower = deliveryStatus.toLowerCase()
-        if (statusLower.includes('delivered') || statusLower.includes('completed') || statusLower === 'success') {
+        
+        // ONLY mark as SUCCESS if explicitly "delivered" - not "completed" or "sent"
+        // "completed" means sent to carrier, but may not reach the phone
+        if (statusLower.includes('delivered') || statusLower === 'delivered') {
           dbStatus = 'SUCCESS'
-          console.log(`📱 [SMS] ✅ SMS ${logId} confirmed as DELIVERED`)
-        } else if (statusLower.includes('failed') || statusLower.includes('error') || statusLower === 'rejected') {
+          console.log(`📱 [SMS] ✅ SMS ${logId} confirmed as DELIVERED to phone`)
+        } else if (statusLower.includes('completed') || statusLower.includes('sent') || statusLower === 'success') {
+          // "Completed" means sent to carrier, but NOT necessarily delivered to phone
+          dbStatus = 'PENDING'
+          console.log(`📱 [SMS] ⚠️ SMS ${logId} sent to carrier (${deliveryStatus}), but delivery to phone not confirmed yet`)
+          console.log(`📱 [SMS] 💡 NOTE: "Completed" means sent to carrier network, NOT delivered to phone`)
+          console.log(`📱 [SMS] 💡 RECOMMENDATION: Contact IPROG to verify carrier-level delivery status`)
+        } else if (statusLower.includes('failed') || statusLower.includes('error') || statusLower === 'rejected' || statusLower.includes('blocked')) {
           dbStatus = 'FAILED'
-          console.log(`📱 [SMS] ❌ SMS ${logId} marked as FAILED: ${deliveryStatus}`)
+          errorDetails = {
+            carrierError: statusData.error_code || statusData.carrier_error,
+            carrierMessage: statusData.error_message || statusData.carrier_message,
+            carrierName: statusData.carrier_name || statusData.carrier
+          }
+          console.log(`📱 [SMS] ❌ SMS ${logId} marked as FAILED: ${deliveryStatus}`, errorDetails)
+          if (errorDetails.carrierError) {
+            console.log(`📱 [SMS] 🔍 Carrier Error Code: ${errorDetails.carrierError}`)
+            console.log(`📱 [SMS] 🔍 Possible causes: Sender ID not registered, DND list, carrier blocking`)
+          }
         } else {
+          dbStatus = 'PENDING'
           console.log(`📱 [SMS] ⏳ SMS ${logId} still PENDING: ${deliveryStatus}`)
         }
+      } else {
+        // Log full response when status format is unexpected
+        console.warn(`📱 [SMS] ⚠️ SMS ${logId} status check: Invalid or missing status`, { 
+          raw: deliveryStatusRaw, 
+          rawType: typeof deliveryStatusRaw,
+          parsed: deliveryStatus,
+          responseKeys: Object.keys(statusData),
+          fullResponse: JSON.stringify(statusData).substring(0, 400)
+        })
+        console.warn(`📱 [SMS] 💡 RECOMMENDATION: Check IPROG API documentation for correct status field name`)
       }
 
       // Update SMS log with actual delivery status
@@ -1258,8 +1323,15 @@ export class SMSService {
         delivery_status: dbStatus,
         api_response: {
           ...statusData,
-          lastChecked: new Date().toISOString()
-        }
+          lastChecked: new Date().toISOString(),
+          carrierStatus: statusData.carrier_status || statusData.message_status,
+          carrierName: statusData.carrier_name || statusData.carrier,
+          deliveryTimestamp: statusData.delivery_timestamp || statusData.delivered_at,
+          errorDetails: errorDetails
+        },
+        ...(errorDetails && dbStatus === 'FAILED' ? {
+          error_message: errorDetails.carrierMessage || `Delivery failed: ${deliveryStatus}`
+        } : {})
       })
 
     } catch (error: any) {

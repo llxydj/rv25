@@ -13,7 +13,22 @@ function HeatmapOverlay() {
 
   useEffect(() => {
     let canceled = false
-    ;(async () => {
+    
+    // Wait for map to be ready before loading data
+    const checkMapReady = () => {
+      try {
+        if (!map || !map.getContainer) return false
+        const container = map.getContainer()
+        if (!container || !container._leaflet_id) return false
+        const panes = (map as any)._panes
+        if (!panes || !panes.mapPane) return false
+        return true
+      } catch {
+        return false
+      }
+    }
+    
+    const loadHotspots = async () => {
       try {
         // Load hotspots (last 30 days)
         const res = await fetch('/api/analytics/hotspots?days=30')
@@ -30,9 +45,24 @@ function HeatmapOverlay() {
       } catch (err) {
         console.error('Failed to fetch hotspots:', err)
       }
-    })()
+    }
+    
+    if (!checkMapReady()) {
+      // Retry after a short delay
+      const timeout = setTimeout(() => {
+        if (checkMapReady()) {
+          loadHotspots()
+        }
+      }, 200)
+      return () => {
+        canceled = true
+        clearTimeout(timeout)
+      }
+    }
+    
+    loadHotspots()
     return () => { canceled = true }
-  }, [])
+  }, [map])
 
   // Simple circle-based heat approximation
   return (
@@ -109,23 +139,63 @@ function RecenterMap({ center }: { center: [number, number] }) {
     // Guard against accessing map when it's not ready
     if (!map || !map.getContainer || !map.setView) return
     
-    // Use a small delay to ensure map is fully initialized
-    // This prevents errors during zoom transitions when DOM elements might not be ready
-    const timeout = setTimeout(() => {
+    // Helper to check if map panes are ready
+    const isMapReady = () => {
       try {
         const container = map.getContainer()
-        // Only proceed if container is ready
-        if (container && container._leaflet_id) {
-          // Use animate: false to prevent conflicts with ongoing transitions
-          map.setView(center, map.getZoom(), { animate: false })
+        if (!container || !container._leaflet_id) return false
+        
+        // Check if map panes exist and are ready
+        const panes = (map as any)._panes
+        if (!panes) return false
+        
+        // Check if the map pane exists and has the required property
+        const mapPane = panes.mapPane
+        if (!mapPane) return false
+        
+        // Check if map is not currently in a transition
+        const isTransitioning = (map as any)._zooming || (map as any)._animatingZoom
+        if (isTransitioning) return false
+        
+        return true
+      } catch {
+        return false
+      }
+    }
+    
+    // Use a small delay to ensure map is fully initialized
+    // This prevents errors during zoom transitions when DOM elements might not be ready
+    let retryTimeout: NodeJS.Timeout | null = null
+    const timeout = setTimeout(() => {
+      try {
+        if (!isMapReady()) {
+          // If not ready, retry after a short delay
+          retryTimeout = setTimeout(() => {
+            try {
+              if (isMapReady()) {
+                map.setView(center, map.getZoom(), { animate: false })
+              }
+            } catch (err) {
+              // Silently handle errors during map initialization/transitions
+            }
+          }, 200)
+          return
         }
+        
+        // Use animate: false to prevent conflicts with ongoing transitions
+        map.setView(center, map.getZoom(), { animate: false })
       } catch (err) {
         // Silently handle errors during map initialization/transitions
         // This prevents crashes when map is accessing _leaflet_pos during transitions
       }
     }, 150)
     
-    return () => clearTimeout(timeout)
+    return () => {
+      clearTimeout(timeout)
+      if (retryTimeout) {
+        clearTimeout(retryTimeout)
+      }
+    }
   }, [center, map])
   
   return null
@@ -139,11 +209,26 @@ function TalisayCityBoundary() {
   useEffect(() => {
     if (!map || !map.getContainer) return
     
+    // Helper to check if map panes are ready
+    const isMapReady = () => {
+      try {
+        const container = map.getContainer()
+        if (!container || !container._leaflet_id) return false
+        
+        // Check if map panes exist and are ready
+        const panes = (map as any)._panes
+        if (!panes || !panes.mapPane) return false
+        
+        return true
+      } catch {
+        return false
+      }
+    }
+    
     // Wait for map to be ready before loading boundary
     const loadBoundary = () => {
       try {
-        const container = map.getContainer()
-        if (!container || !container._leaflet_id) {
+        if (!isMapReady()) {
           // Map not ready, retry
           setTimeout(loadBoundary, 100)
           return
@@ -253,10 +338,24 @@ function MapClickHandler({ onMapClick }: { onMapClick?: (lat: number, lng: numbe
 function VolunteerLocations({ showVolunteerLocations }: { showVolunteerLocations?: boolean }) {
   const map = useMap()
   
+  // Helper to check if map is ready
+  const isMapReady = () => {
+    try {
+      if (!map || !map.getContainer || !map.getCenter) return false
+      const container = map.getContainer()
+      if (!container || !container._leaflet_id) return false
+      const panes = (map as any)._panes
+      if (!panes || !panes.mapPane) return false
+      return true
+    } catch {
+      return false
+    }
+  }
+  
   // Get map center once and memoize it to prevent infinite re-renders
   const [mapCenter, setMapCenter] = useState<[number, number]>(() => {
     try {
-      if (!map || !map.getCenter) return TALISAY_CENTER
+      if (!isMapReady()) return TALISAY_CENTER
       const center = map.getCenter()
       return [center.lat, center.lng]
     } catch (err) {
@@ -271,7 +370,7 @@ function VolunteerLocations({ showVolunteerLocations }: { showVolunteerLocations
     
     const handleMoveEnd = () => {
       try {
-        if (!map || !map.getCenter) return
+        if (!isMapReady()) return
         const center = map.getCenter()
         setMapCenter([center.lat, center.lng])
       } catch (err) {

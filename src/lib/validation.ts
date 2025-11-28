@@ -53,7 +53,7 @@ export const IncidentCreateSchema = z.object({
   description: z.string().min(1),
   location_lat: z.coerce.number().min(-90).max(90),
   location_lng: z.coerce.number().min(-180).max(180),
-  address: z.string().nullable().optional(),
+  address: z.string().transform(val => val === '' ? null : val).nullable().optional(),
   barangay: z.string().min(1),
   priority: z.coerce.number().int().min(1).max(5).default(3),
   photo_url: z.string().nullable().optional(),
