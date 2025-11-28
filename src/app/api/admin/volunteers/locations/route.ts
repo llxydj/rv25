@@ -80,7 +80,11 @@ export async function GET(request: Request) {
     if (viewError) {
       console.warn('[admin-locations] View query error (will try direct query):', viewError)
     } else {
-      locations = viewData || []
+      // Map view data - the view already includes realtime_status
+      locations = (viewData || []).map((loc: any) => ({
+        ...loc,
+        realtime_status: loc.realtime_status || (loc.is_available ? 'available' : 'offline')
+      }))
       console.log(`[admin-locations] View returned ${locations.length} volunteers`)
     }
 
@@ -121,10 +125,22 @@ export async function GET(request: Request) {
           .select('volunteer_user_id, is_available, skills, assigned_barangays')
           .in('volunteer_user_id', userIds)
 
+        // Query volunteer real-time status separately
+        const { data: statusData } = await supabase
+          .from('volunteer_real_time_status')
+          .select('user_id, status, last_activity')
+          .in('user_id', userIds)
+
         // Create a map of profiles by user_id
         const profileMap = new Map<string, any>()
         profiles?.forEach((profile: any) => {
           profileMap.set(profile.volunteer_user_id, profile)
+        })
+
+        // Create a map of statuses by user_id
+        const statusMap = new Map<string, any>()
+        statusData?.forEach((s: any) => {
+          statusMap.set(s.user_id, s)
         })
 
         // Get unique volunteers (most recent location per volunteer)
@@ -132,6 +148,7 @@ export async function GET(request: Request) {
         directData.forEach((loc: any) => {
           if (!volunteerMap.has(loc.user_id)) {
             const profile = profileMap.get(loc.user_id)
+            const statusInfo = statusMap.get(loc.user_id)
             volunteerMap.set(loc.user_id, {
               id: loc.user_id,
               user_id: loc.user_id,
@@ -146,7 +163,7 @@ export async function GET(request: Request) {
               is_available: profile?.is_available || false,
               skills: profile?.skills || [],
               assigned_barangays: profile?.assigned_barangays || [],
-              realtime_status: profile?.is_available ? 'available' : 'offline' // Default status
+              realtime_status: statusInfo?.status || (profile?.is_available ? 'available' : 'offline') // Use real-time status if available
             })
           }
         })
@@ -169,6 +186,7 @@ export async function GET(request: Request) {
       const lat = loc.latitude || loc.lat
       const lng = loc.longitude || loc.lng
       const createdAt = loc.last_location_update || loc.created_at
+      // Ensure status is properly extracted - check multiple possible fields
       const status = loc.realtime_status || loc.status || (loc.is_available ? 'available' : 'offline')
       
       return {
@@ -185,7 +203,8 @@ export async function GET(request: Request) {
         last_name: loc.last_name || '',
         email: loc.email || '',
         phone_number: loc.phone_number || '',
-        status: status,
+        status: status, // Explicitly include status
+        realtime_status: status, // Also include as realtime_status for compatibility
         is_available: loc.is_available || false,
         skills: loc.skills || [],
         assigned_barangays: loc.assigned_barangays || []

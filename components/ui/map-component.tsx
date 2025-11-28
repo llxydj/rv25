@@ -4,6 +4,7 @@ import type React from "react"
 import { useEffect, useState } from "react"
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from "react-leaflet"
 import L from "leaflet"
+import { MapPin } from "lucide-react"
 
 interface MapComponentProps {
   center?: [number, number]
@@ -52,6 +53,24 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 },
       )
     }
+
+    // Remove any debug text from popups (guaranteed fix)
+    const removeDebugText = () => {
+      const popups = document.querySelectorAll('.leaflet-popup-content p, .leaflet-popup-content div')
+      popups.forEach((element) => {
+        const text = element.textContent || ''
+        if (text.includes('Color:') && text.includes('Status:')) {
+          element.remove()
+        }
+      })
+    }
+
+    // Run immediately and set up observer
+    removeDebugText()
+    const observer = new MutationObserver(removeDebugText)
+    observer.observe(document.body, { childList: true, subtree: true })
+
+    return () => observer.disconnect()
   }, [userLocation])
 
   function MapClickHandler() {
@@ -219,13 +238,33 @@ export const MapComponent: React.FC<MapComponentProps> = ({
             }}
           >
             <Popup>
-              <div>
-                <h3 className="font-bold">{marker.title}</h3>
-                {marker.description && <p className="text-sm">{marker.description}</p>}
-                <p className="text-xs mt-1">Status: {marker.status}</p>
-                <p className="text-xs">
-                  {marker.position[0]}, {marker.position[1]}
-                </p>
+              <div className="p-4 bg-white shadow-xl min-w-[240px] border-2 border-gray-300" style={{ color: '#000000' }}>
+                <h3 className="font-bold text-lg mb-3" style={{ color: '#000000', fontWeight: '700', fontSize: '16px' }}>{marker.title}</h3>
+                {marker.description && (() => {
+                  // Clean up description: remove excessive newlines, normalize whitespace, remove coordinates
+                  const cleanedDescription = marker.description
+                    .trim()
+                    .replace(/\n+/g, ' ')
+                    .replace(/\s+/g, ' ')
+                    .replace(/\b\d+\.\d{6,}\b/g, '')
+                    .trim()
+                  
+                  return cleanedDescription ? (
+                    <p className="text-sm mt-2 leading-relaxed whitespace-normal break-words" style={{ color: '#000000', fontWeight: '600', fontSize: '14px' }}>
+                      {cleanedDescription}
+                    </p>
+                  ) : null
+                })()}
+                <p className="text-sm mt-3 font-bold" style={{ color: '#1f2937', fontWeight: '700' }}>Status: {marker.status}</p>
+                <div className="mt-3 flex items-start gap-2 bg-gray-50 p-2.5 rounded border border-gray-200">
+                  <MapPin className="h-4 w-4 text-gray-700 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-gray-700 mb-1">Location</p>
+                    <p className="text-xs font-mono text-gray-900 break-all font-semibold">
+                      {marker.position[0].toFixed(6)}, {marker.position[1].toFixed(6)}
+                    </p>
+                  </div>
+                </div>
               </div>
             </Popup>
           </Marker>

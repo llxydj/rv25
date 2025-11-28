@@ -8,6 +8,7 @@ import "leaflet/dist/leaflet.css"
 import { TALISAY_CENTER, isWithinTalisayCity } from "@/lib/geo-utils"
 import { useRealtimeVolunteerLocations } from "@/hooks/use-realtime-volunteer-locations"
 import { RealtimeStatusIndicator } from "@/components/realtime-status-indicator"
+import { MapPin } from "lucide-react"
 
 // ------------------------------
 // Animated Marker
@@ -101,27 +102,44 @@ function HeatmapOverlay() {
 const createCustomIcon = (color: string, type: "incident" | "volunteer" | "user", isActive = false, status?: string) => {
   const pulseClass = isActive ? "animate-pulse" : ""
   
-  // Larger, more visible sizes
-  const size = type === "volunteer" ? "32px" : type === "user" ? "28px" : "30px"
-  const borderWidth = type === "volunteer" ? "4px" : "3px"
+  // Larger, more visible sizes - make volunteers even bigger for better visibility
+  const size = type === "volunteer" ? "36px" : type === "user" ? "28px" : "30px"
+  const borderWidth = type === "volunteer" ? "5px" : "3px"
   
   // Enhanced shadow for better visibility
-  const shadow = "0 4px 12px rgba(0,0,0,0.4), 0 2px 4px rgba(0,0,0,0.3)"
+  const shadow = "0 6px 16px rgba(0,0,0,0.5), 0 3px 6px rgba(0,0,0,0.4)"
   
-  // Status-based inner indicator for volunteers
-  const statusIndicator = type === "volunteer" && status 
-    ? `<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 12px; height: 12px; border-radius: 50%; background-color: white; border: 2px solid ${color};"></div>`
-    : ""
+  // Status-based icon shape and indicator for volunteers
+  let statusIcon = ""
+  let statusShape = "50%" // Default circle
+  
+  if (type === "volunteer" && status) {
+    const statusLower = status.toLowerCase()
+    // Different shapes for different statuses
+    if (statusLower === "available") {
+      statusShape = "50%" // Circle
+      statusIcon = `<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 16px; height: 16px; border-radius: 50%; background-color: white; border: 3px solid ${color};"></div>`
+    } else if (statusLower === "on_task") {
+      statusShape = "20% 20% 20% 20%" // Rounded square
+      statusIcon = `<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(45deg); width: 18px; height: 18px; background-color: white; border: 2px solid ${color};"></div>`
+    } else if (statusLower === "offline") {
+      statusShape = "50%" // Circle with X
+      statusIcon = `<div style="position: absolute; top: 50%; left: 50%; width: 18px; height: 2px; background-color: white; transform: translate(-50%, -50%) rotate(45deg);"></div><div style="position: absolute; top: 50%; left: 50%; width: 18px; height: 2px; background-color: white; transform: translate(-50%, -50%) rotate(-45deg);"></div>`
+    } else if (statusLower === "unavailable") {
+      statusShape = "50%" // Circle with minus
+      statusIcon = `<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 16px; height: 3px; background-color: white; border-radius: 2px;"></div>`
+    }
+  }
 
   const iconHtml =
     type === "volunteer"
-      ? `<div class="${pulseClass}" style="background-color: ${color}; width: ${size}; height: ${size}; border-radius: 50%; border: ${borderWidth} solid white; box-shadow: ${shadow}; position: relative; z-index: 1000;">
-           ${statusIndicator}
+      ? `<div class="${pulseClass}" style="background-color: ${color}; width: ${size}; height: ${size}; border-radius: ${statusShape}; border: ${borderWidth} solid white; box-shadow: ${shadow}; position: relative; z-index: 1000;">
+           ${statusIcon}
            ${
              isActive
-               ? '<div style="position: absolute; top: -8px; left: -8px; width: 48px; height: 48px; border-radius: 50%; background-color: ' +
+               ? '<div style="position: absolute; top: -10px; left: -10px; width: 56px; height: 56px; border-radius: 50%; background-color: ' +
                  color +
-                 '; opacity: 0.25; animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite; z-index: -1;"></div>'
+                 '; opacity: 0.3; animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite; z-index: -1;"></div>'
                : ""
            }
          </div>`
@@ -282,8 +300,13 @@ function VolunteerLocations({
         const isNewOrMoved = !prev || prev.latitude !== volunteer.latitude || prev.longitude !== volunteer.longitude
         
         // Get status from volunteer data (check multiple possible fields)
-        const volunteerStatus = (volunteer as any).status || (volunteer as any).volunteer_status || 'available'
+        const volunteerStatus = (volunteer as any).status || (volunteer as any).realtime_status || (volunteer as any).volunteer_status || 'offline'
         const volunteerColor = getVolunteerColor(volunteerStatus)
+        
+        // Debug logging to verify status is being passed
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`[Map] Volunteer ${volunteer.user_id}: status=${volunteerStatus}, color=${volunteerColor}`)
+        }
 
         return (
           <AnimatedMarker
@@ -294,34 +317,56 @@ function VolunteerLocations({
             duration={800}
           >
             <Popup>
-              <div className="p-2 min-w-[200px]">
-                <h3 className="font-semibold text-sm text-gray-900">
+              <div className="p-3 bg-white shadow-lg min-w-[240px]">
+                <h3 className="font-bold text-base text-gray-900 mb-2">
                   {volunteer.first_name} {volunteer.last_name}
                 </h3>
 
-                {volunteer.distance_km && (
-                  <p className="text-xs text-gray-600 mt-1">
-                    📍 Distance: {volunteer.distance_km.toFixed(1)} km
+                {/* Status Badge */}
+                <div className="mb-3">
+                  <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-semibold ${
+                    volunteerStatus === 'available' ? 'bg-green-100 text-green-800 border-2 border-green-300' :
+                    volunteerStatus === 'on_task' ? 'bg-blue-100 text-blue-800 border-2 border-blue-300' :
+                    volunteerStatus === 'offline' ? 'bg-gray-100 text-gray-800 border-2 border-gray-300' :
+                    'bg-red-100 text-red-800 border-2 border-red-300'
+                  }`}>
+                    Status: {volunteerStatus === 'available' ? 'Available' :
+                            volunteerStatus === 'on_task' ? 'On Task' :
+                            volunteerStatus === 'offline' ? 'Offline' :
+                            'Unavailable'}
+                  </span>
+                </div>
+
+                <div className="space-y-1.5">
+                  {volunteer.distance_km && (
+                    <div className="flex items-center gap-2 text-sm text-gray-800 font-medium">
+                      <MapPin className="h-4 w-4 text-gray-700 flex-shrink-0" />
+                      <span>Distance: <span className="font-semibold text-gray-900">{volunteer.distance_km.toFixed(1)} km</span></span>
+                    </div>
+                  )}
+
+                  <p className="text-sm text-gray-800 font-medium">
+                    🕒 Last seen: <span className="font-semibold text-gray-900">{new Date(volunteer.last_seen).toLocaleTimeString()}</span>
                   </p>
-                )}
 
-                <p className="text-xs text-gray-500 mt-1">
-                  🕒 Last seen: {new Date(volunteer.last_seen).toLocaleTimeString()}
-                </p>
+                  {volunteer.phone_number && (
+                    <p className="text-sm text-blue-700 font-medium">
+                      📞 <span className="font-semibold">{volunteer.phone_number}</span>
+                    </p>
+                  )}
 
-                {volunteer.phone_number && (
-                  <p className="text-xs text-blue-600 mt-1">📞 {volunteer.phone_number}</p>
-                )}
+                  {volunteer.accuracy && (
+                    <p className="text-sm text-gray-800 font-medium">
+                      🎯 Accuracy: <span className="font-semibold text-gray-900">±{volunteer.accuracy.toFixed(0)}m</span>
+                    </p>
+                  )}
 
-                {volunteer.accuracy && (
-                  <p className="text-xs text-gray-500 mt-1">🎯 Accuracy: ±{volunteer.accuracy.toFixed(0)}m</p>
-                )}
-
-                {volunteer.speed && volunteer.speed > 0 && (
-                  <p className="text-xs text-green-600 mt-1">
-                    🚗 Speed: {(volunteer.speed * 3.6).toFixed(1)} km/h
-                  </p>
-                )}
+                  {volunteer.speed && volunteer.speed > 0 && (
+                    <p className="text-sm text-green-700 font-medium">
+                      🚗 Speed: <span className="font-semibold">{(volunteer.speed * 3.6).toFixed(1)} km/h</span>
+                    </p>
+                  )}
+                </div>
               </div>
             </Popup>
           </AnimatedMarker>
@@ -371,11 +416,17 @@ function UserLocation({ showUserLocation }: { showUserLocation?: boolean }) {
   return (
     <AnimatedMarker position={userPosition} icon={createCustomIcon("#3b82f6", "user")} animate duration={600}>
       <Popup>
-        <div className="p-2">
-          <h3 className="font-semibold text-sm">Your Location</h3>
-          <p className="text-xs text-gray-600">
-            📍 {userPosition[0].toFixed(6)}, {userPosition[1].toFixed(6)}
-          </p>
+        <div className="p-3 bg-white shadow-lg min-w-[220px]">
+          <h3 className="font-bold text-base text-gray-900 mb-2">Your Location</h3>
+          <div className="flex items-start gap-2 bg-gray-50 p-2.5 rounded border border-gray-200">
+            <MapPin className="h-4 w-4 text-gray-700 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-gray-700 mb-1">Coordinates</p>
+              <p className="text-xs font-mono text-gray-900 break-all font-semibold">
+                {userPosition[0].toFixed(6)}, {userPosition[1].toFixed(6)}
+              </p>
+            </div>
+          </div>
         </div>
       </Popup>
     </AnimatedMarker>
@@ -497,36 +548,70 @@ const MapInternal: React.FC<MapComponentProps> = ({
               duration={500}
             >
               <Popup>
-                <div className="p-2 min-w-[200px]">
-                  <h3 className="font-semibold text-sm text-gray-900">{marker.title}</h3>
-                  <p className="text-xs text-gray-600 mt-1">
-                    Status:{" "}
-                    <span
-                      className={`font-medium ${
+                <div className="p-3 bg-white shadow-lg min-w-[240px]">
+                  <h3 className="font-bold text-base text-gray-900 mb-2">{marker.title}</h3>
+                  
+                  {/* Status display - handle both volunteer and incident statuses */}
+                  {isVolunteerMarker ? (
+                    <div className="mb-3">
+                      <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-semibold ${
+                        marker.status?.toLowerCase() === 'available' ? 'bg-green-100 text-green-800 border-2 border-green-300' :
+                        marker.status?.toLowerCase() === 'on_task' ? 'bg-blue-100 text-blue-800 border-2 border-blue-300' :
+                        marker.status?.toLowerCase() === 'offline' ? 'bg-gray-100 text-gray-800 border-2 border-gray-300' :
+                        'bg-red-100 text-red-800 border-2 border-red-300'
+                      }`}>
+                        Status: {marker.status === 'available' ? 'Available' :
+                                marker.status === 'on_task' ? 'On Task' :
+                                marker.status === 'offline' ? 'Offline' :
+                                marker.status === 'unavailable' ? 'Unavailable' : marker.status}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="mb-3">
+                      <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-semibold ${
                         marker.status === "RESOLVED"
-                          ? "text-green-600"
+                          ? "bg-green-100 text-green-800 border-2 border-green-300"
                           : marker.status === "RESPONDING"
-                          ? "text-blue-600"
+                          ? "bg-blue-100 text-blue-800 border-2 border-blue-300"
                           : marker.status === "ASSIGNED"
-                          ? "text-yellow-600"
+                          ? "bg-amber-100 text-amber-800 border-2 border-amber-300"
                           : marker.status === "PENDING"
-                          ? "text-red-600"
-                          : "text-gray-600"
-                      }`}
-                    >
-                      {marker.status}
-                    </span>
-                  </p>
-                  {marker.description && (
-                    <p className="text-xs text-gray-500 mt-1">{marker.description}</p>
+                          ? "bg-red-100 text-red-800 border-2 border-red-300"
+                          : "bg-gray-100 text-gray-800 border-2 border-gray-300"
+                      }`}>
+                        {marker.status}
+                      </span>
+                    </div>
                   )}
-                  <p className="text-xs text-gray-500 mt-1">
-                    📍 {marker.position[0].toFixed(6)}, {marker.position[1].toFixed(6)}
-                  </p>
+                  
+                  {marker.description && (() => {
+                    // Clean up description: remove excessive newlines, normalize whitespace, remove coordinates
+                    const cleanedDescription = marker.description
+                      .trim()
+                      .replace(/\n+/g, ' ')
+                      .replace(/\s+/g, ' ')
+                      .replace(/\b\d+\.\d{6,}\b/g, '')
+                      .trim()
+                    
+                    return cleanedDescription ? (
+                      <p className="text-sm text-gray-800 mt-2 leading-relaxed whitespace-normal break-words">
+                        {cleanedDescription}
+                      </p>
+                    ) : null
+                  })()}
+                  <div className="mt-3 flex items-start gap-2 bg-gray-50 p-2.5 rounded border border-gray-200">
+                    <MapPin className="h-4 w-4 text-gray-700 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-gray-700 mb-1">Location</p>
+                      <p className="text-xs font-mono text-gray-900 break-all font-semibold">
+                        {marker.position[0].toFixed(6)}, {marker.position[1].toFixed(6)}
+                      </p>
+                    </div>
+                  </div>
                   {marker.onClick && (
                     <button
                       onClick={() => marker.onClick?.(marker.id)}
-                      className="mt-2 px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
+                      className="mt-3 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-md hover:bg-blue-700 transition-colors shadow-sm"
                     >
                       View Details
                     </button>

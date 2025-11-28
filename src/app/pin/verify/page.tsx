@@ -41,11 +41,9 @@ export default function PinVerifyPage() {
         const json = await res.json()
         
         if (json.verified) {
-          // Already verified, redirect immediately
-          // Use a small delay to ensure cookie is fully set
-          setTimeout(() => {
-            router.replace(redirectTo) // Use replace to prevent back button issues
-          }, 50)
+          // Already verified, redirect immediately WITHOUT showing the page
+          // Use replace to prevent back button issues and avoid flash
+          router.replace(redirectTo)
           return
         }
       } catch (error) {
@@ -59,12 +57,8 @@ export default function PinVerifyPage() {
       }
     }
 
-    // Add small delay to prevent race conditions with cookie setting
-    const timer = setTimeout(() => {
-      checkVerified()
-    }, 200)
-
-    return () => clearTimeout(timer)
+    // Check immediately on mount - no delay to prevent flash
+    checkVerified()
   }, [router, redirectTo])
 
   const handlePinChange = (index: number, value: string) => {

@@ -6,6 +6,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap, Rectangle, Circle, useM
 import L from "leaflet"
 import "leaflet/dist/leaflet.css"
 import { TALISAY_CENTER, isWithinTalisayCity } from "@/lib/geo-utils"
+import { MapPin } from "lucide-react"
 
 function HeatmapOverlay() {
   const [points, setPoints] = useState<Array<{ lat: number; lng: number; weight: number }>>([])
@@ -106,28 +107,64 @@ interface MapComponentProps {
 
 // Custom marker icons
 const createCustomIcon = (color: string, type: 'incident' | 'volunteer' | 'user') => {
-  const iconHtml = type === 'volunteer' 
-    ? `<div style="background-color: ${color}; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`
-    : `<div style="background-color: ${color}; width: 25px; height: 25px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`
+  // Larger, more visible sizes
+  const size = type === 'volunteer' ? '36px' : type === 'user' ? '28px' : '30px'
+  const borderWidth = type === 'volunteer' ? '5px' : '3px'
   
+  // Enhanced shadow for better visibility
+  const shadow = "0 6px 16px rgba(0,0,0,0.5), 0 3px 6px rgba(0,0,0,0.4)"
+  
+  // Ensure color is always a valid hex color
+  const validColor = color && color.startsWith('#') ? color : '#ef4444'
+  
+  // Debug: Log color being used
+  if (process.env.NODE_ENV === 'development' && type === 'incident') {
+    console.log(`[createCustomIcon] Creating ${type} marker with color: ${validColor} (original: ${color})`)
+  }
+  
+  const iconHtml =
+    type === 'volunteer'
+      ? `<div style="background-color: ${validColor} !important; width: ${size}; height: ${size}; border-radius: 50%; border: ${borderWidth} solid white; box-shadow: ${shadow}; position: relative; z-index: 1000; display: block;"></div>`
+      : type === 'user'
+      ? `<div style="background-color: ${validColor} !important; width: ${size}; height: ${size}; border-radius: 50%; border: ${borderWidth} solid white; box-shadow: ${shadow}; position: relative; z-index: 1000; display: block;"></div>`
+      : `<div style="background-color: ${validColor} !important; width: ${size}; height: ${size}; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: ${borderWidth} solid white; box-shadow: ${shadow}; position: relative; z-index: 1000; display: block;"></div>`
+
   return L.divIcon({
     html: iconHtml,
     className: 'custom-marker',
-    iconSize: [25, 25],
-    iconAnchor: [12, 12],
-    popupAnchor: [0, -12]
+    iconSize: type === 'volunteer' ? [40, 40] : type === 'user' ? [36, 36] : [34, 34],
+    iconAnchor: type === 'volunteer' ? [20, 20] : type === 'user' ? [18, 18] : [17, 17],
+    popupAnchor: type === 'volunteer' ? [0, -20] : [0, -18]
   })
 }
 
 // Incident status colors
 const getIncidentColor = (status: string) => {
-  switch (status) {
+  if (!status) {
+    console.warn('[Map Internal] Marker has no status, defaulting to red')
+    return '#ef4444' // red for unknown status
+  }
+  
+  // Normalize: trim whitespace, convert to uppercase
+  const normalized = status.toString().trim().toUpperCase()
+  
+  // Log if status was modified during normalization
+  if (normalized !== status.toString().trim()) {
+    console.warn(`[Map Internal] Status normalized: "${status}" -> "${normalized}"`)
+  }
+  
+  switch (normalized) {
     case 'PENDING': return '#ef4444' // red
     case 'ASSIGNED': return '#f59e0b' // amber
     case 'RESPONDING': return '#3b82f6' // blue
     case 'RESOLVED': return '#10b981' // green
-    case 'CANCELLED': return '#6b7280' // gray
-    default: return '#6b7280'
+    case 'CANCELLED': 
+    case 'CANCELED': // Handle alternative spelling
+      console.log(`[Map Internal] Marker with CANCELLED status will be gray: ${normalized}`)
+      return '#6b7280' // gray
+    default: 
+      console.warn(`[Map Internal] Unknown status "${status}" (normalized: "${normalized}"), defaulting to red`)
+      return '#ef4444' // red for unknown status instead of gray
   }
 }
 
@@ -409,21 +446,22 @@ function VolunteerLocations({ showVolunteerLocations }: { showVolunteerLocations
           icon={createCustomIcon('#10b981', 'volunteer')}
         >
           <Popup>
-            <div className="p-2">
-              <h3 className="font-semibold text-sm">
+            <div className="p-3 bg-white shadow-lg min-w-[220px]">
+              <h3 className="font-bold text-base text-gray-900 mb-2">
                 {volunteer.first_name} {volunteer.last_name}
               </h3>
               {volunteer.distance_km && (
-                <p className="text-xs text-gray-600">
-                  Distance: {volunteer.distance_km.toFixed(1)} km
-                </p>
+                <div className="flex items-center gap-2 text-sm text-gray-800 font-medium mb-1">
+                  <MapPin className="h-4 w-4 text-gray-700 flex-shrink-0" />
+                  <span>Distance: <span className="font-semibold text-gray-900">{volunteer.distance_km.toFixed(1)} km</span></span>
+                </div>
               )}
-              <p className="text-xs text-gray-500">
-                Last seen: {new Date(volunteer.last_seen).toLocaleTimeString()}
+              <p className="text-sm text-gray-800 font-medium mb-1">
+                🕒 Last seen: <span className="font-semibold text-gray-900">{new Date(volunteer.last_seen).toLocaleTimeString()}</span>
               </p>
               {volunteer.phone_number && (
-                <p className="text-xs text-blue-600">
-                  📞 {volunteer.phone_number}
+                <p className="text-sm text-blue-700 font-medium">
+                  📞 <span className="font-semibold">{volunteer.phone_number}</span>
                 </p>
               )}
             </div>
@@ -594,29 +632,103 @@ const MapInternal: React.FC<MapComponentProps> = ({
         <MapClickHandler onMapClick={onMapClick} />
         
         {/* Incident markers */}
-        {markers.map((marker) => (
-           <Marker
-             key={marker.id}
-             position={marker.position}
-             icon={createCustomIcon(getIncidentColor(marker.status), 'incident') as L.DivIcon}
-             eventHandlers={{
-               click: (e: L.LeafletMouseEvent) => marker.onClick?.(marker.id)
-             }}
-           >
-            <Popup>
-              <div className="p-2">
-                <h3 className="font-semibold text-sm">{marker.title}</h3>
-                <p className="text-xs text-gray-600 capitalize">{marker.status.toLowerCase()}</p>
-                {marker.description && (
-                  <p className="text-xs text-gray-500 mt-1">{marker.description}</p>
-                )}
-                <p className="text-xs text-gray-400 mt-1">
-                  {marker.position[0].toFixed(6)}, {marker.position[1].toFixed(6)}
-                </p>
-              </div>
-            </Popup>
-          </Marker>
-        ))}
+        {markers.map((marker) => {
+          // Normalize status - trim whitespace and ensure uppercase
+          const normalizedStatus = marker.status 
+            ? marker.status.toString().trim().toUpperCase() 
+            : 'PENDING'
+          
+          // Ensure status is defined and log for debugging
+          if (!marker.status || normalizedStatus === 'PENDING' && marker.status !== 'PENDING') {
+            console.warn(`[Map Internal] Marker ${marker.id} status issue:`, {
+              original: marker.status,
+              normalized: normalizedStatus,
+              type: typeof marker.status,
+              hasWhitespace: marker.status?.includes(' ') || marker.status?.includes('\n') || marker.status?.includes('\t'),
+              marker
+            })
+          }
+          
+          const incidentColor = getIncidentColor(normalizedStatus)
+          
+          // Debug logging in development
+          if (process.env.NODE_ENV === 'development') {
+            console.log(`[Map Internal] Marker ${marker.id}:`, {
+              originalStatus: marker.status,
+              normalizedStatus: normalizedStatus,
+              color: incidentColor,
+              title: marker.title,
+              willBeGray: incidentColor === '#6b7280'
+            })
+          }
+          
+          return (
+            <Marker
+              key={marker.id}
+              position={marker.position}
+              icon={createCustomIcon(incidentColor, 'incident') as L.DivIcon}
+              eventHandlers={{
+                click: (e: L.LeafletMouseEvent) => marker.onClick?.(marker.id)
+              }}
+            >
+              <Popup>
+                <div className="p-4 bg-white shadow-xl min-w-[240px] border-2 border-gray-300" style={{ color: '#000000' }}>
+                  <h3 className="font-bold text-lg mb-3" style={{ color: '#000000', fontWeight: '700', fontSize: '16px' }}>{marker.title}</h3>
+                  <div className="flex items-center gap-2 mb-3">
+                    <div 
+                      className="w-5 h-5 rounded-full border-2 border-gray-400 shadow-sm" 
+                      style={{ backgroundColor: incidentColor }}
+                      title={`Status: ${normalizedStatus}`}
+                    ></div>
+                    <span className={`text-sm font-bold capitalize ${
+                      normalizedStatus === 'PENDING' ? 'text-red-700' :
+                      normalizedStatus === 'ASSIGNED' ? 'text-amber-700' :
+                      normalizedStatus === 'RESPONDING' ? 'text-blue-700' :
+                      normalizedStatus === 'RESOLVED' ? 'text-green-700' :
+                      normalizedStatus === 'CANCELLED' ? 'text-gray-700' :
+                      'text-gray-900'
+                    }`} style={{ color: normalizedStatus === 'PENDING' ? '#991b1b' :
+                      normalizedStatus === 'ASSIGNED' ? '#92400e' :
+                      normalizedStatus === 'RESPONDING' ? '#1e3a8a' :
+                      normalizedStatus === 'RESOLVED' ? '#14532d' :
+                      normalizedStatus === 'CANCELLED' ? '#1f2937' :
+                      '#000000', fontWeight: '700' }}>
+                      {normalizedStatus.toLowerCase()}
+                    </span>
+                  </div>
+                  {marker.description && (() => {
+                    // Clean up description: remove excessive newlines, normalize whitespace, remove coordinates
+                    const cleanedDescription = marker.description
+                      .trim()
+                      // Replace multiple newlines with single space
+                      .replace(/\n+/g, ' ')
+                      // Replace multiple spaces with single space
+                      .replace(/\s+/g, ' ')
+                      // Remove coordinate patterns (numbers that look like lat/lng - 6+ decimal places)
+                      .replace(/\b\d+\.\d{6,}\b/g, '')
+                      .trim()
+                    
+                    // Only render if description has content after cleaning
+                    return cleanedDescription ? (
+                      <p className="text-sm mt-2 leading-relaxed whitespace-normal break-words" style={{ color: '#000000', fontWeight: '600', fontSize: '14px' }}>
+                        {cleanedDescription}
+                      </p>
+                    ) : null
+                  })()}
+                  <div className="mt-3 flex items-start gap-2 bg-gray-50 p-2.5 rounded border border-gray-200">
+                    <MapPin className="h-4 w-4 text-gray-700 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-gray-700 mb-1">Location</p>
+                      <p className="text-xs font-mono text-gray-900 break-all font-semibold">
+                        {marker.position[0].toFixed(6)}, {marker.position[1].toFixed(6)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </Popup>
+            </Marker>
+          )
+        })}
         
         {/* User location marker (only when there are no other markers) */}
          {userLocationState && markers.length === 0 && (
@@ -625,11 +737,17 @@ const MapInternal: React.FC<MapComponentProps> = ({
             icon={createCustomIcon('#3b82f6', 'user') as L.DivIcon}
           >
             <Popup>
-              <div className="p-2">
-                <h3 className="font-semibold text-sm">Your Location</h3>
-                <p className="text-xs text-gray-500">
-                  {userLocationState[0].toFixed(6)}, {userLocationState[1].toFixed(6)}
-                </p>
+              <div className="p-3 bg-white shadow-lg min-w-[220px]">
+                <h3 className="font-bold text-base text-gray-900 mb-2">Your Location</h3>
+                <div className="flex items-start gap-2 bg-gray-50 p-2.5 rounded border border-gray-200">
+                  <MapPin className="h-4 w-4 text-gray-700 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-gray-700 mb-1">Coordinates</p>
+                    <p className="text-xs font-mono text-gray-900 break-all font-semibold">
+                      {userLocationState[0].toFixed(6)}, {userLocationState[1].toFixed(6)}
+                    </p>
+                  </div>
+                </div>
               </div>
             </Popup>
           </Marker>

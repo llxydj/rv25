@@ -1180,6 +1180,22 @@ export const getResidentIncidents = async (residentId: string) => {
 
     if (error) throw error
 
+    // Debug: Log status values from database
+    if (process.env.NODE_ENV === 'development' && data) {
+      const statusCounts: Record<string, number> = {}
+      data.forEach((incident: any) => {
+        const status = incident.status || 'NULL'
+        statusCounts[status] = (statusCounts[status] || 0) + 1
+      })
+      console.log('[getResidentIncidents] Status distribution:', statusCounts)
+      console.log('[getResidentIncidents] Sample incidents:', data.slice(0, 3).map((i: any) => ({
+        id: i.id,
+        status: i.status,
+        statusType: typeof i.status,
+        incident_type: i.incident_type
+      })))
+    }
+
     return { success: true, data }
   } catch (error: any) {
     console.error("Error fetching resident incidents:", error.message)

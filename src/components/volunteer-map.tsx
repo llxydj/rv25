@@ -242,14 +242,14 @@ export function VolunteerMap({ height = "420px", limit = 100 }: VolunteerMapProp
           return (
             <Marker key={key} position={[v.lat, v.lng]} icon={createVolunteerIcon()}>
               <Popup>
-                <div className="p-1 text-sm">
-                  <div className="font-semibold">{v.name}</div>
-                  <div className="text-gray-600">{v.role}</div>
-                  <div className="text-gray-500 mt-1">
+                <div className="p-3 bg-white shadow-lg min-w-[220px]">
+                  <div className="font-bold text-base text-gray-900 mb-2">{v.name}</div>
+                  <div className="text-sm font-semibold text-gray-700 mb-2">{v.role}</div>
+                  <div className="text-sm text-gray-800 mt-2 leading-relaxed">
                     {addr || "Resolving address…"}
                   </div>
-                  <div className="text-gray-400 mt-1">
-                    {v.lat.toFixed(6)}, {v.lng.toFixed(6)}
+                  <div className="text-xs text-gray-600 mt-2 font-mono bg-gray-50 p-1.5 rounded">
+                    📍 {v.lat.toFixed(6)}, {v.lng.toFixed(6)}
                   </div>
                 </div>
               </Popup>

@@ -17,6 +17,8 @@ export interface VolunteerLocation {
   last_name?: string
   phone_number?: string
   distance_km?: number
+  status?: string // Volunteer status: available, on_task, offline, unavailable
+  realtime_status?: string // Alias for status
 }
 
 interface UseRealtimeVolunteerLocationsOptions {
@@ -104,7 +106,8 @@ export function useRealtimeVolunteerLocations({
                   first_name: loc.first_name,
                   last_name: loc.last_name,
                   phone_number: loc.phone_number || '',
-                  distance_km: distance
+                  distance_km: distance,
+                  status: loc.status || loc.realtime_status || (loc.is_available ? 'available' : 'offline') // Include status
                 }
               })
               // For admin, show all volunteers regardless of radius
@@ -153,6 +156,18 @@ export function useRealtimeVolunteerLocations({
       const currentCenter = centerRef.current
       const currentRadius = radiusRef.current
 
+      // Fetch volunteer status separately
+      const userIds = Array.from(uniqueVolunteers.values()).map(loc => loc.user_id)
+      const { data: statusData } = await supabase
+        .from('volunteer_real_time_status')
+        .select('user_id, status')
+        .in('user_id', userIds)
+
+      const statusMap = new Map<string, string>()
+      statusData?.forEach((s: any) => {
+        statusMap.set(s.user_id, s.status || 'offline')
+      })
+
       const filtered = Array.from(uniqueVolunteers.values())
         .filter(loc => loc.lat && loc.lng && isWithinTalisayCity(loc.lat, loc.lng))
         .map(loc => {
@@ -167,7 +182,8 @@ export function useRealtimeVolunteerLocations({
             first_name: loc.users?.first_name,
             last_name: loc.users?.last_name,
             phone_number: loc.users?.phone_number,
-            distance_km: distance
+            distance_km: distance,
+            status: statusMap.get(loc.user_id) || 'offline' // Include status from real-time status table
           }
         })
         .filter(v => v.distance_km <= currentRadius)
