@@ -13,6 +13,18 @@ CREATE TABLE public.admin_documents (
   CONSTRAINT admin_documents_pkey PRIMARY KEY (id),
   CONSTRAINT admin_documents_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
+CREATE TABLE public.announcement_feedback (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  announcement_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  rating integer NOT NULL CHECK (rating >= 1 AND rating <= 5),
+  comment text,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT announcement_feedback_pkey PRIMARY KEY (id),
+  CONSTRAINT announcement_feedback_announcement_id_fkey FOREIGN KEY (announcement_id) REFERENCES public.announcements(id),
+  CONSTRAINT announcement_feedback_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
 CREATE TABLE public.announcements (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   title text NOT NULL,
@@ -248,6 +260,17 @@ CREATE TABLE public.notifications (
   status text DEFAULT 'UNREAD'::text CHECK (status = ANY (ARRAY['UNREAD'::text, 'READ'::text, 'ARCHIVED'::text])),
   CONSTRAINT notifications_pkey PRIMARY KEY (id),
   CONSTRAINT notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.pin_attempts (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL UNIQUE,
+  attempt_count integer NOT NULL DEFAULT 1,
+  last_attempt_at timestamp with time zone DEFAULT now(),
+  locked_until timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT pin_attempts_pkey PRIMARY KEY (id),
+  CONSTRAINT pin_attempts_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
 CREATE TABLE public.push_subscriptions (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),

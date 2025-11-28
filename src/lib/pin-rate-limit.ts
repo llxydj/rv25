@@ -27,14 +27,30 @@ export async function checkPinRateLimit(
       .eq('user_id', userId)
       .maybeSingle()
 
+    // Handle errors gracefully
     if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+      // If table doesn't exist (42P01) or other DB error, allow the attempt
+      // This prevents blocking users when the pin_attempts table isn't set up
+      if (error.code === '42P01' || error.message?.includes('does not exist')) {
+        console.warn('⚠️ pin_attempts table not found - rate limiting disabled')
+        return {
+          allowed: true,
+          locked: false,
+          lockedUntil: null,
+          attemptsRemaining: 5,
+          message: ''
+        }
+      }
+      
       console.error('Error checking PIN attempts:', error)
+      // Fail OPEN - allow the attempt if we can't check rate limits
+      // Better UX than blocking legitimate users due to DB issues
       return {
-        allowed: false,
+        allowed: true,
         locked: false,
         lockedUntil: null,
-        attemptsRemaining: 0,
-        message: 'Error checking rate limit'
+        attemptsRemaining: 5,
+        message: ''
       }
     }
 
@@ -128,19 +144,30 @@ export async function recordPinAttempt(
 
     if (success) {
       // Clear attempts on success
-      await supabase
+      const { error } = await supabase
         .from('pin_attempts')
         .delete()
         .eq('user_id', userId)
+      
+      // Ignore if table doesn't exist
+      if (error && error.code === '42P01') {
+        console.warn('⚠️ pin_attempts table not found - skipping clear')
+      }
       return
     }
 
     // Get current attempt record
-    const { data: attemptData } = await supabase
+    const { data: attemptData, error: selectError } = await supabase
       .from('pin_attempts')
       .select('attempt_count')
       .eq('user_id', userId)
       .maybeSingle()
+
+    // If table doesn't exist, skip recording
+    if (selectError && (selectError.code === '42P01' || selectError.message?.includes('does not exist'))) {
+      console.warn('⚠️ pin_attempts table not found - skipping record')
+      return
+    }
 
     const newAttemptCount = (attemptData?.attempt_count || 0) + 1
     const shouldLock = newAttemptCount >= MAX_LOCKOUT_ATTEMPTS
@@ -149,7 +176,7 @@ export async function recordPinAttempt(
       : null
 
     // Upsert attempt record
-    await supabase
+    const { error: upsertError } = await supabase
       .from('pin_attempts')
       .upsert({
         user_id: userId,
@@ -161,12 +188,19 @@ export async function recordPinAttempt(
         onConflict: 'user_id'
       })
 
+    // Ignore if table doesn't exist
+    if (upsertError && (upsertError.code === '42P01' || upsertError.message?.includes('does not exist'))) {
+      console.warn('⚠️ pin_attempts table not found - skipping upsert')
+      return
+    }
+
     // Log lockout for admin notification (optional)
     if (shouldLock) {
       console.warn(`⚠️ Account locked due to PIN brute force: ${userId}`)
       // TODO: Send admin notification
     }
   } catch (error: any) {
+    // Don't throw - just log the error
     console.error('Error recording PIN attempt:', error)
   }
 }
