@@ -90,12 +90,12 @@ export const useAuth = () => {
 
         if (session) {
           try {
-            // Get user profile data including role
-            const { data, error: userError } = await supabase
-              .from("users")
-              .select("role, first_name, last_name, phone_number, address, barangay")
-              .eq("id", session.user.id)
-              .maybeSingle()
+        // Get user profile data including role and status
+        const { data, error: userError } = await supabase
+          .from("users")
+          .select("role, status, first_name, last_name, phone_number, address, barangay, email")
+          .eq("id", session.user.id)
+          .maybeSingle()
 
             if (userError) {
               // Log the error but don't throw - this might be due to RLS policies
@@ -103,6 +103,15 @@ export const useAuth = () => {
             }
 
             const userData = data as unknown as UserRow
+
+            // Check if user is deactivated
+            if (userData && (userData as any).status === 'inactive') {
+              console.warn('Deactivated user attempted to access:', session.user.id)
+              // Sign out the user and redirect to login
+              await supabase.auth.signOut()
+              router.push("/login?error=account_deactivated")
+              return
+            }
 
             if (userData) {
               // Check if profile is complete for residents
@@ -172,10 +181,34 @@ export const useAuth = () => {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "SIGNED_IN" && session) {
-        // Get user profile data including role
+        // CRITICAL: Verify we have the correct session user
+        // Double-check by getting the current user to ensure session is correct
+        const { data: { user: verifiedUser }, error: verifyError } = await supabase.auth.getUser()
+        
+        if (verifyError || !verifiedUser) {
+          console.error('[Auth] Session verification failed:', verifyError)
+          await supabase.auth.signOut()
+          router.push("/login?error=session_error")
+          return
+        }
+
+        // Verify session user matches verified user
+        if (verifiedUser.id !== session.user.id) {
+          console.error('[Auth] Session user mismatch detected!', {
+            sessionUserId: session.user.id,
+            verifiedUserId: verifiedUser.id,
+            sessionEmail: session.user.email,
+            verifiedEmail: verifiedUser.email
+          })
+          await supabase.auth.signOut()
+          router.push("/login?error=session_mismatch")
+          return
+        }
+
+        // Get user profile data including role and status
         const { data, error: userError } = await supabase
           .from("users")
-          .select("role, first_name, last_name, phone_number, address, barangay")
+          .select("role, status, first_name, last_name, phone_number, address, barangay, email")
           .eq("id", session.user.id)
           .maybeSingle()
 
@@ -193,6 +226,33 @@ export const useAuth = () => {
         }
 
         const userData = data as unknown as UserRow
+
+        // CRITICAL: Verify email matches (case-insensitive)
+        // This ensures we're using the correct account
+        if (userData && userData.email && session.user.email) {
+          const dbEmail = userData.email.toLowerCase().trim()
+          const sessionEmail = session.user.email.toLowerCase().trim()
+          
+          if (dbEmail !== sessionEmail) {
+            console.error('[Auth] Email mismatch between session and database!', {
+              sessionEmail,
+              dbEmail,
+              userId: session.user.id
+            })
+            await supabase.auth.signOut()
+            router.push("/login?error=account_mismatch")
+            return
+          }
+        }
+
+        // Check if user is deactivated
+        if (userData && (userData as any).status === 'inactive') {
+          console.warn('Deactivated user attempted to access:', session.user.id)
+          // Sign out the user and redirect to login
+          await supabase.auth.signOut()
+          router.push("/login?error=account_deactivated")
+          return
+        }
 
         if (userData) {
           // Check if profile is complete for residents (all required fields must be present)
@@ -241,15 +301,26 @@ export const useAuth = () => {
 
           setUser(userSession)
 
-          // Redirect based on role
-          if (userData.role === "admin") {
-            router.push("/admin/dashboard")
-          } else if (userData.role === "volunteer") {
-            router.push("/volunteer/dashboard")
-          } else if (userData.role === "resident") {
-            router.push("/resident/dashboard")
-          } else if (userData.role === "barangay") {
-            router.push("/barangay/dashboard")
+          // Check PIN status and redirect accordingly
+          // Wrap in try-catch to prevent blocking login if PIN check fails
+          try {
+            const { getPinRedirectForRole } = await import('@/lib/pin-auth-helper')
+            const redirectUrl = await getPinRedirectForRole(userData.role)
+            router.push(redirectUrl)
+          } catch (pinError: any) {
+            console.error('[Auth] PIN check failed, using default redirect:', pinError)
+            // If PIN check fails, use default role-based redirect
+            // This ensures login still works even if PIN system has issues
+            const defaultRedirects: Record<string, string> = {
+              admin: '/admin/dashboard',
+              volunteer: '/volunteer/dashboard',
+              resident: '/resident/dashboard',
+              barangay: '/barangay/dashboard'
+            }
+            const defaultRedirect = userData.role 
+              ? defaultRedirects[userData.role] || '/resident/dashboard'
+              : '/resident/dashboard'
+            router.push(defaultRedirect)
           }
         } else {
           // No profile data found, set basic user info
@@ -405,12 +476,68 @@ export const createAdminAccount = async (
 // Sign in
 export const signIn = async (email: string, password: string) => {
   try {
+    // CRITICAL: Clear any existing session first to ensure we get a fresh session
+    // This prevents the issue where a new admin login uses the old admin's session
+    const { data: existingSession } = await supabase.auth.getSession()
+    if (existingSession?.session) {
+      console.log('[Auth] Clearing existing session before new login')
+      await supabase.auth.signOut()
+      // Wait a brief moment for sign out to complete
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+
     const { data, error } = await supabase.auth.signInWithPassword({
-      email,
+      email: email.trim().toLowerCase(),
       password,
     })
 
     if (error) throw error
+
+    // Verify we got the correct user
+    if (!data.user) {
+      throw new Error("Failed to authenticate user")
+    }
+
+    // Double-check: Verify the session user ID matches the email we tried to log in with
+    const { data: { user: verifiedUser } } = await supabase.auth.getUser()
+    if (!verifiedUser || verifiedUser.email?.toLowerCase() !== email.trim().toLowerCase()) {
+      console.error('[Auth] Session mismatch detected!', {
+        expectedEmail: email.trim().toLowerCase(),
+        actualEmail: verifiedUser?.email?.toLowerCase(),
+        userId: verifiedUser?.id
+      })
+      await supabase.auth.signOut()
+      throw new Error("Session verification failed. Please try again.")
+    }
+
+    // Check if user is deactivated after successful auth
+    if (data.user) {
+      const { data: userData } = await supabase
+        .from("users")
+        .select("status, email")
+        .eq("id", data.user.id)
+        .maybeSingle()
+
+      if (userData && (userData as any).status === 'inactive') {
+        // Sign out immediately
+        await supabase.auth.signOut()
+        return { 
+          success: false, 
+          message: "Your account has been deactivated. Please contact an administrator." 
+        }
+      }
+
+      // Verify email matches (case-insensitive)
+      if (userData && userData.email?.toLowerCase() !== email.trim().toLowerCase()) {
+        console.error('[Auth] Email mismatch in database!', {
+          expectedEmail: email.trim().toLowerCase(),
+          dbEmail: userData.email?.toLowerCase(),
+          userId: data.user.id
+        })
+        await supabase.auth.signOut()
+        throw new Error("Account verification failed. Please contact support.")
+      }
+    }
 
     return { success: true, data }
   } catch (error: any) {
@@ -429,6 +556,18 @@ export const signOut = async () => {
     if (typeof window !== 'undefined') {
       // Clear PIN session
       sessionStorage.removeItem('pin_unlocked_session')
+      
+      // Clear PIN verification cookies (via API call since they're HTTP-only)
+      try {
+        await fetch('/api/pin/clear-session', {
+          method: 'POST',
+          credentials: 'include'
+        }).catch(() => {
+          // Ignore errors - cookies will expire anyway
+        })
+      } catch {
+        // Ignore errors
+      }
 
       // Clear Supabase auth tokens
       localStorage.removeItem('supabase.auth.token')
@@ -545,16 +684,26 @@ export const getCurrentUser = async () => {
       return { success: false, message: "No user logged in." }
     }
 
-    // Get user profile data including role
+    // Get user profile data including role and status
     const { data, error: userError } = await supabase
       .from("users")
-      .select("role, first_name, last_name")
+      .select("role, status, first_name, last_name")
       .eq("id", user.id)
       .maybeSingle()
 
     if (userError) throw userError
 
     const userData = data as unknown as UserRow
+
+    // Check if user is deactivated
+    if (userData && (userData as any).status === 'inactive') {
+      // Sign out the user
+      await supabase.auth.signOut()
+      return {
+        success: false,
+        message: "Your account has been deactivated. Please contact an administrator."
+      }
+    }
 
     return {
       success: true,

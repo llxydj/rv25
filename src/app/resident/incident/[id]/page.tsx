@@ -10,6 +10,7 @@ import { MapComponent } from "@/components/ui/map-component"
 import { AlertTriangle, CheckCircle, Clock, Phone, User } from "lucide-react"
 import FeedbackRating from "@/components/feedback-rating"
 import { AudioPlayer } from "@/components/audio-player"
+import { IncidentTimeline } from "@/components/incident-timeline"
 
 export default function ResidentIncidentDetailPage() {
   const { id } = useParams()
@@ -19,6 +20,8 @@ export default function ResidentIncidentDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [updates, setUpdates] = useState<any[]>([])
+  const [timelineEvents, setTimelineEvents] = useState<any[]>([])
+  const [loadingTimeline, setLoadingTimeline] = useState(false)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -40,6 +43,20 @@ export default function ResidentIncidentDetailPage() {
         const updatesResult = await getIncidentUpdates(id as string)
         if (updatesResult.success) {
           setUpdates(updatesResult.data || [])
+        }
+
+        // Fetch timeline events
+        setLoadingTimeline(true)
+        try {
+          const timelineRes = await fetch(`/api/incidents/${id}/timeline`)
+          const timelineData = await timelineRes.json()
+          if (timelineData.success && timelineData.data) {
+            setTimelineEvents(timelineData.data)
+          }
+        } catch (err) {
+          console.error("Error fetching timeline:", err)
+        } finally {
+          setLoadingTimeline(false)
         }
       } catch (err: any) {
         setError(err.message || "An unexpected error occurred")
@@ -201,135 +218,17 @@ export default function ResidentIncidentDetailPage() {
               </div>
 
               <div className="mt-6">
-                <h3 className="text-sm font-medium text-gray-500">Timeline</h3>
-                <div className="mt-2 space-y-4">
-                  {/* Static initial report entry */}
-                  <div className="flex items-start">
-                    <div className="flex-shrink-0">
-                      <div className="flex items-center justify-center h-8 w-8 rounded-full bg-blue-100 text-blue-600">
-                        <AlertTriangle className="h-5 w-5" />
-                      </div>
-                    </div>
-                    <div className="ml-4">
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">Incident Reported</p>
-                      <p className="text-sm text-gray-500">{formatDate(incident.created_at)}</p>
-                    </div>
+                {loadingTimeline ? (
+                  <div className="flex items-center justify-center py-8">
+                    <LoadingSpinner size="md" />
                   </div>
-
-                  {/* Dynamic updates from incident_updates table */}
-                  {updates.map((update: any, index: number) => (
-                    <div key={index} className="flex items-start">
-                      <div className="flex-shrink-0">
-                        <div
-                          className={`flex items-center justify-center h-8 w-8 rounded-full ${
-                            update.previous_status === "SEVERITY_UPDATE" && update.new_status === "SEVERITY_UPDATE"
-                              ? "bg-purple-100 text-purple-600"
-                              : update.new_status === "PENDING"
-                                ? "bg-yellow-100 text-yellow-600"
-                                : update.new_status === "ASSIGNED"
-                                  ? "bg-blue-100 text-blue-600"
-                                  : update.new_status === "RESPONDING"
-                                    ? "bg-orange-100 text-orange-600"
-                                    : update.new_status === "ARRIVED"
-                                      ? "bg-purple-100 text-purple-600"
-                                      : update.new_status === "RESOLVED"
-                                        ? "bg-green-100 text-green-600"
-                                        : "bg-gray-100 text-gray-600"
-                          }`}
-                        >
-                          {update.previous_status === "SEVERITY_UPDATE" && update.new_status === "SEVERITY_UPDATE" ? (
-                            <span className="text-purple-600">⚠</span>
-                          ) : update.new_status === "PENDING" ? (
-                            <AlertTriangle className="h-5 w-5" />
-                          ) : update.new_status === "ASSIGNED" ? (
-                            <User className="h-5 w-5" />
-                          ) : update.new_status === "RESPONDING" ? (
-                            <Clock className="h-5 w-5" />
-                          ) : update.new_status === "ARRIVED" ? (
-                            <span className="text-purple-600">📍</span>
-                          ) : update.new_status === "RESOLVED" ? (
-                            <CheckCircle className="h-5 w-5" />
-                          ) : (
-                            <span className="text-gray-500">✕</span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="ml-4">
-                        <p className="text-sm font-medium text-gray-900 dark:text-white">
-                          {update.previous_status === "SEVERITY_UPDATE" && update.new_status === "SEVERITY_UPDATE"
-                            ? "Severity Updated"
-                            : update.new_status === "PENDING"
-                              ? "Incident Reported"
-                              : update.new_status === "ASSIGNED"
-                                ? "Volunteer Assigned"
-                                : update.new_status === "RESPONDING"
-                                  ? "Volunteer Responding"
-                                  : update.new_status === "ARRIVED"
-                                    ? "Volunteer Arrived"
-                                    : update.new_status === "RESOLVED"
-                                      ? "Incident Resolved"
-                                      : "Incident Update"}
-                        </p>
-                        <p className="text-sm text-gray-500">{formatDate(update.created_at)}</p>
-                        {update.notes && <p className="mt-1 text-sm text-gray-700">{update.notes}</p>}
-                        {update.updated_by && update.updated_by.first_name && (
-                          <p className="text-xs text-gray-500 mt-1">
-                            By: {update.updated_by.first_name} {update.updated_by.last_name} ({update.updated_by.role})
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-
-                  {/* Original static entries for backward compatibility */}
-                  {incident.assigned_at && !updates.some(u => u.new_status === "ASSIGNED") && (
-                    <div className="flex items-start">
-                      <div className="flex-shrink-0">
-                        <div className="flex items-center justify-center h-8 w-8 rounded-full bg-blue-100 text-blue-600">
-                          <User className="h-5 w-5" />
-                        </div>
-                      </div>
-                      <div className="ml-4">
-                        <p className="text-sm font-medium text-gray-900 dark:text-white">Volunteer Assigned</p>
-                        <p className="text-sm text-gray-500">{formatDate(incident.assigned_at)}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {incident.status === "RESPONDING" && !updates.some(u => u.new_status === "RESPONDING") && (
-                    <div className="flex items-start">
-                      <div className="flex-shrink-0">
-                        <div className="flex items-center justify-center h-8 w-8 rounded-full bg-orange-100 text-orange-600">
-                          <Clock className="h-5 w-5" />
-                        </div>
-                      </div>
-                      <div className="ml-4">
-                        <p className="text-sm font-medium text-gray-900 dark:text-white">Volunteer On The Way (OTW)</p>
-                        <p className="text-sm text-gray-500">A volunteer is on the way to your location</p>
-                        {incident.responding_at && (
-                          <p className="text-xs text-gray-500 mt-1">Confirmed at {formatDate(incident.responding_at)}</p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {incident.resolved_at && !updates.some(u => u.new_status === "RESOLVED") && (
-                    <div className="flex items-start">
-                      <div className="flex-shrink-0">
-                        <div className="flex items-center justify-center h-8 w-8 rounded-full bg-green-100 text-green-600">
-                          <CheckCircle className="h-5 w-5" />
-                        </div>
-                      </div>
-                      <div className="ml-4">
-                        <p className="text-sm font-medium text-gray-900 dark:text-white">Incident Resolved</p>
-                        <p className="text-sm text-gray-500">{formatDate(incident.resolved_at)}</p>
-                        {incident.resolution_notes && (
-                          <p className="mt-1 text-sm text-gray-700">{incident.resolution_notes}</p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                ) : (
+                  <IncidentTimeline
+                    incidentId={incident.id}
+                    incidentCreatedAt={incident.created_at}
+                    updates={timelineEvents}
+                  />
+                )}
               </div>
             </div>
 

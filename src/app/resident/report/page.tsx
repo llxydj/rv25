@@ -21,7 +21,7 @@ const MAX_PHOTOS = 3
 
 export default function ReportIncidentPage() {
   const { toast } = useToast()
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
   const reportType = searchParams?.get("type")
@@ -632,7 +632,80 @@ export default function ReportIncidentPage() {
     e.preventDefault();
     setError(null);
 
-    if (!user) {
+    // Wait for auth to load if still loading
+    if (authLoading) {
+      const errorMsg = "Please wait, verifying your session...";
+      setError(errorMsg);
+      toast({
+        variant: "default",
+        title: "Please wait",
+        description: errorMsg
+      });
+      return;
+    }
+
+    // Check user from hook first
+    let currentUser = user;
+    
+    // If user is null, try to get session directly (race condition fix)
+    if (!currentUser) {
+      try {
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError || !session) {
+          const errorMsg = "You must be logged in to report an incident. Please refresh the page and try again.";
+          setError(errorMsg);
+          toast({
+            variant: "destructive",
+            title: "Authentication Error",
+            description: errorMsg
+          });
+          return;
+        }
+        
+        // If we have a session but no user object, fetch user data
+        const { data: userData, error: userError } = await supabase
+          .from("users")
+          .select("id, role, first_name, last_name, phone_number, address, barangay")
+          .eq("id", session.user.id)
+          .maybeSingle();
+        
+        if (userError || !userData) {
+          const errorMsg = "Unable to verify your account. Please refresh the page and try again.";
+          setError(errorMsg);
+          toast({
+            variant: "destructive",
+            title: "Authentication Error",
+            description: errorMsg
+          });
+          return;
+        }
+        
+        // Create user object from fetched data
+        currentUser = {
+          id: session.user.id,
+          email: session.user.email || "",
+          role: userData.role,
+          firstName: userData.first_name,
+          lastName: userData.last_name,
+          phone_number: userData.phone_number || undefined,
+          address: userData.address || undefined,
+          barangay: userData.barangay || undefined,
+        };
+      } catch (authErr: any) {
+        console.error("Auth check error:", authErr);
+        const errorMsg = "Authentication error. Please refresh the page and try again.";
+        setError(errorMsg);
+        toast({
+          variant: "destructive",
+          title: "Authentication Error",
+          description: errorMsg
+        });
+        return;
+      }
+    }
+
+    // Use currentUser instead of user for the rest of the function
+    if (!currentUser) {
       const errorMsg = "You must be logged in to report an incident";
       setError(errorMsg);
       toast({
@@ -731,7 +804,7 @@ export default function ReportIncidentPage() {
 
       // Debug: Log the incident data being sent
       console.log("Submitting incident with data:", {
-        user_id: user.id,
+        user_id: currentUser.id,
         incidentType: formData.incidentType,
         description: formData.description,
         location: reportLocation,
@@ -759,7 +832,7 @@ export default function ReportIncidentPage() {
 
       const submissionTimestamp = new Date().toISOString()
       const result = await createIncident(
-        user.id,
+        currentUser.id,
         formData.incidentType,
         formData.description,
         reportLocation[0],
@@ -1175,7 +1248,7 @@ export default function ReportIncidentPage() {
                 <label className="block text-sm font-medium text-gray-700">Your Name</label>
                 <input
                   type="text"
-                  value={user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email : ''}
+                  value={user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email : (authLoading ? 'Loading...' : 'Not available')}
                   className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-gray-50 text-gray-500 sm:text-sm"
                   readOnly
                   disabled
@@ -1185,7 +1258,7 @@ export default function ReportIncidentPage() {
                 <label className="block text-sm font-medium text-gray-700">Contact Number</label>
                 <input
                   type="text"
-                  value={user?.phone_number || 'Not provided'}
+                  value={user?.phone_number || (authLoading ? 'Loading...' : 'Not provided')}
                   className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-gray-50 text-gray-500 sm:text-sm"
                   readOnly
                   disabled
@@ -1266,10 +1339,10 @@ export default function ReportIncidentPage() {
             </button>
             <button
               type="submit"
-              disabled={loading}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500"
+              disabled={loading || authLoading}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? (
+              {loading || authLoading ? (
                 <LoadingSpinner size="sm" color="text-white" />
               ) : (
                 <>

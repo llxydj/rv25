@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { AnnouncementRating } from "@/components/announcement-rating"
 
 interface Announcement {
   id: string
@@ -386,6 +387,9 @@ export default function AnnouncementsPage() {
                       </span>
                     </div>
                   </div>
+
+                  {/* Rating Component */}
+                  <AnnouncementRating announcementId={announcement.id} />
                 </CardContent>
               </Card>
             )

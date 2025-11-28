@@ -77,6 +77,13 @@ export async function GET(request: Request) {
             last_name,
             email,
             phone_number
+          ),
+          incident_updates(
+            id,
+            created_at,
+            new_status,
+            previous_status,
+            notes
           )
         `)
         .gte('created_at', startDate)
@@ -101,6 +108,28 @@ export async function GET(request: Request) {
       const csvData = incidents.map(incident => {
         const reporter = Array.isArray(incident.reporter) && incident.reporter.length > 0 ? incident.reporter[0] : null;
         const assignedTo = Array.isArray(incident.assigned_to_user) && incident.assigned_to_user.length > 0 ? incident.assigned_to_user[0] : null;
+        const timelineUpdates = incident.incident_updates || [];
+        
+        // Calculate timeline metrics
+        const timelineEventCount = timelineUpdates.length;
+        const lastTimelineUpdate = timelineUpdates.length > 0
+          ? timelineUpdates.sort((a: any, b: any) => 
+              new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+            )[0]
+          : null;
+        
+        const statusChanges = timelineUpdates.filter((u: any) => 
+          u.new_status && u.previous_status && u.new_status !== u.previous_status
+        ).length;
+        const photoAdditions = timelineUpdates.filter((u: any) => 
+          u.notes?.includes('Photo') || u.notes?.includes('photo')
+        ).length;
+        const locationUpdates = timelineUpdates.filter((u: any) => 
+          u.notes?.includes('Location') || u.notes?.includes('location')
+        ).length;
+        const severityChanges = timelineUpdates.filter((u: any) => 
+          u.previous_status === 'SEVERITY_UPDATE' && u.new_status === 'SEVERITY_UPDATE'
+        ).length;
 
         // Calculate response time (time from creation to assignment)
         const responseTimeMinutes = incident.assigned_at && incident.created_at
@@ -157,6 +186,13 @@ export async function GET(request: Request) {
           "Resolution Notes": incident.resolution_notes || "",
           "Photo URL": incident.photo_url || "",
           "Photo Count": Array.isArray(incident.photo_urls) ? incident.photo_urls.length : (incident.photo_url ? 1 : 0),
+          "Timeline Event Count": timelineEventCount,
+          "Status Changes": statusChanges,
+          "Photo Additions": photoAdditions,
+          "Location Updates": locationUpdates,
+          "Severity Changes": severityChanges,
+          "Last Timeline Update": lastTimelineUpdate ? new Date(lastTimelineUpdate.created_at).toLocaleString() : "N/A",
+          "Last Update Type": lastTimelineUpdate?.new_status || "N/A",
         }
       })
       

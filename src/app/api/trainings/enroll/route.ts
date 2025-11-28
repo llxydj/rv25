@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
+import { smsService } from '@/lib/sms-service'
+import webpush from 'web-push'
 
 const FEATURE_ENABLED = process.env.NEXT_PUBLIC_FEATURE_TRAININGS_ENABLED === 'true'
 
@@ -106,6 +108,20 @@ export async function POST(request: Request) {
       )
     }
 
+    // Get full training details for notification
+    const { data: trainingDetails } = await supabaseAdmin
+      .from('trainings')
+      .select('title, start_at, end_at, location')
+      .eq('id', training_id)
+      .single()
+
+    // Get user details for SMS
+    const { data: userDetails } = await supabaseAdmin
+      .from('users')
+      .select('phone_number, first_name, last_name')
+      .eq('id', user.id)
+      .single()
+
     // Enroll
     const { data, error } = await supabaseAdmin
       .from('training_enrollments')
@@ -122,6 +138,88 @@ export async function POST(request: Request) {
         { success: false, message: error.message || 'Failed to enroll' },
         { status: 500 }
       )
+    }
+
+    // Send SMS notification (fire-and-forget)
+    if (userDetails?.phone_number && trainingDetails) {
+      try {
+        const trainingDate = new Date(trainingDetails.start_at).toLocaleDateString('en-US', { 
+          month: 'short', 
+          day: 'numeric', 
+          year: 'numeric' 
+        })
+        const trainingTime = trainingDetails.start_at 
+          ? `${new Date(trainingDetails.start_at).toLocaleTimeString('en-US', { 
+              hour: '2-digit', 
+              minute: '2-digit' 
+            })}${trainingDetails.end_at ? ` - ${new Date(trainingDetails.end_at).toLocaleTimeString('en-US', { 
+              hour: '2-digit', 
+              minute: '2-digit' 
+            })}` : ''}`
+          : ''
+        const locationText = trainingDetails.location ? ` at ${trainingDetails.location}` : ''
+
+        await smsService.sendSMS(
+          userDetails.phone_number,
+          'TEMPLATE_TRAINING_NOTIFY',
+          {
+            title: trainingDetails.title,
+            date: trainingDate,
+            time: trainingTime,
+            location: locationText
+          },
+          {
+            incidentId: training_id.toString(),
+            referenceId: training_id.toString().substring(0, 8),
+            triggerSource: 'Training_Enrollment',
+            recipientUserId: user.id
+          }
+        )
+      } catch (smsErr) {
+        console.error('Failed to send SMS for training enrollment:', smsErr)
+        // Don't fail the request if SMS fails
+      }
+    }
+
+    // Send push notification (fire-and-forget)
+    try {
+      const configured = Boolean(
+        process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && 
+        process.env.VAPID_PRIVATE_KEY
+      )
+      if (configured) {
+        webpush.setVapidDetails(
+          process.env.WEB_PUSH_CONTACT || 'mailto:admin@example.com',
+          process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
+          process.env.VAPID_PRIVATE_KEY!
+        )
+
+        const { data: subs } = await supabaseAdmin
+          .from('push_subscriptions')
+          .select('endpoint, subscription')
+          .eq('user_id', user.id)
+
+        if (subs && subs.length > 0) {
+          await Promise.allSettled(
+            subs.map(async (s) => {
+              try {
+                const subscription = s.subscription as unknown as webpush.PushSubscription
+                await webpush.sendNotification(
+                  subscription,
+                  JSON.stringify({
+                    title: 'Training Enrollment Confirmed',
+                    body: `${trainingDetails?.title || 'Training'} • ${trainingDate}`,
+                    url: '/volunteer/trainings'
+                  })
+                )
+              } catch {}
+            })
+          )
+        }
+      }
+    } catch (pushErr) {
+      console.error('Failed to send push notification for training enrollment:', pushErr)
+      // Don't fail the request if push fails
     }
 
     return NextResponse.json({ success: true, data })

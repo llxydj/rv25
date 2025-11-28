@@ -145,9 +145,9 @@ export async function GET(request: Request) {
     if (status) query = query.eq('status', status)
 
     // Server-side filtering by role, safely additive (defaults to previous behavior when role not provided)
-    if (role === 'ADMIN') {
+    if (role === 'admin') {
       // No additional filter: admin sees all
-    } else if (role === 'BARANGAY') {
+    } else if (role === 'barangay') {
       // Require barangay filter for barangay users using string field 'barangay'
       if (barangay) {
         query = query.ilike('barangay', barangay.toUpperCase())
@@ -155,7 +155,7 @@ export async function GET(request: Request) {
         // If barangay not provided, return 403 forbidden
         return NextResponse.json({ success: false, code: 'FORBIDDEN_MISSING_SCOPE', message: 'Forbidden: missing barangay scope' }, { status: 403 })
       }
-    } else if (role === 'VOLUNTEER') {
+    } else if (role === 'volunteer') {
       // Volunteers may have barangay or citywide coverage
       if (coverage === 'barangay') {
         if (barangay) {
@@ -166,7 +166,7 @@ export async function GET(request: Request) {
       } else {
         // citywide or unspecified -> all incidents (no extra filter)
       }
-    } else if (role === 'RESIDENT') {
+    } else if (role === 'resident') {
       // Residents do not need markers
       return NextResponse.json({ success: false, code: 'FORBIDDEN', message: 'Forbidden' }, { status: 403 })
     } else {
@@ -251,20 +251,79 @@ export async function PUT(request: Request) {
 
     if (error) throw error
     
+    // Get user ID for timeline logging
+    const { data: userRes } = await supabase.auth.getUser()
+    const userId = userRes?.user?.id || null
+    
+    // Log photo addition if photos were added
+    if (photo_url && (!existing || !(existing as any)?.photo_url)) {
+      try {
+        const { logPhotoAdded } = await import('@/lib/incident-timeline')
+        const photoCount = Array.isArray((data as any)?.photo_urls) 
+          ? (data as any).photo_urls.length 
+          : (photo_url ? 1 : 0)
+        await logPhotoAdded(id, userId, photoCount)
+        console.log('✅ Photo addition logged in timeline')
+      } catch (logError) {
+        console.error('❌ Failed to log photo addition:', logError)
+      }
+    }
+    
+    // Log location update if location changed
+    if ((location_lat !== undefined || location_lng !== undefined || address !== undefined) && existing) {
+      const locationChanged = 
+        (location_lat !== undefined && location_lat !== (existing as any)?.location_lat) ||
+        (location_lng !== undefined && location_lng !== (existing as any)?.location_lng) ||
+        (address !== undefined && address !== (existing as any)?.address)
+      
+      if (locationChanged) {
+        try {
+          const { logLocationUpdate } = await import('@/lib/incident-timeline')
+          await logLocationUpdate(id, userId, {
+            lat: location_lat ?? (existing as any)?.location_lat ?? 0,
+            lng: location_lng ?? (existing as any)?.location_lng ?? 0,
+            address: address ?? (existing as any)?.address ?? undefined
+          })
+          console.log('✅ Location update logged in timeline')
+        } catch (logError) {
+          console.error('❌ Failed to log location update:', logError)
+        }
+      }
+    }
+    
+    // Log resolution notes if added
+    if (resolution_notes && (!existing || !(existing as any)?.resolution_notes)) {
+      try {
+        const { logResolutionNotes } = await import('@/lib/incident-timeline')
+        await logResolutionNotes(id, userId, resolution_notes)
+        console.log('✅ Resolution notes logged in timeline')
+      } catch (logError) {
+        console.error('❌ Failed to log resolution notes:', logError)
+      }
+    }
+    
     // If status changed, record incident_updates
     if (status && (existing as any)?.status && (existing as any).status !== status) {
       try {
-        await supabase
-          .from('incident_updates')
-          .insert({
-            incident_id: id,
-            updated_by: updated_by ?? null,
-            previous_status: (existing as any).status,
-            new_status: status,
-            notes: typeof notes === 'string' ? notes : null
-          } as any)
-      } catch (err) {
-        console.error('Failed to record incident_updates:', err)
+        const { logStatusChange } = await import('@/lib/incident-timeline')
+        await logStatusChange(id, (existing as any).status, status, userId)
+        console.log('✅ Status change logged in timeline')
+      } catch (logError) {
+        console.error('❌ Failed to log status change:', logError)
+        // Fallback to old method if new one fails
+        try {
+          await supabase
+            .from('incident_updates')
+            .insert({
+              incident_id: id,
+              updated_by: updated_by ?? null,
+              previous_status: (existing as any).status,
+              new_status: status,
+              notes: typeof notes === 'string' ? notes : null
+            } as any)
+        } catch (err) {
+          console.error('Failed to record incident_updates:', err)
+        }
       }
     }
 
@@ -497,6 +556,21 @@ export async function POST(request: Request) {
     const { data, error } = await supabase.from('incidents').insert(payload).select().single()
     if (error) throw error
     
+    // CRITICAL: Log incident creation in timeline (was missing!)
+    try {
+      const { logIncidentCreation } = await import('@/lib/incident-timeline')
+      await logIncidentCreation(data.id, reporter_id, {
+        type: normalizedIncidentType,
+        barangay: resolvedBarangay || barangay.toUpperCase(),
+        isOffline: is_offline,
+        offlineTimestamp: normalizedLocalTimestamp || undefined
+      })
+      console.log('✅ Incident creation logged in timeline')
+    } catch (timelineErr) {
+      console.error('❌ Failed to log incident creation in timeline:', timelineErr)
+      // Don't fail incident creation if timeline logging fails, but log error
+    }
+    
     // Update incident with enriched geocoding data if available (non-blocking)
     geocodePromise.then((updateData) => {
       if (updateData && data?.id) {
@@ -515,22 +589,7 @@ export async function POST(request: Request) {
       // Silently fail - geocoding is non-critical
     })
     
-    // If submitted offline, record an incident update for auditing
-    if (is_offline && data?.id) {
-      try {
-        const offlineNote = normalizedLocalTimestamp
-          ? `Submitted while offline at ${new Date(normalizedLocalTimestamp).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })} and synced when back online.`
-          : 'Submitted while offline; synced when back online.'
-
-        await supabase.from('incident_updates').insert({
-          incident_id: data.id,
-          updated_by: reporter_id,
-          previous_status: 'PENDING',
-          new_status: 'PENDING',
-          notes: offlineNote
-        } as any)
-      } catch {}
-    }
+    // Note: Offline status is now handled in logIncidentCreation above
     // NOTE: Notifications are automatically created by database triggers
     // (notify_admins_on_new_incident, notify_barangay_on_new_incident)
     // However, push notifications need to be sent manually since triggers can't send push

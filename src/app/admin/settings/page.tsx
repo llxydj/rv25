@@ -1,28 +1,131 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { AdminLayout } from "@/components/layout/admin-layout"
-import { Bell, Save, Shield, User } from "lucide-react"
+import { Bell, Save, Shield, User, AlertCircle } from "lucide-react"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
+import { PinManagement } from "@/components/pin-management"
+import { useAuth } from "@/lib/auth"
 
 export default function AdminSettings() {
+  const { user } = useAuth()
   const [loading, setLoading] = useState(false)
+  const [fetching, setFetching] = useState(true)
   const [saveSuccess, setSaveSuccess] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<"account" | "notifications" | "security">("account")
+  
+  // Profile form state
+  const [profileData, setProfileData] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+  })
 
-  const handleSaveSettings = () => {
-    setLoading(true)
-    
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false)
-      setSaveSuccess(true)
+  // Load current profile data
+  const fetchProfile = async () => {
+    try {
+      setFetching(true)
+      setError(null)
+      const res = await fetch('/api/user/profile', {
+        cache: 'no-store', // Always fetch fresh data
+        credentials: 'include'
+      })
+      const json = await res.json()
       
-      // Reset success message after 3 seconds
+      if (json.error) {
+        setError(json.error)
+        return
+      }
+
+      // Update profile data from database
+      setProfileData({
+        firstName: json.first_name || "",
+        lastName: json.last_name || "",
+        email: json.email || "",
+        phone: json.phone_number || "",
+      })
+    } catch (err: any) {
+      setError('Failed to load profile data')
+      console.error('Profile fetch error:', err)
+    } finally {
+      setFetching(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchProfile()
+  }, [])
+
+  const handleInputChange = (field: string, value: string) => {
+    setProfileData(prev => ({
+      ...prev,
+      [field]: value
+    }))
+    setError(null)
+  }
+
+  const handleSaveSettings = async () => {
+    if (activeTab !== "account") {
+      // For other tabs, just show success (not implemented yet)
+      setLoading(true)
       setTimeout(() => {
-        setSaveSuccess(false)
-      }, 3000)
-    }, 1000)
+        setLoading(false)
+        setSaveSuccess(true)
+        setTimeout(() => setSaveSuccess(false), 3000)
+      }, 1000)
+      return
+    }
+
+    // Validate account tab data
+    if (!profileData.firstName.trim() || !profileData.lastName.trim()) {
+      setError('First name and last name are required')
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+    setSaveSuccess(false)
+
+    try {
+      const res = await fetch('/api/user/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          first_name: profileData.firstName.trim(),
+          last_name: profileData.lastName.trim(),
+          phone_number: profileData.phone.trim() || null,
+        })
+      })
+
+      const json = await res.json()
+
+      if (!json.success) {
+        throw new Error(json.error || 'Failed to update profile')
+      }
+
+      // Refetch profile data from database to ensure we have the latest
+      // This ensures we get any computed fields, triggers, or other updates
+      await fetchProfile()
+
+      setSaveSuccess(true)
+      setTimeout(() => setSaveSuccess(false), 3000)
+    } catch (err: any) {
+      setError(err.message || 'Failed to save profile')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (fetching) {
+    return (
+      <AdminLayout>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <LoadingSpinner size="lg" text="Loading profile..." />
+        </div>
+      </AdminLayout>
+    )
   }
 
   return (
@@ -47,6 +150,17 @@ export default function AdminSettings() {
             </button>
           </div>
         </div>
+
+        {error && (
+          <div className="bg-red-50 border-l-4 border-red-500 p-4">
+            <div className="flex">
+              <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
+              <div className="ml-3">
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {saveSuccess && (
           <div className="bg-green-50 border-l-4 border-green-500 p-4">
@@ -102,24 +216,28 @@ export default function AdminSettings() {
                 <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                   <div>
                     <label htmlFor="first-name" className="block text-sm font-medium text-gray-700">
-                      First Name
+                      First Name *
                     </label>
                     <input
                       type="text"
                       id="first-name"
-                      defaultValue="Admin"
+                      value={profileData.firstName}
+                      onChange={(e) => handleInputChange('firstName', e.target.value)}
                       className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      required
                     />
                   </div>
                   <div>
                     <label htmlFor="last-name" className="block text-sm font-medium text-gray-700">
-                      Last Name
+                      Last Name *
                     </label>
                     <input
                       type="text"
                       id="last-name"
-                      defaultValue="User"
+                      value={profileData.lastName}
+                      onChange={(e) => handleInputChange('lastName', e.target.value)}
                       className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      required
                     />
                   </div>
                   <div>
@@ -129,9 +247,11 @@ export default function AdminSettings() {
                     <input
                       type="email"
                       id="email"
-                      defaultValue="admin@rvois.com"
-                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      value={profileData.email}
+                      disabled
+                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-gray-50 text-gray-500 sm:text-sm cursor-not-allowed"
                     />
+                    <p className="mt-1 text-xs text-gray-500">Email cannot be changed</p>
                   </div>
                   <div>
                     <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
@@ -140,8 +260,10 @@ export default function AdminSettings() {
                     <input
                       type="tel"
                       id="phone"
-                      defaultValue="+639123456789"
+                      value={profileData.phone}
+                      onChange={(e) => handleInputChange('phone', e.target.value)}
                       className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      placeholder="+639123456789"
                     />
                   </div>
                 </div>
@@ -150,13 +272,10 @@ export default function AdminSettings() {
                   <h2 className="text-lg font-medium mb-4">Profile Photo</h2>
                   <div className="flex items-center space-x-6">
                     <div className="w-20 h-20 rounded-full bg-blue-500 flex items-center justify-center text-white text-2xl font-bold">
-                      A
+                      {profileData.firstName.charAt(0).toUpperCase()}
                     </div>
                     <div>
-                      <button className="bg-white py-2 px-3 border border-gray-300 rounded-md shadow-sm text-sm leading-4 font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                        Change Photo
-                      </button>
-                      <p className="mt-1 text-xs text-gray-500">JPG, GIF or PNG. 1MB max.</p>
+                      <p className="text-sm text-gray-500">Profile photo upload coming soon</p>
                     </div>
                   </div>
                 </div>
@@ -166,6 +285,7 @@ export default function AdminSettings() {
             {activeTab === "notifications" && (
               <div className="space-y-6">
                 <h2 className="text-lg font-medium">Notification Preferences</h2>
+                <p className="text-sm text-gray-500">Notification preferences management coming soon</p>
                 <div className="space-y-4">
                   <div className="flex items-start">
                     <div className="flex items-center h-5">
@@ -174,6 +294,7 @@ export default function AdminSettings() {
                         type="checkbox"
                         defaultChecked
                         className="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded"
+                        disabled
                       />
                     </div>
                     <div className="ml-3 text-sm">
@@ -191,6 +312,7 @@ export default function AdminSettings() {
                         type="checkbox"
                         defaultChecked
                         className="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded"
+                        disabled
                       />
                     </div>
                     <div className="ml-3 text-sm">
@@ -198,57 +320,6 @@ export default function AdminSettings() {
                         SMS Notifications
                       </label>
                       <p className="text-gray-500">Receive SMS alerts for critical emergency incidents.</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start">
-                    <div className="flex items-center h-5">
-                      <input
-                        id="new-incidents"
-                        type="checkbox"
-                        defaultChecked
-                        className="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded"
-                      />
-                    </div>
-                    <div className="ml-3 text-sm">
-                      <label htmlFor="new-incidents" className="font-medium text-gray-700">
-                        New Incident Alerts
-                      </label>
-                      <p className="text-gray-500">Get notified when new incidents are reported.</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start">
-                    <div className="flex items-center h-5">
-                      <input
-                        id="volunteer-updates"
-                        type="checkbox"
-                        defaultChecked
-                        className="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded"
-                      />
-                    </div>
-                    <div className="ml-3 text-sm">
-                      <label htmlFor="volunteer-updates" className="font-medium text-gray-700">
-                        Volunteer Updates
-                      </label>
-                      <p className="text-gray-500">Get notified about volunteer registration and status changes.</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start">
-                    <div className="flex items-center h-5">
-                      <input
-                        id="schedule-reminders"
-                        type="checkbox"
-                        defaultChecked
-                        className="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded"
-                      />
-                    </div>
-                    <div className="ml-3 text-sm">
-                      <label htmlFor="schedule-reminders" className="font-medium text-gray-700">
-                        Schedule Reminders
-                      </label>
-                      <p className="text-gray-500">Get reminders about upcoming scheduled events.</p>
                     </div>
                   </div>
                 </div>
@@ -261,6 +332,7 @@ export default function AdminSettings() {
                 
                 <div className="border-b border-gray-200 pb-6">
                   <h3 className="text-base font-medium mb-4">Change Password</h3>
+                  <p className="text-sm text-gray-500 mb-4">Password change functionality coming soon</p>
                   <div className="space-y-4">
                     <div>
                       <label htmlFor="current-password" className="block text-sm font-medium text-gray-700">
@@ -270,6 +342,7 @@ export default function AdminSettings() {
                         type="password"
                         id="current-password"
                         className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-black"
+                        disabled
                       />
                     </div>
                     <div>
@@ -280,6 +353,7 @@ export default function AdminSettings() {
                         type="password"
                         id="new-password"
                         className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-black"
+                        disabled
                       />
                     </div>
                     <div>
@@ -290,11 +364,13 @@ export default function AdminSettings() {
                         type="password"
                         id="confirm-password"
                         className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-black"
+                        disabled
                       />
                     </div>
                     <button
                       type="button"
-                      className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                      disabled
+                      className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-400 cursor-not-allowed"
                     >
                       Update Password
                     </button>
@@ -303,12 +379,14 @@ export default function AdminSettings() {
 
                 <div>
                   <h3 className="text-base font-medium mb-4">Two-Factor Authentication</h3>
+                  <p className="text-sm text-gray-500 mb-4">Two-factor authentication coming soon</p>
                   <div className="flex items-start">
                     <div className="flex items-center h-5">
                       <input
                         id="enable-2fa"
                         type="checkbox"
                         className="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded"
+                        disabled
                       />
                     </div>
                     <div className="ml-3 text-sm">
@@ -318,39 +396,15 @@ export default function AdminSettings() {
                       <p className="text-gray-500">Add an extra layer of security to your account by requiring both your password and authentication code.</p>
                     </div>
                   </div>
-                  <div className="mt-4">
-                    <button
-                      type="button"
-                      className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                    >
-                      Setup Two-Factor Authentication
-                    </button>
-                  </div>
+                </div>
+
+                <div className="border-t border-gray-200 pt-6">
+                  <PinManagement />
                 </div>
 
                 <div className="border-t border-gray-200 pt-6">
                   <h3 className="text-base font-medium mb-4">Session Management</h3>
-                  <p className="text-sm text-gray-500 mb-4">You're currently signed in on this device. If you see any sessions you don't recognize, sign out of those sessions and change your password.</p>
-                  
-                  <div className="bg-gray-50 p-4 rounded-md mb-4">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">Current Session</p>
-                        <p className="text-xs text-gray-500">Windows • Chrome • IP: 192.168.1.1</p>
-                        <p className="text-xs text-gray-500">Last active: Just now</p>
-                      </div>
-                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                        Active
-                      </span>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    className="inline-flex items-center px-4 py-2 border border-red-300 rounded-md shadow-sm text-sm font-medium text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                  >
-                    Sign Out All Other Sessions
-                  </button>
+                  <p className="text-sm text-gray-500 mb-4">Session management coming soon</p>
                 </div>
               </div>
             )}
@@ -359,4 +413,4 @@ export default function AdminSettings() {
       </div>
     </AdminLayout>
   )
-} 
+}

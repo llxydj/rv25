@@ -2,11 +2,11 @@
 
 import { useState } from "react"
 import { X, Users, Calendar, Clock, MapPin, CheckCircle } from "lucide-react"
-import { createSchedule } from "@/lib/schedules"
 import { CITIES, getBarangays } from "@/lib/locations"
 import { ACTIVITY_TYPES } from "@/lib/schedules"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import { toast } from "sonner"
+import { supabase } from "@/lib/supabase"
 
 interface BulkScheduleModalProps {
   isOpen: boolean
@@ -119,31 +119,36 @@ export function BulkScheduleModal({
         barangay: formData.barangay
       }
 
-      let successCount = 0
-      let failedCount = 0
-
-      // Create schedule for each selected volunteer
-      for (const volunteerId of selectedVolunteers) {
-        const result = await createSchedule(adminId, {
-          ...scheduleData,
-          volunteer_id: volunteerId
-        })
-
-        if (result.success) {
-          successCount++
-        } else {
-          failedCount++
-        }
-      }
-
-      setResults({ success: successCount, failed: failedCount })
+      // Use bulk API to create schedules for all volunteers at once
+      const { data: sessionData } = await supabase.auth.getSession()
+      const accessToken = sessionData?.session?.access_token
       
-      if (failedCount === 0) {
-        toast.success(`Successfully created ${successCount} schedules`)
+      const res = await fetch('/api/admin/schedules', {
+        method: 'POST',
+        cache: 'no-store',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({
+          ...scheduleData,
+          volunteer_ids: selectedVolunteers
+        }),
+      })
+      
+      const json = await res.json()
+      
+      if (res.ok && json?.success) {
+        const count = Array.isArray(json.data) ? json.data.length : (json.count || selectedVolunteers.length)
+        setResults({ success: count, failed: 0 })
+        toast.success(`Successfully created ${count} schedules`)
       } else {
-        toast.warning(`Created ${successCount} schedules, ${failedCount} failed`)
+        const failedCount = selectedVolunteers.length
+        setResults({ success: 0, failed: failedCount })
+        toast.error(json?.message || "Failed to create schedules")
       }
-
+      
       onSuccess?.()
     } catch (error: any) {
       toast.error(error.message || "Failed to create schedules")

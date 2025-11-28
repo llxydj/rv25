@@ -1,182 +1,85 @@
-# Implementation Summary - Reports, Documents, Volunteer Analytics & Severity Updates
+# Volunteer Scheduling, Attendance & Training - Implementation Summary
 
-## Overview
-This document summarizes all the changes made to address the following requirements:
-1. Check all reports for inconsistencies
-2. Add filename renaming feature to admin documents
-3. Implement volunteer profiling analytics
-4. Ensure volunteers can only update severity when ARRIVED
+## ✅ Completed Features
 
-## 1. Reports Inconsistency Check ✅
+### 1. SMS Notifications
+- **Added**: SMS template `TEMPLATE_SCHEDULE_ASSIGN` for schedule notifications
+- **Updated**: `/api/admin/schedules` POST endpoint now sends SMS to all assigned volunteers
+- **Format**: Includes title, date, time, and location details
 
-### Files Created:
-- `src/app/api/reports/check-inconsistencies/route.ts`
-  - New API endpoint to check all reports for inconsistencies
-  - Checks for:
-    - Missing or invalid `created_by` users
-    - Missing or invalid `reviewed_by` users
-    - Missing incident references
-    - Status inconsistencies (REVIEWED/REJECTED without reviewer/date)
-    - Invalid report types
+### 2. Bulk Volunteer Selection
+- **Updated**: `/api/admin/schedules` POST now accepts `volunteer_ids` array
+- **Updated**: `BulkScheduleModal` component now uses bulk API instead of looping
+- **Result**: Faster creation and all volunteers get notifications simultaneously
 
-### Usage:
-```bash
-GET /api/reports/check-inconsistencies
-```
-Returns a list of all inconsistencies found across all reports.
+### 3. Volunteer Accept/Decline
+- **Created**: `/api/volunteer/schedules` PATCH endpoint
+- **Updated**: `respondToSchedule` function in `src/lib/schedules.ts` to use API
+- **UI**: Already exists in `ScheduleCard` component - no changes needed
 
-## 2. Admin Documents Filename Renaming ✅
+### 4. Attendance Recording
+- **Created**: `/api/admin/schedules/attendance` endpoint (POST for recording, GET for viewing)
+- **Updated**: `completeSchedule` function to use attendance API
+- **UI**: `AttendanceMarkingModal` already exists and works with the API
 
-### Database Migration:
-- `supabase/migrations/20250128000001_add_display_name_to_admin_documents.sql`
-  - Adds `display_name` column to `admin_documents` table
-  - Allows custom display names independent of actual file names
-  - Creates index for faster lookups
+### 5. Analytics & Reports APIs
+- **Created**: `/api/admin/volunteers/analytics` - Individual volunteer analytics
+  - Includes: incidents, schedules, attendance, training performance
+- **Created**: `/api/admin/activities/reports` - Activity/schedule summary reports
+  - Includes: acceptance rates, attendance rates, trends by date
 
-### API Changes:
-- `src/app/api/admin-documents/route.ts`
-  - Added `PUT` method to update document display names
-  - Updated `POST` method to set `display_name` on upload
+## 📋 Database Schema Status
 
-### UI Changes:
-- `src/app/admin/documents/page.tsx`
-  - Added rename functionality with inline editing
-  - Shows `display_name` or falls back to `file_name`
-  - "Rename" button for each document
-  - Save/Cancel buttons during rename
+All required fields exist:
+- ✅ `schedules.is_accepted` - Volunteer response status
+- ✅ `schedules.response_at` - Response timestamp
+- ✅ `schedules.attendance_marked` - Attendance recorded flag
+- ✅ `schedules.attendance_notes` - Attendance details (stores PRESENT/ABSENT prefix)
+- ✅ `training_evaluations_admin` - Admin evaluations with performance_rating, skills_assessment
 
-### Features:
-- Click "Rename" button to edit display name
-- Press Enter to save, Escape to cancel
-- Display name is shown in the admin panel
-- Original file name is preserved in database
+## 🔄 What Still Needs UI Work
 
-## 3. Volunteer Profiling Analytics ✅
+1. **Analytics Dashboard Pages**
+   - Create `/admin/volunteers/analytics` page to display volunteer analytics
+   - Create `/admin/activities/reports` page to display activity reports
+   - Add charts/visualizations for trends
 
-### Library Created:
-- `src/lib/volunteer-analytics.ts`
-  - `getVolunteerIncidentLogs()` - Extract all historical incident logs for a volunteer
-  - `getVolunteerAnalytics()` - Generate comprehensive analytics
-  - `getAllVolunteersAnalytics()` - Get analytics for all volunteers
-  - `exportVolunteerAnalyticsToCSV()` - Export to CSV format
+2. **Training Enrollment Notifications**
+   - Add SMS notifications when volunteers are enrolled in trainings
+   - Use `TEMPLATE_TRAINING_NOTIFY` template
 
-### Analytics Includes:
-- **Total incidents** handled
-- **Total resolved** incidents
-- **Average response time** (in minutes)
-- **Incidents by type** (breakdown)
-- **Incidents by severity** (MINOR, MODERATE, SEVERE, CRITICAL)
-- **Incidents by status** (PENDING, ASSIGNED, RESPONDING, ARRIVED, RESOLVED)
-- **Incidents by barangay** (geographic distribution)
-- **Daily trends** (incident count per day)
-- **Weekly trends** (incident count per week)
-- **Monthly trends** (incident count per month)
-- **Recent incidents** (last 10 incidents with full details)
+3. **Enhanced Attendance UI**
+   - Could add dedicated `attendance_status` field instead of using notes prefix
+   - Better visualization of attendance statistics
 
-### API Endpoint:
-- `src/app/api/volunteers/analytics/route.ts`
-  - `GET /api/volunteers/analytics?volunteer_id={id}&start_date={date}&end_date={date}`
-  - Supports date filtering
-  - Supports CSV export: `?export=csv`
+## 🎯 Next Steps (Optional Enhancements)
 
-### Dashboard:
-- `src/app/admin/volunteers/analytics/page.tsx`
-  - Full-featured analytics dashboard
-  - Volunteer selection dropdown
-  - Date range filters (7d, 30d, 90d, all, custom)
-  - Interactive charts:
-    - Pie chart for incidents by type
-    - Bar chart for incidents by severity
-    - Line chart for monthly trends
-    - Bar chart for incidents by barangay
-  - Summary cards with key metrics
-  - Recent incidents table
-  - CSV export functionality
+1. Add `attendance_status` column to schedules table (PRESENT/ABSENT/EXCUSED)
+2. Create UI pages for analytics and reports
+3. Add training enrollment SMS notifications
+4. Link training evaluations more closely with attendance records
+5. Add export functionality for reports (CSV/PDF)
 
-### Access:
-Navigate to: `/admin/volunteers/analytics`
+## 📝 API Endpoints Summary
 
-## 4. Severity Update Restriction ✅
+### Schedules
+- `POST /api/admin/schedules` - Create schedule(s) with bulk support
+- `GET /api/admin/schedules` - List schedules
+- `PATCH /api/admin/schedules` - Update schedule
+- `DELETE /api/admin/schedules` - Delete schedule
+- `GET /api/volunteer/schedules` - Volunteer's schedules
+- `PATCH /api/volunteer/schedules` - Accept/decline schedule
 
-### API Endpoint:
-- `src/app/api/incidents/[id]/severity/route.ts`
-  - `PATCH /api/incidents/[id]/severity`
-  - **Restriction**: Volunteers can only update severity when:
-    1. Incident is assigned to them (`assigned_to === volunteer_id`)
-    2. Incident status is `ARRIVED`
-  - Admins can always update severity
-  - Returns appropriate error messages if restrictions are violated
+### Attendance
+- `POST /api/admin/schedules/attendance` - Record attendance
+- `GET /api/admin/schedules/attendance` - Get attendance records
 
-### Component:
-- `src/components/incident-severity-updater.tsx`
-  - React component for updating incident severity
-  - Shows current severity with color-coded badges
-  - Dropdown to select new severity level
-  - Validation and error handling
-  - Shows helpful message for volunteers about ARRIVED requirement
+### Analytics
+- `GET /api/admin/volunteers/analytics` - Volunteer analytics
+- `GET /api/admin/activities/reports` - Activity reports
 
-### Integration:
-The component can be integrated into incident detail pages:
-```tsx
-<IncidentSeverityUpdater
-  currentSeverity={incident.severity}
-  incidentId={incident.id}
-  incidentStatus={incident.status}
-  onSeverityUpdate={(newSeverity) => {
-    // Handle update
-  }}
-/>
-```
-
-## Database Changes
-
-### Migration Files:
-1. `supabase/migrations/20250128000001_add_display_name_to_admin_documents.sql`
-   - Adds `display_name` column to `admin_documents`
-
-## Testing Checklist
-
-### Reports:
-- [ ] Run `/api/reports/check-inconsistencies` to check for issues
-- [ ] Verify all reports have valid user references
-- [ ] Verify all reports have valid incident references (if applicable)
-- [ ] Verify status consistency (REVIEWED/REJECTED have reviewer info)
-
-### Documents:
-- [ ] Upload a document in admin panel
-- [ ] Click "Rename" button
-- [ ] Change display name and save
-- [ ] Verify display name is shown in list
-- [ ] Verify original file name is preserved
-
-### Volunteer Analytics:
-- [ ] Navigate to `/admin/volunteers/analytics`
-- [ ] Select a volunteer from dropdown
-- [ ] Verify all metrics are displayed correctly
-- [ ] Test date range filters
-- [ ] Export to CSV and verify format
-- [ ] Check charts render correctly
-- [ ] Verify recent incidents table shows data
-
-### Severity Updates:
-- [ ] As volunteer, try to update severity when status is not ARRIVED (should fail)
-- [ ] As volunteer, update status to ARRIVED
-- [ ] As volunteer, update severity after ARRIVED (should succeed)
-- [ ] As admin, verify can update severity at any time
-- [ ] Verify error messages are clear and helpful
-
-## Notes
-
-1. **Reports API**: The inconsistency check endpoint requires admin authentication
-2. **Documents**: Display names are optional - if not set, `file_name` is used
-3. **Analytics**: All date calculations are done server-side for accuracy
-4. **Severity**: The restriction is enforced at the API level, not just UI level
-
-## Future Enhancements
-
-1. Add PDF export for volunteer analytics
-2. Add more detailed filtering options for analytics
-3. Add volunteer comparison features
-4. Add automated report generation for volunteer performance reviews
-5. Add severity update notifications to admins
-
+### Trainings
+- `POST /api/trainings` - Create training
+- `GET /api/trainings` - List trainings
+- `POST /api/training-evaluations` - Create evaluation
+- `POST /api/trainings/evaluations/admin` - Admin evaluation

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback } from "react"
 import Link from "next/link"
-import { AlertTriangle, BellRing, CalendarDays, User, Users, BarChart3, MapPin, Clock } from "lucide-react"
+import { AlertTriangle, BellRing, CalendarDays, User, Users, BarChart3, MapPin, Clock, MessageSquare } from "lucide-react"
 import { AdminLayout } from "@/components/layout/admin-layout"
 import { useAuth } from "@/lib/auth"
 import { getAllIncidents, subscribeToIncidents } from "@/lib/incidents"
@@ -147,6 +147,14 @@ export default function AdminDashboard() {
             >
               <CalendarDays className="mr-2 h-4 w-4 md:h-5 md:w-5" />
               Reports
+            </Link>
+            <Link
+              href="/admin/sms"
+              className="inline-flex items-center px-3 py-2 md:px-4 text-sm md:text-base bg-purple-600 text-white rounded-lg hover:bg-purple-700 dark:bg-purple-700 dark:hover:bg-purple-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 dark:focus:ring-offset-gray-900 transition-all duration-200 shadow-sm hover:shadow-md active:scale-[0.98]"
+            >
+              <MessageSquare className="mr-2 h-4 w-4 md:h-5 md:w-5" />
+              <span className="hidden sm:inline">SMS Management</span>
+              <span className="sm:hidden">SMS</span>
             </Link>
           </div>
         </div>

@@ -206,6 +206,9 @@ export async function POST(request: Request) {
 
     console.log('✅ Training created successfully:', data.id)
 
+    // Send notifications to enrolled volunteers (if any enrollments exist)
+    // This will be handled when volunteers enroll, but we can add bulk notification here if needed
+
     return NextResponse.json(
       { success: true, data },
       { status: 201 }

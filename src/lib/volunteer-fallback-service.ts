@@ -18,6 +18,7 @@ export class VolunteerFallbackService {
   private static instance: VolunteerFallbackService
   private supabaseAdmin: any
   private fallbackTimers: Map<string, NodeJS.Timeout> = new Map()
+  private reminderTimers: Map<string, NodeJS.Timeout> = new Map() // Track reminder timers separately
 
   constructor() {
     this.supabaseAdmin = createClient(
@@ -203,9 +204,15 @@ export class VolunteerFallbackService {
         })
 
         // Set reminder timer for 5 minutes if still not acknowledged
-        setTimeout(async () => {
+        // Clear any existing reminder timer first to prevent duplicates
+        this.clearReminderTimer(incident.id)
+        
+        const reminderTimer = setTimeout(async () => {
           await this.checkAndSendReminder(incident, volunteer, referenceId)
+          this.reminderTimers.delete(incident.id) // Clean up after execution
         }, 5 * 60 * 1000) // 5 minutes
+        
+        this.reminderTimers.set(incident.id, reminderTimer)
 
       } else {
         console.error(`SMS fallback failed for incident ${incident.id}:`, smsResult.error)
@@ -303,6 +310,18 @@ export class VolunteerFallbackService {
     } catch (error) {
       console.error('Error checking push acknowledgment:', error)
       return false
+    }
+  }
+
+  /**
+   * Clear reminder timer for an incident
+   */
+  private clearReminderTimer(incidentId: string): void {
+    const timer = this.reminderTimers.get(incidentId)
+    if (timer) {
+      clearTimeout(timer)
+      this.reminderTimers.delete(incidentId)
+      console.log(`Cleared reminder timer for incident ${incidentId}`)
     }
   }
 

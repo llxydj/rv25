@@ -17,6 +17,7 @@ import IncidentStatusDropdown from "@/components/incident-status-dropdown"
 import IncidentSeverityUpdater from "@/components/incident-severity-updater"
 import { IncidentFeedbackDisplay } from "@/components/incident-feedback-display"
 import { AudioPlayer } from "@/components/audio-player"
+import { IncidentTimeline } from "@/components/incident-timeline"
 
 export default function VolunteerIncidentDetailPage() {
   const params = useParams()
@@ -29,6 +30,8 @@ export default function VolunteerIncidentDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [updates, setUpdates] = useState<any[]>([])
+  const [timelineEvents, setTimelineEvents] = useState<any[]>([])
+  const [loadingTimeline, setLoadingTimeline] = useState(false)
   
   // Use refs to prevent re-render loops
   const isMountedRef = useRef(true)
@@ -138,6 +141,20 @@ export default function VolunteerIncidentDetailPage() {
           const updatesResult = await getIncidentUpdates(idToUse)
           if (updatesResult.success) {
             setUpdates(updatesResult.data || [])
+          }
+
+          // Fetch timeline events
+          setLoadingTimeline(true)
+          try {
+            const timelineRes = await fetch(`/api/incidents/${idToUse}/timeline`)
+            const timelineData = await timelineRes.json()
+            if (timelineData.success && timelineData.data) {
+              setTimelineEvents(timelineData.data)
+            }
+          } catch (err) {
+            console.error("Error fetching timeline:", err)
+          } finally {
+            setLoadingTimeline(false)
           }
         }
       } catch (err: any) {
@@ -688,6 +705,16 @@ export default function VolunteerIncidentDetailPage() {
                         setSuccessMessage(`Severity updated to ${newSeverity}`)
                         
                         // Refresh updates to show the new severity update
+                        // Refresh timeline
+                        fetch(`/api/incidents/${incident.id}/timeline`)
+                          .then(res => res.json())
+                          .then(data => {
+                            if (data.success && data.data) {
+                              setTimelineEvents(data.data)
+                            }
+                          })
+                          .catch(err => console.error("Error refreshing timeline:", err))
+                        
                         getIncidentUpdates(incident.id).then((result) => {
                           if (result.success) {
                             setUpdates(result.data || [])

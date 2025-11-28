@@ -357,20 +357,21 @@ export const subscribeToSchedules = (callback: (payload: any) => void) => {
 // Volunteer accepts or declines a schedule
 export const respondToSchedule = async (scheduleId: string, isAccepted: boolean) => {
   try {
-    const { data, error } = await supabase
-      .from('schedules')
-      .update({
-        is_accepted: isAccepted,
-        response_at: new Date().toISOString(),
-        status: isAccepted ? 'SCHEDULED' : 'CANCELLED'
-      })
-      .eq('id', scheduleId)
-      .select()
-      .single()
-
-    if (error) throw error
-
-    return { success: true, data }
+    const { data: sessionData } = await supabase.auth.getSession()
+    const accessToken = sessionData?.session?.access_token
+    const res = await fetch('/api/volunteer/schedules', {
+      method: 'PATCH',
+      cache: 'no-store',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      },
+      body: JSON.stringify({ schedule_id: scheduleId, accept: isAccepted }),
+    })
+    const json = await res.json()
+    if (!res.ok || !json?.success) throw new Error(json?.message || res.statusText)
+    return { success: true, data: json.data }
   } catch (error: any) {
     console.error('Error responding to schedule:', error)
     return { success: false, message: error.message }
@@ -384,13 +385,32 @@ export const completeSchedule = async (
   notes?: string
 ) => {
   try {
+    // First mark attendance if attendanceMarked is true
+    if (attendanceMarked) {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const accessToken = sessionData?.session?.access_token
+      const attendanceRes = await fetch('/api/admin/schedules/attendance', {
+        method: 'POST',
+        cache: 'no-store',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({ schedule_id: scheduleId, present: true, notes }),
+      })
+      const attendanceJson = await attendanceRes.json()
+      if (!attendanceRes.ok || !attendanceJson?.success) {
+        console.warn('Failed to mark attendance:', attendanceJson?.message)
+      }
+    }
+
+    // Then mark as completed
     const { data, error } = await supabase
       .from('schedules')
       .update({
         status: 'COMPLETED',
         completed_at: new Date().toISOString(),
-        attendance_marked: attendanceMarked,
-        attendance_notes: notes
       })
       .eq('id', scheduleId)
       .select()

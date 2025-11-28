@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { getServerSupabase } from '@/lib/supabase-server'
 import webpush from 'web-push'
 import { Database } from '@/types/supabase'
+import { smsService } from '@/lib/sms-service'
 
 type ScheduleRow = Database['public']['Tables']['schedules']['Row']
 type ScheduleInsert = Database['public']['Tables']['schedules']['Insert']
@@ -97,10 +98,22 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json()
-    const { volunteer_id, title, description, start_time, end_time, location, barangay } = body || {}
+    const { volunteer_id, volunteer_ids, title, description, start_time, end_time, location, barangay } = body || {}
 
-    const payload: ScheduleInsert = {
-      volunteer_id,
+    // Support both single volunteer_id and bulk volunteer_ids
+    const volunteerIds = volunteer_ids && Array.isArray(volunteer_ids) && volunteer_ids.length > 0
+      ? volunteer_ids
+      : volunteer_id
+        ? [volunteer_id]
+        : []
+
+    if (volunteerIds.length === 0) {
+      return NextResponse.json({ success: false, message: 'At least one volunteer must be selected' }, { status: 400 })
+    }
+
+    // Create schedules for all selected volunteers
+    const schedulesToInsert = volunteerIds.map((vid: string) => ({
+      volunteer_id: vid,
       title,
       description: description ?? null,
       start_time,
@@ -108,11 +121,11 @@ export async function POST(req: Request) {
       location: location ?? null,
       barangay: barangay ?? null,
       created_by: uid,
-    }
+    }))
 
-    const { data, error } = await supabaseAdmin
+    const { data: insertedSchedules, error } = await supabaseAdmin
       .from('schedules')
-      .insert(payload)
+      .insert(schedulesToInsert)
       .select(`
         *,
         volunteer:users!schedules_volunteer_id_fkey (
@@ -122,19 +135,71 @@ export async function POST(req: Request) {
           id, first_name, last_name
         )
       `)
-      .single()
 
     if (error) return NextResponse.json({ success: false, message: error.message }, { status: 400 })
 
-    // Fire-and-forget push notification to assigned volunteer
+    // Send notifications (push + SMS) to all assigned volunteers
     const url = '/volunteer/schedules'
-    await sendPushToUser(volunteer_id, {
-      title: 'New Scheduled Activity',
-      body: `${title} • ${new Date(start_time).toLocaleString()} - ${new Date(end_time).toLocaleString()}`,
-      url,
-    })
+    const scheduleDetails = `${title}${location ? ` at ${location}` : ''}${barangay ? `, ${barangay}` : ''}`
+    const timeRange = `${new Date(start_time).toLocaleString()} - ${new Date(end_time).toLocaleString()}`
 
-    return NextResponse.json({ success: true, data })
+    // Fire-and-forget notifications for all volunteers
+    await Promise.allSettled(
+      insertedSchedules.map(async (schedule: any) => {
+        const volunteer = schedule.volunteer
+        if (!volunteer) return
+
+        // Push notification
+        await sendPushToUser(volunteer.id, {
+          title: 'New Scheduled Activity',
+          body: `${scheduleDetails} • ${timeRange}`,
+          url,
+        })
+
+        // SMS notification
+        if (volunteer.phone_number) {
+          try {
+            const scheduleDate = new Date(start_time).toLocaleDateString('en-US', { 
+              month: 'short', 
+              day: 'numeric', 
+              year: 'numeric' 
+            })
+            const scheduleTime = `${new Date(start_time).toLocaleTimeString('en-US', { 
+              hour: '2-digit', 
+              minute: '2-digit' 
+            })} - ${new Date(end_time).toLocaleTimeString('en-US', { 
+              hour: '2-digit', 
+              minute: '2-digit' 
+            })}`
+            const locationText = location ? ` at ${location}` : (barangay ? ` in ${barangay}` : '')
+
+            await smsService.sendSMS(
+              volunteer.phone_number,
+              'TEMPLATE_SCHEDULE_ASSIGN',
+              {
+                title: title,
+                date: scheduleDate,
+                time: scheduleTime,
+                location: locationText
+              },
+              {
+                incidentId: schedule.id, // Using schedule ID as reference
+                referenceId: schedule.id.substring(0, 8).toUpperCase(),
+                triggerSource: 'Schedule_Created',
+                recipientUserId: volunteer.id
+              }
+            )
+          } catch (smsErr) {
+            console.error('Failed to send SMS for schedule:', smsErr)
+            // Don't fail the request if SMS fails
+          }
+        }
+      })
+    )
+
+    // Return first schedule for backward compatibility, or all if multiple
+    const data = insertedSchedules.length === 1 ? insertedSchedules[0] : insertedSchedules
+    return NextResponse.json({ success: true, data, count: insertedSchedules.length })
   } catch (e: any) {
     return NextResponse.json({ success: false, message: e?.message || 'Internal error' }, { status: 500 })
   }

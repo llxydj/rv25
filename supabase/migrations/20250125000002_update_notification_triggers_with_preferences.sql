@@ -103,7 +103,9 @@ BEGIN
       WHEN 'ASSIGNED' THEN
         status_message := 'Your incident has been assigned to a volunteer';
       WHEN 'RESPONDING' THEN
-        status_message := 'A volunteer is responding to your incident';
+        status_message := 'A volunteer is on the way (OTW) to your incident';
+      WHEN 'ARRIVED' THEN
+        status_message := 'A volunteer has arrived at your incident location';
       WHEN 'RESOLVED' THEN
         status_message := 'Your incident has been resolved';
       WHEN 'CANCELLED' THEN

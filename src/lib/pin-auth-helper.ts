@@ -1,0 +1,84 @@
+/**
+ * PIN Authentication Helper
+ * Functions to check PIN status and redirect accordingly
+ */
+
+export interface PinStatus {
+  success: boolean
+  enabled: boolean
+  hasPin: boolean
+  needsSetup: boolean
+  isLocked: boolean
+  lockedUntil: string | null
+  excluded?: boolean
+}
+
+export async function checkPinStatus(): Promise<PinStatus | null> {
+  try {
+    const res = await fetch('/api/pin/status', {
+      credentials: 'include'
+    })
+    const json = await res.json()
+    return json
+  } catch (error) {
+    console.error('Error checking PIN status:', error)
+    return null
+  }
+}
+
+export function getPinRedirectUrl(pinStatus: PinStatus | null, defaultRedirect: string): string {
+  if (!pinStatus || !pinStatus.success) {
+    // SECURITY: If PIN check fails, log warning but allow access
+    // This prevents blocking legitimate users if API is temporarily down
+    // However, we should still redirect to verify page to be safe
+    console.warn('[PIN] PIN status check failed, redirecting to verify for safety')
+    // Redirect to verify page - it will check cookie and redirect if already verified
+    return `/pin/verify?redirect=${encodeURIComponent(defaultRedirect)}`
+  }
+
+  // Excluded users (barangay) don't need PIN
+  if (pinStatus.excluded) {
+    return defaultRedirect
+  }
+
+  // If PIN is disabled, go to dashboard
+  if (!pinStatus.enabled) {
+    return defaultRedirect
+  }
+
+  // If PIN needs setup, redirect to setup
+  if (pinStatus.needsSetup) {
+    return `/pin/setup?redirect=${encodeURIComponent(defaultRedirect)}`
+  }
+
+  // If PIN is enabled and set, check if verified
+  if (pinStatus.enabled && pinStatus.hasPin) {
+    // If locked, redirect to verify (which will show lock message)
+    if (pinStatus.isLocked) {
+      return `/pin/verify?redirect=${encodeURIComponent(defaultRedirect)}`
+    }
+    
+    // Check if PIN is verified (via cookie check endpoint)
+    // For now, we'll redirect to verify page and let it check the cookie
+    // The verify page will redirect if already verified
+    return `/pin/verify?redirect=${encodeURIComponent(defaultRedirect)}`
+  }
+
+  // Default: go to dashboard
+  return defaultRedirect
+}
+
+export async function getPinRedirectForRole(role: string | null): Promise<string> {
+  const defaultRedirects: Record<string, string> = {
+    admin: '/admin/dashboard',
+    volunteer: '/volunteer/dashboard',
+    resident: '/resident/dashboard',
+    barangay: '/barangay/dashboard'
+  }
+
+  const defaultRedirect = role ? defaultRedirects[role] || '/resident/dashboard' : '/resident/dashboard'
+  
+  const pinStatus = await checkPinStatus()
+  return getPinRedirectUrl(pinStatus, defaultRedirect)
+}
+

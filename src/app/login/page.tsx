@@ -1,9 +1,9 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import Image from "next/image"
 import { AlertTriangle, User, Mail, Lock, ArrowRight } from "lucide-react"
 import { signIn } from "@/lib/auth"
@@ -16,6 +16,15 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  // Check for deactivated account error in URL
+  useEffect(() => {
+    const errorParam = searchParams.get('error')
+    if (errorParam === 'account_deactivated') {
+      setError('Your account has been deactivated. Please contact an administrator.')
+    }
+  }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -23,6 +32,16 @@ export default function LoginPage() {
     setError(null)
 
     try {
+      // Clear any existing session before signing in
+      // This ensures the new login gets a fresh session
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        console.log('[Login] Clearing existing session before new login')
+        await supabase.auth.signOut()
+        // Wait a moment for sign out to complete
+        await new Promise(resolve => setTimeout(resolve, 200))
+      }
+
       const result = await signIn(email, password)
 
       if (!result.success) {
@@ -31,9 +50,9 @@ export default function LoginPage() {
         return
       }
 
-      // The useAuth hook will handle redirection based on role
-      // via the onAuthStateChange listener, so we don't need to
-      // make additional database calls or handle redirection here
+      // After successful login, check PIN status and redirect accordingly
+      // The useAuth hook will handle the actual redirect with PIN check
+      // via the onAuthStateChange listener
       
     } catch (err: any) {
       console.error("Login error:", err)

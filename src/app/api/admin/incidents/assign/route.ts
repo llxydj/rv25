@@ -88,17 +88,15 @@ export async function POST(request: Request) {
       .maybeSingle()
     if (updErr) return NextResponse.json({ success: false, message: updErr.message }, { status: 400 })
 
-    // Log incident update (best-effort)
+    // Log assignment in timeline using centralized helper
     try {
-      await supabaseAdmin.from('incident_updates').insert({
-        incident_id: cleanIncidentId,
-        updated_by: uid,
-        previous_status: 'PENDING',
-        new_status: 'ASSIGNED',
-        notes: `Assigned to volunteer ${volunteer.first_name ?? ''} ${volunteer.last_name ?? ''}`.trim(),
-        created_at: new Date().toISOString(),
-      })
-    } catch { }
+      const { logAssignment } = await import('@/lib/incident-timeline')
+      await logAssignment(cleanIncidentId, cleanVolunteerId, false)
+      console.log('✅ Assignment logged in timeline')
+    } catch (logError) {
+      console.error('❌ Failed to log assignment in timeline:', logError)
+      // Don't fail assignment if timeline logging fails
+    }
 
     // NOTE: Notification is automatically created by database trigger
     // (notify_volunteer_on_assignment) when assigned_to is updated

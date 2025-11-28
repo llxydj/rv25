@@ -1,8 +1,7 @@
-export const dynamic = "force-dynamic";
-
 import { NextResponse } from 'next/server'
 import { getServerSupabase } from '@/lib/supabase-server'
-import bcrypt from 'bcryptjs'
+
+export const dynamic = "force-dynamic"
 
 export async function GET() {
   try {
@@ -31,34 +30,28 @@ export async function GET() {
       return NextResponse.json({ success: true, enabled: false, hasPin: false, excluded: true })
     }
 
-    let pinEnabled = userData.pin_enabled !== false
-    let hasPin = !!userData.pin_hash
+    const pinEnabled = userData.pin_enabled !== false
+    const hasPin = !!userData.pin_hash
 
-    // ===== EMERGENCY BYPASS =====
-    // If no PIN hash, create a temporary default PIN ("0000") for access
-    if (!hasPin && pinEnabled) {
-      const tempPin = '0000'
-      const tempHash = await bcrypt.hash(tempPin, 10)
+    // Check if account is locked
+    const { data: attemptData } = await supabase
+      .from('pin_attempts')
+      .select('locked_until, attempt_count')
+      .eq('user_id', userId)
+      .maybeSingle()
 
-      const { error: updateError } = await supabase
-        .from('users')
-        .update({ pin_hash: tempHash })
-        .eq('id', userId)
-
-      if (updateError) {
-        console.error('Failed to set temporary PIN hash:', updateError)
-      } else {
-        console.log(`Temporary PIN "0000" set for user ${userId}`)
-        hasPin = true
-      }
-    }
-    // =============================
+    const isLocked = attemptData?.locked_until 
+      ? new Date(attemptData.locked_until) > new Date()
+      : false
 
     return NextResponse.json({
       success: true,
       enabled: pinEnabled,
       hasPin,
-      needsSetup: pinEnabled && !hasPin
+      needsSetup: pinEnabled && !hasPin,
+      isLocked,
+      lockedUntil: attemptData?.locked_until || null,
+      failedAttempts: attemptData?.attempt_count || 0
     })
   } catch (error: any) {
     console.error('PIN status error:', error)

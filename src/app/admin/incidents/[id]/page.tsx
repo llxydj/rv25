@@ -20,6 +20,7 @@ import { ImageLightbox } from "@/components/ui/image-lightbox"
 import { normalizeIncident, formatDisplayDate } from "@/lib/incident-utils"
 import { IncidentFeedbackDisplay } from "@/components/incident-feedback-display"
 import { AudioPlayer } from "@/components/audio-player"
+import { IncidentTimeline } from "@/components/incident-timeline"
 
 export default function IncidentDetailPage() {
   const { id } = useParams()
@@ -32,6 +33,8 @@ export default function IncidentDetailPage() {
   const [assigning, setAssigning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [updates, setUpdates] = useState<any[]>([])
+  const [timelineEvents, setTimelineEvents] = useState<any[]>([])
+  const [loadingTimeline, setLoadingTimeline] = useState(false)
   const [resolutionNotes, setResolutionNotes] = useState("")
   const [updatingStatus, setUpdatingStatus] = useState(false)
   const [showNotification, setShowNotification] = useState(false)
@@ -62,10 +65,24 @@ export default function IncidentDetailPage() {
           setError(incidentResult.message || "Failed to fetch incident details")
         }
 
-        // Fetch incident updates
+        // Fetch incident updates (legacy, kept for compatibility)
         const updatesResult = await getIncidentUpdates(id as string)
         if (updatesResult.success) {
           safelySetUpdates(updatesResult.data)
+        }
+
+        // Fetch timeline events
+        setLoadingTimeline(true)
+        try {
+          const timelineRes = await fetch(`/api/incidents/${id}/timeline`)
+          const timelineData = await timelineRes.json()
+          if (timelineData.success && timelineData.data) {
+            setTimelineEvents(timelineData.data)
+          }
+        } catch (err) {
+          console.error("Error fetching timeline:", err)
+        } finally {
+          setLoadingTimeline(false)
         }
 
         // Fetch volunteers for assignment
@@ -221,6 +238,17 @@ export default function IncidentDetailPage() {
         if (updatesResult.success) {
           safelySetUpdates(updatesResult.data)
         }
+
+        // Refresh timeline events
+        try {
+          const timelineRes = await fetch(`/api/incidents/${id}/timeline`)
+          const timelineData = await timelineRes.json()
+          if (timelineData.success && timelineData.data) {
+            setTimelineEvents(timelineData.data)
+          }
+        } catch (err) {
+          console.error("Error refreshing timeline:", err)
+        }
       } else {
         setError(result.message || "Failed to assign volunteer")
       }
@@ -256,6 +284,17 @@ export default function IncidentDetailPage() {
         const updatesResult = await getIncidentUpdates(id as string)
         if (updatesResult.success) {
           safelySetUpdates(updatesResult.data)
+        }
+
+        // Refresh timeline events
+        try {
+          const timelineRes = await fetch(`/api/incidents/${id}/timeline`)
+          const timelineData = await timelineRes.json()
+          if (timelineData.success && timelineData.data) {
+            setTimelineEvents(timelineData.data)
+          }
+        } catch (err) {
+          console.error("Error refreshing timeline:", err)
         }
 
         // Clear resolution notes
@@ -590,74 +629,17 @@ export default function IncidentDetailPage() {
               </div>
 
               <div className="mt-6">
-                <h3 className="text-sm font-medium text-gray-500">Timeline</h3>
-                <div className="mt-2 space-y-4">
-                  {updates.map((update, index) => (
-                    <div key={index} className="flex items-start">
-                      <div className="flex-shrink-0">
-                        <div
-                          className={`flex items-center justify-center h-8 w-8 rounded-full ${
-                            update.previous_status === "SEVERITY_UPDATE" && update.new_status === "SEVERITY_UPDATE"
-                              ? "bg-purple-100 text-purple-600"
-                              : update.new_status === "PENDING"
-                                ? "bg-yellow-100 text-yellow-600"
-                                : update.new_status === "ASSIGNED"
-                                  ? "bg-blue-100 text-blue-600"
-                                  : update.new_status === "RESPONDING"
-                                    ? "bg-orange-100 text-orange-600"
-                                    : update.new_status === "ARRIVED"
-                                      ? "bg-purple-100 text-purple-600"
-                                      : update.new_status === "RESOLVED"
-                                        ? "bg-green-100 text-green-600"
-                                        : "bg-gray-100 text-gray-600"
-                          }`}
-                        >
-                          {update.previous_status === "SEVERITY_UPDATE" && update.new_status === "SEVERITY_UPDATE" ? (
-                            <span className="text-purple-600">⚠</span>
-                          ) : update.new_status === "PENDING" ? (
-                            <AlertTriangle className="h-5 w-5" />
-                          ) : update.new_status === "ASSIGNED" ? (
-                            <User className="h-5 w-5" />
-                          ) : update.new_status === "RESPONDING" ? (
-                            <span className="text-orange-600">⏱</span>
-                          ) : update.new_status === "ARRIVED" ? (
-                            <span className="text-purple-600">📍</span>
-                          ) : update.new_status === "RESOLVED" ? (
-                            <CheckCircle className="h-5 w-5" />
-                          ) : (
-                            <span className="text-gray-500">✕</span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="ml-4">
-                        <p className="text-sm font-medium text-gray-900 dark:text-white">
-                          {update.previous_status === "SEVERITY_UPDATE" && update.new_status === "SEVERITY_UPDATE"
-                            ? "Severity Updated"
-                            : update.new_status === "PENDING"
-                              ? "Incident Reported"
-                              : update.new_status === "ASSIGNED"
-                                ? "Volunteer Assigned"
-                                : update.new_status === "RESPONDING"
-                                  ? "Volunteer Responding"
-                                  : update.new_status === "ARRIVED"
-                                    ? "Volunteer Arrived"
-                                    : update.new_status === "RESOLVED"
-                                      ? "Incident Resolved"
-                                      : "Incident Cancelled"}
-                        </p>
-                        <p className="text-sm text-gray-500">{formatDate(update.created_at)}</p>
-                        {update.notes && <p className="mt-1 text-sm text-gray-700">{update.notes}</p>}
-                        {update.updated_by && update.updated_by.first_name && (
-                          <p className="text-xs text-gray-500 mt-1">
-                            By: {update.updated_by.first_name} {update.updated_by.last_name} ({update.updated_by.role})
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-
-                  {updates.length === 0 && <p className="text-sm text-gray-500">No updates available</p>}
-                </div>
+                {loadingTimeline ? (
+                  <div className="flex items-center justify-center py-8">
+                    <LoadingSpinner size="md" />
+                  </div>
+                ) : (
+                  <IncidentTimeline
+                    incidentId={id as string}
+                    incidentCreatedAt={incident.created_at}
+                    updates={timelineEvents}
+                  />
+                )}
               </div>
             </div>
 

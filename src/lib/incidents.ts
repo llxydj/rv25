@@ -612,6 +612,17 @@ export const updateIncidentStatus = async (
             // Continue execution anyway
           } else {
             console.log("Additional resolve fields updated successfully");
+            
+            // Log resolution notes in timeline if provided
+            if (notes && notes.trim()) {
+              try {
+                const { logResolutionNotes } = await import('@/lib/incident-timeline')
+                await logResolutionNotes(incidentId, volunteerId, notes)
+                console.log('✅ Resolution notes logged in timeline')
+              } catch (logError) {
+                console.error('❌ Failed to log resolution notes:', logError)
+              }
+            }
           }
         } catch (resolveErr) {
           console.error("Error in additional fields update (non-critical):", resolveErr);
@@ -671,26 +682,20 @@ export const updateIncidentStatus = async (
         }
       }
 
-      // Try to log status change
+      // Log status change using centralized helper
       try {
-        const { error: logError } = await (supabase as any)
-          .from('incident_updates')
-          .insert({
-            incident_id: incidentId,
-            updated_by: volunteerId,
-            previous_status: previousStatus,
-            new_status: newStatus,
-            notes: notes || `Status updated to ${newStatus}`,
-            created_at: new Date().toISOString()
-          });
-
-        if (logError) {
-          console.error("Log update failed (non-critical):", logError);
-        } else {
-          console.log("Status change logged successfully");
-        }
+        const { logStatusChange } = await import('@/lib/incident-timeline')
+        await logStatusChange(
+          incidentId,
+          previousStatus,
+          newStatus,
+          volunteerId,
+          notes || undefined
+        )
+        console.log("✅ Status change logged successfully")
       } catch (logErr) {
-        console.error("Error logging status change (non-critical):", logErr);
+        console.error("❌ Error logging status change:", logErr)
+        // Don't fail status update if logging fails
       }
 
       // ===== CRITICAL: Send notifications to admins and residents =====

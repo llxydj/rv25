@@ -1,12 +1,12 @@
 "use client"
 
-import { AuthLayout } from '@/components/layout/auth-layout'
+import { VolunteerLayout } from '@/components/layout/volunteer-layout'
 import { LocationTrackingToggle } from '@/components/volunteer/location-tracking-toggle'
 import { MapPin, Info, HelpCircle, Shield, AlertCircle } from 'lucide-react'
 
 export default function VolunteerLocationPage() {
   return (
-    <AuthLayout allowedRoles={["volunteer"]}>
+    <VolunteerLayout>
       <div className="p-4 md:p-6 max-w-3xl mx-auto space-y-4 md:space-y-6">
         {/* Header */}
         <div>
@@ -121,6 +121,6 @@ export default function VolunteerLocationPage() {
           </div>
         </div>
       </div>
-    </AuthLayout>
+    </VolunteerLayout>
   )
 }

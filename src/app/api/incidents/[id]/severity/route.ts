@@ -181,20 +181,18 @@ export async function PATCH(
       }, { status: 500 })
     }
     
-    // Record severity change in incident_updates table
-    const { error: logError }: any = await (supabase as any)
-      .from('incident_updates')
-      .insert({
-        incident_id: params.id,
-        updated_by: updated_by || userId,
-        previous_status: "SEVERITY_UPDATE", // Special marker for severity updates
-        new_status: "SEVERITY_UPDATE", // Special marker for severity updates
-        notes: notes || `Severity updated to ${severity}${(currentIncident as any).severity ? ` (was ${(currentIncident as any).severity})` : ''}`,
-        created_at: new Date().toISOString()
-      })
-    
-    if (logError) {
-      console.error('Failed to log severity update:', logError)
+    // Record severity change in timeline using centralized helper
+    try {
+      const { logSeverityChange } = await import('@/lib/incident-timeline')
+      await logSeverityChange(
+        params.id,
+        currentIncident.severity || 'MODERATE',
+        severity,
+        updated_by || userId
+      )
+      console.log('✅ Severity change logged in timeline')
+    } catch (logError) {
+      console.error('❌ Failed to log severity update:', logError)
       // Don't fail the request if logging fails
     }
 

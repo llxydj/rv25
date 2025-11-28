@@ -106,19 +106,46 @@ export async function GET(request: Request) {
           userRole = 'resident'
         }
 
-        // Redirect based on user role
-        switch (userRole) {
-          case 'admin':
-            return NextResponse.redirect(new URL('/admin/dashboard', requestUrl.origin))
-          case 'volunteer':
-            return NextResponse.redirect(new URL('/volunteer/dashboard', requestUrl.origin))
-          case 'barangay':
-            return NextResponse.redirect(new URL('/barangay/dashboard', requestUrl.origin))
-          case 'resident':
-            return NextResponse.redirect(new URL('/resident/dashboard', requestUrl.origin))
-          default:
-            return NextResponse.redirect(new URL('/login', requestUrl.origin))
+        // Determine default redirect based on role
+        const defaultRedirects: Record<string, string> = {
+          admin: '/admin/dashboard',
+          volunteer: '/volunteer/dashboard',
+          resident: '/resident/dashboard',
+          barangay: '/barangay/dashboard'
         }
+        const defaultRedirect = defaultRedirects[userRole] || '/resident/dashboard'
+
+        // Check PIN status (with error handling to prevent blocking OAuth)
+        let redirectUrl = defaultRedirect
+        
+        try {
+          const { data: pinData, error: pinError } = await supabase
+            .from('users')
+            .select('pin_hash, pin_enabled, role')
+            .eq('id', userId)
+            .single()
+
+          // Only check PIN if query succeeded and user is not barangay
+          if (!pinError && pinData && pinData.role !== 'barangay') {
+            const pinEnabled = pinData.pin_enabled !== false
+            const hasPin = !!pinData.pin_hash
+
+            if (pinEnabled && !hasPin) {
+              // Needs PIN setup
+              redirectUrl = `/pin/setup?redirect=${encodeURIComponent(defaultRedirect)}`
+            } else if (pinEnabled && hasPin) {
+              // Needs PIN verification
+              redirectUrl = `/pin/verify?redirect=${encodeURIComponent(defaultRedirect)}`
+            }
+            // If disabled, use default redirect
+          }
+        } catch (pinCheckError) {
+          // If PIN check fails, log but don't block OAuth flow
+          console.error('[OAuth Callback] PIN check failed, using default redirect:', pinCheckError)
+          // Continue with default redirect to ensure OAuth doesn't fail
+        }
+
+        return NextResponse.redirect(new URL(redirectUrl, requestUrl.origin))
       } else {
         console.warn('No user after code exchange')
         return NextResponse.redirect(new URL('/login?error=no_session', requestUrl.origin))

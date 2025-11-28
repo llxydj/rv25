@@ -51,6 +51,10 @@ export class SMSService {
   private supabaseAdmin: any
   private config: SMSConfig
   private rateLimitTracker: Map<string, number[]> = new Map()
+  // Daily SMS limit protection
+  private dailySMSCount: number = 0
+  private dailyResetTime: number = Date.now() + (24 * 60 * 60 * 1000)
+  private readonly dailySMSLimit: number = parseInt(process.env.SMS_DAILY_LIMIT || '1000')
 
   constructor() {
     this.supabaseAdmin = createClient(
@@ -77,6 +81,53 @@ export class SMSService {
       sender: this.config.sender,
       isEnabled: this.config.isEnabled
     })
+    
+    // Validate API key on startup (non-blocking)
+    if (this.config.isEnabled && this.config.apiKey) {
+      this.validateAPIKey().catch(err => {
+        console.warn('⚠️ SMS API key validation failed (non-critical):', err.message)
+      })
+    } else if (this.config.isEnabled && !this.config.apiKey) {
+      console.error('❌ SMS is enabled but API key is missing! SMS will not work.')
+    }
+  }
+  
+  /**
+   * Validate SMS API key by checking API connectivity
+   */
+  private async validateAPIKey(): Promise<boolean> {
+    try {
+      // Try a simple API call to validate key
+      // Most SMS APIs have a status/balance endpoint
+      const testUrl = this.config.apiUrl.replace('/sms_messages', '/status')
+      
+      const response = await fetch(testUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.config.apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        // Timeout after 5 seconds
+        signal: AbortSignal.timeout(5000)
+      })
+      
+      if (response.ok) {
+        console.log('✅ SMS API key validated successfully')
+        return true
+      } else {
+        console.warn('⚠️ SMS API key validation returned non-OK status:', response.status)
+        return false
+      }
+    } catch (error: any) {
+      // Don't fail if validation fails - API might not have status endpoint
+      // Just log a warning
+      if (error.name === 'AbortError') {
+        console.warn('⚠️ SMS API validation timeout (API might not have status endpoint)')
+      } else {
+        console.warn('⚠️ SMS API validation failed (non-critical):', error.message)
+      }
+      return false
+    }
   }
 
   static getInstance(): SMSService {
@@ -119,6 +170,12 @@ export class SMSService {
       // Check rate limits
       if (!this.checkRateLimit(smsPhoneNumber)) {
         return { success: false, error: 'Rate limit exceeded', retryable: true }
+      }
+
+      // Check daily SMS limit (critical protection against subscription drain)
+      if (!this.checkDailyLimit()) {
+        console.error('🚨 Daily SMS limit exceeded! SMS sending blocked to protect subscription.')
+        return { success: false, error: 'Daily SMS limit exceeded', retryable: false }
       }
 
       // Check for duplicate sends (cooldown)
@@ -164,6 +221,11 @@ export class SMSService {
 
       // Update rate limit tracker
       this.updateRateLimit(smsPhoneNumber)
+      
+      // Increment daily SMS count if successful
+      if (result.success) {
+        this.incrementDailyCount()
+      }
 
       return result
 
@@ -710,6 +772,20 @@ export class SMSService {
         content: '[RVOIS BARANGAY] 🔴 URGENT: {{type}} incident #{{ref}} reported in {{barangay}} | {{time}}. Please coordinate response.',
         variables: ['ref', 'type', 'barangay', 'time'],
         isActive: true
+      },
+      'TEMPLATE_SCHEDULE_ASSIGN': {
+        code: 'TEMPLATE_SCHEDULE_ASSIGN',
+        name: 'Schedule Assignment',
+        content: '[RVOIS] 📅 New Activity: {{title}} on {{date}} at {{time}}{{location}}. Please accept or decline in the app.',
+        variables: ['title', 'date', 'time', 'location'],
+        isActive: true
+      },
+      'TEMPLATE_TRAINING_NOTIFY': {
+        code: 'TEMPLATE_TRAINING_NOTIFY',
+        name: 'Training Notification',
+        content: '[RVOIS] 🎓 Training: {{title}} on {{date}} at {{time}}{{location}}. Check the app for details.',
+        variables: ['title', 'date', 'time', 'location'],
+        isActive: true
       }
     }
 
@@ -907,8 +983,15 @@ export class SMSService {
       const results = await Promise.allSettled(
         failedLogs.map(async (log: any) => {
           try {
+            // Get actual phone number from user record
+            const phoneNumber = await this.unmaskPhoneNumber(log.phone_masked, log.recipient_user_id)
+            
+            if (!phoneNumber) {
+              return { logId: log.id, success: false, error: 'Could not retrieve phone number' }
+            }
+            
             const result = await this.sendViaAPI(
-              this.unmaskPhoneNumber(log.phone_masked),
+              phoneNumber,
               log.message_content
             )
 
@@ -944,10 +1027,76 @@ export class SMSService {
     }
   }
 
-  private unmaskPhoneNumber(maskedPhone: string): string {
-    // This is a simplified unmasking - in production, you'd store the actual phone number securely
-    // For now, we'll need to get the actual phone number from the user record
-    return maskedPhone // Placeholder - implement proper unmasking
+  /**
+   * Check daily SMS limit to prevent subscription drain
+   */
+  private checkDailyLimit(): boolean {
+    const now = Date.now()
+    
+    // Reset daily count if 24 hours have passed
+    if (now > this.dailyResetTime) {
+      console.log(`📊 Daily SMS limit reset. Previous count: ${this.dailySMSCount}`)
+      this.dailySMSCount = 0
+      this.dailyResetTime = now + (24 * 60 * 60 * 1000)
+    }
+    
+    // Check if limit exceeded
+    if (this.dailySMSCount >= this.dailySMSLimit) {
+      console.error(`🚨 Daily SMS limit exceeded: ${this.dailySMSCount}/${this.dailySMSLimit}`)
+      return false
+    }
+    
+    return true
+  }
+
+  /**
+   * Increment daily SMS count
+   */
+  private incrementDailyCount(): void {
+    this.dailySMSCount++
+    
+    // Log warning when approaching limit
+    const percentage = (this.dailySMSCount / this.dailySMSLimit) * 100
+    if (percentage >= 80 && percentage < 100) {
+      console.warn(`⚠️ Daily SMS limit warning: ${this.dailySMSCount}/${this.dailySMSLimit} (${percentage.toFixed(1)}%)`)
+    }
+    
+    if (percentage >= 100) {
+      console.error(`🚨 Daily SMS limit reached: ${this.dailySMSCount}/${this.dailySMSLimit}`)
+    }
+  }
+
+  /**
+   * Get current daily SMS count and limit
+   */
+  getDailySMSStats(): { count: number; limit: number; percentage: number; resetTime: Date } {
+    return {
+      count: this.dailySMSCount,
+      limit: this.dailySMSLimit,
+      percentage: (this.dailySMSCount / this.dailySMSLimit) * 100,
+      resetTime: new Date(this.dailyResetTime)
+    }
+  }
+
+  private async unmaskPhoneNumber(maskedPhone: string, userId: string): Promise<string | null> {
+    try {
+      // Fetch actual phone number from user record
+      const { data: user, error } = await this.supabaseAdmin
+        .from('users')
+        .select('phone_number')
+        .eq('id', userId)
+        .single()
+      
+      if (error || !user) {
+        console.error('Error fetching phone number for retry:', error)
+        return null
+      }
+      
+      return user.phone_number || null
+    } catch (error) {
+      console.error('Error unmasking phone number:', error)
+      return null
+    }
   }
 }
 

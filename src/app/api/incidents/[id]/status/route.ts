@@ -38,7 +38,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     // Get current incident status
     const { data: currentIncident, error: fetchError } = await supabase
       .from('incidents')
-      .select('status, assigned_to')
+      .select('status, assigned_to, arrived_at')
       .eq('id', params.id)
       .single()
     
@@ -56,14 +56,27 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       }, { status: 404 })
     }
     
+    // Prepare update object with auto-timestamps
+    const updateData: any = { status }
+    
+    // Auto-timestamp on arrival
+    if (status === 'ARRIVED') {
+      updateData.arrived_at = new Date().toISOString()
+    }
+    
+    // Auto-timestamp on resolution
+    if (status === 'RESOLVED') {
+      updateData.resolved_at = new Date().toISOString()
+      // If arrived_at is not set, set it now (in case status went directly to RESOLVED)
+      if (!(currentIncident as any)?.arrived_at) {
+        updateData.arrived_at = new Date().toISOString()
+      }
+    }
+    
     // Update incident status
     const { data: updatedIncident, error: updateError } = await supabase
       .from('incidents')
-      .update({ 
-        status,
-        // Set resolved_at timestamp if status is RESOLVED
-        resolved_at: status === 'RESOLVED' ? new Date().toISOString() : undefined
-      })
+      .update(updateData)
       .eq('id', params.id)
       .select()
       .single()
@@ -75,21 +88,19 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       }, { status: 500 })
     }
     
-    // Record status change in incident_updates table
-    const { error: logError } = await supabase
-      .from('incident_updates')
-      .insert({
-        incident_id: params.id,
-        updated_by: updated_by || null,
-        previous_status: currentIncident.status,
-        new_status: status,
-        notes: notes || null,
-        // Add timestamp for response time tracking
-        created_at: new Date().toISOString()
-      })
-    
-    if (logError) {
-      console.error('Failed to log incident update:', logError)
+    // Record status change in incident_updates table using centralized helper
+    try {
+      const { logStatusChange } = await import('@/lib/incident-timeline')
+      await logStatusChange(
+        params.id,
+        currentIncident.status,
+        status,
+        updated_by || null,
+        notes || undefined
+      )
+      console.log('✅ Status change logged in timeline')
+    } catch (logError) {
+      console.error('❌ Failed to log incident update:', logError)
       // Don't fail the request if logging fails, but log the error
     }
     

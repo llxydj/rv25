@@ -34,9 +34,18 @@ export async function GET(req: Request) {
 
   const { data: profile } = await supabase
     .from('users')
-    .select('role')
+    .select('role, status')
     .eq('id', user.id)
     .maybeSingle()
+
+  // Check if user is deactivated
+  if (profile && profile.status === 'inactive') {
+    return NextResponse.json({ 
+      user: null, 
+      role: null,
+      error: 'Account deactivated'
+    })
+  }
 
   return NextResponse.json({ user, role: profile?.role || null })
 }

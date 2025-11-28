@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { AuthLayout } from "@/components/layout/auth-layout"
+import { VolunteerLayout } from "@/components/layout/volunteer-layout"
 
 interface LguContact {
   id: string
@@ -37,44 +37,44 @@ export default function VolunteerLguDirectoryPage() {
   }, [])
 
   return (
-    <AuthLayout allowedRoles={["volunteer"]}>
+    <VolunteerLayout>
       <div className="p-4 space-y-4">
-        <h1 className="text-2xl font-bold">Emergency Contacts</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Emergency Contacts</h1>
         {error && (
-          <div className="bg-red-50 border-l-4 border-red-500 p-3 text-sm text-red-700">{error}</div>
+          <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 p-3 text-sm text-red-700 dark:text-red-400">{error}</div>
         )}
-        <div className="bg-white rounded shadow overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Agency</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Contact Person</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Number</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Agency</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Contact Person</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Number</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Action</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
               {contacts.map(c => (
-                <tr key={c.id}>
-                  <td className="px-4 py-2 text-sm">{c.agency_name}</td>
-                  <td className="px-4 py-2 text-sm">{c.contact_person || '—'}</td>
+                <tr key={c.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                  <td className="px-4 py-2 text-sm text-gray-900 dark:text-white">{c.agency_name}</td>
+                  <td className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">{c.contact_person || '—'}</td>
                   <td className="px-4 py-2 text-sm">
-                    <a href={`tel:${c.contact_number}`} className="text-blue-600 hover:underline">{c.contact_number}</a>
+                    <a href={`tel:${c.contact_number}`} className="text-blue-600 dark:text-blue-400 hover:underline">{c.contact_number}</a>
                   </td>
                   <td className="px-4 py-2 text-sm">
-                    <a href={`tel:${c.contact_number}`} className="px-3 py-1 bg-green-600 text-white rounded">Call Now</a>
+                    <a href={`tel:${c.contact_number}`} className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded transition-colors">Call Now</a>
                   </td>
                 </tr>
               ))}
               {!contacts.length && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-6 text-center text-gray-500 text-sm">{loading ? 'Loading...' : 'No contacts available'}</td>
+                  <td colSpan={4} className="px-4 py-6 text-center text-gray-500 dark:text-gray-400 text-sm">{loading ? 'Loading...' : 'No contacts available'}</td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
       </div>
-    </AuthLayout>
+    </VolunteerLayout>
   )
 }

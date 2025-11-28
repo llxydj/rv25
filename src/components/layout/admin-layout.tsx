@@ -205,6 +205,39 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
             </Link>
 
             <Link
+              href="/admin/activities/reports"
+              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
+                pathname.includes("/activities/reports") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
+              }`}
+              onClick={() => setSidebarOpen(false)}
+            >
+              <BarChart3 className="h-5 w-5 flex-shrink-0 text-white" />
+              <span className="font-medium truncate text-white">Activity Reports</span>
+            </Link>
+
+            <Link
+              href="/admin/analytics/comprehensive"
+              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
+                pathname.includes("/analytics") && !pathname.includes("/volunteers/analytics") && !pathname.includes("/schedules/analytics") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
+              }`}
+              onClick={() => setSidebarOpen(false)}
+            >
+              <BarChart3 className="h-5 w-5 flex-shrink-0 text-white" />
+              <span className="font-medium truncate text-white">Analytics Dashboard</span>
+            </Link>
+
+            <Link
+              href="/admin/area-map"
+              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
+                pathname.includes("/area-map") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
+              }`}
+              onClick={() => setSidebarOpen(false)}
+            >
+              <MapPin className="h-5 w-5 flex-shrink-0 text-white" />
+              <span className="font-medium truncate text-white">Area Map</span>
+            </Link>
+
+            <Link
               href="/admin/schedules/analytics"
               className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
                 pathname.includes("/schedules/analytics") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
@@ -246,6 +279,17 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
             >
               <Bell className="h-5 w-5 flex-shrink-0 text-white" />
               <span className="font-medium truncate text-white">Announcements</span>
+            </Link>
+
+            <Link
+              href="/admin/sms"
+              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
+                pathname.startsWith("/admin/sms") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
+              }`}
+              onClick={() => setSidebarOpen(false)}
+            >
+              <MessageSquare className="h-5 w-5 flex-shrink-0 text-white" />
+              <span className="font-medium truncate text-white">SMS Management</span>
             </Link>
 
             <Link

@@ -109,7 +109,7 @@ async function generateIncidentReport(filters: ReportFilters): Promise<Buffer> {
     { auth: { persistSession: false } }
   )
 
-  // Build query
+  // Build query - include all necessary fields
   let query = supabaseAdmin
     .from('incidents')
     .select(`
@@ -117,7 +117,8 @@ async function generateIncidentReport(filters: ReportFilters): Promise<Buffer> {
       users:reporter_id (
         first_name,
         last_name,
-        phone_number
+        phone_number,
+        email
       ),
       volunteer_profiles:assigned_to (
         first_name,
@@ -192,31 +193,116 @@ async function generateIncidentReport(filters: ReportFilters): Promise<Buffer> {
       yPos += 8
     })
 
-    // Add incidents table
+    // Add detailed incident information section
     yPos += 20
     doc.setFontSize(14)
-    doc.text('Incident Details', 20, yPos)
+    doc.text('Detailed Incident Information', 20, yPos)
+    yPos += 10
+    
+    // Add detailed info for each incident (if space allows, otherwise just table)
+    if (incidents.length <= 5) {
+      incidents.forEach((incident: any, index: number) => {
+        if (yPos > 250) {
+          doc.addPage()
+          yPos = 20
+        }
+        
+        doc.setFontSize(10)
+        doc.setFont(undefined, 'bold')
+        doc.text(`Incident ${index + 1}: ${incident.id.slice(0, 8)}`, 20, yPos)
+        yPos += 8
+        
+        doc.setFont(undefined, 'normal')
+        doc.setFontSize(9)
+        doc.text(`Type: ${incident.incident_type}`, 20, yPos)
+        yPos += 6
+        doc.text(`Status: ${incident.status}`, 20, yPos)
+        yPos += 6
+        doc.text(`Severity: Level ${incident.severity}`, 20, yPos)
+        yPos += 6
+        doc.text(`Location: ${incident.address || `${incident.location_lat}, ${incident.location_lng}`}`, 20, yPos)
+        yPos += 6
+        doc.text(`Barangay: ${incident.barangay}`, 20, yPos)
+        yPos += 6
+        
+        if (incident.users) {
+          const reporter = incident.users as any
+          doc.text(`Reporter: ${reporter.first_name || ''} ${reporter.last_name || ''}`, 20, yPos)
+          yPos += 6
+          doc.text(`Reporter Phone: ${reporter.phone_number || 'N/A'}`, 20, yPos)
+          yPos += 6
+        }
+        
+        doc.text(`Description: ${(incident.description || '').substring(0, 80)}${incident.description?.length > 80 ? '...' : ''}`, 20, yPos)
+        yPos += 6
+        doc.text(`Created: ${new Date(incident.created_at).toLocaleString()}`, 20, yPos)
+        yPos += 6
+        
+        if (incident.resolved_at) {
+          doc.text(`Resolved: ${new Date(incident.resolved_at).toLocaleString()}`, 20, yPos)
+          yPos += 6
+        }
+        
+        if ((incident.photo_urls && (incident.photo_urls as any[]).length > 0) || incident.photo_url) {
+          doc.text(`Photos: ${(incident.photo_urls as any[])?.length || (incident.photo_url ? 1 : 0)} attached`, 20, yPos)
+          yPos += 6
+        }
+        
+        yPos += 5
+      })
+      
+      yPos += 10
+    }
+    
+    // Add incidents table
+    doc.setFontSize(14)
+    doc.text('Incident Summary Table', 20, yPos)
     yPos += 10
 
-    // Prepare table data
-    const tableData = incidents.map((incident: IncidentReportData) => [
-      incident.id.slice(0, 8),
-      incident.incident_type,
-      incident.status,
-      `Level ${incident.severity}`,
-      incident.barangay,
-      new Date(incident.created_at).toLocaleDateString(),
-      incident.assigned_to ? 'Yes' : 'No',
-      incident.resolved_at ? new Date(incident.resolved_at).toLocaleDateString() : 'N/A'
-    ])
+    // Prepare table data with enhanced details
+    const tableData = incidents.map((incident: IncidentReportData) => {
+      const reporter = incident.users ? `${(incident.users as any).first_name || ''} ${(incident.users as any).last_name || ''}`.trim() : 'N/A'
+      const reporterPhone = incident.users ? (incident.users as any).phone_number || 'N/A' : 'N/A'
+      const location = incident.address || `${incident.location_lat?.toFixed(6)}, ${incident.location_lng?.toFixed(6)}` || 'N/A'
+      const hasPhotos = (incident.photo_urls && (incident.photo_urls as any[]).length > 0) || incident.photo_url ? 'Yes' : 'No'
+      
+      return [
+        incident.id.slice(0, 8),
+        incident.incident_type,
+        incident.status,
+        `Level ${incident.severity}`,
+        incident.barangay || 'N/A',
+        location.substring(0, 30) + (location.length > 30 ? '...' : ''),
+        reporter || 'N/A',
+        reporterPhone || 'N/A',
+        hasPhotos,
+        new Date(incident.created_at).toLocaleDateString(),
+        incident.assigned_to ? 'Yes' : 'No',
+        incident.resolved_at ? new Date(incident.resolved_at).toLocaleDateString() : 'N/A'
+      ]
+    })
 
     autoTable(doc, {
-      head: [['ID', 'Type', 'Status', 'Severity', 'Barangay', 'Created', 'Assigned', 'Resolved']],
+      head: [['ID', 'Type', 'Status', 'Severity', 'Barangay', 'Location', 'Reporter', 'Phone', 'Photos', 'Created', 'Assigned', 'Resolved']],
       body: tableData,
       startY: yPos,
-      styles: { fontSize: 8 },
-      headStyles: { fillColor: [220, 38, 38] },
-      alternateRowStyles: { fillColor: [248, 250, 252] }
+      styles: { fontSize: 7 },
+      headStyles: { fillColor: [220, 38, 38], fontSize: 7 },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      columnStyles: {
+        0: { cellWidth: 20 },
+        1: { cellWidth: 25 },
+        2: { cellWidth: 25 },
+        3: { cellWidth: 20 },
+        4: { cellWidth: 30 },
+        5: { cellWidth: 40 },
+        6: { cellWidth: 35 },
+        7: { cellWidth: 30 },
+        8: { cellWidth: 15 },
+        9: { cellWidth: 25 },
+        10: { cellWidth: 20 },
+        11: { cellWidth: 25 }
+      }
     })
   }
 

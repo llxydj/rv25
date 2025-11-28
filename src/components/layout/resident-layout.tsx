@@ -48,6 +48,7 @@ export default function ResidentLayout({ children }: ResidentLayoutProps) {
     { name: "Dashboard", href: "/resident/dashboard", icon: AlertTriangle },
     { name: "Report Incident", href: "/resident/report", icon: AlertTriangle },
     { name: "Report History", href: "/resident/history", icon: AlertTriangle },
+    { name: "Available Volunteers", href: "/resident/volunteers", icon: User },
     { name: "Announcements", href: "/announcements", icon: AlertTriangle },
     { name: "Profile", href: "/resident/profile", icon: User },
   ], [])
@@ -242,8 +243,8 @@ export default function ResidentLayout({ children }: ResidentLayoutProps) {
               <LoadingSpinner size="lg" />
             </div>
           }>
-            {/* Add bottom padding so floating FAB doesn't overlap interactive controls */}
-            <main className="flex-1 overflow-y-auto overflow-x-hidden pb-24">
+            {/* Add bottom padding so floating FAB doesn't overlap interactive controls, but not on report page */}
+            <main className={`flex-1 overflow-y-auto overflow-x-hidden ${pathname?.startsWith('/resident/report') ? '' : 'pb-24'}`}>
               <div className="min-h-full">
                 <SubscribeBanner userId={user?.id} />
                 {children}

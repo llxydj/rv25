@@ -501,6 +501,7 @@ CREATE TABLE public.volunteer_documents (
   mime_type text,
   size_bytes bigint NOT NULL,
   created_at timestamp with time zone DEFAULT now(),
+  display_name text,
   CONSTRAINT volunteer_documents_pkey PRIMARY KEY (id),
   CONSTRAINT volunteer_documents_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );

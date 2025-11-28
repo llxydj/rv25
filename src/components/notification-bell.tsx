@@ -153,9 +153,15 @@ export function NotificationBell({ userId, userRole, onNotificationClick }: Noti
               }
             }
           } else if (payload.eventType === "UPDATE") {
+            // Update notification in list (e.g., when marked as read)
+            const updatedNotif = payload.new as Notification
             setNotifications((prev) =>
-              prev.map((n) => (n.id === payload.new.id ? (payload.new as Notification) : n))
+              prev.map((n) => (n.id === updatedNotif.id ? updatedNotif : n))
             )
+            // If notification was marked as read, update unread count
+            if (updatedNotif.read_at) {
+              console.log('✅ Notification marked as read:', updatedNotif.id)
+            }
           } else if (payload.eventType === "DELETE") {
             setNotifications((prev) => prev.filter((n) => n.id !== payload.old.id))
           }
@@ -247,12 +253,23 @@ export function NotificationBell({ userId, userRole, onNotificationClick }: Noti
   // Mark notification as read
   const markAsRead = useCallback(async (notificationId: string) => {
     try {
-      const { error } = await supabase
+      const readAt = new Date().toISOString()
+      const { data, error } = await supabase
         .from("notifications")
-        .update({ read_at: new Date().toISOString() } as any)
+        .update({ read_at: readAt } as any)
         .eq("id", notificationId)
+        .select()
+        .single()
 
       if (error) throw error
+      
+      // Optimistically update local state
+      if (data) {
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === notificationId ? { ...n, read_at: readAt } : n))
+        )
+        console.log('✅ Notification marked as read:', notificationId)
+      }
     } catch (error) {
       console.error("❌ Failed to mark notification as read:", error)
     }
@@ -303,12 +320,19 @@ export function NotificationBell({ userId, userRole, onNotificationClick }: Noti
       const unreadIds = notifications.filter((n) => !n.read_at).map((n) => n.id)
       if (unreadIds.length === 0) return
 
+      const readAt = new Date().toISOString()
       const { error } = await supabase
         .from("notifications")
-        .update({ read_at: new Date().toISOString() } as any)
+        .update({ read_at: readAt } as any)
         .in("id", unreadIds)
 
       if (error) throw error
+      
+      // Optimistically update local state
+      setNotifications((prev) =>
+        prev.map((n) => (unreadIds.includes(n.id) ? { ...n, read_at: readAt } : n))
+      )
+      console.log('✅ All notifications marked as read')
     } catch (error) {
       console.error("❌ Failed to mark all as read:", error)
     }

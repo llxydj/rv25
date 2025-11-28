@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { AlertTriangle, Calendar, Edit3, MapPin, Plus, Trash2, X, ArrowLeft, Facebook, ExternalLink } from "lucide-react"
+import { AlertTriangle, Calendar, Edit3, MapPin, Plus, Trash2, X, ArrowLeft, Facebook, ExternalLink, Star, MessageSquare } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 
 type Announcement = {
@@ -27,6 +27,12 @@ type Announcement = {
   facebook_post_url?: string | null
   facebook_embed_data?: any | null
   source_type?: 'MANUAL' | 'FACEBOOK' | null
+}
+
+type FeedbackStats = {
+  total: number
+  average_rating: number
+  rating_distribution: Array<{ star: number; count: number }>
 }
 
 export default function AdminAnnouncementsPage() {
@@ -48,6 +54,10 @@ export default function AdminAnnouncementsPage() {
   })
   const [facebookPreview, setFacebookPreview] = useState<any>(null)
   const [loadingPreview, setLoadingPreview] = useState(false)
+  const [feedbackStats, setFeedbackStats] = useState<Record<string, FeedbackStats>>({})
+  const [loadingFeedback, setLoadingFeedback] = useState<Record<string, boolean>>({})
+  const [showFeedbackModal, setShowFeedbackModal] = useState<string | null>(null)
+  const [feedbackDetails, setFeedbackDetails] = useState<any[]>([])
 
   const fetchList = async () => {
     try {
@@ -72,6 +82,37 @@ export default function AdminAnnouncementsPage() {
   useEffect(() => {
     fetchList()
   }, [])
+
+  const fetchFeedbackStats = async (announcementId: string) => {
+    try {
+      setLoadingFeedback(prev => ({ ...prev, [announcementId]: true }))
+      const res = await fetch(`/api/announcements/feedback?announcement_id=${announcementId}`)
+      const json = await res.json()
+      if (json.success) {
+        setFeedbackStats(prev => ({ ...prev, [announcementId]: json.data.statistics }))
+        if (showFeedbackModal === announcementId) {
+          setFeedbackDetails(json.data.feedback || [])
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch feedback:', e)
+    } finally {
+      setLoadingFeedback(prev => ({ ...prev, [announcementId]: false }))
+    }
+  }
+
+  const openFeedbackModal = async (announcementId: string) => {
+    setShowFeedbackModal(announcementId)
+    if (!feedbackStats[announcementId]) {
+      await fetchFeedbackStats(announcementId)
+    } else {
+      const res = await fetch(`/api/announcements/feedback?announcement_id=${announcementId}`)
+      const json = await res.json()
+      if (json.success) {
+        setFeedbackDetails(json.data.feedback || [])
+      }
+    }
+  }
 
   const resetForm = () => {
     setForm({ title: "", content: "", type: "GENERAL", priority: "LOW", location: "", date: "", time: "", requirements: "", facebook_post_url: "" })
@@ -276,6 +317,7 @@ export default function AdminAnnouncementsPage() {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Priority</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">When/Where</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Feedback</th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
@@ -304,6 +346,32 @@ export default function AdminAnnouncementsPage() {
                               </span>
                             )}
                           </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          {loadingFeedback[a.id] ? (
+                            <LoadingSpinner size="sm" />
+                          ) : feedbackStats[a.id] ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openFeedbackModal(a.id)}
+                              className="flex items-center gap-1"
+                            >
+                              <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                              <span>{feedbackStats[a.id].average_rating.toFixed(1)}</span>
+                              <span className="text-gray-500">({feedbackStats[a.id].total})</span>
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => fetchFeedbackStats(a.id)}
+                              className="flex items-center gap-1 text-gray-500"
+                            >
+                              <MessageSquare className="h-4 w-4" />
+                              <span>View</span>
+                            </Button>
+                          )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
                           <div className="flex items-center justify-end gap-2">
@@ -521,6 +589,153 @@ export default function AdminAnnouncementsPage() {
                     </Button>
                   </div>
                 </form>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Feedback Modal */}
+        {showFeedbackModal && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto">
+            <Card className="max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <CardTitle className="flex items-center gap-2">
+                    <Star className="h-5 w-5 fill-yellow-400 text-yellow-400" />
+                    Feedback Details
+                  </CardTitle>
+                  <Button variant="ghost" size="sm" onClick={() => setShowFeedbackModal(null)}>
+                    <X className="h-5 w-5"/>
+                  </Button>
+                </div>
+                <CardDescription>
+                  {items.find(a => a.id === showFeedbackModal)?.title}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loadingFeedback[showFeedbackModal] ? (
+                  <div className="flex justify-center py-8">
+                    <LoadingSpinner />
+                  </div>
+                ) : feedbackStats[showFeedbackModal] ? (
+                  <div className="space-y-6">
+                    {/* Statistics */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <Card>
+                        <CardContent className="pt-6">
+                          <div className="text-center">
+                            <div className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
+                              {feedbackStats[showFeedbackModal].average_rating.toFixed(1)}
+                            </div>
+                            <div className="flex items-center justify-center gap-1 mb-2">
+                              {[1, 2, 3, 4, 5].map(star => (
+                                <Star
+                                  key={star}
+                                  className={`h-4 w-4 ${
+                                    star <= Math.round(feedbackStats[showFeedbackModal].average_rating)
+                                      ? 'fill-yellow-400 text-yellow-400'
+                                      : 'text-gray-300'
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              Average Rating
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="pt-6">
+                          <div className="text-center">
+                            <div className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+                              {feedbackStats[showFeedbackModal].total}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              Total {feedbackStats[showFeedbackModal].total === 1 ? 'Rating' : 'Ratings'}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    {/* Rating Distribution */}
+                    <div>
+                      <h4 className="font-semibold mb-3">Rating Distribution</h4>
+                      <div className="space-y-2">
+                        {feedbackStats[showFeedbackModal].rating_distribution.map(({ star, count }) => {
+                          const percentage = feedbackStats[showFeedbackModal].total > 0
+                            ? (count / feedbackStats[showFeedbackModal].total) * 100
+                            : 0
+                          return (
+                            <div key={star} className="flex items-center gap-3">
+                              <div className="flex items-center gap-1 w-20">
+                                <span className="text-sm font-medium">{star}</span>
+                                <Star className="h-4 w-4 text-yellow-400" />
+                              </div>
+                              <div className="flex-1 h-4 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-yellow-400"
+                                  style={{ width: `${percentage}%` }}
+                                />
+                              </div>
+                              <span className="text-sm text-gray-600 dark:text-gray-400 w-12 text-right">
+                                {count} ({percentage.toFixed(0)}%)
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Feedback List */}
+                    {feedbackDetails.length > 0 && (
+                      <div>
+                        <h4 className="font-semibold mb-3">All Feedback</h4>
+                        <div className="space-y-3 max-h-96 overflow-y-auto">
+                          {feedbackDetails.map((fb: any) => (
+                            <Card key={fb.id} className="bg-gray-50 dark:bg-gray-800">
+                              <CardContent className="pt-4">
+                                <div className="flex items-start justify-between mb-2">
+                                  <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-1">
+                                      {[1, 2, 3, 4, 5].map(star => (
+                                        <Star
+                                          key={star}
+                                          className={`h-4 w-4 ${
+                                            star <= fb.rating
+                                              ? 'fill-yellow-400 text-yellow-400'
+                                              : 'text-gray-300'
+                                          }`}
+                                        />
+                                      ))}
+                                    </div>
+                                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                                      {fb.users?.first_name} {fb.users?.last_name}
+                                    </span>
+                                  </div>
+                                  <span className="text-xs text-gray-500">
+                                    {new Date(fb.created_at).toLocaleDateString()}
+                                  </span>
+                                </div>
+                                {fb.comment && (
+                                  <p className="text-sm text-gray-700 dark:text-gray-300 mt-2">
+                                    {fb.comment}
+                                  </p>
+                                )}
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <MessageSquare className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                    <p>No feedback yet for this announcement</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>

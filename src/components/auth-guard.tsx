@@ -26,16 +26,24 @@ export function AuthGuard({ children, allowedRoles }: AuthGuardProps) {
       const { data: sessionData } = await supabase.auth.getSession()
       
       if (sessionData.session) {
-        // Get user role from the users table
+        // Get user role and status from the users table
         const { data: userData, error } = await supabase
           .from("users")
-          .select("role")
+          .select("role, status")
           .eq("id", sessionData.session.user.id)
           .maybeSingle()
 
         if (error) {
           // Treat missing profile row as benign during first-time login flows
           console.warn("Role lookup warning (auth-guard):", error)
+        }
+
+        // Check if user is deactivated
+        if (userData && (userData as any).status === 'inactive') {
+          console.warn('Deactivated user attempted to access:', sessionData.session.user.id)
+          await supabase.auth.signOut()
+          router.replace("/login?error=account_deactivated")
+          return
         }
 
         const role = (userData as UserData | null)?.role ?? null

@@ -37,21 +37,33 @@ export default function VolunteerMapPage() {
       }
 
       // Transform the data from API format
-      const transformed = (json.data || []).map((loc: any) => ({
-        id: loc.user_id,
-        user_id: loc.user_id,
-        first_name: loc.first_name,
-        last_name: loc.last_name,
-        email: loc.email || '',
-        phone_number: loc.phone_number || '',
-        latitude: loc.lat,
-        longitude: loc.lng,
-        accuracy: loc.accuracy,
-        last_location_update: loc.created_at,
-        status: loc.status || 'offline',
-        skills: loc.skills || [],
-        assigned_barangays: loc.assigned_barangays || []
-      }))
+      const transformed = (json.data || [])
+        .filter((loc: any) => {
+          // Validate coordinates
+          const lat = parseFloat(loc.lat)
+          const lng = parseFloat(loc.lng)
+          return !isNaN(lat) && !isNaN(lng) && 
+                 lat >= -90 && lat <= 90 && 
+                 lng >= -180 && lng <= 180 &&
+                 lat !== 0 && lng !== 0 // Exclude null coordinates
+        })
+        .map((loc: any) => ({
+          id: loc.user_id,
+          user_id: loc.user_id,
+          first_name: loc.first_name || '',
+          last_name: loc.last_name || '',
+          email: loc.email || '',
+          phone_number: loc.phone_number || '',
+          latitude: parseFloat(loc.lat),
+          longitude: parseFloat(loc.lng),
+          accuracy: loc.accuracy,
+          last_location_update: loc.created_at,
+          status: loc.status || 'offline',
+          skills: loc.skills || [],
+          assigned_barangays: loc.assigned_barangays || []
+        }))
+      
+      console.log(`✅ Transformed ${transformed.length} volunteers with valid coordinates`)
 
       setVolunteers(transformed)
       setLastUpdate(new Date())
@@ -235,15 +247,30 @@ export default function VolunteerMapPage() {
         </div>
 
         <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <MapComponent
-            center={[10.7, 122.9]}
-            zoom={13}
-            height="600px"
-            showBoundary={true}
-            showVolunteerLocations={true}
-            showRealtimeStatus={true}
-            userLocation={false}
-          />
+          {loading ? (
+            <div className="h-[600px] flex items-center justify-center">
+              <LoadingSpinner size="lg" />
+            </div>
+          ) : (
+            <MapComponent
+              center={[10.7, 122.9]}
+              zoom={13}
+              height="600px"
+              showBoundary={true}
+              showVolunteerLocations={true}
+              showRealtimeStatus={true}
+              userLocation={false}
+              markers={filteredVolunteers
+                .filter(v => v.latitude && v.longitude && !isNaN(v.latitude) && !isNaN(v.longitude))
+                .map((v) => ({
+                  id: v.id || v.user_id,
+                  position: [v.latitude, v.longitude] as [number, number],
+                  status: v.status === 'available' ? 'ASSIGNED' : v.status === 'on_task' ? 'RESPONDING' : 'PENDING',
+                  title: `${v.first_name || ''} ${v.last_name || ''}`.trim() || 'Volunteer',
+                  description: `Status: ${getStatusLabel(v.status || 'offline')}${v.phone_number ? ` | Phone: ${v.phone_number}` : ''}${v.last_location_update ? ` | Last seen: ${new Date(v.last_location_update).toLocaleString()}` : ''}`
+                }))}
+            />
+          )}
         </div>
 
         <div className="bg-white rounded-lg border border-gray-200">

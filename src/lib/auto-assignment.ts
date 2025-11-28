@@ -415,15 +415,27 @@ export class AutoAssignmentService {
 
       if (error) throw error
 
-      // Log the assignment
-      await this.supabaseAdmin.from('incident_updates').insert({
-        incident_id: incidentId,
-        updated_by: null, // System assignment
-        previous_status: 'PENDING',
-        new_status: 'ASSIGNED',
-        notes: 'Automatically assigned by system',
-        created_at: new Date().toISOString()
-      })
+      // Log the assignment using centralized helper
+      try {
+        const { logAssignment } = await import('@/lib/incident-timeline')
+        await logAssignment(incidentId, bestMatch.volunteerId, false)
+        console.log('✅ Auto-assignment logged in timeline')
+      } catch (logError) {
+        console.error('❌ Failed to log auto-assignment in timeline:', logError)
+        // Fallback to direct insert if helper fails
+        try {
+          await this.supabaseAdmin.from('incident_updates').insert({
+            incident_id: incidentId,
+            updated_by: null, // System assignment
+            previous_status: 'PENDING',
+            new_status: 'ASSIGNED',
+            notes: 'Automatically assigned by system',
+            created_at: new Date().toISOString()
+          })
+        } catch (fallbackError) {
+          console.error('❌ Fallback logging also failed:', fallbackError)
+        }
+      }
 
       return {
         success: true,

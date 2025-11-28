@@ -84,11 +84,12 @@ export function useRealtimeVolunteerLocations({
         const adminResponse = await fetch('/api/admin/volunteers/locations')
         if (adminResponse.ok) {
           const adminJson = await adminResponse.json()
-          if (adminJson.success && adminJson.data) {
+          if (adminJson.success && adminJson.data && Array.isArray(adminJson.data)) {
             // Use current values from refs
             const currentCenter = centerRef.current
             const currentRadius = radiusRef.current
 
+            // Don't filter by radius for admin - show all volunteers
             const filtered = adminJson.data
               .filter((loc: any) => loc.lat && loc.lng && isWithinTalisayCity(loc.lat, loc.lng))
               .map((loc: any) => {
@@ -106,19 +107,19 @@ export function useRealtimeVolunteerLocations({
                   distance_km: distance
                 }
               })
-              .filter((v: any) => v.distance_km <= currentRadius)
+              // For admin, show all volunteers regardless of radius
               .sort((a: any, b: any) => a.distance_km - b.distance_km)
 
             if (isMountedRef.current) {
               setVolunteers(filtered)
-              console.log(`Fetched ${filtered.length} volunteers via admin API`)
+              console.log(`✅ Fetched ${filtered.length} volunteers via admin API`)
             }
             return
           }
         }
       } catch (adminErr) {
         // Fall back to direct database query if admin API fails
-        console.log('Admin API not available, using direct query')
+        console.log('Admin API not available, using direct query:', adminErr)
       }
 
       // Fallback to direct database query
