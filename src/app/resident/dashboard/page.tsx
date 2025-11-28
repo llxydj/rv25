@@ -29,22 +29,7 @@ export default function ResidentDashboard() {
           return
         }
 
-        const incidentsData = result.data || []
-        setIncidents(incidentsData)
-        
-        // Debug: Log what we received
-        if (process.env.NODE_ENV === 'development') {
-          console.log('[Resident Dashboard] Fetched incidents:', {
-            count: incidentsData.length,
-            statuses: incidentsData.map((i: any) => i.status),
-            sample: incidentsData.slice(0, 3).map((i: any) => ({
-              id: i.id,
-              status: i.status,
-              statusType: typeof i.status,
-              incident_type: i.incident_type
-            }))
-          })
-        }
+        setIncidents(result.data || [])
       } catch (err: any) {
         setError(err.message || "An unexpected error occurred")
       } finally {
@@ -55,33 +40,13 @@ export default function ResidentDashboard() {
     fetchIncidents()
   }, [user])
 
-  const mapMarkers = incidents.map((incident) => {
-    // Log incident data for debugging
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[Resident Dashboard] Incident:', {
-        id: incident.id,
-        status: incident.status,
-        statusType: typeof incident.status,
-        statusLength: incident.status?.length,
-        statusTrimmed: incident.status?.trim(),
-        hasStatus: !!incident.status,
-        incident_type: incident.incident_type
-      })
-    }
-    
-    // Normalize status - trim whitespace and ensure uppercase
-    const normalizedStatus = incident.status 
-      ? incident.status.toString().trim().toUpperCase() 
-      : 'PENDING'
-    
-    return {
-      id: incident.id,
-      position: [incident.location_lat, incident.location_lng] as [number, number],
-      status: normalizedStatus,
-      title: incident.incident_type,
-      description: incident.description,
-    }
-  })
+  const mapMarkers = incidents.map((incident) => ({
+    id: incident.id,
+    position: [incident.location_lat, incident.location_lng] as [number, number],
+    status: incident.status,
+    title: incident.incident_type,
+    description: incident.description,
+  }))
 
   const statusBadge = (status: string) => {
     const colors: Record<string, string> = {

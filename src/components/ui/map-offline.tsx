@@ -355,19 +355,9 @@ export function MapOffline({
               <div className="p-2">
                 <h3 className="font-semibold text-sm">{marker.title}</h3>
                 <p className="text-xs text-gray-600 capitalize">{marker.status.toLowerCase()}</p>
-                {marker.description && (() => {
-                  // Clean up description: remove excessive newlines, normalize whitespace, remove coordinates
-                  const cleanedDescription = marker.description
-                    .trim()
-                    .replace(/\n+/g, ' ')
-                    .replace(/\s+/g, ' ')
-                    .replace(/\b\d+\.\d{6,}\b/g, '')
-                    .trim()
-                  
-                  return cleanedDescription ? (
-                    <p className="text-xs text-gray-500 mt-1 whitespace-normal break-words">{cleanedDescription}</p>
-                  ) : null
-                })()}
+                {marker.description && (
+                  <p className="text-xs text-gray-500 mt-1">{marker.description}</p>
+                )}
                 <p className="text-xs text-gray-400 mt-1">
                   {marker.position[0].toFixed(6)}, {marker.position[1].toFixed(6)}
                 </p>

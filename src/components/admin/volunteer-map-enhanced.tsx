@@ -158,37 +158,37 @@ function AnimatedMarker({ position, volunteer, onShowRoute }: {
       icon={createCustomIcon(volunteer.status)}
     >
       <Popup className="volunteer-popup">
-        <div className="min-w-[240px] sm:min-w-[260px] p-4 sm:p-3 bg-white shadow-lg">
-          <div className="flex items-center justify-between mb-3 gap-2">
-            <h3 className="font-bold text-base sm:text-lg flex-1 truncate text-gray-900">{name}</h3>
-            <Badge variant="outline" className={statusInfo.bg + ' text-white border-2 border-white text-sm font-semibold whitespace-nowrap shadow-sm'}>
+        <div className="min-w-[200px] sm:min-w-[220px] p-3 sm:p-2">
+          <div className="flex items-center justify-between mb-3 sm:mb-2 gap-2">
+            <h3 className="font-semibold text-base sm:text-sm flex-1 truncate">{name}</h3>
+            <Badge variant="outline" className={statusInfo.bg + ' text-white border-0 text-xs whitespace-nowrap'}>
               {statusInfo.label}
             </Badge>
           </div>
           
-          <div className="space-y-2 text-sm text-gray-800">
-            <div className="flex items-center gap-2 font-medium">
-              <MapPin className="h-4 w-4 flex-shrink-0 text-gray-700" />
-              <span className="break-all font-mono text-xs bg-gray-50 p-1.5 rounded">{position[0].toFixed(6)}, {position[1].toFixed(6)}</span>
+          <div className="space-y-2 sm:space-y-1 text-sm sm:text-xs text-gray-600">
+            <div className="flex items-center gap-2">
+              <MapPin className="h-4 w-4 sm:h-3 sm:w-3 flex-shrink-0" />
+              <span className="break-all">{position[0].toFixed(6)}, {position[1].toFixed(6)}</span>
             </div>
             
             {volunteer.accuracy && (
-              <div className="flex items-center gap-2 font-medium">
-                <Radio className="h-4 w-4 flex-shrink-0 text-gray-700" />
-                <span>Accuracy: <span className="font-semibold text-gray-900">±{volunteer.accuracy.toFixed(0)}m</span></span>
+              <div className="flex items-center gap-2">
+                <Radio className="h-4 w-4 sm:h-3 sm:w-3 flex-shrink-0" />
+                <span>Accuracy: ±{volunteer.accuracy.toFixed(0)}m</span>
               </div>
             )}
             
             {volunteer.speed && volunteer.speed > 0 && (
-              <div className="flex items-center gap-2 font-medium">
-                <Navigation className="h-4 w-4 flex-shrink-0 text-gray-700" />
-                <span>Speed: <span className="font-semibold text-gray-900">{(volunteer.speed * 3.6).toFixed(1)} km/h</span></span>
+              <div className="flex items-center gap-2">
+                <Navigation className="h-4 w-4 sm:h-3 sm:w-3 flex-shrink-0" />
+                <span>Speed: {(volunteer.speed * 3.6).toFixed(1)} km/h</span>
               </div>
             )}
             
-            <div className="flex items-center gap-2 font-medium">
-              <Clock className="h-4 w-4 flex-shrink-0 text-gray-700" />
-              <span>Last seen: <span className="font-semibold text-gray-900">{new Date(volunteer.created_at).toLocaleTimeString()}</span></span>
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 sm:h-3 sm:w-3 flex-shrink-0" />
+              <span>{new Date(volunteer.created_at).toLocaleTimeString()}</span>
             </div>
           </div>
           
@@ -648,28 +648,28 @@ export function VolunteerMapEnhanced({
                   icon={incidentIcon}
                 >
                   <Popup>
-                    <div className="min-w-[240px] p-4 bg-white shadow-lg">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="font-bold text-base text-gray-900">{incident.incident_type}</h4>
+                    <div className="min-w-[180px] p-2">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-semibold text-sm">{incident.incident_type}</h4>
                         <Badge 
                           variant="outline" 
-                          className={`text-sm font-semibold px-3 py-1 border-2 border-white shadow-sm ${
-                            incident.status === 'ASSIGNED' ? 'bg-amber-500 text-white' :
-                            incident.status === 'RESPONDING' ? 'bg-red-500 text-white' :
-                            'bg-gray-500 text-white'
+                          className={`text-xs ${
+                            incident.status === 'ASSIGNED' ? 'bg-amber-500 text-white border-0' :
+                            incident.status === 'RESPONDING' ? 'bg-red-500 text-white border-0' :
+                            'bg-gray-500 text-white border-0'
                           }`}
                         >
                           {incident.status}
                         </Badge>
                       </div>
-                      <div className="space-y-2 text-sm text-gray-800">
-                        <p className="font-medium">📍 <span className="font-semibold text-gray-900">{incident.barangay}</span></p>
-                        <p className="font-medium">🚨 Priority: <span className="font-semibold text-gray-900">{incident.severity}/5</span></p>
-                        <p className="font-medium">🕒 <span className="font-semibold text-gray-900">{new Date(incident.created_at).toLocaleTimeString()}</span></p>
+                      <div className="space-y-1 text-xs text-gray-600">
+                        <p>📍 {incident.barangay}</p>
+                        <p>🚨 Priority: {incident.severity}/5</p>
+                        <p>🕒 {new Date(incident.created_at).toLocaleTimeString()}</p>
                       </div>
                       {incident.assigned_to && (
                         <Link href={`/admin/incidents/${incident.id}`} target="_blank">
-                          <Button size="sm" variant="outline" className="w-full mt-3 font-semibold">
+                          <Button size="sm" variant="outline" className="w-full mt-2">
                             View Details
                           </Button>
                         </Link>

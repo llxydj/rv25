@@ -167,41 +167,6 @@
   z-index: 600 !important;
 }
 
-/* Force dark text in Leaflet popups - GUARANTEED FIX */
-.leaflet-popup-content-wrapper {
-  color: #000000 !important;
-}
-
-.leaflet-popup-content {
-  color: #000000 !important;
-}
-
-.leaflet-popup-content * {
-  color: inherit !important;
-}
-
-.leaflet-popup-content h3,
-.leaflet-popup-content h4,
-.leaflet-popup-content p,
-.leaflet-popup-content span,
-.leaflet-popup-content div {
-  color: #000000 !important;
-  font-weight: 600 !important;
-}
-
-/* Hide debug text with blue background (development debug info) */
-.leaflet-popup-content p[class*="bg-blue-50"],
-.leaflet-popup-content p[class*="bg-blue-100"],
-.leaflet-popup-content p[style*="background-color: rgb(239, 246, 255)"],
-.leaflet-popup-content p[style*="background-color: rgb(219, 234, 254)"] {
-  display: none !important;
-  visibility: hidden !important;
-  height: 0 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  overflow: hidden !important;
-}
-
 /* Prevent maps from overflowing their containers */
 .leaflet-container,
 .leaflet-container * {
@@ -217,8 +182,6 @@
 
 .custom-marker div {
   transition: transform 0.2s ease;
-  /* Ensure background color is not overridden */
-  background-color: inherit !important;
 }
 
 .custom-marker:hover div {

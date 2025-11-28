@@ -331,34 +331,25 @@ export default function VolunteerMapPage() {
           </div>
         </div>
 
-        {/* Map Legend - Enhanced with shapes */}
-        <div className="bg-white rounded-lg border border-gray-200 p-3 mb-4 shadow-sm">
+        {/* Map Legend */}
+        <div className="bg-white rounded-lg border border-gray-200 p-3 mb-4">
           <div className="flex items-center gap-4 flex-wrap">
-            <span className="text-sm font-semibold text-gray-700">Status Legend:</span>
+            <span className="text-sm font-semibold text-gray-700">Legend:</span>
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-full bg-green-500 border-[3px] border-white shadow-lg flex items-center justify-center">
-                <div className="w-4 h-4 rounded-full bg-white border-2 border-green-500"></div>
-              </div>
-              <span className="text-xs font-medium text-gray-700">Available</span>
+              <div className="w-6 h-6 rounded-full bg-green-500 border-2 border-white shadow-md"></div>
+              <span className="text-xs text-gray-600">Available</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 bg-blue-500 border-[3px] border-white shadow-lg flex items-center justify-center" style={{ borderRadius: '20%' }}>
-                <div className="w-4 h-4 bg-white border-2 border-blue-500 rotate-45" style={{ borderRadius: '2px' }}></div>
-              </div>
-              <span className="text-xs font-medium text-gray-700">On Task</span>
+              <div className="w-6 h-6 rounded-full bg-blue-500 border-2 border-white shadow-md"></div>
+              <span className="text-xs text-gray-600">On Task</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-full bg-gray-400 border-[3px] border-white shadow-lg flex items-center justify-center relative">
-                <div className="absolute w-4 h-0.5 bg-white" style={{ transform: 'translate(-50%, -50%) rotate(45deg)' }}></div>
-                <div className="absolute w-4 h-0.5 bg-white" style={{ transform: 'translate(-50%, -50%) rotate(-45deg)' }}></div>
-              </div>
-              <span className="text-xs font-medium text-gray-700">Offline</span>
+              <div className="w-6 h-6 rounded-full bg-gray-400 border-2 border-white shadow-md"></div>
+              <span className="text-xs text-gray-600">Offline</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-full bg-red-500 border-[3px] border-white shadow-lg flex items-center justify-center">
-                <div className="w-4 h-0.5 bg-white"></div>
-              </div>
-              <span className="text-xs font-medium text-gray-700">Unavailable</span>
+              <div className="w-6 h-6 rounded-full bg-red-500 border-2 border-white shadow-md"></div>
+              <span className="text-xs text-gray-600">Unavailable</span>
             </div>
           </div>
         </div>
@@ -379,13 +370,12 @@ export default function VolunteerMapPage() {
               userLocation={false}
               markers={[
                 // Fallback: Show current volunteers as markers (in case real-time hook has issues)
-                // Note: These will be hidden if real-time hook is working, but serve as backup
                 ...filteredVolunteers
                   .filter(v => v.latitude && v.longitude && !isNaN(v.latitude) && !isNaN(v.longitude))
                   .map((v) => ({
                     id: `volunteer_${v.id || v.user_id}`,
                     position: [v.latitude, v.longitude] as [number, number],
-                    status: v.status || 'offline', // Use actual volunteer status (available, on_task, offline, unavailable)
+                    status: v.status === 'available' ? 'ASSIGNED' : v.status === 'on_task' ? 'RESPONDING' : 'PENDING',
                     title: `${v.first_name || ''} ${v.last_name || ''}`.trim() || 'Volunteer',
                     description: `Status: ${getStatusLabel(v.status || 'offline')}${v.phone_number ? ` | Phone: ${v.phone_number}` : ''}${v.last_location_update ? ` | Last seen: ${new Date(v.last_location_update).toLocaleString()}` : ''}`
                   })),

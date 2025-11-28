@@ -176,15 +176,10 @@ export function PinSecurityGate({ children }: { children: React.ReactNode }) {
         const { clearPinStatusCache } = await import('@/lib/pin-auth-helper')
         clearPinStatusCache()
         
-        // Set unlocked state and session storage BEFORE any potential redirects
         setIsUnlocked(true)
         sessionStorage.setItem(SESSION_UNLOCK_KEY, "true")
-        sessionStorage.setItem("pin_user_id", user?.id || "")
         setInputPin("")
         setError("")
-        
-        // Small delay to ensure state is set before any navigation
-        await new Promise(resolve => setTimeout(resolve, 100))
       } else {
         setError(result.message || "Incorrect PIN. Please try again.")
         setInputPin("")
