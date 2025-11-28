@@ -13,17 +13,48 @@ export interface PinStatus {
   excluded?: boolean
 }
 
-export async function checkPinStatus(): Promise<PinStatus | null> {
+// Cache PIN status to prevent multiple API calls
+let pinStatusCache: { status: PinStatus | null; timestamp: number } | null = null
+const CACHE_DURATION_MS = 5000 // Cache for 5 seconds
+
+export async function checkPinStatus(useCache: boolean = true): Promise<PinStatus | null> {
+  // Return cached result if still valid
+  if (useCache && pinStatusCache) {
+    const age = Date.now() - pinStatusCache.timestamp
+    if (age < CACHE_DURATION_MS) {
+      return pinStatusCache.status
+    }
+  }
+
   try {
     const res = await fetch('/api/pin/status', {
-      credentials: 'include'
+      credentials: 'include',
+      cache: 'no-store' // Ensure fresh data
     })
+    
+    if (!res.ok) {
+      console.warn('[PIN] Status check failed:', res.status)
+      return null
+    }
+    
     const json = await res.json()
+    
+    // Cache the result
+    pinStatusCache = {
+      status: json,
+      timestamp: Date.now()
+    }
+    
     return json
   } catch (error) {
     console.error('Error checking PIN status:', error)
     return null
   }
+}
+
+// Clear PIN status cache (useful after PIN changes)
+export function clearPinStatusCache() {
+  pinStatusCache = null
 }
 
 export function getPinRedirectUrl(pinStatus: PinStatus | null, defaultRedirect: string): string {

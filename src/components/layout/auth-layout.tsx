@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth" 
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 
@@ -14,26 +14,43 @@ interface AuthLayoutProps {
 export function AuthLayout({ children, redirectTo = "/login", allowedRoles = [] }: AuthLayoutProps) {
   const { user, loading } = useAuth()
   const router = useRouter()
+  const pathname = usePathname()
 
   useEffect(() => {
-    if (!loading) {
-      if (!user) {
+    // Don't run checks while loading
+    if (loading) return
+
+    // Don't redirect if already on the target page (prevents loops)
+    if (!user) {
+      if (pathname !== redirectTo && !pathname.startsWith('/login')) {
         router.push(redirectTo)
-      } else if (allowedRoles.length > 0 && (!user.role || !allowedRoles.includes(user.role))) {
-        // If user has no role but we require specific roles, redirect to registration for residents
-        if (!user.role && allowedRoles.includes("resident")) {
+      }
+      return
+    }
+
+    // Check role authorization
+    if (allowedRoles.length > 0 && (!user.role || !allowedRoles.includes(user.role))) {
+      if (!user.role && allowedRoles.includes("resident")) {
+        if (pathname !== "/resident/register-google") {
           router.push("/resident/register-google")
-        } else {
+        }
+      } else {
+        if (pathname !== "/unauthorized") {
           console.log('Unauthorized access attempt:', { userRole: user.role, allowedRoles })
           router.push("/unauthorized")
         }
-      } else if (user.role === "resident" && !(user as any).isProfileComplete) {
-        // Resident with incomplete profile - redirect to registration
+      }
+      return
+    }
+
+    // Check profile completeness for residents
+    if (user.role === "resident" && !(user as any).isProfileComplete) {
+      if (pathname !== "/resident/register-google") {
         console.log('Resident profile incomplete, redirecting to registration')
         router.push("/resident/register-google")
       }
     }
-  }, [user, loading, redirectTo, router, allowedRoles])
+  }, [user, loading, redirectTo, router, allowedRoles, pathname])
 
   // Show loading state while checking auth or redirecting
   if (loading) {

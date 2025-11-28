@@ -306,11 +306,19 @@ export const useAuth = () => {
           try {
             const { getPinRedirectForRole } = await import('@/lib/pin-auth-helper')
             const redirectUrl = await getPinRedirectForRole(userData.role)
-            router.push(redirectUrl)
+            
+            // Only redirect if different from current path (prevents loops)
+            if (typeof window !== 'undefined') {
+              const currentPath = window.location.pathname
+              if (redirectUrl !== currentPath && !currentPath.startsWith('/pin/')) {
+                router.push(redirectUrl)
+              }
+            } else {
+              router.push(redirectUrl)
+            }
           } catch (pinError: any) {
             console.error('[Auth] PIN check failed, using default redirect:', pinError)
             // If PIN check fails, use default role-based redirect
-            // This ensures login still works even if PIN system has issues
             const defaultRedirects: Record<string, string> = {
               admin: '/admin/dashboard',
               volunteer: '/volunteer/dashboard',
@@ -320,7 +328,16 @@ export const useAuth = () => {
             const defaultRedirect = userData.role 
               ? defaultRedirects[userData.role] || '/resident/dashboard'
               : '/resident/dashboard'
-            router.push(defaultRedirect)
+            
+            // Only redirect if different from current path
+            if (typeof window !== 'undefined') {
+              const currentPath = window.location.pathname
+              if (defaultRedirect !== currentPath && !currentPath.startsWith('/pin/')) {
+                router.push(defaultRedirect)
+              }
+            } else {
+              router.push(defaultRedirect)
+            }
           }
         } else {
           // No profile data found, set basic user info

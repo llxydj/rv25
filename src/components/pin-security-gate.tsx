@@ -34,7 +34,7 @@ export function PinSecurityGate({ children }: { children: React.ReactNode }) {
     }
   }, [bypassPin])
 
-  // Check PIN status on mount
+  // Check PIN status on mount (only once per user)
   useEffect(() => {
     if (bypassPin) return // skip if bypassed
     if (!user) {
@@ -42,13 +42,33 @@ export function PinSecurityGate({ children }: { children: React.ReactNode }) {
       return
     }
 
+    let mounted = true
+
     const checkPinStatus = async () => {
       try {
-        const res = await fetch("/api/pin/status")
+        // Check session storage first (faster than API call)
+        if (typeof window !== "undefined") {
+          const sessionUnlocked = sessionStorage.getItem(SESSION_UNLOCK_KEY)
+          const cachedUserId = sessionStorage.getItem("pin_user_id")
+          
+          // If session says unlocked and user matches, skip API call
+          if (sessionUnlocked === "true" && cachedUserId === user.id) {
+            if (mounted) {
+              setIsUnlocked(true)
+              setLoading(false)
+            }
+            return
+          }
+        }
+
+        const res = await fetch("/api/pin/status", {
+          cache: 'no-store'
+        })
+        
+        if (!mounted) return
+        
         const result = await res.json()
 
-        console.log("[PIN] Status check result:", result)
-        
         if (result.success) {
           setPinEnabled(result.enabled)
           setHasPin(result.hasPin)
@@ -57,35 +77,35 @@ export function PinSecurityGate({ children }: { children: React.ReactNode }) {
           if (typeof window !== "undefined") {
             const sessionUnlocked = sessionStorage.getItem(SESSION_UNLOCK_KEY)
             
-            console.log("[PIN] Session check:", {
-              sessionUnlocked,
-              enabled: result.enabled,
-              excluded: result.excluded,
-              needsSetup: result.needsSetup,
-              hasPin: result.hasPin
-            })
-            
             if ((sessionUnlocked === "true" && result.enabled) || !result.enabled || result.excluded) {
-              console.log("[PIN] Setting unlocked = true (session or disabled)")
-              setIsUnlocked(true)
+              if (mounted) {
+                setIsUnlocked(true)
+              }
             } else if (result.needsSetup) {
-              console.log("[PIN] Needs setup - showing settings")
-              setShowSettings(true)
+              if (mounted) {
+                setShowSettings(true)
+              }
             }
           }
-        } else {
-          console.error("[PIN] Status check failed:", result.message)
         }
       } catch (err) {
         console.error("Error checking PIN status:", err)
-        setIsUnlocked(true) // fail open for UX
+        if (mounted) {
+          setIsUnlocked(true) // fail open for UX
+        }
       } finally {
-        setLoading(false)
+        if (mounted) {
+          setLoading(false)
+        }
       }
     }
 
     checkPinStatus()
-  }, [user, bypassPin])
+
+    return () => {
+      mounted = false
+    }
+  }, [user?.id, bypassPin]) // Only re-run if user ID changes
 
   // Clear PIN unlock on logout OR when user changes
   useEffect(() => {
@@ -127,7 +147,11 @@ export function PinSecurityGate({ children }: { children: React.ReactNode }) {
       })
       const result = await res.json()
 
-      if (result.success && result.unlocked) {
+      if (result.success && result.verified) {
+        // Clear PIN status cache so fresh data is fetched
+        const { clearPinStatusCache } = await import('@/lib/pin-auth-helper')
+        clearPinStatusCache()
+        
         setIsUnlocked(true)
         sessionStorage.setItem(SESSION_UNLOCK_KEY, "true")
         setInputPin("")
@@ -190,6 +214,10 @@ export function PinSecurityGate({ children }: { children: React.ReactNode }) {
       })
       const result = await res.json()
       if (result.success) {
+        // Clear PIN status cache so fresh data is fetched
+        const { clearPinStatusCache } = await import('@/lib/pin-auth-helper')
+        clearPinStatusCache()
+        
         setHasPin(true)
         setNeedsSetup(false)
         setShowSettings(false)

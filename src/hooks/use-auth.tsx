@@ -87,17 +87,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
+    let mounted = true
+
     const getSession = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession()
         
+        if (!mounted) return
+        
         if (session) {
           const userWithRole = await updateUserWithRole(session.user)
-          setUser(userWithRole)
+          if (mounted) {
+            setUser(userWithRole)
+          }
         } else {
-          setUser(null)
+          if (mounted) {
+            setUser(null)
+          }
         }
       } catch (error) {
+        if (!mounted) return
         const err: any = error
         console.warn("Auth session warning:", {
           message: err?.message,
@@ -106,7 +115,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         })
         setUser(null)
       } finally {
-        setLoading(false)
+        if (mounted) {
+          setLoading(false)
+        }
       }
     }
 
@@ -115,17 +126,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        if (!mounted) return
+        
         if (session) {
           const userWithRole = await updateUserWithRole(session.user)
-          setUser(userWithRole)
+          if (mounted) {
+            setUser(userWithRole)
+          }
         } else {
-          setUser(null)
+          if (mounted) {
+            setUser(null)
+          }
         }
-        setLoading(false)
+        if (mounted) {
+          setLoading(false)
+        }
       }
     )
 
     return () => {
+      mounted = false
       subscription.unsubscribe()
     }
   }, [])
