@@ -10,6 +10,7 @@ interface UserData {
 
 interface ExtendedUser extends User {
   role?: string;
+  isProfileComplete?: boolean;
 }
 
 type AuthContextType = {
@@ -36,7 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const { data, error } = await supabase
         .from("users")
-        .select("role")
+        .select("role, first_name, last_name, phone_number, address, barangay")
         .eq("id", sessionUser.id)
         .maybeSingle()
 
@@ -55,10 +56,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.warn("Role lookup warning:", { code, message, details })
         }
         // Return the user with no role instead of throwing
-        return { ...sessionUser, role: undefined } as ExtendedUser
+        return { ...sessionUser, role: undefined, isProfileComplete: false } as ExtendedUser
       }
 
-      return { ...sessionUser, role: (data as UserData | null)?.role } as ExtendedUser
+      // Check if profile is complete for residents
+      const profileData = data as any
+      const isProfileComplete = !!(
+        profileData?.first_name &&
+        profileData?.last_name &&
+        profileData?.phone_number &&
+        profileData?.address &&
+        profileData?.barangay
+      )
+
+      return { 
+        ...sessionUser, 
+        role: profileData?.role,
+        isProfileComplete 
+      } as ExtendedUser
     } catch (error) {
       // Avoid throwing; just return base user and warn with structured context
       const err: any = error
@@ -67,7 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         code: err?.code,
         details: err?.details,
       })
-      return { ...sessionUser, role: undefined } as ExtendedUser
+      return { ...sessionUser, role: undefined, isProfileComplete: false } as ExtendedUser
     }
   }
 

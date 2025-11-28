@@ -27,6 +27,10 @@ export function AuthLayout({ children, redirectTo = "/login", allowedRoles = [] 
           console.log('Unauthorized access attempt:', { userRole: user.role, allowedRoles })
           router.push("/unauthorized")
         }
+      } else if (user.role === "resident" && !(user as any).isProfileComplete) {
+        // Resident with incomplete profile - redirect to registration
+        console.log('Resident profile incomplete, redirecting to registration')
+        router.push("/resident/register-google")
       }
     }
   }, [user, loading, redirectTo, router, allowedRoles])
@@ -65,6 +69,15 @@ export function AuthLayout({ children, redirectTo = "/login", allowedRoles = [] 
         </div>
       )
     }
+  }
+
+  // If resident with incomplete profile, show loading while redirecting to registration
+  if (user.role === "resident" && !(user as any).isProfileComplete) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <LoadingSpinner size="lg" text="Redirecting to complete profile..." />
+      </div>
+    )
   }
 
   // User is authenticated and authorized, render children
