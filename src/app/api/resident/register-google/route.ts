@@ -59,6 +59,7 @@ export async function POST(request: Request) {
       barangay: toSentenceCase(barangay) || null,
       city: 'Talisay City',
       province: 'Negros Occidental',
+      pin_enabled: true, // Enable PIN for new residents
     }
 
     const { data, error } = await supabase

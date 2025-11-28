@@ -39,8 +39,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: 'PIN must be exactly 4 digits' }, { status: 400 })
     }
 
-    // Check if PIN matches confirmation
-    if (pin !== confirmPin) {
+    // Check if PIN matches confirmation (skip if confirmPin not provided - for simple set flow)
+    if (confirmPin !== undefined && pin !== confirmPin) {
       return NextResponse.json({ success: false, message: 'PIN and confirmation do not match' }, { status: 400 })
     }
 

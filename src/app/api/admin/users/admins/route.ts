@@ -142,6 +142,7 @@ export async function POST(request: Request) {
       city: "TALISAY CITY",
       province: "NEGROS OCCIDENTAL",
       status: "active",
+      pin_enabled: true, // Enable PIN for admins
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     })

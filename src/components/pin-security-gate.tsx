@@ -47,6 +47,8 @@ export function PinSecurityGate({ children }: { children: React.ReactNode }) {
         const res = await fetch("/api/pin/status")
         const result = await res.json()
 
+        console.log("[PIN] Status check result:", result)
+        
         if (result.success) {
           setPinEnabled(result.enabled)
           setHasPin(result.hasPin)
@@ -54,12 +56,25 @@ export function PinSecurityGate({ children }: { children: React.ReactNode }) {
 
           if (typeof window !== "undefined") {
             const sessionUnlocked = sessionStorage.getItem(SESSION_UNLOCK_KEY)
+            
+            console.log("[PIN] Session check:", {
+              sessionUnlocked,
+              enabled: result.enabled,
+              excluded: result.excluded,
+              needsSetup: result.needsSetup,
+              hasPin: result.hasPin
+            })
+            
             if ((sessionUnlocked === "true" && result.enabled) || !result.enabled || result.excluded) {
+              console.log("[PIN] Setting unlocked = true (session or disabled)")
               setIsUnlocked(true)
             } else if (result.needsSetup) {
+              console.log("[PIN] Needs setup - showing settings")
               setShowSettings(true)
             }
           }
+        } else {
+          console.error("[PIN] Status check failed:", result.message)
         }
       } catch (err) {
         console.error("Error checking PIN status:", err)
@@ -72,11 +87,26 @@ export function PinSecurityGate({ children }: { children: React.ReactNode }) {
     checkPinStatus()
   }, [user, bypassPin])
 
-  // Clear PIN unlock on logout
+  // Clear PIN unlock on logout OR when user changes
   useEffect(() => {
-    if (!user && typeof window !== "undefined") {
-      sessionStorage.removeItem(SESSION_UNLOCK_KEY)
-      setIsUnlocked(false)
+    if (typeof window !== "undefined") {
+      if (!user) {
+        // User logged out
+        sessionStorage.removeItem(SESSION_UNLOCK_KEY)
+        sessionStorage.removeItem("pin_user_id")
+        setIsUnlocked(false)
+      } else {
+        // Check if this is a different user than before
+        const previousUserId = sessionStorage.getItem("pin_user_id")
+        if (previousUserId && previousUserId !== user.id) {
+          // Different user logged in - clear PIN session
+          console.log("[PIN] User changed, clearing PIN session")
+          sessionStorage.removeItem(SESSION_UNLOCK_KEY)
+          setIsUnlocked(false)
+        }
+        // Store current user ID
+        sessionStorage.setItem("pin_user_id", user.id)
+      }
     }
   }, [user])
 
