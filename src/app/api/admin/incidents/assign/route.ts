@@ -117,18 +117,23 @@ export async function POST(request: Request) {
           tag: 'assignment_alert',
           data: {
             incident_id: cleanIncidentId,
-            url: `/volunteer/incident/${cleanIncidentId}`,
+            url: `/volunteer/incidents/${cleanIncidentId}`,
             type: 'assignment_alert',
-            timestamp: Date.now()
+            user_role: 'volunteer', // Explicit role for proper routing
+            timestamp: Date.now(),
+            persistent: true // Mark as persistent system alert
           },
-          requireInteraction: true,
-          vibrate: [200, 100, 200],
+          requireInteraction: true, // Keep visible until user interacts
+          vibrate: [200, 100, 200], // Vibration for mobile alerts
           actions: [
-            { action: 'open', title: 'View Incident' },
+            { action: 'open', title: 'View Incident', icon: '/favicon/android-chrome-192x192.png' },
             { action: 'close', title: 'Dismiss' }
           ],
           renotify: false,
-          silent: false
+          silent: false,
+          // Additional options for system-level alerts
+          priority: 'high', // High priority for critical assignments
+          timestamp: Date.now() // Explicit timestamp
         })
         console.log('✅ Push notification sent to assigned volunteer')
       } catch (pushErr) {
@@ -138,7 +143,7 @@ export async function POST(request: Request) {
     }
 
     // Send immediate SMS to assigned volunteer
-    if (volunteer.phone_number && updated) {
+    if (volunteer.phone_number && volunteer.phone_number.trim() !== '' && updated) {
       try {
         const { smsService } = await import('@/lib/sms-service')
         const incidentData = updated as unknown as IncidentRow

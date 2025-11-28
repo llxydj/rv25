@@ -135,11 +135,12 @@ export async function POST(req: NextRequest) {
           message: err.message
         })
         
-        if (err.statusCode === 410 && endpoint) {
-          // Remove expired subscription from DB
-          console.log('[send] Removing expired subscription:', endpoint.substring(0, 50) + '...')
+        // Remove expired (410) or invalid (403) subscriptions
+        if ((err.statusCode === 410 || err.statusCode === 403) && endpoint) {
+          const reason = err.statusCode === 410 ? 'expired' : 'invalid (VAPID key mismatch)'
+          console.log(`[send] Removing ${reason} subscription:`, endpoint.substring(0, 50) + '...')
           await supabase.from('push_subscriptions').delete().eq('endpoint', endpoint)
-          return { success: false, error: 'Subscription expired and removed', endpoint }
+          return { success: false, error: `Subscription ${reason} and removed`, endpoint }
         }
         
         return { success: false, error: err.message || 'Unknown error', endpoint: endpoint || 'unknown' }

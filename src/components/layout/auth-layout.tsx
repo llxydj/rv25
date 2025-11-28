@@ -20,6 +20,20 @@ export function AuthLayout({ children, redirectTo = "/login", allowedRoles = [] 
     // Don't run checks while loading
     if (loading) return
 
+    // Special case: register-google page allows users with session but no role
+    if (pathname === "/resident/register-google") {
+      // Allow access if user exists (has session) even without role
+      // This is needed for new Google OAuth users
+      if (!user) {
+        // No user at all - redirect to login
+        if (pathname !== redirectTo && !pathname.startsWith('/login')) {
+          router.push(redirectTo)
+        }
+      }
+      // If user exists (even without role), allow access to register-google
+      return
+    }
+
     // Don't redirect if already on the target page (prevents loops)
     if (!user) {
       if (pathname !== redirectTo && !pathname.startsWith('/login')) {
@@ -59,6 +73,13 @@ export function AuthLayout({ children, redirectTo = "/login", allowedRoles = [] 
         <LoadingSpinner size="lg" text="Please wait..." />
       </div>
     )
+  }
+  
+  // Special case: register-google page allows users with session but no role
+  if (pathname === "/resident/register-google") {
+    // Allow access even if user has no role (new Google OAuth users)
+    // The page itself will handle session checking
+    return <>{children}</>
   }
   
   // If user is not authenticated, show loading while redirecting

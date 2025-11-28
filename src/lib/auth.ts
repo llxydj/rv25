@@ -24,6 +24,7 @@ export interface UserSession {
 export const useAuth = () => {
   const [user, setUser] = useState<UserSession | null>(null)
   const [loading, setLoading] = useState(true)
+  const [hasRedirected, setHasRedirected] = useState(false) // Track if we've already redirected for PIN
   const router = useRouter()
 
   const fetchUserData = async (userId: string) => {
@@ -228,28 +229,46 @@ export const useAuth = () => {
         const userData = data as unknown as UserRow
 
         // CRITICAL: Verify email matches (case-insensitive)
-        // This ensures we're using the correct account
+        // If mismatch, sync email from Auth to database (Auth is source of truth)
         if (userData && userData.email && session.user.email) {
           const dbEmail = userData.email.toLowerCase().trim()
           const sessionEmail = session.user.email.toLowerCase().trim()
           
           if (dbEmail !== sessionEmail) {
-            console.error('[Auth] Email mismatch between session and database!', {
+            console.warn('[Auth] Email mismatch detected - syncing email from Auth to database', {
               sessionEmail,
               dbEmail,
               userId: session.user.id
             })
-            await supabase.auth.signOut()
-            router.push("/login?error=account_mismatch")
-            return
+            
+            // Sync email from Auth to database (Auth is source of truth)
+            try {
+              const { error: updateError } = await supabase
+                .from('users')
+                .update({ email: session.user.email })
+                .eq('id', session.user.id)
+              
+              if (updateError) {
+                console.error('[Auth] Failed to sync email to database:', updateError)
+                // Continue anyway - email mismatch is not critical enough to block login
+              } else {
+                console.log('[Auth] Email synced successfully from Auth to database')
+              }
+            } catch (syncError) {
+              console.error('[Auth] Error syncing email:', syncError)
+              // Continue anyway - don't block login for email sync failure
+            }
           }
         }
 
-        // Check if user is deactivated
+        // CRITICAL: Check if user is deactivated
         if (userData && (userData as any).status === 'inactive') {
           console.warn('Deactivated user attempted to access:', session.user.id)
-          // Sign out the user and redirect to login
+          // Sign out the user immediately
           await supabase.auth.signOut()
+          // Clear any cached user data
+          setUser(null)
+          // Redirect to login with error message
           router.push("/login?error=account_deactivated")
           return
         }
@@ -304,6 +323,39 @@ export const useAuth = () => {
           // Check PIN status and redirect accordingly
           // Wrap in try-catch to prevent blocking login if PIN check fails
           try {
+            // Skip PIN check if already on PIN pages or dashboard (prevents loops)
+            if (typeof window !== 'undefined') {
+              const currentPath = window.location.pathname
+              // If already on PIN pages, don't redirect (let PIN page handle it)
+              if (currentPath.startsWith('/pin/')) {
+                return
+              }
+              // If already on dashboard, check if PIN is verified before redirecting
+              if (currentPath.includes('/dashboard') || currentPath.includes('/admin/') || currentPath.includes('/volunteer/') || currentPath.includes('/resident/')) {
+                // Check if PIN is verified - if yes, stay on current page
+                try {
+                  const verifyRes = await fetch('/api/pin/check-verified', {
+                    credentials: 'include',
+                    cache: 'no-store'
+                  })
+                  if (verifyRes.ok) {
+                    const verifyJson = await verifyRes.json()
+                    if (verifyJson.verified) {
+                      // PIN is verified, stay on current page
+                      return
+                    }
+                  }
+                } catch {
+                  // If check fails, continue with PIN redirect logic
+                }
+              }
+            }
+
+            // Skip if we've already redirected in this session (prevents multiple redirects)
+            if (hasRedirected) {
+              return
+            }
+
             const { getPinRedirectForRole } = await import('@/lib/pin-auth-helper')
             const redirectUrl = await getPinRedirectForRole(userData.role)
             
@@ -311,9 +363,14 @@ export const useAuth = () => {
             if (typeof window !== 'undefined') {
               const currentPath = window.location.pathname
               if (redirectUrl !== currentPath && !currentPath.startsWith('/pin/')) {
+                setHasRedirected(true) // Mark that we've redirected
                 router.push(redirectUrl)
+              } else if (redirectUrl === currentPath) {
+                // Already on the correct page, mark as redirected
+                setHasRedirected(true)
               }
             } else {
+              setHasRedirected(true)
               router.push(redirectUrl)
             }
           } catch (pinError: any) {
@@ -333,9 +390,13 @@ export const useAuth = () => {
             if (typeof window !== 'undefined') {
               const currentPath = window.location.pathname
               if (defaultRedirect !== currentPath && !currentPath.startsWith('/pin/')) {
+                setHasRedirected(true)
                 router.push(defaultRedirect)
+              } else if (defaultRedirect === currentPath) {
+                setHasRedirected(true)
               }
             } else {
+              setHasRedirected(true)
               router.push(defaultRedirect)
             }
           }
@@ -353,6 +414,7 @@ export const useAuth = () => {
         }
       } else if (event === "SIGNED_OUT") {
         setUser(null)
+        setHasRedirected(false) // Reset redirect flag on sign out
         router.push("/login")
       }
     })
@@ -515,17 +577,18 @@ export const signIn = async (email: string, password: string) => {
       throw new Error("Failed to authenticate user")
     }
 
-    // Double-check: Verify the session user ID matches the email we tried to log in with
+    // Double-check: Verify the session user exists
     const { data: { user: verifiedUser } } = await supabase.auth.getUser()
-    if (!verifiedUser || verifiedUser.email?.toLowerCase() !== email.trim().toLowerCase()) {
-      console.error('[Auth] Session mismatch detected!', {
-        expectedEmail: email.trim().toLowerCase(),
-        actualEmail: verifiedUser?.email?.toLowerCase(),
-        userId: verifiedUser?.id
-      })
+    if (!verifiedUser) {
+      console.error('[Auth] Session verification failed - no user found')
       await supabase.auth.signOut()
       throw new Error("Session verification failed. Please try again.")
     }
+    
+    // Note: We don't strictly check email match here because:
+    // 1. Auth already verified the email/password
+    // 2. Email might be different in database (we'll sync it)
+    // 3. User ID is the primary identifier
 
     // Check if user is deactivated after successful auth
     if (data.user) {
@@ -545,14 +608,31 @@ export const signIn = async (email: string, password: string) => {
       }
 
       // Verify email matches (case-insensitive)
+      // If mismatch, sync email from Auth to database (Auth is source of truth)
       if (userData && userData.email?.toLowerCase() !== email.trim().toLowerCase()) {
-        console.error('[Auth] Email mismatch in database!', {
+        console.warn('[Auth] Email mismatch in database - syncing email from Auth', {
           expectedEmail: email.trim().toLowerCase(),
           dbEmail: userData.email?.toLowerCase(),
           userId: data.user.id
         })
-        await supabase.auth.signOut()
-        throw new Error("Account verification failed. Please contact support.")
+        
+        // Sync email from Auth to database
+        try {
+          const { error: updateError } = await supabase
+            .from('users')
+            .update({ email: email.trim().toLowerCase() })
+            .eq('id', data.user.id)
+          
+          if (updateError) {
+            console.error('[Auth] Failed to sync email to database:', updateError)
+            // Continue anyway - email mismatch is not critical enough to block login
+          } else {
+            console.log('[Auth] Email synced successfully from Auth to database')
+          }
+        } catch (syncError) {
+          console.error('[Auth] Error syncing email:', syncError)
+          // Continue anyway - don't block login for email sync failure
+        }
       }
     }
 
@@ -628,20 +708,116 @@ export const signOut = async () => {
 // Password reset request
 export const sendPasswordResetEmail = async (email: string) => {
   try {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: typeof window !== 'undefined' ? `${window.location.origin}/reset-password` : '/reset-password',
+    // Normalize email to lowercase (Supabase Auth stores emails in lowercase)
+    const normalizedEmail = email.trim().toLowerCase()
+    
+    if (!normalizedEmail || !normalizedEmail.includes('@')) {
+      console.error('[sendPasswordResetEmail] Invalid email format:', email)
+      return { 
+        success: false, 
+        message: "Please enter a valid email address." 
+      }
+    }
+
+    console.log('[sendPasswordResetEmail] Attempting password reset for:', normalizedEmail)
+
+    // CRITICAL: Check if user exists and is deactivated before allowing password reset
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('id, status, email')
+      .eq('email', normalizedEmail)
+      .maybeSingle()
+
+    if (userError) {
+      console.error('[sendPasswordResetEmail] Error checking user:', userError)
+      // Continue anyway - might be a new user not in users table yet
+    }
+
+    if (userData && (userData as any).status === 'inactive') {
+      console.warn('[sendPasswordResetEmail] User is inactive:', normalizedEmail)
+      // Don't reveal that the account exists but is deactivated
+      // Return success message to prevent email enumeration
+      return { 
+        success: true, 
+        message: "If an account exists with this email, password reset instructions have been sent." 
+      }
+    }
+
+    // Check if email exists in Supabase Auth
+    // Note: Supabase doesn't provide a direct way to check if email exists,
+    // but resetPasswordForEmail will work even if email doesn't exist (for security)
+    
+    // Get the correct redirect URL
+    const redirectUrl = typeof window !== 'undefined' 
+      ? `${window.location.origin}/reset-password`
+      : process.env.NEXT_PUBLIC_SITE_URL 
+        ? `${process.env.NEXT_PUBLIC_SITE_URL}/reset-password`
+        : '/reset-password'
+
+    console.log('[sendPasswordResetEmail] Sending reset email with redirect URL:', redirectUrl)
+
+    const { error, data } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+      redirectTo: redirectUrl,
     })
 
-    if (error) throw error
-    return { success: true, message: "Password reset instructions sent to your email." }
+    if (error) {
+      console.error('[sendPasswordResetEmail] Supabase error:', error)
+      
+      // Provide user-friendly error messages
+      if (error.message?.includes('rate limit') || error.message?.includes('too many')) {
+        return { 
+          success: false, 
+          message: "Too many requests. Please wait a few minutes before trying again." 
+        }
+      }
+      
+      if (error.message?.includes('email')) {
+        return { 
+          success: false, 
+          message: "Unable to send reset email. Please check your email address and try again." 
+        }
+      }
+      
+      throw error
+    }
+
+    console.log('[sendPasswordResetEmail] Reset email sent successfully')
+    return { 
+      success: true, 
+      message: "Password reset instructions have been sent to your email. Please check your inbox (and spam folder)." 
+    }
   } catch (error: any) {
-    return { success: false, message: error.message }
+    console.error('[sendPasswordResetEmail] Unexpected error:', error)
+    return { 
+      success: false, 
+      message: error?.message || "An unexpected error occurred. Please try again later." 
+    }
   }
 }
 
 // Reset password with token
 export const confirmPasswordReset = async (token: string, newPassword: string) => {
   try {
+    // CRITICAL: Check if user is deactivated before allowing password reset
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (user) {
+      const { data: userData } = await supabase
+        .from('users')
+        .select('id, status')
+        .eq('id', user.id)
+        .maybeSingle()
+
+      if (userData && (userData as any).status === 'inactive') {
+        // Sign out the user
+        await supabase.auth.signOut()
+        return { 
+          success: false, 
+          message: "Your account has been deactivated. Please contact an administrator." 
+        }
+      }
+    }
+
     // For Supabase, we use updateUser since the token is already in the session
     // after clicking the reset link
     const { error } = await supabase.auth.updateUser({

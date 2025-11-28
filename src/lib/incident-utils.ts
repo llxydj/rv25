@@ -18,7 +18,13 @@ export const normalizeIncident = (incident: any) => {
     photoGallery = [incident.photo_url]; // Old format
   }
   
-  const isLegacyData = !Array.isArray(incident.photo_urls);
+  // Improved legacy detection: Only mark as legacy if:
+  // 1. photo_urls is null/undefined AND photo_url exists (old format with single photo)
+  // 2. OR photo_urls is null/undefined AND created_at_local is missing (truly old data)
+  // New incidents without photos will have photo_urls as [] (empty array), not null
+  const isLegacyData = !Array.isArray(incident.photo_urls) && 
+                      (incident.photo_url || !incident.created_at_local);
+  
   const displayDate = incident.created_at_local || incident.created_at;
   const normalizedBarangay = incident.barangay?.toUpperCase() || incident.barangay || '';
   

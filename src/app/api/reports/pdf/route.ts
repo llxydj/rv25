@@ -3,15 +3,17 @@ import { createClient } from '@supabase/supabase-js'
 
 export const runtime = "nodejs"
 
-// PDF Generation using jsPDF
-import jsPDF from 'jspdf'
-// Import jspdf-autotable - in v5.x it extends jsPDF automatically
-import 'jspdf-autotable'
+// PDF Generation using Puppeteer (better quality)
+import { generatePDFFromHTML } from '@/lib/pdf-generator-puppeteer'
+import { generateIncidentReportHTML, type IncidentReportData } from '@/lib/pdf-templates/incident-report-template'
+import { generateVolunteerReportHTML, type VolunteerReportData } from '@/lib/pdf-templates/volunteer-report-template'
+import { generateAnalyticsReportHTML, type AnalyticsReportData } from '@/lib/pdf-templates/analytics-report-template'
 
-// Also import as a function for direct use if needed
+// Fallback to jsPDF if Puppeteer fails (for compatibility)
+import jsPDF from 'jspdf'
+import 'jspdf-autotable'
 import autoTable from 'jspdf-autotable'
 
-// Extend jsPDF type to include autoTable
 declare module 'jspdf' {
   interface jsPDF {
     autoTable: (options: any) => jsPDF
@@ -149,7 +151,95 @@ async function generateIncidentReport(filters: ReportFilters): Promise<Buffer> {
     throw new Error(`Database error: ${error.message}`)
   }
 
-  // Create PDF
+  // Try Puppeteer first (better quality), fallback to jsPDF if it fails
+  try {
+    // Calculate statistics
+    const statusCounts = incidents?.reduce((acc: any, incident: any) => {
+      acc[incident.status] = (acc[incident.status] || 0) + 1
+      return acc
+    }, {}) || {}
+
+    const severityCounts = incidents?.reduce((acc: any, incident: any) => {
+      acc[incident.severity] = (acc[incident.severity] || 0) + 1
+      return acc
+    }, {}) || {}
+
+    // Format incidents for template
+    const formattedIncidents = (incidents || []).map((incident: any) => {
+      const reporter = incident.users 
+        ? `${(incident.users as any).first_name || ''} ${(incident.users as any).last_name || ''}`.trim()
+        : 'Anonymous'
+      const reporterPhone = incident.users ? (incident.users as any).phone_number : undefined
+      const location = incident.address || `${incident.location_lat?.toFixed(6)}, ${incident.location_lng?.toFixed(6)}` || 'N/A'
+      const assignedTo = incident.volunteer_profiles
+        ? `${(incident.volunteer_profiles as any).first_name || ''} ${(incident.volunteer_profiles as any).last_name || ''}`.trim()
+        : undefined
+
+      return {
+        id: incident.id,
+        type: incident.incident_type,
+        status: incident.status,
+        severity: incident.severity,
+        location: location,
+        barangay: incident.barangay || 'N/A',
+        created_at: incident.created_at,
+        reporter: reporter || undefined,
+        reporterPhone: reporterPhone,
+        description: incident.description,
+        assignedTo: assignedTo,
+        resolved_at: incident.resolved_at
+      }
+    })
+
+    // Prepare data for template
+    const reportData: IncidentReportData = {
+      total: incidents?.length || 0,
+      startDate: filters.startDate,
+      endDate: filters.endDate,
+      statusCounts,
+      severityCounts,
+      incidents: formattedIncidents
+    }
+
+    // Load logo as base64
+    let logoBase64: string | undefined
+    try {
+      const fs = await import('fs')
+      const path = await import('path')
+      const logoPath = path.join(process.cwd(), 'public', 'assets', 'radiant-logo.png')
+      if (fs.existsSync(logoPath)) {
+        const logoBuffer = fs.readFileSync(logoPath)
+        logoBase64 = logoBuffer.toString('base64')
+      }
+    } catch (error) {
+      console.warn('Could not load logo for PDF:', error)
+    }
+
+    // Generate HTML with logo
+    const html = generateIncidentReportHTML(reportData, logoBase64)
+
+    // Generate PDF using Puppeteer with enhanced options
+    const pdfBuffer = await generatePDFFromHTML(html, {
+      format: 'A4',
+      printBackground: true,
+      margin: {
+        top: '15mm',
+        right: '15mm',
+        bottom: '20mm',
+        left: '15mm'
+      },
+      displayHeaderFooter: true,
+      headerTemplate: '<div style="font-size: 10px; text-align: center; width: 100%; color: #6b7280; padding: 5px;">RVOIS - Rescue Volunteers Operations Information System</div>',
+      footerTemplate: '<div style="font-size: 9px; text-align: center; width: 100%; color: #6b7280; padding: 5px;"><span class="pageNumber"></span> / <span class="totalPages"></span></div>'
+    })
+
+    return pdfBuffer
+  } catch (puppeteerError) {
+    console.warn('Puppeteer PDF generation failed, falling back to jsPDF:', puppeteerError)
+    // Fallback to jsPDF if Puppeteer fails
+  }
+
+  // Fallback: jsPDF implementation (original code)
   const doc = new jsPDF()
   
   // Add header
@@ -370,7 +460,51 @@ async function generateVolunteerPerformanceReport(filters: ReportFilters): Promi
     }) || []
   )
 
-  // Create PDF
+  // Try Puppeteer first (better quality), fallback to jsPDF if it fails
+  try {
+    const totalIncidents = volunteerStats.reduce((sum, v) => sum + v.totalIncidents, 0)
+    const totalResolved = volunteerStats.reduce((sum, v) => sum + v.resolvedIncidents, 0)
+    const avgResolutionRate = totalIncidents ? (totalResolved / totalIncidents * 100).toFixed(1) : '0'
+
+    // Format volunteers for template
+    const formattedVolunteers = volunteerStats.map((volunteer: any) => ({
+      name: volunteer.users ? `${volunteer.users.first_name || ''} ${volunteer.users.last_name || ''}`.trim() : 'Unknown',
+      phone: volunteer.users?.phone_number || 'N/A',
+      skills: volunteer.skills || [],
+      totalIncidents: volunteer.totalIncidents,
+      resolvedIncidents: volunteer.resolvedIncidents,
+      resolutionRate: volunteer.resolutionRate
+    }))
+
+    // Prepare data for template
+    const reportData: VolunteerReportData = {
+      totalVolunteers: volunteerStats.length,
+      startDate: filters.startDate,
+      endDate: filters.endDate,
+      summary: {
+        totalIncidents,
+        totalResolved,
+        avgResolutionRate
+      },
+      volunteers: formattedVolunteers
+    }
+
+    // Generate HTML
+    const html = generateVolunteerReportHTML(reportData)
+
+    // Generate PDF using Puppeteer
+    const pdfBuffer = await generatePDFFromHTML(html, {
+      format: 'A4',
+      printBackground: true
+    })
+
+    return pdfBuffer
+  } catch (puppeteerError) {
+    console.warn('Puppeteer PDF generation failed, falling back to jsPDF:', puppeteerError)
+    // Fallback to jsPDF if Puppeteer fails
+  }
+
+  // Fallback: jsPDF implementation
   const doc = new jsPDF()
   
   // Add header
@@ -480,7 +614,41 @@ async function generateAnalyticsReport(filters: ReportFilters): Promise<Buffer> 
       }, 0) / resolvedIncidents.length / (1000 * 60 * 60) // Convert to hours
     : 0
 
-  // Create PDF
+  // Try Puppeteer first (better quality), fallback to jsPDF if it fails
+  try {
+    const resolved = statusDistribution.RESOLVED || 0
+    const resolutionRate = totalIncidents > 0 ? ((resolved / totalIncidents) * 100).toFixed(1) : '0.0'
+
+    // Prepare data for template
+    const reportData: AnalyticsReportData = {
+      totalIncidents,
+      startDate: filters.startDate,
+      endDate: filters.endDate,
+      resolved,
+      avgResponseTime,
+      resolutionRate,
+      statusDistribution,
+      typeDistribution,
+      barangayDistribution,
+      severityDistribution
+    }
+
+    // Generate HTML
+    const html = generateAnalyticsReportHTML(reportData)
+
+    // Generate PDF using Puppeteer
+    const pdfBuffer = await generatePDFFromHTML(html, {
+      format: 'A4',
+      printBackground: true
+    })
+
+    return pdfBuffer
+  } catch (puppeteerError) {
+    console.warn('Puppeteer PDF generation failed, falling back to jsPDF:', puppeteerError)
+    // Fallback to jsPDF if Puppeteer fails
+  }
+
+  // Fallback: jsPDF implementation
   const doc = new jsPDF()
   
   // Add header

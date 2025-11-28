@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { AdminLayout } from "@/components/layout/admin-layout"
 import { useAuth } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/table"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Search, Filter, Download, Eye, User, Trash2, ChevronLeft, ChevronRight } from "lucide-react"
+import { Search, Download, Eye, User, Trash2, ChevronLeft, ChevronRight } from "lucide-react"
 import { 
   Select, 
   SelectContent, 
@@ -66,6 +66,7 @@ export default function UserManagementPage() {
   const [filteredUsers, setFilteredUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("")
   const [roleFilter, setRoleFilter] = useState<UserRole | "all">("all")
   const [barangayFilter, setBarangayFilter] = useState<string | "all">("all")
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all")
@@ -95,6 +96,15 @@ export default function UserManagementPage() {
     return { total, active, inactive, byRole }
   }, [users])
 
+  // Debounce search term to avoid too many API calls
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm)
+    }, 500) // Wait 500ms after user stops typing
+
+    return () => clearTimeout(timer)
+  }, [searchTerm])
+
   // Fetch users with filters
   useEffect(() => {
     if (authLoading) return
@@ -111,7 +121,7 @@ export default function UserManagementPage() {
           ...(roleFilter !== "all" ? { role: roleFilter } : {}),
           ...(statusFilter !== "all" ? { status: statusFilter } : {}),
           ...(barangayFilter !== "all" ? { barangay: barangayFilter } : {}),
-          ...(searchTerm ? { search: searchTerm } : {})
+          ...(debouncedSearchTerm ? { search: debouncedSearchTerm } : {})
         })
         
         // ✅ FIXED: Added backticks for template literal
@@ -188,7 +198,7 @@ export default function UserManagementPage() {
     }
     
     fetchUsers()
-  }, [user, authLoading, pagination.current_page, pagination.per_page, roleFilter, statusFilter, barangayFilter, searchTerm])
+  }, [user, authLoading, pagination.current_page, pagination.per_page, roleFilter, statusFilter, barangayFilter, debouncedSearchTerm])
   
   // Fetch barangays separately (only once)
   useEffect(() => {
@@ -238,7 +248,7 @@ export default function UserManagementPage() {
       ...prev,
       current_page: 1
     }))
-  }, [roleFilter, statusFilter, barangayFilter, searchTerm])
+  }, [roleFilter, statusFilter, barangayFilter, debouncedSearchTerm])
   
   const handleViewUser = (userId: string) => {
     // ✅ FIXED: Added backticks for template literal
@@ -381,9 +391,7 @@ export default function UserManagementPage() {
   
   const handleExportCSV = async () => {
     try {
-      const orgName = "Talisay City Emergency Response System"
-      const reportDate = new Date().toLocaleDateString()
-      const reportTitle = "Resident User Report"
+      const { generateEnhancedCSV } = await import('@/lib/enhanced-csv-export')
       
       const headers = [
         "Name",
@@ -395,30 +403,29 @@ export default function UserManagementPage() {
         "Incident Count"
       ]
       
-      // ✅ FIXED: Added backticks for template literals
-      const csvContent = [
-        orgName,
-        reportTitle,
-        `Generated: ${reportDate}`,
-        "", // Empty line
-        headers.join(","),
-        ...filteredUsers.map(user => [
-          `${user.first_name} ${user.last_name}`,
-          user.email,
-          user.role,
-          user.barangay || "",
-          new Date(user.created_at).toLocaleDateString(),
-          user.status,
-          user.incident_count || 0
-        ].join(","))
-      ].join("\n")
+      const csvData = filteredUsers.map(user => ({
+        "Name": `${user.first_name} ${user.last_name}`,
+        "Email": user.email,
+        "Role": user.role,
+        "Barangay": user.barangay || "",
+        "Registration Date": new Date(user.created_at).toLocaleDateString(),
+        "Status": user.status,
+        "Incident Count": user.incident_count || 0
+      }))
       
-      // Create blob and download
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+      const csvContent = generateEnhancedCSV(csvData, headers, {
+        organizationName: 'RVOIS - Rescue Volunteers Operations Information System',
+        reportTitle: 'Resident User Report',
+        includeMetadata: true,
+        includeSummary: true
+      })
+      
+      // Add BOM for Excel compatibility
+      const BOM = '\uFEFF'
+      const blob = new Blob([BOM + csvContent], { type: "text/csv;charset=utf-8;" })
       const url = URL.createObjectURL(blob)
       const link = document.createElement("a")
       link.setAttribute("href", url)
-      // ✅ FIXED: Added backticks for template literal
       link.setAttribute("download", `resident_users_${new Date().toISOString().split("T")[0]}.csv`)
       link.style.visibility = "hidden"
       document.body.appendChild(link)
@@ -513,14 +520,24 @@ export default function UserManagementPage() {
           </CardHeader>
           <CardContent>
             {/* Filters */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
               <div className="relative sm:col-span-2 lg:col-span-1">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
+                  type="text"
                   placeholder="Search by name or email"
                   className="pl-8 text-sm sm:text-base min-h-[2.5rem]"
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => {
+                    e.preventDefault()
+                    setSearchTerm(e.target.value)
+                  }}
+                  onKeyDown={(e) => {
+                    // Prevent form submission if inside a form
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                    }
+                  }}
                 />
               </div>
               
@@ -560,11 +577,6 @@ export default function UserManagementPage() {
                 </SelectContent>
               </Select>
               
-              <Button variant="outline" className="text-sm sm:text-base min-h-[2.5rem] touch-manipulation">
-                <Filter className="mr-2 h-4 w-4" />
-                <span className="hidden sm:inline">Apply Filters</span>
-                <span className="sm:hidden">Filters</span>
-              </Button>
             </div>
             
             {/* User Table */}

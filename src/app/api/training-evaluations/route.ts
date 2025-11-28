@@ -5,7 +5,8 @@ import { rateKeyFromRequest, rateLimitAllowed } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
-const FEATURE_ENABLED = process.env.NEXT_PUBLIC_FEATURE_TRAININGS_ENABLED === 'true'
+// Trainings feature is enabled by default
+const FEATURE_ENABLED = process.env.NEXT_PUBLIC_FEATURE_TRAININGS_ENABLED !== 'false'
 
 export async function GET(request: Request) {
   try {

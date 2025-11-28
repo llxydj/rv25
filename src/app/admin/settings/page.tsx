@@ -1,11 +1,13 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { AdminLayout } from "@/components/layout/admin-layout"
-import { Bell, Save, Shield, User, AlertCircle } from "lucide-react"
+import { Bell, Save, Shield, User, AlertCircle, Camera, LogOut } from "lucide-react"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import { PinManagement } from "@/components/pin-management"
 import { useAuth } from "@/lib/auth"
+import { supabase } from "@/lib/supabase"
+import { pushNotificationService } from "@/lib/push-notification-service"
 
 export default function AdminSettings() {
   const { user } = useAuth()
@@ -21,7 +23,32 @@ export default function AdminSettings() {
     lastName: "",
     email: "",
     phone: "",
+    profilePhoto: "",
   })
+
+  // Password change state
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  })
+  const [passwordLoading, setPasswordLoading] = useState(false)
+  const [passwordError, setPasswordError] = useState<string | null>(null)
+  const [passwordSuccess, setPasswordSuccess] = useState(false)
+
+  // Notification preferences state
+  const [notificationPrefs, setNotificationPrefs] = useState({
+    email_enabled: true,
+    sms_enabled: false,
+    push_enabled: true,
+    incident_alerts: true,
+    status_updates: true,
+  })
+  const [prefsLoading, setPrefsLoading] = useState(false)
+
+  // Profile photo upload
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
 
   // Load current profile data
   const fetchProfile = async () => {
@@ -45,6 +72,7 @@ export default function AdminSettings() {
         lastName: json.last_name || "",
         email: json.email || "",
         phone: json.phone_number || "",
+        profilePhoto: json.profile_photo_url || json.profile_image || "",
       })
     } catch (err: any) {
       setError('Failed to load profile data')
@@ -56,7 +84,206 @@ export default function AdminSettings() {
 
   useEffect(() => {
     fetchProfile()
+    fetchNotificationPreferences()
   }, [])
+
+  // Load notification preferences
+  const fetchNotificationPreferences = async () => {
+    try {
+      const res = await fetch('/api/notifications/preferences', {
+        cache: 'no-store',
+        credentials: 'include'
+      })
+      const json = await res.json()
+      
+      if (json.success && json.data) {
+        setNotificationPrefs({
+          email_enabled: json.data.email_enabled ?? true,
+          sms_enabled: json.data.sms_enabled ?? false,
+          push_enabled: json.data.push_enabled ?? true,
+          incident_alerts: json.data.incident_alerts ?? true,
+          status_updates: json.data.status_updates ?? true,
+        })
+      }
+    } catch (err) {
+      console.error('Failed to load notification preferences:', err)
+    }
+  }
+
+  // Handle password change
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setPasswordError(null)
+    setPasswordSuccess(false)
+
+    if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
+      setPasswordError('All password fields are required')
+      return
+    }
+
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      setPasswordError('New passwords do not match')
+      return
+    }
+
+    if (passwordData.newPassword.length < 6) {
+      setPasswordError('Password must be at least 6 characters')
+      return
+    }
+
+    try {
+      setPasswordLoading(true)
+
+      // SECURITY: Check PIN verification before allowing password change
+      const pinCheckRes = await fetch('/api/pin/check-verified', {
+        credentials: 'include',
+        cache: 'no-store'
+      })
+      
+      if (pinCheckRes.ok) {
+        const pinCheckJson = await pinCheckRes.json()
+        if (!pinCheckJson.verified) {
+          // PIN not verified - require re-verification
+          setPasswordError('PIN verification required for security. Please verify your PIN first.')
+          // Redirect to PIN verify page
+          window.location.href = `/pin/verify?redirect=${encodeURIComponent('/admin/settings')}`
+          return
+        }
+      } else {
+        // If PIN check fails, require verification for security
+        setPasswordError('PIN verification required for security. Please verify your PIN first.')
+        window.location.href = `/pin/verify?redirect=${encodeURIComponent('/admin/settings')}`
+        return
+      }
+
+      // Verify current password
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: profileData.email,
+        password: passwordData.currentPassword,
+      })
+
+      if (signInError) {
+        setPasswordError('Current password is incorrect')
+        return
+      }
+
+      // Update password
+      const { error } = await supabase.auth.updateUser({
+        password: passwordData.newPassword,
+      })
+
+      if (error) {
+        throw new Error(error.message)
+      }
+
+      // Clear fields
+      setPasswordData({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      })
+      setPasswordSuccess(true)
+      setTimeout(() => setPasswordSuccess(false), 3000)
+      
+      // Require PIN re-verification after password change for security
+      await fetch('/api/pin/require-reverify', {
+        method: 'POST',
+        credentials: 'include'
+      }).catch(() => {
+        // Ignore errors - this is a security enhancement
+      })
+    } catch (err: any) {
+      setPasswordError(err.message || 'Failed to change password')
+    } finally {
+      setPasswordLoading(false)
+    }
+  }
+
+  // Handle notification preferences save
+  const handleSaveNotificationPreferences = async () => {
+    try {
+      setPrefsLoading(true)
+      setError(null)
+
+      const res = await fetch('/api/notifications/preferences', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(notificationPrefs),
+        credentials: 'include'
+      })
+
+      const json = await res.json()
+
+      if (!json.success) {
+        throw new Error(json.message || 'Failed to update notification preferences')
+      }
+
+      setSaveSuccess(true)
+      setTimeout(() => setSaveSuccess(false), 3000)
+    } catch (err: any) {
+      setError(err.message || 'Failed to save notification preferences')
+    } finally {
+      setPrefsLoading(false)
+    }
+  }
+
+  // Handle profile photo upload
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !user) return
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      setError("Please select a valid image file")
+      return
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setError("Image size must be less than 5MB")
+      return
+    }
+
+    try {
+      setUploadingPhoto(true)
+      setError(null)
+
+      // Upload to Supabase Storage
+      const fileName = `${user.id}-${Date.now()}.jpg`
+      const { error: uploadError } = await supabase.storage
+        .from("profile-images")
+        .upload(fileName, file, { upsert: true })
+
+      if (uploadError) throw uploadError
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from("profile-images")
+        .getPublicUrl(fileName)
+
+      // Update user profile with image URL
+      // Update both fields for consistency (some parts of system use profile_image, others use profile_photo_url)
+      const { error: updateError } = await supabase
+        .from("users")
+        .update({ 
+          profile_image: publicUrl,
+          profile_photo_url: publicUrl 
+        })
+        .eq("id", user.id)
+
+      if (updateError) throw updateError
+
+      setProfileData(prev => ({ ...prev, profilePhoto: publicUrl }))
+      setSaveSuccess(true)
+      setTimeout(() => setSaveSuccess(false), 3000)
+    } catch (error: any) {
+      console.error("Image upload error:", error)
+      setError(error.message || "Failed to upload image")
+    } finally {
+      setUploadingPhoto(false)
+      if (fileInputRef.current) fileInputRef.current.value = ""
+    }
+  }
 
   const handleInputChange = (field: string, value: string) => {
     setProfileData(prev => ({
@@ -67,14 +294,12 @@ export default function AdminSettings() {
   }
 
   const handleSaveSettings = async () => {
+    if (activeTab === "notifications") {
+      await handleSaveNotificationPreferences()
+      return
+    }
+
     if (activeTab !== "account") {
-      // For other tabs, just show success (not implemented yet)
-      setLoading(true)
-      setTimeout(() => {
-        setLoading(false)
-        setSaveSuccess(true)
-        setTimeout(() => setSaveSuccess(false), 3000)
-      }, 1000)
       return
     }
 
@@ -271,11 +496,40 @@ export default function AdminSettings() {
                 <div className="border-t border-gray-200 pt-6">
                   <h2 className="text-lg font-medium mb-4">Profile Photo</h2>
                   <div className="flex items-center space-x-6">
-                    <div className="w-20 h-20 rounded-full bg-blue-500 flex items-center justify-center text-white text-2xl font-bold">
-                      {profileData.firstName.charAt(0).toUpperCase()}
+                    <div className="relative">
+                      {profileData.profilePhoto ? (
+                        <img
+                          src={profileData.profilePhoto}
+                          alt="Profile"
+                          className="w-20 h-20 rounded-full object-cover border-2 border-gray-300"
+                        />
+                      ) : (
+                        <div className="w-20 h-20 rounded-full bg-blue-500 flex items-center justify-center text-white text-2xl font-bold">
+                          {profileData.firstName.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploadingPhoto}
+                        className="absolute bottom-0 right-0 rounded-full bg-blue-600 p-2 shadow hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <Camera className="h-4 w-4 text-white" />
+                      </button>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        className="hidden"
+                      />
                     </div>
                     <div>
-                      <p className="text-sm text-gray-500">Profile photo upload coming soon</p>
+                      <p className="text-sm text-gray-700 font-medium">Profile Photo</p>
+                      <p className="text-sm text-gray-500">
+                        {uploadingPhoto ? "Uploading..." : "Click the camera icon to upload a new photo"}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-1">Max size: 5MB. JPG, PNG, or GIF</p>
                     </div>
                   </div>
                 </div>
@@ -285,16 +539,16 @@ export default function AdminSettings() {
             {activeTab === "notifications" && (
               <div className="space-y-6">
                 <h2 className="text-lg font-medium">Notification Preferences</h2>
-                <p className="text-sm text-gray-500">Notification preferences management coming soon</p>
+                <p className="text-sm text-gray-500">Manage how you receive notifications from the system</p>
                 <div className="space-y-4">
                   <div className="flex items-start">
                     <div className="flex items-center h-5">
                       <input
                         id="email-notifications"
                         type="checkbox"
-                        defaultChecked
+                        checked={notificationPrefs.email_enabled}
+                        onChange={(e) => setNotificationPrefs(prev => ({ ...prev, email_enabled: e.target.checked }))}
                         className="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded"
-                        disabled
                       />
                     </div>
                     <div className="ml-3 text-sm">
@@ -310,9 +564,9 @@ export default function AdminSettings() {
                       <input
                         id="sms-notifications"
                         type="checkbox"
-                        defaultChecked
+                        checked={notificationPrefs.sms_enabled}
+                        onChange={(e) => setNotificationPrefs(prev => ({ ...prev, sms_enabled: e.target.checked }))}
                         className="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded"
-                        disabled
                       />
                     </div>
                     <div className="ml-3 text-sm">
@@ -320,6 +574,89 @@ export default function AdminSettings() {
                         SMS Notifications
                       </label>
                       <p className="text-gray-500">Receive SMS alerts for critical emergency incidents.</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start">
+                    <div className="flex items-center h-5">
+                      <input
+                        id="push-notifications"
+                        type="checkbox"
+                        checked={notificationPrefs.push_enabled}
+                        onChange={async (e) => {
+                          const enabled = e.target.checked
+                          setNotificationPrefs(prev => ({ ...prev, push_enabled: enabled }))
+                          
+                          // Actually enable/disable push notifications in browser
+                          try {
+                            if (enabled) {
+                              // Enable push notifications (will request permission if needed)
+                              const success = await pushNotificationService.enable()
+                              if (!success) {
+                                // If enable failed, revert checkbox
+                                setNotificationPrefs(prev => ({ ...prev, push_enabled: false }))
+                                setError('Failed to enable push notifications. Please check browser permissions.')
+                              } else {
+                                // Save preference after successful enable
+                                await handleSaveNotificationPreferences()
+                              }
+                            } else {
+                              // Disable push notifications
+                              await pushNotificationService.unsubscribe()
+                              // Save preference after disabling
+                              await handleSaveNotificationPreferences()
+                            }
+                          } catch (err: any) {
+                            console.error('Push notification toggle error:', err)
+                            // Revert checkbox on error
+                            setNotificationPrefs(prev => ({ ...prev, push_enabled: !enabled }))
+                            setError(err.message || 'Failed to toggle push notifications')
+                          }
+                        }}
+                        className="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded"
+                      />
+                    </div>
+                    <div className="ml-3 text-sm">
+                      <label htmlFor="push-notifications" className="font-medium text-gray-700">
+                        Push Notifications
+                      </label>
+                      <p className="text-gray-500">Receive browser push notifications for real-time updates.</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start">
+                    <div className="flex items-center h-5">
+                      <input
+                        id="incident-alerts"
+                        type="checkbox"
+                        checked={notificationPrefs.incident_alerts}
+                        onChange={(e) => setNotificationPrefs(prev => ({ ...prev, incident_alerts: e.target.checked }))}
+                        className="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded"
+                      />
+                    </div>
+                    <div className="ml-3 text-sm">
+                      <label htmlFor="incident-alerts" className="font-medium text-gray-700">
+                        Incident Alerts
+                      </label>
+                      <p className="text-gray-500">Get notified when new incidents are reported.</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start">
+                    <div className="flex items-center h-5">
+                      <input
+                        id="status-updates"
+                        type="checkbox"
+                        checked={notificationPrefs.status_updates}
+                        onChange={(e) => setNotificationPrefs(prev => ({ ...prev, status_updates: e.target.checked }))}
+                        className="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded"
+                      />
+                    </div>
+                    <div className="ml-3 text-sm">
+                      <label htmlFor="status-updates" className="font-medium text-gray-700">
+                        Status Updates
+                      </label>
+                      <p className="text-gray-500">Receive notifications when incident status changes.</p>
                     </div>
                   </div>
                 </div>
@@ -332,8 +669,17 @@ export default function AdminSettings() {
                 
                 <div className="border-b border-gray-200 pb-6">
                   <h3 className="text-base font-medium mb-4">Change Password</h3>
-                  <p className="text-sm text-gray-500 mb-4">Password change functionality coming soon</p>
-                  <div className="space-y-4">
+                  {passwordError && (
+                    <div className="mb-4 bg-red-50 border-l-4 border-red-500 p-3">
+                      <p className="text-sm text-red-700">{passwordError}</p>
+                    </div>
+                  )}
+                  {passwordSuccess && (
+                    <div className="mb-4 bg-green-50 border-l-4 border-green-500 p-3">
+                      <p className="text-sm text-green-700">Password changed successfully!</p>
+                    </div>
+                  )}
+                  <form onSubmit={handleChangePassword} className="space-y-4">
                     <div>
                       <label htmlFor="current-password" className="block text-sm font-medium text-gray-700">
                         Current Password
@@ -341,8 +687,10 @@ export default function AdminSettings() {
                       <input
                         type="password"
                         id="current-password"
+                        value={passwordData.currentPassword}
+                        onChange={(e) => setPasswordData(prev => ({ ...prev, currentPassword: e.target.value }))}
                         className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-black"
-                        disabled
+                        required
                       />
                     </div>
                     <div>
@@ -352,9 +700,13 @@ export default function AdminSettings() {
                       <input
                         type="password"
                         id="new-password"
+                        value={passwordData.newPassword}
+                        onChange={(e) => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
                         className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-black"
-                        disabled
+                        required
+                        minLength={6}
                       />
+                      <p className="mt-1 text-xs text-gray-500">Must be at least 6 characters</p>
                     </div>
                     <div>
                       <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700">
@@ -363,18 +715,25 @@ export default function AdminSettings() {
                       <input
                         type="password"
                         id="confirm-password"
+                        value={passwordData.confirmPassword}
+                        onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
                         className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-black"
-                        disabled
+                        required
+                        minLength={6}
                       />
                     </div>
                     <button
-                      type="button"
-                      disabled
-                      className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-400 cursor-not-allowed"
+                      type="submit"
+                      disabled={passwordLoading}
+                      className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Update Password
+                      {passwordLoading ? (
+                        <LoadingSpinner size="sm" color="text-white" />
+                      ) : (
+                        "Update Password"
+                      )}
                     </button>
-                  </div>
+                  </form>
                 </div>
 
                 <div>
@@ -404,7 +763,41 @@ export default function AdminSettings() {
 
                 <div className="border-t border-gray-200 pt-6">
                   <h3 className="text-base font-medium mb-4">Session Management</h3>
-                  <p className="text-sm text-gray-500 mb-4">Session management coming soon</p>
+                  <div className="space-y-4">
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">Current Session</p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {user?.email || 'Loading...'}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            Active now
+                          </p>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          <span className="text-xs text-gray-600">Active</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between pt-2">
+                      <p className="text-sm text-gray-600">
+                        Sign out of this session to require password on next login
+                      </p>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await supabase.auth.signOut()
+                          window.location.href = '/login'
+                        }}
+                        className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                      >
+                        <LogOut className="mr-2 h-4 w-4" />
+                        Sign Out
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

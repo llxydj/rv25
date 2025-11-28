@@ -13,7 +13,8 @@ import Link from "next/link"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 
 export default function AdminTrainingsPage() {
-  const FEATURE_ENABLED = process.env.NEXT_PUBLIC_FEATURE_TRAININGS_ENABLED === "true"
+  // Trainings feature is enabled by default
+  const FEATURE_ENABLED = process.env.NEXT_PUBLIC_FEATURE_TRAININGS_ENABLED !== 'false'
 
   const [items, setItems] = useState<any[]>([])
   const [loading, setLoading] = useState(false)

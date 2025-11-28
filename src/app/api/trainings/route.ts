@@ -3,7 +3,8 @@ import { createClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 import { rateKeyFromRequest, rateLimitAllowed } from '@/lib/rate-limit'
 
-const FEATURE_ENABLED = process.env.NEXT_PUBLIC_FEATURE_TRAININGS_ENABLED === 'true'
+// Trainings feature is enabled by default
+const FEATURE_ENABLED = process.env.NEXT_PUBLIC_FEATURE_TRAININGS_ENABLED !== 'false'
 
 // CRITICAL: Use service role key to bypass RLS policies
 // Get this from: Supabase Dashboard > Project Settings > API > service_role key

@@ -7,7 +7,8 @@ import { StarRating } from "@/components/ui/star-rating"
 import { BarChart3, TrendingUp, Star, MessageSquare, Users as UsersIcon } from "lucide-react"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 
-const FEATURE_ENABLED = process.env.NEXT_PUBLIC_FEATURE_TRAININGS_ENABLED === 'true'
+// Trainings feature is enabled by default
+const FEATURE_ENABLED = process.env.NEXT_PUBLIC_FEATURE_TRAININGS_ENABLED !== 'false'
 
 interface Evaluation {
   id: string

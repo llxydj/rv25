@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerSupabase } from '@/lib/supabase-server'
 import { createClient } from '@supabase/supabase-js'
+import { generateEnhancedCSV } from '@/lib/enhanced-csv-export'
 
 export const dynamic = 'force-dynamic'
 
@@ -110,66 +111,99 @@ export async function POST(request: Request) {
 }
 
 function generateCSVReport(data: any, reportType: string, startDate: string, endDate: string): NextResponse {
+  // Use enhanced CSV utility for better formatting
   const csvRows: string[] = []
   
-  csvRows.push('RVOIS Comprehensive Report')
-  csvRows.push(`Report Type: ${reportType}`)
-  csvRows.push(`Period: ${startDate} to ${endDate}`)
-  csvRows.push(`Generated: ${new Date().toISOString()}`)
-  csvRows.push('')
-
-  // Incident report section
-  if (data.incidents) {
-    csvRows.push('=== INCIDENT ANALYTICS ===')
-    csvRows.push('')
-    csvRows.push('Summary')
-    csvRows.push(`Total Incidents,${data.incidents.summary.total_incidents}`)
-    csvRows.push(`Resolved,${data.incidents.summary.resolved}`)
-    csvRows.push(`Pending,${data.incidents.summary.pending}`)
-    csvRows.push(`Resolution Rate,${data.incidents.summary.resolution_rate.toFixed(2)}%`)
-    csvRows.push(`Avg Response Time (minutes),${data.incidents.summary.response_time.average}`)
-    csvRows.push('')
-    csvRows.push('Incidents by Type')
-    csvRows.push('Type,Count,Resolved,Pending,Avg Response Time')
-    Object.entries(data.incidents.by_type).forEach(([type, stats]: [string, any]) => {
-      csvRows.push(`${type},${stats.count},${stats.resolved},${stats.pending},${stats.avg_response_time.toFixed(1)}`)
-    })
-    csvRows.push('')
-    csvRows.push('Incidents by Barangay')
-    csvRows.push('Barangay,Count,Resolved,Pending')
-    Object.entries(data.incidents.by_barangay).forEach(([barangay, stats]: [string, any]) => {
-      csvRows.push(`${barangay},${stats.count},${stats.resolved},${stats.pending}`)
-    })
-    csvRows.push('')
-  }
-
-  // Volunteer activity report section
-  if (data.volunteer_activities) {
-    csvRows.push('=== VOLUNTEER ACTIVITY ANALYTICS ===')
-    csvRows.push('')
-    csvRows.push('Schedules Summary')
-    csvRows.push(`Total Schedules,${data.volunteer_activities.schedules.summary.total}`)
-    csvRows.push(`Accepted,${data.volunteer_activities.schedules.summary.accepted}`)
-    csvRows.push(`Declined,${data.volunteer_activities.schedules.summary.declined}`)
-    csvRows.push(`Acceptance Rate,${data.volunteer_activities.schedules.summary.acceptance_rate.toFixed(2)}%`)
-    csvRows.push(`Attendance Rate,${data.volunteer_activities.schedules.summary.attendance_rate.toFixed(2)}%`)
-    csvRows.push('')
-    csvRows.push('Trainings Summary')
-    csvRows.push(`Total Trainings,${data.volunteer_activities.trainings.summary.total}`)
-    csvRows.push(`Total Enrollments,${data.volunteer_activities.trainings.summary.total_enrollments}`)
-    csvRows.push(`Avg Performance Rating,${data.volunteer_activities.trainings.summary.avg_performance_rating.toFixed(2)}`)
-    csvRows.push('')
-  }
-
-  const csvContent = csvRows.join('\n')
+  // Build comprehensive data structure for enhanced CSV
+  const csvData: any[] = []
   
-  return new NextResponse(csvContent, {
+  // Add incident data if available
+  if (data.incidents) {
+    // Add summary row
+    csvData.push({
+      'Section': 'INCIDENT ANALYTICS SUMMARY',
+      'Total Incidents': data.incidents.summary?.total_incidents || 0,
+      'Resolved': data.incidents.summary?.resolved || 0,
+      'Pending': data.incidents.summary?.pending || 0,
+      'Resolution Rate (%)': data.incidents.summary?.resolution_rate?.toFixed(2) || '0.00',
+      'Avg Response Time (minutes)': data.incidents.summary?.response_time?.average || 'N/A'
+    })
+    
+    // Add incidents by type
+    if (data.incidents.by_type) {
+      Object.entries(data.incidents.by_type).forEach(([type, stats]: [string, any]) => {
+        csvData.push({
+          'Section': 'Incidents by Type',
+          'Type': type,
+          'Count': stats.count || 0,
+          'Resolved': stats.resolved || 0,
+          'Pending': stats.pending || 0,
+          'Avg Response Time (minutes)': stats.avg_response_time?.toFixed(1) || 'N/A'
+        })
+      })
+    }
+    
+    // Add incidents by barangay
+    if (data.incidents.by_barangay) {
+      Object.entries(data.incidents.by_barangay).forEach(([barangay, stats]: [string, any]) => {
+        csvData.push({
+          'Section': 'Incidents by Barangay',
+          'Barangay': barangay,
+          'Count': stats.count || 0,
+          'Resolved': stats.resolved || 0,
+          'Pending': stats.pending || 0
+        })
+      })
+    }
+  }
+  
+  // Add volunteer activity data if available
+  if (data.volunteer_activities) {
+    // Add schedules summary
+    if (data.volunteer_activities.schedules?.summary) {
+      csvData.push({
+        'Section': 'VOLUNTEER ACTIVITY - SCHEDULES',
+        'Total Schedules': data.volunteer_activities.schedules.summary.total || 0,
+        'Accepted': data.volunteer_activities.schedules.summary.accepted || 0,
+        'Declined': data.volunteer_activities.schedules.summary.declined || 0,
+        'Acceptance Rate (%)': data.volunteer_activities.schedules.summary.acceptance_rate?.toFixed(2) || '0.00',
+        'Attendance Rate (%)': data.volunteer_activities.schedules.summary.attendance_rate?.toFixed(2) || '0.00'
+      })
+    }
+    
+    // Add trainings summary
+    if (data.volunteer_activities.trainings?.summary) {
+      csvData.push({
+        'Section': 'VOLUNTEER ACTIVITY - TRAININGS',
+        'Total Trainings': data.volunteer_activities.trainings.summary.total || 0,
+        'Total Enrollments': data.volunteer_activities.trainings.summary.total_enrollments || 0,
+        'Avg Performance Rating': data.volunteer_activities.trainings.summary.avg_performance_rating?.toFixed(2) || '0.00'
+      })
+    }
+  }
+  
+  // Generate enhanced CSV
+  const headers = csvData.length > 0 ? Object.keys(csvData[0]) : []
+  const csvContent = generateEnhancedCSV(csvData, headers, {
+    organizationName: 'RVOIS - Rescue Volunteers Operations Information System',
+    reportTitle: `Comprehensive ${reportType} Report`,
+    includeMetadata: true,
+    includeSummary: true,
+    metadata: {
+      'Report Type': reportType,
+      'Period': `${startDate} to ${endDate}`
+    }
+  })
+  
+  // Add BOM for Excel compatibility
+  const BOM = '\uFEFF'
+  const csvWithBOM = BOM + csvContent
+  
+  return new NextResponse(csvWithBOM, {
     status: 200,
     headers: {
-      'Content-Type': 'text/csv',
+      'Content-Type': 'text/csv; charset=utf-8',
       'Content-Disposition': `attachment; filename="rvois-report-${reportType}-${startDate}-${endDate}.csv"`
     }
   })
 }
-
-

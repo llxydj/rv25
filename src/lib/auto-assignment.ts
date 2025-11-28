@@ -110,18 +110,23 @@ export class AutoAssignmentService {
             tag: 'assignment_alert',
             data: {
               incident_id: criteria.incidentId,
-              url: `/volunteer/incident/${criteria.incidentId}`,
+              url: `/volunteer/incidents/${criteria.incidentId}`,
               type: 'assignment_alert',
-              timestamp: Date.now()
+              user_role: 'volunteer', // Explicit role for proper routing
+              timestamp: Date.now(),
+              persistent: true // Mark as persistent system alert
             },
-            requireInteraction: true,
-            vibrate: [200, 100, 200],
+            requireInteraction: true, // Keep visible until user interacts
+            vibrate: [200, 100, 200], // Vibration for mobile alerts
             actions: [
-              { action: 'open', title: 'View Incident' },
+              { action: 'open', title: 'View Incident', icon: '/favicon/android-chrome-192x192.png' },
               { action: 'close', title: 'Dismiss' }
             ],
             renotify: false,
-            silent: false
+            silent: false,
+            // Additional options for system-level alerts
+            priority: 'high', // High priority for critical assignments
+            timestamp: Date.now() // Explicit timestamp
           })
           console.log('✅ Push notification sent to auto-assigned volunteer')
         }
@@ -139,7 +144,7 @@ export class AutoAssignmentService {
           .eq('id', criteria.incidentId)
           .single()
 
-        if (incident && bestMatch.phoneNumber) {
+        if (incident && bestMatch.phoneNumber && bestMatch.phoneNumber.trim() !== '') {
           const referenceId = `INC-${incident.id.substring(0, 8).toUpperCase()}`
           await smsService.sendVolunteerAssignment(
             criteria.incidentId,
@@ -156,7 +161,13 @@ export class AutoAssignmentService {
               })
             }
           )
-          console.log('✅ Immediate SMS sent to auto-assigned volunteer')
+          console.log('✅ Immediate SMS sent to auto-assigned volunteer:', bestMatch.phoneNumber.substring(0, 4) + '****')
+        } else {
+          console.warn('⚠️ Cannot send SMS to auto-assigned volunteer:', {
+            hasPhone: !!bestMatch.phoneNumber,
+            phoneValue: bestMatch.phoneNumber ? bestMatch.phoneNumber.substring(0, 4) + '****' : 'MISSING',
+            volunteerId: bestMatch.volunteerId
+          })
         }
       } catch (smsErr) {
         console.error('❌ Failed to send SMS to auto-assigned volunteer:', smsErr)
@@ -207,19 +218,21 @@ export class AutoAssignmentService {
         
         // If the function exists and works, use it
         if (!error && data) {
-          return data.map((volunteer: any) => ({
-            volunteerId: volunteer.user_id,
-            firstName: volunteer.first_name,
-            lastName: volunteer.last_name,
-            phoneNumber: volunteer.phone_number,
-            skills: volunteer.skills || [],
-            assignedBarangays: volunteer.assigned_barangays || [],
-            isAvailable: volunteer.is_available,
-            currentAssignments: 0, // Will be calculated later
-            distanceKm: volunteer.distance_km,
-            estimatedArrivalMinutes: Math.round(volunteer.distance_km * 2), // Rough estimate: 2 min per km
-            matchScore: 0 // Will be calculated later
-          }))
+          return data
+            .filter((volunteer: any) => volunteer.phone_number && volunteer.phone_number.trim() !== '')
+            .map((volunteer: any) => ({
+              volunteerId: volunteer.user_id,
+              firstName: volunteer.first_name,
+              lastName: volunteer.last_name,
+              phoneNumber: volunteer.phone_number,
+              skills: volunteer.skills || [],
+              assignedBarangays: volunteer.assigned_barangays || [],
+              isAvailable: volunteer.is_available,
+              currentAssignments: 0, // Will be calculated later
+              distanceKm: volunteer.distance_km,
+              estimatedArrivalMinutes: Math.round(volunteer.distance_km * 2), // Rough estimate: 2 min per km
+              matchScore: 0 // Will be calculated later
+            }))
         }
       } catch (rpcError) {
         console.warn('RPC function not available, falling back to direct query:', rpcError)
@@ -291,19 +304,22 @@ export class AutoAssignmentService {
             .eq('assigned_to', volunteer.volunteer_user_id)
             .in('status', ['ASSIGNED', 'RESPONDING'])
 
-          nearbyVolunteers.push({
-            volunteerId: volunteer.volunteer_user_id,
-            firstName: volunteer.users.first_name,
-            lastName: volunteer.users.last_name,
-            phoneNumber: volunteer.users.phone_number,
-            skills: volunteer.skills || [],
-            assignedBarangays: volunteer.assigned_barangays || [],
-            isAvailable: volunteer.is_available,
-            currentAssignments: assignmentCount || 0,
-            distanceKm: distance,
-            estimatedArrivalMinutes: Math.round(distance * 2), // Rough estimate: 2 min per km
-            matchScore: 0 // Will be calculated later
-          })
+          // Only include volunteers with valid phone numbers
+          if (volunteer.users.phone_number && volunteer.users.phone_number.trim() !== '') {
+            nearbyVolunteers.push({
+              volunteerId: volunteer.volunteer_user_id,
+              firstName: volunteer.users.first_name,
+              lastName: volunteer.users.last_name,
+              phoneNumber: volunteer.users.phone_number,
+              skills: volunteer.skills || [],
+              assignedBarangays: volunteer.assigned_barangays || [],
+              isAvailable: volunteer.is_available,
+              currentAssignments: assignmentCount || 0,
+              distanceKm: distance,
+              estimatedArrivalMinutes: Math.round(distance * 2), // Rough estimate: 2 min per km
+              matchScore: 0 // Will be calculated later
+            })
+          }
         }
       }
 

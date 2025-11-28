@@ -247,14 +247,6 @@ export function IncidentsTable({ incidents, onRowClick }: IncidentsTableProps) {
                 Offline
               </Badge>
             )}
-            {incident.isLegacyData && (
-              <Badge 
-                variant="outline" 
-                className="text-xs border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300"
-              >
-                Legacy Data
-              </Badge>
-            )}
             {incident.is_overdue && (
               <Badge className="text-xs bg-red-600 text-white dark:bg-red-700">
                 Overdue
@@ -490,11 +482,6 @@ export function IncidentsTable({ incidents, onRowClick }: IncidentsTableProps) {
                         {incident._offline && (
                           <Badge variant="outline" className="text-xs border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300">
                             Offline
-                          </Badge>
-                        )}
-                        {incident.isLegacyData && (
-                          <Badge variant="outline" className="text-xs border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300">
-                            Legacy Data
                           </Badge>
                         )}
                         {incident.is_overdue && (

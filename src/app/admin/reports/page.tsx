@@ -452,15 +452,32 @@ export default function AdminReports() {
         const result = await exportIncidentsToCSV(startDate, endDate)
 
         if (result.success && result.data && result.data.length > 0) {
-          const headers = Object.keys(result.data[0]).join(',')
-          const rows = result.data.map((item: any) =>
-            Object.values(item).map(v =>
-              typeof v === 'string' && v.includes(',') ? `"${v}"` : v
-            ).join(',')
-          )
-          const csvContent = [headers, ...rows].join('\n')
+          // Use enhanced CSV if available, otherwise generate it
+          let csvContent: string
+          
+          if (result.csv) {
+            // Use pre-generated enhanced CSV
+            csvContent = result.csv
+          } else {
+            // Generate enhanced CSV on client side
+            const { generateEnhancedCSV } = await import('@/lib/enhanced-csv-export')
+            const headers = Object.keys(result.data[0])
+            csvContent = generateEnhancedCSV(result.data, headers, {
+              organizationName: 'RVOIS - Rescue Volunteers Operations Information System',
+              reportTitle: 'Incident Report',
+              includeMetadata: true,
+              includeSummary: true,
+              metadata: {
+                'Report Period': `${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}`
+              }
+            })
+          }
 
-          const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+          // Add BOM for Excel UTF-8 compatibility
+          const BOM = '\uFEFF'
+          const csvWithBOM = BOM + csvContent
+
+          const blob = new Blob([csvWithBOM], { type: 'text/csv;charset=utf-8;' })
           const url = URL.createObjectURL(blob)
           const link = document.createElement('a')
           link.href = url

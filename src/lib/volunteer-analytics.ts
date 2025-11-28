@@ -1,4 +1,5 @@
 import { supabase } from "./supabase"
+import { generateEnhancedCSV } from "./enhanced-csv-export"
 
 export interface VolunteerIncidentLog {
   id: string
@@ -344,32 +345,29 @@ function escapeCSVField(field: string): string {
  * Export volunteer analytics to CSV with proper formatting
  */
 export function exportVolunteerAnalyticsToCSV(analytics: VolunteerAnalytics): string {
-  const headers = [
-    'Volunteer ID',
-    'Volunteer Name',
-    'Total Incidents',
-    'Total Resolved',
-    'Average Response Time (minutes)',
-    'Incidents by Type',
-    'Incidents by Severity',
-    'Incidents by Status',
-    'Incidents by Barangay'
-  ]
-
-  const rows = [
-    [
-      escapeCSVField(analytics.volunteer_id),
-      escapeCSVField(analytics.volunteer_name),
-      escapeCSVField(analytics.total_incidents.toString()),
-      escapeCSVField(analytics.total_resolved.toString()),
-      escapeCSVField(analytics.average_response_time_minutes?.toString() || 'N/A'),
-      escapeCSVField(JSON.stringify(analytics.incidents_by_type)),
-      escapeCSVField(JSON.stringify(analytics.incidents_by_severity)),
-      escapeCSVField(JSON.stringify(analytics.incidents_by_status)),
-      escapeCSVField(JSON.stringify(analytics.incidents_by_barangay))
-    ]
-  ]
-
-  return [headers.map(escapeCSVField).join(','), ...rows.map(row => row.join(','))].join('\n')
+  // Use enhanced CSV utility for better formatting
+  
+  // Format data for enhanced CSV
+  const csvData = [{
+    'Volunteer ID': analytics.volunteer_id || '',
+    'Volunteer Name': analytics.volunteer_name || '',
+    'Total Incidents': analytics.total_incidents || 0,
+    'Total Resolved': analytics.total_resolved || 0,
+    'Average Response Time (minutes)': analytics.average_response_time_minutes?.toString() || 'N/A',
+    'Incidents by Type': JSON.stringify(analytics.incidents_by_type || {}),
+    'Incidents by Severity': JSON.stringify(analytics.incidents_by_severity || {}),
+    'Incidents by Status': JSON.stringify(analytics.incidents_by_status || {}),
+    'Incidents by Barangay': JSON.stringify(analytics.incidents_by_barangay || {})
+  }]
+  
+  const headers = Object.keys(csvData[0])
+  
+  // Generate enhanced CSV
+  return generateEnhancedCSV(csvData, headers, {
+    organizationName: 'RVOIS - Rescue Volunteers Operations Information System',
+    reportTitle: 'Volunteer Analytics Report',
+    includeMetadata: true,
+    includeSummary: true
+  })
 }
 

@@ -576,11 +576,6 @@ export default function IncidentDetailPage() {
                         {incident.severity}
                       </span>
                     )}
-                    {incident.isLegacyData && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">
-                        Legacy Data
-                      </span>
-                    )}
                   </div>
                   <span
                     className={`mt-2 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusBadgeClass(

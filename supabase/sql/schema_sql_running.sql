@@ -261,6 +261,23 @@ CREATE TABLE public.notifications (
   CONSTRAINT notifications_pkey PRIMARY KEY (id),
   CONSTRAINT notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
+CREATE TABLE public.pdf_report_history (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  scheduled_report_id uuid,
+  created_by uuid NOT NULL,
+  report_type text NOT NULL,
+  title text NOT NULL,
+  file_name text NOT NULL,
+  file_url text NOT NULL,
+  file_size bigint,
+  filters jsonb NOT NULL,
+  generated_at timestamp with time zone DEFAULT now(),
+  expires_at timestamp with time zone,
+  download_count integer DEFAULT 0,
+  CONSTRAINT pdf_report_history_pkey PRIMARY KEY (id),
+  CONSTRAINT pdf_report_history_scheduled_report_id_fkey FOREIGN KEY (scheduled_report_id) REFERENCES public.scheduled_pdf_reports(id),
+  CONSTRAINT pdf_report_history_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
+);
 CREATE TABLE public.pin_attempts (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL UNIQUE,
@@ -306,6 +323,23 @@ CREATE TABLE public.reports (
   CONSTRAINT reports_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id),
   CONSTRAINT reports_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES public.users(id),
   CONSTRAINT reports_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.scheduled_pdf_reports (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  created_by uuid NOT NULL,
+  report_type text NOT NULL,
+  title text NOT NULL,
+  schedule_type text NOT NULL CHECK (schedule_type = ANY (ARRAY['daily'::text, 'weekly'::text, 'monthly'::text, 'custom'::text])),
+  schedule_config jsonb NOT NULL,
+  filters jsonb NOT NULL,
+  recipients ARRAY DEFAULT ARRAY[]::text[],
+  enabled boolean DEFAULT true,
+  last_run_at timestamp with time zone,
+  next_run_at timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT scheduled_pdf_reports_pkey PRIMARY KEY (id),
+  CONSTRAINT scheduled_pdf_reports_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
 );
 CREATE TABLE public.scheduledactivities (
   schedule_id uuid NOT NULL DEFAULT uuid_generate_v4(),

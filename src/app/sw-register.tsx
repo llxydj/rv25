@@ -39,10 +39,30 @@ export default function ServiceWorkerRegistration() {
             console.warn("[sw-register] Service worker ready check failed:", error)
           }
           
-          // Check for updates periodically (keeps service worker active)
+          // Check for updates periodically (keeps service worker active for push notifications)
+          // This ensures service worker stays active even when app is closed
           setInterval(() => {
-            registration.update()
+            registration.update().catch((err) => {
+              console.warn('[sw-register] Update check failed:', err)
+            })
           }, 60000) // Check every minute
+          
+          // Register periodic background sync for keep-alive (if supported)
+          if ('periodicSync' in registration && 'periodicSync' in window.ServiceWorkerRegistration.prototype) {
+            try {
+              // @ts-ignore - periodicSync may not be in types yet
+              registration.periodicSync.register('keep-alive', {
+                minInterval: 24 * 60 * 60 * 1000 // Once per day (keeps service worker active)
+              }).then(() => {
+                console.log('[sw-register] Periodic sync registered for keep-alive')
+              }).catch((err) => {
+                console.log('[sw-register] Periodic sync not supported:', err.message)
+              })
+            } catch (err) {
+              // Periodic sync not supported, that's okay
+              console.log('[sw-register] Periodic sync not available')
+            }
+          }
           
           // Handle update found
           registration.addEventListener("updatefound", () => {

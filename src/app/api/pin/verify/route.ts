@@ -45,15 +45,23 @@ export async function POST(request: Request) {
       }, { status: 429 })
     }
 
-    // Get user's PIN hash
+    // Get user's PIN hash and status
     const { data: userData, error: userError } = await supabase
       .from('users')
-      .select('pin_hash, pin_enabled, role')
+      .select('pin_hash, pin_enabled, role, status')
       .eq('id', userId)
       .single()
 
     if (userError || !userData) {
       return NextResponse.json({ success: false, message: 'User not found' }, { status: 404 })
+    }
+
+    // CRITICAL: Check if user is deactivated
+    if ((userData as any).status === 'inactive') {
+      return NextResponse.json({ 
+        success: false, 
+        message: 'Your account has been deactivated. Please contact an administrator.' 
+      }, { status: 403 })
     }
 
     // Exclude barangay users
@@ -103,6 +111,7 @@ export async function POST(request: Request) {
     // Set HTTP-only cookie for PIN verification
     const expiresAt = new Date()
     expiresAt.setHours(expiresAt.getHours() + 24) // 24 hours
+    const now = Date.now()
 
     response.cookies.set('pin_verified', 'true', {
       httpOnly: true,
@@ -113,7 +122,16 @@ export async function POST(request: Request) {
     })
 
     // Also set a timestamp cookie for verification
-    response.cookies.set('pin_verified_at', Date.now().toString(), {
+    response.cookies.set('pin_verified_at', now.toString(), {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      expires: expiresAt,
+      path: '/'
+    })
+
+    // Set last activity timestamp for inactivity tracking
+    response.cookies.set('pin_last_activity', now.toString(), {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',

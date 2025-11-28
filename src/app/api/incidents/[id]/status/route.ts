@@ -174,16 +174,21 @@ export async function PATCH(request: Request, { params }: { params: { id: string
             url: `/resident/history?incident=${params.id}`,
             status: status,
             type: 'status_update',
-            timestamp: Date.now()
+            user_role: 'resident', // Explicit role for proper routing
+            timestamp: Date.now(),
+            persistent: true // Mark as persistent system alert
           },
-          requireInteraction: status === 'RESOLVED',
-          vibrate: [200, 100, 200],
+          requireInteraction: status === 'RESOLVED' || status === 'RESPONDING', // Important updates require interaction
+          vibrate: [200, 100, 200], // Vibration for mobile alerts
           actions: [
-            { action: 'open', title: 'View Incident' },
+            { action: 'open', title: 'View Incident', icon: '/favicon/android-chrome-192x192.png' },
             { action: 'close', title: 'Dismiss' }
           ],
           renotify: false,
-          silent: false
+          silent: false,
+          // Additional options for system-level alerts
+          priority: status === 'RESOLVED' || status === 'RESPONDING' ? 'high' : 'normal', // High priority for important updates
+          timestamp: Date.now() // Explicit timestamp
         })
         console.log('✅ Push notification sent to resident for status update')
       } catch (pushErr) {

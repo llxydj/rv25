@@ -30,11 +30,22 @@ export function DataQualityDashboard() {
           
         if (totalCountError) throw totalCountError
         
-        // Get legacy incidents (those without photo_urls array)
-        const { count: legacyIncidents, error: legacyCountError } = await supabase
+        // Get legacy incidents (those with photo_url but no photo_urls array)
+        // This identifies truly old data, not new incidents without photos
+        // Legacy = has photo_url but photo_urls is null/empty (old format)
+        // Note: New incidents without photos will have photo_urls as [] (empty array), not null
+        const { data: allIncidents, error: fetchError } = await supabase
           .from('incidents')
-          .select('*', { count: 'exact', head: true })
-          .or('photo_urls.is.null,photo_urls.eq.{}')
+          .select('id, photo_url, photo_urls, created_at_local')
+          
+        if (fetchError) throw fetchError
+        
+        // Filter in JavaScript to identify truly legacy data
+        const legacyIncidents = (allIncidents || []).filter((incident: any) => {
+          // Legacy if: photo_urls is null/undefined AND (has photo_url OR missing created_at_local)
+          return !Array.isArray(incident.photo_urls) && 
+                 (incident.photo_url || !incident.created_at_local)
+        }).length
           
         if (legacyCountError) throw legacyCountError
         

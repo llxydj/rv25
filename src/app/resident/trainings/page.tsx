@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState } from "react"
 
-const FEATURE_ENABLED = process.env.NEXT_PUBLIC_FEATURE_TRAININGS_ENABLED === 'true'
+// Trainings feature is enabled by default
+const FEATURE_ENABLED = process.env.NEXT_PUBLIC_FEATURE_TRAININGS_ENABLED !== 'false'
 
 export default function ResidentTrainingsPage() {
   const [items, setItems] = useState<any[]>([])

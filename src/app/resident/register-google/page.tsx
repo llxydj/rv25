@@ -28,6 +28,7 @@ export default function RegisterGoogleResidentPage() {
   const [showTermsModal, setShowTermsModal] = useState(false)
   const [termsAccepted, setTermsAccepted] = useState(false)
   const [showSuccessModal, setShowSuccessModal] = useState(false)
+  const [initialLoading, setInitialLoading] = useState(true)
 
   // 🔠 Auto-uppercase function
   const toCaps = (s: string) => s.toUpperCase()
@@ -43,16 +44,36 @@ export default function RegisterGoogleResidentPage() {
   // Also check if user already has a complete profile
   useEffect(() => {
     const load = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user) {
+      try {
+        setInitialLoading(true)
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+        
+        if (sessionError) {
+          console.error('Session error:', sessionError)
+          setError('Failed to load session. Please try logging in again.')
+          setInitialLoading(false)
+          return
+        }
+
+        if (!session?.user) {
+          // No session - redirect to login
+          router.replace('/login')
+          return
+        }
+
         setEmail(session.user.email || "")
         
         // Check if user already has a complete profile
-        const { data: userProfile } = await supabase
+        const { data: userProfile, error: profileError } = await supabase
           .from('users')
           .select('id, role, first_name, last_name, phone_number, address, barangay')
           .eq('id', session.user.id)
           .maybeSingle()
+        
+        if (profileError) {
+          console.error('Profile fetch error:', profileError)
+          // Continue anyway - user might be new
+        }
         
         // If user has a complete profile with all required fields, redirect to dashboard
         if (userProfile?.role === 'resident' && 
@@ -83,6 +104,11 @@ export default function RegisterGoogleResidentPage() {
           setAddress(userProfile.address || '')
           setBarangay(userProfile.barangay || '')
         }
+      } catch (err: any) {
+        console.error('Error loading session:', err)
+        setError('Failed to load your information. Please try refreshing the page.')
+      } finally {
+        setInitialLoading(false)
       }
     }
     load()
@@ -175,6 +201,20 @@ export default function RegisterGoogleResidentPage() {
       setError(e?.message || 'Failed to save profile')
       setLoading(false)
     }
+  }
+
+  // Show loading state while checking session
+  if (initialLoading) {
+    return (
+      <AuthLayout allowedRoles={[]}>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center space-y-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto"></div>
+            <p className="text-gray-600 dark:text-gray-400">Loading your information...</p>
+          </div>
+        </div>
+      </AuthLayout>
+    )
   }
 
   return (

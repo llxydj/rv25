@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { AdminLayout } from '@/components/layout/admin-layout'
 import { PDFReportGenerator } from '@/components/admin/pdf-report-generator'
+import { ScheduledReports } from '@/components/admin/scheduled-reports'
+import { ReportHistory } from '@/components/admin/report-history'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { FileText, Download, Calendar, BarChart3 } from 'lucide-react'
@@ -76,54 +78,12 @@ export default function AdminPDFReportsPage() {
 
           {/* Scheduled Tab */}
           <TabsContent value="scheduled" className="space-y-4 md:space-y-6 mt-4 md:mt-6">
-            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-              <CardHeader className="space-y-2">
-                <CardTitle className="flex items-center gap-2 text-lg md:text-xl text-gray-900 dark:text-gray-100">
-                  <Calendar className="h-4 w-4 md:h-5 md:w-5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
-                  Scheduled Reports
-                </CardTitle>
-                <CardDescription className="text-sm md:text-base text-gray-600 dark:text-gray-400">
-                  Set up automatic report generation and email distribution
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8 md:py-12">
-                  <Calendar className="h-10 w-10 md:h-12 md:w-12 text-gray-400 dark:text-gray-600 mx-auto mb-3 md:mb-4" />
-                  <h3 className="text-base md:text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
-                    Scheduled Reports Coming Soon
-                  </h3>
-                  <p className="text-sm md:text-base text-gray-600 dark:text-gray-400 max-w-md mx-auto">
-                    This feature will allow you to set up automatic report generation and email distribution.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+            <ScheduledReports />
           </TabsContent>
 
           {/* History Tab */}
           <TabsContent value="history" className="space-y-4 md:space-y-6 mt-4 md:mt-6">
-            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-              <CardHeader className="space-y-2">
-                <CardTitle className="flex items-center gap-2 text-lg md:text-xl text-gray-900 dark:text-gray-100">
-                  <BarChart3 className="h-4 w-4 md:h-5 md:w-5 text-purple-600 dark:text-purple-400 flex-shrink-0" />
-                  Report History
-                </CardTitle>
-                <CardDescription className="text-sm md:text-base text-gray-600 dark:text-gray-400">
-                  View and manage previously generated reports
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8 md:py-12">
-                  <BarChart3 className="h-10 w-10 md:h-12 md:w-12 text-gray-400 dark:text-gray-600 mx-auto mb-3 md:mb-4" />
-                  <h3 className="text-base md:text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
-                    Report History Coming Soon
-                  </h3>
-                  <p className="text-sm md:text-base text-gray-600 dark:text-gray-400 max-w-md mx-auto">
-                    This feature will show you a history of all generated reports with download links.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+            <ReportHistory />
           </TabsContent>
         </Tabs>
 

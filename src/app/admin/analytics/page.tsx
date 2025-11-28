@@ -9,14 +9,14 @@ export default function AnalyticsPage() {
   const router = useRouter()
 
   useEffect(() => {
-    // Redirect to comprehensive analytics (which now includes all analytics features)
-    router.replace('/admin/analytics/comprehensive')
+    // Redirect to incidents analytics
+    router.replace('/admin/analytics/incidents')
   }, [router])
 
   return (
     <AdminLayout>
       <div className="flex justify-center items-center py-12">
-        <LoadingSpinner size="lg" text="Redirecting to Analytics Dashboard..." />
+        <LoadingSpinner size="lg" text="Redirecting to Analytics..." />
       </div>
     </AdminLayout>
   )

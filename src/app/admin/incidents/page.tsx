@@ -190,9 +190,7 @@ export default function AdminIncidentsPage() {
 
     // Data format filter
     if (filters.dataFormat !== "ALL") {
-      if (filters.dataFormat === "LEGACY") {
-        filtered = filtered.filter((incident) => incident.isLegacyData)
-      } else if (filters.dataFormat === "CURRENT") {
+      if (filters.dataFormat === "CURRENT") {
         filtered = filtered.filter((incident) => !incident.isLegacyData)
       }
     }

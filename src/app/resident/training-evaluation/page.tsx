@@ -8,7 +8,8 @@ import { StarRating } from "@/components/ui/star-rating"
 import { useAuth } from "@/hooks/use-auth"
 import { CheckCircle, Calendar, Clock, MapPin, Users } from "lucide-react"
 
-const FEATURE_ENABLED = process.env.NEXT_PUBLIC_FEATURE_TRAININGS_ENABLED === 'true'
+// Trainings feature is enabled by default
+const FEATURE_ENABLED = process.env.NEXT_PUBLIC_FEATURE_TRAININGS_ENABLED !== 'false'
 
 export default function TrainingEvaluationPage() {
   const { user } = useAuth()

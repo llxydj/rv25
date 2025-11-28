@@ -19,7 +19,6 @@ import { MetricsChart } from "@/components/admin/metrics-chart"
 import { StatWidget } from "@/components/admin/stat-widget"
 import { AdminMetrics } from "@/types/admin-metrics"
 import { BackupMonitor } from "@/components/admin/backup-monitor"
-import { DataQualityDashboard } from "@/components/admin/data-quality-dashboard"
 
 export default function AdminDashboard() {
   const { user } = useAuth()
@@ -287,9 +286,6 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* DATA QUALITY DASHBOARD */}
-            <DataQualityDashboard />
-            
             {/* ADMIN METRICS */}
             {metricsLoading ? (
               <div className="flex justify-center py-8">

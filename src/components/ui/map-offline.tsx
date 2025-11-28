@@ -326,7 +326,7 @@ export function MapOffline({
   }, [userLocation])
 
   return (
-    <div style={{ height, width: "100%" }} className="rounded-lg overflow-hidden shadow-md relative">
+    <div style={{ height, width: "100%" }} className="rounded-lg overflow-hidden shadow-md relative z-0">
       <MapContainer
         center={center}
         zoom={zoom}

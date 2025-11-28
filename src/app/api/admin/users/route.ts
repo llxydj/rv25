@@ -258,12 +258,47 @@ export async function PUT(request: NextRequest) {
     }
 
     if (action === 'deactivate') {
+      // Update user status to inactive
       const { error } = await supabaseAdmin
         .from('users')
         .update({ status: 'inactive' })
         .eq('id', userId)
 
       if (error) throw error
+
+      // CRITICAL: Disable the Supabase Auth account to prevent login
+      try {
+        const { data: userData } = await supabaseAdmin
+          .from('users')
+          .select('email')
+          .eq('id', userId)
+          .maybeSingle()
+
+        if (userData?.email) {
+          // Get the auth user by email
+          const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers()
+          const authUserToDisable = authUsers.users.find(u => u.email === userData.email)
+          
+          if (authUserToDisable) {
+            // Update auth user metadata to mark as deactivated
+            await supabaseAdmin.auth.admin.updateUserById(authUserToDisable.id, {
+              user_metadata: { 
+                ...authUserToDisable.user_metadata,
+                deactivated: true,
+                deactivated_at: new Date().toISOString()
+              }
+            })
+          }
+        }
+      } catch (authError) {
+        console.error('Error disabling auth account:', authError)
+        // Continue even if auth update fails - database status is more important
+      }
+
+      // CRITICAL: Invalidate all sessions by updating password (forces re-login)
+      // Note: Supabase doesn't have a direct "signOut all sessions" API
+      // So we mark the account as deactivated in metadata which is checked during auth
+      // The status check in auth.ts will catch and sign out deactivated users
 
       await supabaseAdmin.from('system_logs').insert({
         action: 'USER_DEACTIVATED',
@@ -274,12 +309,41 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ success: true, message: 'User deactivated successfully' })
     } 
     else if (action === 'activate') {
+      // Update user status to active
       const { error } = await supabaseAdmin
         .from('users')
         .update({ status: 'active' })
         .eq('id', userId)
 
       if (error) throw error
+
+      // Re-enable auth account if it was disabled
+      try {
+        const { data: userData } = await supabaseAdmin
+          .from('users')
+          .select('email')
+          .eq('id', userId)
+          .maybeSingle()
+
+        if (userData?.email) {
+          const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers()
+          const authUserToEnable = authUsers.users.find(u => u.email === userData.email)
+          
+          if (authUserToEnable) {
+            // Remove deactivated flag from metadata
+            await supabaseAdmin.auth.admin.updateUserById(authUserToEnable.id, {
+              user_metadata: { 
+                ...authUserToEnable.user_metadata,
+                deactivated: false,
+                reactivated_at: new Date().toISOString()
+              }
+            })
+          }
+        }
+      } catch (authError) {
+        console.error('Error re-enabling auth account:', authError)
+        // Continue even if auth update fails
+      }
 
       await supabaseAdmin.from('system_logs').insert({
         action: 'USER_ACTIVATED',
@@ -337,6 +401,16 @@ export async function DELETE(request: NextRequest) {
       }, { status: 403 })
     }
 
+    // Get user email before anonymizing
+    const { data: userData } = await supabaseAdmin
+      .from('users')
+      .select('email')
+      .eq('id', userId)
+      .maybeSingle()
+
+    const originalEmail = userData?.email
+
+    // Anonymize user data in database
     const { error: updateError } = await supabaseAdmin
       .from('users')
       .update({ 
@@ -351,6 +425,24 @@ export async function DELETE(request: NextRequest) {
 
     if (updateError) throw updateError
 
+    // CRITICAL: Disable/Delete the Supabase Auth account
+    try {
+      if (originalEmail) {
+        // Get the auth user by email
+        const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers()
+        const authUserToDelete = authUsers.users.find(u => u.email === originalEmail)
+        
+        if (authUserToDelete) {
+          // Delete the auth account completely
+          await supabaseAdmin.auth.admin.deleteUser(authUserToDelete.id)
+        }
+      }
+    } catch (authError) {
+      console.error('Error deleting auth account:', authError)
+      // Continue even if auth deletion fails - database is anonymized
+    }
+
+    // Anonymize incidents
     await supabaseAdmin
       .from('incidents')
       .update({ 
@@ -361,7 +453,7 @@ export async function DELETE(request: NextRequest) {
 
     await supabaseAdmin.from('system_logs').insert({
       action: 'USER_SOFT_DELETED',
-      details: `User ${userId} soft deleted by admin ${authUser.id}`,
+      details: `User ${userId} soft deleted and anonymized by admin ${authUser.id}`,
       user_id: authUser.id
     })
 

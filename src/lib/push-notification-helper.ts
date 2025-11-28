@@ -20,9 +20,11 @@ interface PushPayload {
   data?: any
   requireInteraction?: boolean
   vibrate?: number[]
-  actions?: Array<{ action: string; title: string }>
+  actions?: Array<{ action: string; title: string; icon?: string }>
   renotify?: boolean
   silent?: boolean
+  priority?: 'high' | 'normal' | 'low' // Priority for system alerts
+  timestamp?: number // Explicit timestamp for notification ordering
 }
 
 /**
@@ -137,16 +139,17 @@ export async function sendPushToUsers(
             statusCode: error.statusCode
           })
           
-          // Remove expired subscriptions (410 = Gone)
-          if (error.statusCode === 410 && sub.subscription?.endpoint) {
+          // Remove expired (410) or invalid (403) subscriptions
+          if ((error.statusCode === 410 || error.statusCode === 403) && sub.subscription?.endpoint) {
+            const reason = error.statusCode === 410 ? 'expired' : 'invalid (VAPID key mismatch)'
             try {
               await supabaseAdmin
                 .from('push_subscriptions')
                 .delete()
                 .eq('endpoint', sub.subscription.endpoint)
-              console.log(`[push-helper] Removed expired subscription for user ${sub.user_id}`)
+              console.log(`[push-helper] Removed ${reason} subscription for user ${sub.user_id}`)
             } catch (deleteError) {
-              console.error('[push-helper] Failed to delete expired subscription:', deleteError)
+              console.error('[push-helper] Failed to delete invalid subscription:', deleteError)
             }
           }
           

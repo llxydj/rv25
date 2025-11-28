@@ -73,20 +73,30 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     return pathname === path
   }
 
+  // Helper to check if a path should be active, considering parent/child routes
+  const isRouteActive = (path: string, exact: boolean = false) => {
+    if (!pathname) return false
+    if (exact) {
+      return pathname === path
+    }
+    // For parent routes, only match if no more specific child route is active
+    return pathname === path || pathname.startsWith(`${path}/`)
+  }
+
   return (
     <AuthLayout allowedRoles={["admin"]}>
       <div className="flex h-screen bg-gray-100">
         {/* Mobile sidebar backdrop */}
         {sidebarOpen && (
           <div
-            className="fixed inset-0 z-40 bg-black bg-opacity-50 lg:hidden"
+            className="fixed inset-0 z-[999] bg-black bg-opacity-50 lg:hidden"
             onClick={() => setSidebarOpen(false)}
           ></div>
         )}
 
         {/* Sidebar */}
         <aside
-          className={`fixed inset-y-0 left-0 z-50 w-64 transform bg-blue-800 text-white transition duration-300 ease-in-out lg:static lg:translate-x-0 ${
+          className={`fixed inset-y-0 left-0 z-[1000] w-64 transform bg-blue-800 text-white transition duration-300 ease-in-out lg:static lg:translate-x-0 lg:z-auto ${
             sidebarOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
@@ -141,7 +151,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
             <Link
               href="/admin/volunteers"
               className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
-                pathname.startsWith("/admin/volunteers") && !pathname.includes("/analytics") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
+                pathname === "/admin/volunteers" ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
               }`}
               onClick={() => setSidebarOpen(false)}
             >
@@ -152,7 +162,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
             <Link
               href="/admin/volunteers/analytics"
               className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
-                pathname.includes("/volunteers/analytics") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
+                pathname === "/admin/volunteers/analytics" || pathname.startsWith("/admin/volunteers/analytics/") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
               }`}
               onClick={() => setSidebarOpen(false)}
             >
@@ -163,7 +173,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
             <Link
               href="/admin/volunteers/map"
               className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
-                pathname.startsWith("/admin/volunteers/map") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
+                pathname === "/admin/volunteers/map" || pathname.startsWith("/admin/volunteers/map/") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
               }`}
               onClick={() => setSidebarOpen(false)}
             >
@@ -185,7 +195,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
             <Link
               href="/admin/activities/dashboard"
               className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
-                isActive("/admin/activities/dashboard") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
+                pathname === "/admin/activities/dashboard" || pathname.startsWith("/admin/activities/dashboard/") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
               }`}
               onClick={() => setSidebarOpen(false)}
             >
@@ -196,7 +206,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
             <Link
               href="/admin/schedules"
               className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
-                isActive("/admin/schedules") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
+                pathname === "/admin/schedules" || (pathname.startsWith("/admin/schedules/") && !pathname.includes("/analytics")) ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
               }`}
               onClick={() => setSidebarOpen(false)}
             >
@@ -207,7 +217,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
             <Link
               href="/admin/activities/reports"
               className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
-                pathname.includes("/activities/reports") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
+                pathname === "/admin/activities/reports" || pathname.startsWith("/admin/activities/reports/") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
               }`}
               onClick={() => setSidebarOpen(false)}
             >
@@ -215,21 +225,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
               <span className="font-medium truncate text-white">Activity Reports</span>
             </Link>
 
-            <Link
-              href="/admin/analytics/comprehensive"
-              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
-                pathname.includes("/analytics") && !pathname.includes("/volunteers/analytics") && !pathname.includes("/schedules/analytics") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
-              }`}
-              onClick={() => setSidebarOpen(false)}
-            >
-              <BarChart3 className="h-5 w-5 flex-shrink-0 text-white" />
-              <span className="font-medium truncate text-white">Analytics Dashboard</span>
-            </Link>
 
             <Link
               href="/admin/area-map"
               className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
-                pathname.includes("/area-map") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
+                pathname === "/admin/area-map" || pathname.startsWith("/admin/area-map/") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
               }`}
               onClick={() => setSidebarOpen(false)}
             >
@@ -240,7 +240,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
             <Link
               href="/admin/schedules/analytics"
               className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
-                pathname.includes("/schedules/analytics") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
+                pathname === "/admin/schedules/analytics" || pathname.startsWith("/admin/schedules/analytics/") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
               }`}
               onClick={() => setSidebarOpen(false)}
             >

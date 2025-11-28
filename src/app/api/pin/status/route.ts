@@ -17,12 +17,20 @@ export async function GET() {
     // Fetch user
     const { data: userData, error: userError } = await supabase
       .from('users')
-      .select('role, pin_hash, pin_enabled')
+      .select('role, pin_hash, pin_enabled, status')
       .eq('id', userId)
       .single()
 
     if (userError || !userData) {
       return NextResponse.json({ success: false, message: 'User not found' }, { status: 404 })
+    }
+
+    // CRITICAL: Check if user is deactivated
+    if ((userData as any).status === 'inactive') {
+      return NextResponse.json({ 
+        success: false, 
+        message: 'Your account has been deactivated. Please contact an administrator.' 
+      }, { status: 403 })
     }
 
     // Exclude barangay users

@@ -2,7 +2,8 @@
 
 import React, { useState } from "react"
 
-const FEATURE_ENABLED = process.env.NEXT_PUBLIC_FEATURE_FEEDBACK_ENABLED === 'true'
+// Feedback feature is enabled by default
+const FEATURE_ENABLED = process.env.NEXT_PUBLIC_FEATURE_FEEDBACK_ENABLED !== 'false'
 
 export default function ResidentFeedbackPage() {
   const [rating, setRating] = useState<number>(5)

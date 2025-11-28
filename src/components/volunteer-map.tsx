@@ -219,7 +219,7 @@ export function VolunteerMap({ height = "420px", limit = 100 }: VolunteerMapProp
   }, [loading, polyLoading, error, volunteers])
 
   return (
-    <div style={{ height, width: "100%" }} className="rounded-lg overflow-hidden shadow-md relative">
+    <div style={{ height, width: "100%" }} className="rounded-lg overflow-hidden shadow-md relative z-0">
       <MapContainer
         center={TALISAY_CENTER}
         zoom={13}

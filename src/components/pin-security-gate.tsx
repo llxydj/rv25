@@ -51,40 +51,64 @@ export function PinSecurityGate({ children }: { children: React.ReactNode }) {
           const sessionUnlocked = sessionStorage.getItem(SESSION_UNLOCK_KEY)
           const cachedUserId = sessionStorage.getItem("pin_user_id")
           
-          // If session says unlocked and user matches, skip API call
+          // If session says unlocked and user matches, verify with server to ensure cookie is still valid
           if (sessionUnlocked === "true" && cachedUserId === user.id) {
-            if (mounted) {
-              setIsUnlocked(true)
-              setLoading(false)
+            // Double-check with server that PIN cookie is still valid
+            try {
+              const verifyRes = await fetch("/api/pin/check-verified", {
+                credentials: 'include',
+                cache: 'no-store'
+              })
+              
+              if (verifyRes.ok) {
+                const verifyJson = await verifyRes.json()
+                if (verifyJson.verified) {
+                  // Cookie is valid, unlock immediately
+                  if (mounted) {
+                    setIsUnlocked(true)
+                    setLoading(false)
+                  }
+                  return
+                } else {
+                  // Cookie expired, clear session storage
+                  sessionStorage.removeItem(SESSION_UNLOCK_KEY)
+                }
+              }
+            } catch {
+              // If check fails, continue to full status check
             }
-            return
           }
         }
 
-        const res = await fetch("/api/pin/status", {
-          cache: 'no-store'
-        })
+        // Check PIN status and verification
+        const [statusRes, verifyRes] = await Promise.all([
+          fetch("/api/pin/status", { cache: 'no-store' }),
+          fetch("/api/pin/check-verified", { credentials: 'include', cache: 'no-store' })
+        ])
         
         if (!mounted) return
         
-        const result = await res.json()
+        const statusResult = await statusRes.json()
+        const verifyResult = verifyRes.ok ? await verifyRes.json() : { verified: false }
 
-        if (result.success) {
-          setPinEnabled(result.enabled)
-          setHasPin(result.hasPin)
-          setNeedsSetup(result.needsSetup)
+        if (statusResult.success) {
+          setPinEnabled(statusResult.enabled)
+          setHasPin(statusResult.hasPin)
+          setNeedsSetup(statusResult.needsSetup)
 
-          if (typeof window !== "undefined") {
-            const sessionUnlocked = sessionStorage.getItem(SESSION_UNLOCK_KEY)
-            
-            if ((sessionUnlocked === "true" && result.enabled) || !result.enabled || result.excluded) {
-              if (mounted) {
-                setIsUnlocked(true)
+          // If PIN is verified via cookie OR PIN is disabled/excluded, unlock
+          if (verifyResult.verified || !statusResult.enabled || statusResult.excluded) {
+            if (mounted) {
+              setIsUnlocked(true)
+              // Update session storage to persist across refreshes
+              if (typeof window !== "undefined" && verifyResult.verified) {
+                sessionStorage.setItem(SESSION_UNLOCK_KEY, "true")
+                sessionStorage.setItem("pin_user_id", user.id)
               }
-            } else if (result.needsSetup) {
-              if (mounted) {
-                setShowSettings(true)
-              }
+            }
+          } else if (statusResult.needsSetup) {
+            if (mounted) {
+              setShowSettings(true)
             }
           }
         }

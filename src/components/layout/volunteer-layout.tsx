@@ -14,6 +14,7 @@ import { VolunteerNotificationsNew } from "@/components/volunteer/volunteer-noti
 import { SystemClock } from "@/components/system-clock"
 import { pushNotificationService } from "@/lib/push-notification-service"
 import { SignOutModal } from "@/components/ui/signout-modal"
+import SubscribeBanner from "@/components/subscribe-banner"
 
 interface VolunteerLayoutProps {
   children: React.ReactNode
@@ -105,14 +106,14 @@ export const VolunteerLayout: React.FC<VolunteerLayoutProps> = ({ children }) =>
         {/* Mobile sidebar backdrop */}
         {sidebarOpen && (
           <div
-            className="fixed inset-0 z-20 bg-black bg-opacity-50 lg:hidden"
+            className="fixed inset-0 z-[999] bg-black bg-opacity-50 lg:hidden"
             onClick={() => setSidebarOpen(false)}
           ></div>
         )}
 
         {/* Sidebar */}
         <aside
-          className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-green-800 text-white transition-gpu duration-200 ease-in-out lg:static lg:translate-x-0 ${
+          className={`fixed inset-y-0 left-0 z-[1000] w-64 transform bg-green-800 text-white transition-gpu duration-200 ease-in-out lg:static lg:translate-x-0 lg:z-auto ${
             sidebarOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
@@ -196,6 +197,7 @@ export const VolunteerLayout: React.FC<VolunteerLayoutProps> = ({ children }) =>
             }>
               <main className="flex-1 overflow-y-auto overflow-x-hidden text-gray-900 bg-gray-50" style={{ color: '#111827' }}>
                 <div className="min-h-full" style={{ color: '#111827' }}>
+                  <SubscribeBanner userId={user?.id} />
                   {children}
                 </div>
               </main>

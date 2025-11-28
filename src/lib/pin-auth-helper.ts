@@ -110,6 +110,29 @@ export async function getPinRedirectForRole(role: string | null): Promise<string
   const defaultRedirect = role ? defaultRedirects[role] || '/resident/dashboard' : '/resident/dashboard'
   
   const pinStatus = await checkPinStatus()
+  
+  // If PIN is enabled and set, check if already verified before redirecting
+  if (pinStatus?.enabled && pinStatus?.hasPin && !pinStatus?.needsSetup) {
+    try {
+      // Check if PIN is already verified via cookie
+      const verifyRes = await fetch('/api/pin/check-verified', {
+        credentials: 'include',
+        cache: 'no-store'
+      })
+      
+      if (verifyRes.ok) {
+        const verifyJson = await verifyRes.json()
+        if (verifyJson.verified) {
+          // PIN is already verified, go directly to dashboard
+          return defaultRedirect
+        }
+      }
+    } catch (error) {
+      console.error('[PIN] Error checking verification status:', error)
+      // If check fails, redirect to verify page for safety
+    }
+  }
+  
   return getPinRedirectUrl(pinStatus, defaultRedirect)
 }
 

@@ -154,14 +154,14 @@ export default function ResidentLayout({ children }: ResidentLayoutProps) {
         {/* Mobile sidebar backdrop */}
         {sidebarOpen && (
           <div
-            className="fixed inset-0 z-20 bg-black bg-opacity-50 lg:hidden"
+            className="fixed inset-0 z-[999] bg-black bg-opacity-50 lg:hidden"
             onClick={toggleSidebar}
           ></div>
         )}
 
         {/* Sidebar */}
         <aside
-          className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-red-800 text-white transition-gpu duration-200 ease-in-out lg:static lg:translate-x-0 ${
+          className={`fixed inset-y-0 left-0 z-[1000] w-64 transform bg-red-800 text-white transition-gpu duration-200 ease-in-out lg:static lg:translate-x-0 lg:z-auto ${
             sidebarOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >

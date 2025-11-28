@@ -55,13 +55,21 @@ export async function GET(request: Request) {
         // Check if this user has a profile row with all required fields
         const { data: userRow, error: checkError } = await supabase
           .from('users')
-          .select('id, role, email, first_name, last_name, phone_number, address, barangay')
+          .select('id, role, email, first_name, last_name, phone_number, address, barangay, status')
           .eq('id', userId)
           .maybeSingle()
 
         if (checkError) {
           console.error('Error checking user row:', checkError)
           return NextResponse.redirect(new URL('/login?error=user_check_failed', requestUrl.origin))
+        }
+
+        // CRITICAL: Check if user is deactivated
+        if (userRow && (userRow as any).status === 'inactive') {
+          console.warn('Deactivated user attempted OAuth login:', userId)
+          // Sign out the user
+          await supabase.auth.signOut()
+          return NextResponse.redirect(new URL('/login?error=account_deactivated', requestUrl.origin))
         }
 
         // If user doesn't have a profile, redirect to registration to complete profile

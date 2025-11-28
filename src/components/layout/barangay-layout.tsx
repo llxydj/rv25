@@ -13,6 +13,7 @@ import { useAuth } from "@/lib/auth"
 import SubscribeBanner from "@/components/subscribe-banner"
 import { BarangayNotifications } from "@/components/barangay/barangay-notifications"
 import { SystemClock } from "@/components/system-clock"
+import { pushNotificationService } from "@/lib/push-notification-service"
 
 interface BarangayLayoutProps {
   children: React.ReactNode
@@ -22,6 +23,21 @@ export function BarangayLayout({ children }: BarangayLayoutProps) {
   const { user } = useAuth()
   const router = useRouter()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+
+  // Initialize push notifications for barangay users
+  useEffect(() => {
+    if (user?.id) {
+      pushNotificationService.initialize(false).then((success) => {
+        if (success) {
+          console.log('[Barangay] Push notifications enabled')
+        } else {
+          console.log('[Barangay] Push notifications not enabled (permission needed)')
+        }
+      }).catch((error) => {
+        console.log('[Barangay] Push notification initialization skipped:', error.message)
+      })
+    }
+  }, [user?.id])
 
   const handleSignOut = async () => {
     const { success } = await signOut()

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { generateEnhancedCSV, formatDateForCSV } from '@/lib/enhanced-csv-export'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -107,19 +108,39 @@ export async function GET(request: NextRequest) {
       'Assigned To'
     ]
 
-    const rows = [
-      headers,
-      ...formattedData
-    ]
+    // Convert formatted data to objects for enhanced CSV
+    const csvData = formattedData.map(row => {
+      const obj: any = {}
+      headers.forEach((header, index) => {
+        obj[header] = row[index] || ''
+      })
+      return obj
+    })
 
-    const csv = rows
-      .map(row => row.map(escapeCSV).join(','))
-      .join('\n')
+    // Generate enhanced CSV
+    const csv = generateEnhancedCSV(csvData, headers, {
+      organizationName: 'RVOIS - Rescue Volunteers Operations Information System',
+      reportTitle: 'Analytics Incident Export',
+      includeMetadata: true,
+      includeSummary: true,
+      metadata: {
+        'Report Period': start && end 
+          ? `${new Date(start).toLocaleDateString()} to ${new Date(end).toLocaleDateString()}`
+          : 'All Time',
+        'Total Records': csvData.length.toString(),
+        ...(type ? { 'Filter: Type': type } : {}),
+        ...(barangay ? { 'Filter: Barangay': barangay } : {})
+      }
+    })
 
-    return new NextResponse(csv, {
+    // Add BOM for Excel UTF-8 compatibility
+    const BOM = '\uFEFF'
+    const csvWithBOM = BOM + csv
+
+    return new NextResponse(csvWithBOM, {
       headers: {
         'Content-Type': 'text/csv; charset=utf-8',
-        'Content-Disposition': 'attachment; filename="incidents_export.csv"'
+        'Content-Disposition': `attachment; filename="incidents_export_${new Date().toISOString().split('T')[0]}.csv"`
       }
     })
   } catch (e: any) {

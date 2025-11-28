@@ -94,18 +94,6 @@ export async function GET(request: Request) {
       
       if (incidentsError) throw incidentsError
       
-      // Create CSV with header information
-      const currentDate = new Date().toLocaleDateString()
-      const csvHeader = [
-        `Organization: Radiant Rescue Volunteers Inc.`,
-        `Report Type: Yearly Incidents Report`,
-        `Year: ${yearNum}`,
-        `Generated Date: ${currentDate}`,
-        `Total Incidents: ${incidents.length}`,
-        '',
-        ''
-      ].join('\n')
-      
       // Format data for CSV with complete information
       const csvData = incidents.map(incident => {
         const reporter = Array.isArray(incident.reporter) && incident.reporter.length > 0 ? incident.reporter[0] : null;
@@ -198,20 +186,23 @@ export async function GET(request: Request) {
         }
       })
       
-      // Create headers row
-      const headers = Object.keys(csvData[0] || {}).join(',')
+      // Use enhanced CSV utility
+      const { generateEnhancedCSV } = await import('@/lib/enhanced-csv-export')
       
-      // Create data rows
-      const rows = csvData.map(item => 
-        Object.values(item).map(value => 
-          typeof value === 'string' && (value.includes(',') || value.includes('"')) 
-            ? `"${value.replace(/"/g, '""')}"` 
-            : value
-        ).join(',')
-      )
+      // Get headers from first data item
+      const headers = Object.keys(csvData[0] || {})
       
-      // Combine header and data
-      const csvContent = csvHeader + headers + '\n' + rows.join('\n')
+      // Generate enhanced CSV
+      const csvContent = generateEnhancedCSV(csvData, headers, {
+        organizationName: 'RVOIS - Rescue Volunteers Operations Information System',
+        reportTitle: `Yearly Incidents Report - ${yearNum}`,
+        includeMetadata: true,
+        includeSummary: true,
+        metadata: {
+          'Year': yearNum.toString(),
+          'Total Incidents': csvData.length.toString()
+        }
+      })
       
       return NextResponse.json({ 
         success: true, 

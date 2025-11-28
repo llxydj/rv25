@@ -668,7 +668,7 @@ const MapInternal: React.FC<MapComponentProps> = ({
   ), [center, zoom, markers, offlineMode, showBoundary, onMapClick, userLocationState, isLoadingLocation, showVolunteerLocations, showGeofence, showHeatmap])
 
   return (
-    <div ref={containerRef} style={{ height, width: "100%" }} className="rounded-lg overflow-hidden shadow-md">
+    <div ref={containerRef} style={{ height, width: "100%" }} className="rounded-lg overflow-hidden shadow-md relative z-0">
       {mounted && containerReady && rafReady && mapJsx}
     </div>
   )

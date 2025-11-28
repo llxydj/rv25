@@ -98,29 +98,45 @@ function HeatmapOverlay() {
 // ------------------------------
 // Helpers and Icon Creation
 // ------------------------------
-const createCustomIcon = (color: string, type: "incident" | "volunteer" | "user", isActive = false) => {
+const createCustomIcon = (color: string, type: "incident" | "volunteer" | "user", isActive = false, status?: string) => {
   const pulseClass = isActive ? "animate-pulse" : ""
-  const size = type === "volunteer" ? "20px" : "25px"
+  
+  // Larger, more visible sizes
+  const size = type === "volunteer" ? "32px" : type === "user" ? "28px" : "30px"
+  const borderWidth = type === "volunteer" ? "4px" : "3px"
+  
+  // Enhanced shadow for better visibility
+  const shadow = "0 4px 12px rgba(0,0,0,0.4), 0 2px 4px rgba(0,0,0,0.3)"
+  
+  // Status-based inner indicator for volunteers
+  const statusIndicator = type === "volunteer" && status 
+    ? `<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 12px; height: 12px; border-radius: 50%; background-color: white; border: 2px solid ${color};"></div>`
+    : ""
 
   const iconHtml =
     type === "volunteer"
-      ? `<div class="${pulseClass}" style="background-color: ${color}; width: ${size}; height: ${size}; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3); position: relative;">
+      ? `<div class="${pulseClass}" style="background-color: ${color}; width: ${size}; height: ${size}; border-radius: 50%; border: ${borderWidth} solid white; box-shadow: ${shadow}; position: relative; z-index: 1000;">
+           ${statusIndicator}
            ${
              isActive
-               ? '<div style="position: absolute; top: -5px; left: -5px; width: 30px; height: 30px; border-radius: 50%; background-color: ' +
+               ? '<div style="position: absolute; top: -8px; left: -8px; width: 48px; height: 48px; border-radius: 50%; background-color: ' +
                  color +
-                 '; opacity: 0.3; animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>'
+                 '; opacity: 0.25; animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite; z-index: -1;"></div>'
                : ""
            }
          </div>`
-      : `<div class="${pulseClass}" style="background-color: ${color}; width: ${size}; height: ${size}; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 2px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"></div>`
+      : type === "user"
+      ? `<div class="${pulseClass}" style="background-color: ${color}; width: ${size}; height: ${size}; border-radius: 50%; border: ${borderWidth} solid white; box-shadow: ${shadow}; position: relative; z-index: 1000;">
+           <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 14px; height: 14px; border-radius: 50%; background-color: white;"></div>
+         </div>`
+      : `<div class="${pulseClass}" style="background-color: ${color}; width: ${size}; height: ${size}; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: ${borderWidth} solid white; box-shadow: ${shadow}; position: relative; z-index: 1000;"></div>`
 
   return L.divIcon({
     html: iconHtml,
     className: "custom-marker",
-    iconSize: [25, 25],
-    iconAnchor: [12, 12],
-    popupAnchor: [0, -12]
+    iconSize: type === "volunteer" ? [40, 40] : type === "user" ? [36, 36] : [34, 34],
+    iconAnchor: type === "volunteer" ? [20, 20] : type === "user" ? [18, 18] : [17, 17],
+    popupAnchor: type === "volunteer" ? [0, -20] : [0, -18]
   })
 }
 
@@ -138,6 +154,23 @@ const getIncidentColor = (status: string) => {
       return "#6b7280"
     default:
       return "#6b7280"
+  }
+}
+
+// Get volunteer color based on status
+const getVolunteerColor = (status?: string): string => {
+  if (!status) return "#10b981" // Default green for available
+  switch (status.toLowerCase()) {
+    case "available":
+      return "#22c55e" // Bright green
+    case "on_task":
+      return "#3b82f6" // Bright blue
+    case "offline":
+      return "#9ca3af" // Gray
+    case "unavailable":
+      return "#ef4444" // Red
+    default:
+      return "#10b981" // Default green
   }
 }
 
@@ -184,9 +217,26 @@ function VolunteerLocations({
     error
   } = useRealtimeVolunteerLocations({
     center: [center.lat, center.lng],
-    radiusKm: 10,
+    radiusKm: 50, // Increased radius to show all volunteers
     enabled: showVolunteerLocations
   })
+
+  // Debug logging
+  useEffect(() => {
+    if (showVolunteerLocations) {
+      console.log('[Map] Real-time volunteer locations:', {
+        count: volunteerLocations.length,
+        isConnected,
+        connectionStatus,
+        error,
+        volunteers: volunteerLocations.map(v => ({
+          id: v.user_id,
+          name: `${v.first_name} ${v.last_name}`,
+          position: [v.latitude, v.longitude]
+        }))
+      })
+    }
+  }, [volunteerLocations, isConnected, connectionStatus, error, showVolunteerLocations])
 
   // ✅ FIXED EFFECT - prevents infinite re-renders
   useEffect(() => {
@@ -215,15 +265,31 @@ function VolunteerLocations({
       )}
 
       {/* Volunteer Markers */}
+      {volunteerLocations.length === 0 && showVolunteerLocations && (
+        <div className="absolute bottom-4 left-4 z-[1000] bg-yellow-100 border border-yellow-300 rounded-lg p-3 max-w-sm">
+          <div className="flex items-center gap-2">
+            <div className="h-2 w-2 bg-yellow-500 rounded-full"></div>
+            <span className="text-sm text-yellow-700">No real-time locations found</span>
+          </div>
+          <p className="text-xs text-yellow-600 mt-1">
+            Status: {connectionStatus} | Connected: {isConnected ? 'Yes' : 'No'}
+            {error && ` | Error: ${error}`}
+          </p>
+        </div>
+      )}
       {volunteerLocations.map((volunteer) => {
         const prev = previousVolunteers.get(volunteer.user_id)
         const isNewOrMoved = !prev || prev.latitude !== volunteer.latitude || prev.longitude !== volunteer.longitude
+        
+        // Get status from volunteer data (check multiple possible fields)
+        const volunteerStatus = (volunteer as any).status || (volunteer as any).volunteer_status || 'available'
+        const volunteerColor = getVolunteerColor(volunteerStatus)
 
         return (
           <AnimatedMarker
             key={volunteer.user_id}
             position={[volunteer.latitude, volunteer.longitude]}
-            icon={createCustomIcon("#10b981", "volunteer", isNewOrMoved)}
+            icon={createCustomIcon(volunteerColor, "volunteer", isNewOrMoved, volunteerStatus)}
             animate={isNewOrMoved}
             duration={800}
           >
@@ -358,7 +424,7 @@ const MapInternal: React.FC<MapComponentProps> = ({
   const memoizedMarkers = useMemo(() => markers, [markers])
 
   return (
-    <div style={{ height, width: "100%" }} className="rounded-lg overflow-hidden shadow-md">
+    <div style={{ height, width: "100%" }} className="rounded-lg overflow-hidden shadow-md relative z-0">
       <MapContainer center={center} zoom={zoom} style={{ height: "100%", width: "100%" }} ref={mapRef}>
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -414,53 +480,62 @@ const MapInternal: React.FC<MapComponentProps> = ({
         {showHeatmap && <HeatmapOverlay />}
 
         {/* Incident markers */}
-        {memoizedMarkers.map((marker) => (
-          <AnimatedMarker
-            key={marker.id}
-            position={marker.position}
-            icon={createCustomIcon(getIncidentColor(marker.status), "incident")}
-            animate
-            duration={500}
-          >
-            <Popup>
-              <div className="p-2 min-w-[200px]">
-                <h3 className="font-semibold text-sm text-gray-900">{marker.title}</h3>
-                <p className="text-xs text-gray-600 mt-1">
-                  Status:{" "}
-                  <span
-                    className={`font-medium ${
-                      marker.status === "RESOLVED"
-                        ? "text-green-600"
-                        : marker.status === "RESPONDING"
-                        ? "text-blue-600"
-                        : marker.status === "ASSIGNED"
-                        ? "text-yellow-600"
-                        : marker.status === "PENDING"
-                        ? "text-red-600"
-                        : "text-gray-600"
-                    }`}
-                  >
-                    {marker.status}
-                  </span>
-                </p>
-                {marker.description && (
-                  <p className="text-xs text-gray-500 mt-1">{marker.description}</p>
-                )}
-                <p className="text-xs text-gray-500 mt-1">
-                  📍 {marker.position[0].toFixed(6)}, {marker.position[1].toFixed(6)}
-                </p>
-                {marker.onClick && (
-                  <button
-                    onClick={() => marker.onClick?.(marker.id)}
-                    className="mt-2 px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
-                  >
-                    View Details
-                  </button>
-                )}
-              </div>
-            </Popup>
-          </AnimatedMarker>
-        ))}
+        {memoizedMarkers.map((marker) => {
+          // Check if this is a volunteer marker (from fallback) or incident marker
+          const isVolunteerMarker = marker.id?.startsWith('volunteer_') || marker.id?.startsWith('history_')
+          const markerColor = isVolunteerMarker 
+            ? getVolunteerColor(marker.status?.toLowerCase() || 'available')
+            : getIncidentColor(marker.status)
+          const markerType = isVolunteerMarker ? "volunteer" : "incident"
+          
+          return (
+            <AnimatedMarker
+              key={marker.id}
+              position={marker.position}
+              icon={createCustomIcon(markerColor, markerType, false, marker.status?.toLowerCase())}
+              animate
+              duration={500}
+            >
+              <Popup>
+                <div className="p-2 min-w-[200px]">
+                  <h3 className="font-semibold text-sm text-gray-900">{marker.title}</h3>
+                  <p className="text-xs text-gray-600 mt-1">
+                    Status:{" "}
+                    <span
+                      className={`font-medium ${
+                        marker.status === "RESOLVED"
+                          ? "text-green-600"
+                          : marker.status === "RESPONDING"
+                          ? "text-blue-600"
+                          : marker.status === "ASSIGNED"
+                          ? "text-yellow-600"
+                          : marker.status === "PENDING"
+                          ? "text-red-600"
+                          : "text-gray-600"
+                      }`}
+                    >
+                      {marker.status}
+                    </span>
+                  </p>
+                  {marker.description && (
+                    <p className="text-xs text-gray-500 mt-1">{marker.description}</p>
+                  )}
+                  <p className="text-xs text-gray-500 mt-1">
+                    📍 {marker.position[0].toFixed(6)}, {marker.position[1].toFixed(6)}
+                  </p>
+                  {marker.onClick && (
+                    <button
+                      onClick={() => marker.onClick?.(marker.id)}
+                      className="mt-2 px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
+                    >
+                      View Details
+                    </button>
+                  )}
+                </div>
+              </Popup>
+            </AnimatedMarker>
+          )
+        })}
 
         {/* User and Volunteer Locations */}
         <UserLocation showUserLocation={userLocation} />

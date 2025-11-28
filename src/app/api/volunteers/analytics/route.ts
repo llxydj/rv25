@@ -246,11 +246,37 @@ export async function GET(request: Request) {
       }
 
       if (exportFormat === 'csv') {
-        const csv = exportVolunteerAnalyticsToCSV(normalized);
-        return new NextResponse(csv, {
+        // Use enhanced CSV utility
+        const { generateEnhancedCSV } = await import('@/lib/enhanced-csv-export')
+        
+        const csvData = [{
+          'Volunteer ID': normalized.volunteer_id || '',
+          'Volunteer Name': normalized.volunteer_name || '',
+          'Total Incidents': normalized.total_incidents || 0,
+          'Total Resolved': normalized.total_resolved || 0,
+          'Average Response Time (minutes)': normalized.average_response_time_minutes?.toString() || 'N/A',
+          'Incidents by Type': JSON.stringify(normalized.incidents_by_type || {}),
+          'Incidents by Severity': JSON.stringify(normalized.incidents_by_severity || {}),
+          'Incidents by Status': JSON.stringify(normalized.incidents_by_status || {}),
+          'Incidents by Barangay': JSON.stringify(normalized.incidents_by_barangay || {})
+        }]
+        
+        const headers = Object.keys(csvData[0])
+        const csv = generateEnhancedCSV(csvData, headers, {
+          organizationName: 'RVOIS - Rescue Volunteers Operations Information System',
+          reportTitle: 'Volunteer Analytics Report',
+          includeMetadata: true,
+          includeSummary: true
+        })
+        
+        // Add BOM for Excel compatibility
+        const BOM = '\uFEFF'
+        const csvWithBOM = BOM + csv
+        
+        return new NextResponse(csvWithBOM, {
           headers: {
-            'Content-Type': 'text/csv',
-            'Content-Disposition': `attachment; filename="volunteer-analytics-${volunteerId}.csv"`
+            'Content-Type': 'text/csv; charset=utf-8',
+            'Content-Disposition': `attachment; filename="volunteer-analytics-${volunteerId}-${new Date().toISOString().split('T')[0]}.csv"`
           }
         });
       }

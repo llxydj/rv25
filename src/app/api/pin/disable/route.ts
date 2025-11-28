@@ -21,6 +21,24 @@ export async function POST(request: Request) {
 
     const userId = userRes.user.id
 
+    // CRITICAL: Check if user is deactivated
+    const { data: userData, error: userCheckError } = await supabase
+      .from('users')
+      .select('status')
+      .eq('id', userId)
+      .single()
+
+    if (userCheckError || !userData) {
+      return NextResponse.json({ success: false, message: 'User not found' }, { status: 404 })
+    }
+
+    if ((userData as any).status === 'inactive') {
+      return NextResponse.json({ 
+        success: false, 
+        message: 'Your account has been deactivated. Please contact an administrator.' 
+      }, { status: 403 })
+    }
+
     // Disable PIN for user
     const { error: updateError } = await supabaseAdmin
       .from('users')

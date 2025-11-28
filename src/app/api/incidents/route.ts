@@ -571,7 +571,7 @@ export async function POST(request: Request) {
       priority: normalizedPriority,
       severity: mapPriorityToSeverity(String(normalizedPriority)),
       photo_url: primaryPhotoPath,
-      photo_urls: processedPhotoPaths.length ? processedPhotoPaths : null,
+      photo_urls: processedPhotoPaths.length ? processedPhotoPaths : [],
       voice_url: voice_url || null,
     }
 
@@ -727,6 +727,7 @@ export async function POST(request: Request) {
             console.log('⚠️ Skipping push notifications - incident will still be created')
           } else {
             // Prepare push payload (using relative URLs for production compatibility)
+            // Enhanced payload for persistent system alerts (works when app is closed)
             const payload = {
               title: '🚨 New Incident Reported',
               body: `${data.incident_type} in ${data.barangay}`,
@@ -738,16 +739,21 @@ export async function POST(request: Request) {
                 url: `/admin/incidents/${data.id}`, // Relative URL works in production
                 severity: data.severity,
                 type: 'incident_alert',
-                timestamp: Date.now()
+                user_role: 'admin', // Explicitly set role for proper routing
+                timestamp: Date.now(),
+                persistent: true // Mark as persistent for system alerts
               },
-              requireInteraction: true,
-              vibrate: [200, 100, 200],
+              requireInteraction: true, // Keep visible until user interacts
+              vibrate: [200, 100, 200], // Vibration pattern for mobile
               actions: [
-                { action: 'open', title: 'View Incident' },
+                { action: 'open', title: 'View Incident', icon: '/favicon/android-chrome-192x192.png' },
                 { action: 'close', title: 'Dismiss' }
               ],
               renotify: false,
-              silent: false
+              silent: false,
+              // Additional options for system-level alerts
+              priority: 'high', // High priority for critical alerts
+              timestamp: Date.now() // Explicit timestamp
             }
 
             // Configure webpush if not already configured (only set once per process)
@@ -804,9 +810,10 @@ export async function POST(request: Request) {
                 endpoint: sub.subscription?.endpoint?.substring(0, 50) || 'unknown'
               })
               
-              // If subscription expired (410), remove it from database
-              if (error.statusCode === 410) {
-                console.log(`[push] Removing expired subscription for admin ${sub.user_id}`)
+              // If subscription expired (410) or invalid (403), remove it from database
+              if (error.statusCode === 410 || error.statusCode === 403) {
+                const reason = error.statusCode === 410 ? 'expired' : 'invalid (VAPID key mismatch)'
+                console.log(`[push] Removing ${reason} subscription for admin ${sub.user_id}`)
                 try {
                   // Get the endpoint from subscription object
                   let subscriptionObj = sub.subscription
@@ -820,10 +827,10 @@ export async function POST(request: Request) {
                       .from('push_subscriptions')
                       .delete()
                       .eq('endpoint', endpoint)
-                    console.log(`[push] ✅ Removed expired subscription for admin ${sub.user_id}`)
+                    console.log(`[push] ✅ Removed ${reason} subscription for admin ${sub.user_id}`)
                   }
                 } catch (deleteError) {
-                  console.error('[push] Failed to delete expired subscription:', deleteError)
+                  console.error('[push] Failed to delete invalid subscription:', deleteError)
                 }
               }
               
@@ -890,18 +897,23 @@ export async function POST(request: Request) {
               tag: 'assignment_alert',
               data: {
                 incident_id: data.id,
-                url: `/volunteer/incident/${data.id}`,
+                url: `/volunteer/incidents/${data.id}`,
                 type: 'assignment_alert',
-                timestamp: Date.now()
+                user_role: 'volunteer', // Explicit role for proper routing
+                timestamp: Date.now(),
+                persistent: true // Mark as persistent system alert
               },
-              requireInteraction: true,
-              vibrate: [200, 100, 200],
+              requireInteraction: true, // Keep visible until user interacts
+              vibrate: [200, 100, 200], // Vibration for mobile alerts
               actions: [
-                { action: 'open', title: 'View Incident' },
+                { action: 'open', title: 'View Incident', icon: '/favicon/android-chrome-192x192.png' },
                 { action: 'close', title: 'Dismiss' }
               ],
               renotify: false,
-              silent: false
+              silent: false,
+              // Additional options for system-level alerts
+              priority: 'high', // High priority for critical assignments
+              timestamp: Date.now() // Explicit timestamp
             })
             console.log('✅ Push notification sent to auto-assigned volunteer')
           } catch (pushErr) {
@@ -1022,15 +1034,17 @@ export async function POST(request: Request) {
             .select('id, phone_number')
             .eq('role', 'admin')
             .not('phone_number', 'is', null)
+            .neq('phone_number', '')
 
           if (admins && admins.length > 0) {
             // Deduplicate by phone number to prevent sending multiple SMS to the same admin
             const uniqueAdmins = new Map<string, { id: string; phone: string }>()
             admins.forEach(admin => {
-              if (admin.phone_number) {
+              // Check for both null and empty string
+              if (admin.phone_number && admin.phone_number.trim() !== '') {
                 // Use normalized phone as key to catch duplicates in different formats
                 const normalized = admin.phone_number.replace(/[^\d+]/g, '')
-                if (!uniqueAdmins.has(normalized)) {
+                if (normalized.length > 0 && !uniqueAdmins.has(normalized)) {
                   uniqueAdmins.set(normalized, { id: admin.id, phone: admin.phone_number })
                 }
               }
@@ -1074,6 +1088,7 @@ export async function POST(request: Request) {
               .eq('role', 'barangay')
               .ilike('barangay', data.barangay)
               .not('phone_number', 'is', null)
+              .neq('phone_number', '')
               .single()
 
             if (barangaySecretary?.phone_number) {

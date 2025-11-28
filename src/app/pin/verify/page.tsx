@@ -42,7 +42,10 @@ export default function PinVerifyPage() {
         
         if (json.verified) {
           // Already verified, redirect immediately
-          router.replace(redirectTo) // Use replace to prevent back button issues
+          // Use a small delay to ensure cookie is fully set
+          setTimeout(() => {
+            router.replace(redirectTo) // Use replace to prevent back button issues
+          }, 50)
           return
         }
       } catch (error) {
@@ -56,10 +59,10 @@ export default function PinVerifyPage() {
       }
     }
 
-    // Add small delay to prevent race conditions
+    // Add small delay to prevent race conditions with cookie setting
     const timer = setTimeout(() => {
       checkVerified()
-    }, 100)
+    }, 200)
 
     return () => clearTimeout(timer)
   }, [router, redirectTo])
@@ -132,8 +135,43 @@ export default function PinVerifyPage() {
         return
       }
 
-      // Success - redirect
-      router.replace(redirectTo) // Use replace to prevent back button issues
+      // Success - verify cookie was set before redirecting
+      // This prevents race conditions where the cookie isn't immediately available
+      let attempts = 0
+      const maxAttempts = 10
+      const checkCookie = async () => {
+        try {
+          const verifyRes = await fetch('/api/pin/check-verified', {
+            credentials: 'include',
+            cache: 'no-store'
+          })
+          
+          if (verifyRes.ok) {
+            const verifyJson = await verifyRes.json()
+            if (verifyJson.verified) {
+              // Cookie is confirmed set, redirect
+              router.replace(redirectTo)
+              return
+            }
+          }
+          
+          // Cookie not set yet, retry
+          attempts++
+          if (attempts < maxAttempts) {
+            setTimeout(checkCookie, 100)
+          } else {
+            // Max attempts reached, redirect anyway (cookie should be set by now)
+            router.replace(redirectTo)
+          }
+        } catch (err) {
+          console.error('Error verifying cookie:', err)
+          // If check fails, redirect anyway (cookie should be set)
+          router.replace(redirectTo)
+        }
+      }
+      
+      // Start checking after a small delay
+      setTimeout(checkCookie, 150)
     } catch (err: any) {
       setError(err.message || 'Failed to verify PIN. Please try again.')
       setPin(['', '', '', ''])

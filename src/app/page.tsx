@@ -266,7 +266,7 @@ export default function Home() {
         </div>
 
         {/* Feedback (guarded by env flag) */}
-        {process.env.NEXT_PUBLIC_FEATURE_FEEDBACK_ENABLED === 'true' && (
+        {process.env.NEXT_PUBLIC_FEATURE_FEEDBACK_ENABLED !== 'false' && (
           <div className="mt-8">
             <Card className="p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Feedback</h3>

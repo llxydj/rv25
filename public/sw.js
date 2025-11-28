@@ -135,12 +135,21 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     Promise.all([
       // Show browser notification (works even when app is closed)
+      // CRITICAL: Enhanced options for system-level alerts on mobile devices
       self.registration.showNotification(notificationData.title, {
         body: notificationData.body,
         icon: notificationData.icon,
         badge: notificationData.badge,
         tag: notificationData.tag,
-        data: notificationData.data,
+        data: {
+          ...notificationData.data,
+          // Ensure data persists for click handling
+          url: notificationData.data?.url || notificationData.data?.incident_id ? 
+            (notificationData.data?.url || `/${notificationData.data?.user_role || 'admin'}/incidents/${notificationData.data?.incident_id}`) : 
+            '/',
+          timestamp: notificationData.timestamp,
+          persistent: true // Mark as persistent notification
+        },
         actions: notificationData.actions,
         vibrate: notificationData.vibrate,
         requireInteraction: notificationData.requireInteraction,
@@ -151,7 +160,11 @@ self.addEventListener('push', (event) => {
         dir: 'ltr',
         lang: 'en',
         // Add image if provided
-        image: notificationData.data?.image || undefined
+        image: notificationData.data?.image || undefined,
+        // Mobile-specific: Ensure notification appears on lock screen
+        // These options help with system-level alerts
+        priority: 'high', // High priority for system alerts
+        sticky: notificationData.requireInteraction || false // Keep visible until user interacts
       }).then(() => {
         console.log('[SW] ✅ Browser notification shown successfully (works when app closed):', notificationData.title);
         console.log('[SW] Notification details:', {
@@ -190,32 +203,56 @@ self.addEventListener('push', (event) => {
 
 // Notification click event - handle user interaction (ENHANCED for app closed scenarios)
 self.addEventListener('notificationclick', (event) => {
-  console.log('[SW] Notification clicked:', event.action);
+  console.log('[SW] 🔔 Notification clicked:', event.action);
+  console.log('[SW] Notification data:', event.notification.data);
   
   event.notification.close();
 
   // Handle different actions
   if (event.action === 'close') {
+    console.log('[SW] Notification dismissed by user');
     return;
   }
 
-  // Get the URL to open
+  // Get the URL to open - prioritize data.url, then construct from incident_id
   let urlToOpen = '/';
   
   if (event.notification.data) {
+    // First check for direct URL
     if (event.notification.data.url) {
       urlToOpen = event.notification.data.url;
-    } else if (event.notification.data.incident_id) {
-      // Determine role from data or default to volunteer
+      console.log('[SW] Opening URL from notification data:', urlToOpen);
+    } 
+    // Then check for incident_id and construct URL based on role
+    else if (event.notification.data.incident_id) {
+      // Determine role from data or try to infer from notification type
       const role = event.notification.data.user_role || 
                    event.notification.data.role || 
-                   'volunteer';
-      urlToOpen = `/${role}/incident/${event.notification.data.incident_id}`;
-    } else if (event.notification.data.type === 'incident_alert') {
-      // Default incident notification
+                   (event.notification.data.type === 'incident_alert' ? 'admin' : 'volunteer');
+      
+      // Construct appropriate URL based on role
+      if (role === 'admin') {
+        urlToOpen = `/admin/incidents/${event.notification.data.incident_id}`;
+      } else if (role === 'volunteer') {
+        urlToOpen = `/volunteer/incidents/${event.notification.data.incident_id}`;
+      } else if (role === 'resident') {
+        urlToOpen = `/resident/history`;
+      } else {
+        urlToOpen = `/admin/incidents/${event.notification.data.incident_id}`;
+      }
+      console.log('[SW] Constructed URL from incident_id:', urlToOpen, 'for role:', role);
+    } 
+    // Check notification type for default routing
+    else if (event.notification.data.type === 'incident_alert' || event.notification.tag === 'incident_alert') {
       urlToOpen = '/admin/incidents';
+      console.log('[SW] Opening admin incidents page for incident alert');
+    } else if (event.notification.data.type === 'assignment_alert') {
+      urlToOpen = '/volunteer/incidents';
+      console.log('[SW] Opening volunteer incidents page for assignment alert');
     }
   }
+  
+  console.log('[SW] Final URL to open:', urlToOpen);
 
   // CRITICAL: Ensure we open/focus window even when app is closed
   event.waitUntil(
@@ -324,15 +361,16 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// Background sync event (ENHANCED for keep-alive)
+// Background sync event (ENHANCED for keep-alive and persistence)
 self.addEventListener('sync', (event) => {
   console.log('[SW] Background sync triggered:', event.tag);
   
-  // Keep service worker active
+  // Keep service worker active (critical for push notification persistence)
   if (event.tag === 'keep-alive') {
     event.waitUntil(
       Promise.resolve().then(() => {
-        console.log('[SW] Keep-alive sync completed');
+        console.log('[SW] Keep-alive sync completed - service worker remains active');
+        // Service worker stays active for push notifications
       })
     );
   }
@@ -346,6 +384,16 @@ self.addEventListener('sync', (event) => {
     );
   }
 });
+
+// Periodic background sync for keep-alive (if supported)
+if ('periodicSync' in self.registration) {
+  self.addEventListener('periodicsync', (event) => {
+    if (event.tag === 'keep-alive') {
+      console.log('[SW] Periodic sync triggered - keeping service worker active');
+      event.waitUntil(Promise.resolve());
+    }
+  });
+}
 
 // Message event - handle messages from clients
 self.addEventListener('message', (event) => {

@@ -9,8 +9,8 @@ export default function SystemAnalyticsPage() {
   const router = useRouter()
 
   useEffect(() => {
-    // Redirect to comprehensive analytics (which now includes all system analytics features)
-    router.replace('/admin/analytics/comprehensive')
+    // Redirect to incidents analytics
+    router.replace('/admin/analytics/incidents')
   }, [router])
 
   return (

@@ -174,6 +174,9 @@ interface IncidentFromDB {
   assigned_to: AssignedToItem[];
 }
 
+// Import enhanced CSV utilities
+import { generateEnhancedCSV, formatDateForCSV, createSummaryStats } from './enhanced-csv-export'
+
 // Export incidents to CSV - ENHANCED with all fields
 export const exportIncidentsToCSV = async (startDate?: string, endDate?: string) => {
   try {
@@ -296,7 +299,7 @@ export const exportIncidentsToCSV = async (startDate?: string, endDate?: string)
         "Created At": new Date(incident.created_at).toLocaleString(),
         "Updated At": incident.updated_at ? new Date(incident.updated_at).toLocaleString() : "N/A",
         "Type": incident.incident_type,
-        "Description": incident.description || "",
+        "Description": (incident.description || "").replace(/\n/g, " ").replace(/\r/g, "").trim(),
         "Latitude": incident.location_lat,
         "Longitude": incident.location_lng,
         "Address": incident.address || "",
@@ -332,7 +335,34 @@ export const exportIncidentsToCSV = async (startDate?: string, endDate?: string)
       }
     })
 
-    return { success: true, data: csvData }
+    // Get headers from first data item
+    const headers = Object.keys(csvData[0] || [])
+    
+    // Create summary statistics
+    const summaryStats = createSummaryStats(csvData, 'Created At', ['Latitude', 'Longitude'])
+    
+    // Generate enhanced CSV with metadata
+    const enhancedCSV = generateEnhancedCSV(csvData, headers, {
+      organizationName: 'RVOIS - Rescue Volunteers Operations Information System',
+      reportTitle: 'Incident Report',
+      includeMetadata: true,
+      includeSummary: true,
+      metadata: {
+        'Report Period': startDate && endDate 
+          ? `${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}`
+          : 'All Time',
+        'Total Records': csvData.length.toString(),
+        ...(summaryStats.dateRange ? {
+          'Date Range': `${new Date(summaryStats.dateRange.start).toLocaleDateString()} - ${new Date(summaryStats.dateRange.end).toLocaleDateString()}`
+        } : {})
+      }
+    })
+
+    return { 
+      success: true, 
+      data: csvData,
+      csv: enhancedCSV // Include enhanced CSV string
+    }
   } catch (error: any) {
     return { success: false, message: error.message, data: [] }
   }

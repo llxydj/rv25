@@ -21,15 +21,23 @@ export async function POST(request: Request) {
 
     const userId = userRes.user.id
 
-    // Check if PIN is set
+    // Check if PIN is set and user status
     const { data: userData, error: userError } = await supabase
       .from('users')
-      .select('pin_hash')
+      .select('pin_hash, status')
       .eq('id', userId)
       .single()
 
     if (userError || !userData) {
       return NextResponse.json({ success: false, message: 'User not found' }, { status: 404 })
+    }
+
+    // CRITICAL: Check if user is deactivated
+    if ((userData as any).status === 'inactive') {
+      return NextResponse.json({ 
+        success: false, 
+        message: 'Your account has been deactivated. Please contact an administrator.' 
+      }, { status: 403 })
     }
 
     if (!userData.pin_hash) {

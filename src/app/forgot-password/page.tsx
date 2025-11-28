@@ -14,9 +14,9 @@ export default function ForgotPasswordPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
-  // 🔠 Auto-uppercase email input for data consistency
+  // Normalize email input (lowercase for consistency with Supabase Auth)
   const handleEmailChange = (value: string) => {
-    setEmail(value.toUpperCase())
+    setEmail(value.toLowerCase())
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -26,14 +26,28 @@ export default function ForgotPasswordPage() {
     setSuccess(false)
 
     try {
-      const result = await sendPasswordResetEmail(email)
+      // Normalize email before sending
+      const normalizedEmail = email.trim().toLowerCase()
+      
+      if (!normalizedEmail || !normalizedEmail.includes('@')) {
+        setError("Please enter a valid email address.")
+        setLoading(false)
+        return
+      }
+
+      console.log('[ForgotPasswordPage] Sending reset request for:', normalizedEmail)
+      const result = await sendPasswordResetEmail(normalizedEmail)
+      
       if (result.success) {
         setSuccess(true)
+        console.log('[ForgotPasswordPage] Reset email sent successfully')
       } else {
+        console.error('[ForgotPasswordPage] Failed to send reset email:', result.message)
         setError(result.message || "Failed to send password reset email. Please try again.")
       }
     } catch (err: any) {
-      setError(err.message || "An unexpected error occurred")
+      console.error('[ForgotPasswordPage] Unexpected error:', err)
+      setError(err.message || "An unexpected error occurred. Please try again later.")
     } finally {
       setLoading(false)
     }

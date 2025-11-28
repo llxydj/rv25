@@ -135,7 +135,7 @@ export function IncidentsFilter({ onFilterChange, barangays, incidentTypes }: In
     { value: status, set: setStatus, label: "All Statuses", options: STATUS_OPTIONS, name: 'status' as const },
     { value: incidentType, set: setIncidentType, label: "All Types", options: incidentTypes, name: 'incidentType' as const },
     { value: priority, set: setPriority, label: "All Priorities", options: PRIORITY_OPTIONS, name: 'priority' as const },
-    { value: dataFormat, set: setDataFormat, label: "All Formats", options: ["ALL", "CURRENT", "LEGACY"], name: 'dataFormat' as const }
+    { value: dataFormat, set: setDataFormat, label: "All Formats", options: ["ALL", "CURRENT"], name: 'dataFormat' as const }
   ], [barangay, status, incidentType, priority, dataFormat, barangays, incidentTypes])
 
   return (
