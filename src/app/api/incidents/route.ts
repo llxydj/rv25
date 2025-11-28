@@ -896,12 +896,12 @@ export async function POST(request: Request) {
         ? referenceResult.referenceId 
         : generateReferenceId(data.id) // Fallback to simple ID
       
-      console.log('📱 [SMS] Reference ID:', referenceId)
+      console.log('📱 [SMS] Reference ID:', referenceId);
       
       // Send SMS notifications in background (non-blocking)
       // This allows incident to be saved and displayed immediately
       // SMS will be sent asynchronously without blocking the response
-      (async () => {
+      ;(async () => {
         try {
           console.log('📱 [SMS] Background SMS task started')
           
