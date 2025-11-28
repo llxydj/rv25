@@ -288,8 +288,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
               }`}
               onClick={() => setSidebarOpen(false)}
             >
-              <MessageSquare className="h-5 w-5 flex-shrink-0 text-white" />
-              <span className="font-medium truncate text-white"></span>
+              <Phone className="h-5 w-5 flex-shrink-0 text-white" />
+              <span className="font-medium truncate text-white">SMS Management</span>
             </Link>
 
             <Link

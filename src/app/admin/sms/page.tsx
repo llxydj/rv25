@@ -295,8 +295,8 @@ export default function SMSManagementPage() {
                     <p>SMS configuration is managed through environment variables. Please ensure the following are set:</p>
                     <ul className="mt-2 list-disc list-inside space-y-1">
                       <li><code className="bg-yellow-100 px-1 rounded">SMS_ENABLED=true</code></li>
-                      <li><code className="bg-yellow-100 px-1 rounded">SMS_API_KEY=your_api_key</code></li>
-                      <li><code className="bg-yellow-100 px-1 rounded">SMS_API_URL=https://sms.iprogtech.com/</code></li>
+                      <li><code className="bg-yellow-100 px-1 rounded">SMS_API_KEY=your_api_token</code></li>
+                      <li><code className="bg-yellow-100 px-1 rounded">SMS_API_URL=https://www.iprogsms.com/api/v1/sms_messages</code></li>
                       <li><code className="bg-yellow-100 px-1 rounded">SMS_SENDER=iprogsms</code></li>
                     </ul>
                   </div>
