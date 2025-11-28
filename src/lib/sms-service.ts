@@ -78,9 +78,9 @@ export class SMSService {
 
     // Load SMS configuration from database with environment variable fallbacks
     this.config = {
-      apiUrl: process.env.SMS_API_URL || 'https://sms.iprogtech.com/api/v1/sms_messages',
+      apiUrl: process.env.SMS_API_URL || 'https://www.iprogsms.com/api/v1/sms_messages',
       apiKey: process.env.SMS_API_KEY || '',
-      sender: process.env.SMS_SENDER || 'iprogtech',
+      sender: process.env.SMS_SENDER || 'iprogsms',
       rateLimitPerMinute: parseInt(process.env.SMS_RATE_LIMIT_MINUTE || '10'),
       rateLimitPerHour: parseInt(process.env.SMS_RATE_LIMIT_HOUR || '100'),
       retryAttempts: parseInt(process.env.SMS_RETRY_ATTEMPTS || '1'),
@@ -88,15 +88,16 @@ export class SMSService {
       isEnabled: (process.env.SMS_ENABLED || 'true').toLowerCase() === 'true'
     }
 
-    // Only log in runtime, not during build
-    if (typeof window !== 'undefined' || process.env.NODE_ENV !== 'production' || process.env.VERCEL) {
-      console.log('📱 SMS Service Configuration Loaded:', {
-        apiUrl: this.config.apiUrl,
-        hasApiKey: !!this.config.apiKey,
-        sender: this.config.sender,
-        isEnabled: this.config.isEnabled
-      })
-    }
+    // Always log SMS configuration when initialized (important for debugging)
+    console.log('📱 SMS Service Configuration Loaded:', {
+      apiUrl: this.config.apiUrl,
+      hasApiKey: !!this.config.apiKey,
+      apiKeyLength: this.config.apiKey ? this.config.apiKey.length : 0,
+      sender: this.config.sender,
+      isEnabled: this.config.isEnabled,
+      dailyLimit: this.dailySMSLimit,
+      env: process.env.NODE_ENV
+    })
     
     // Validate API key on startup (non-blocking) - only at runtime
     if (this.config.isEnabled && this.config.apiKey) {
@@ -177,18 +178,40 @@ export class SMSService {
     }
   ): Promise<SMSDeliveryResult> {
     try {
+      console.log('📱 [SMS.sendSMS] Called with:', {
+        phoneNumber: phoneNumber ? phoneNumber.substring(0, 4) + '****' : 'MISSING',
+        templateCode,
+        incidentId: context.incidentId,
+        triggerSource: context.triggerSource
+      })
+      
       const config = this.getConfig()
+      
+      console.log('📱 [SMS.sendSMS] Config check:', {
+        isEnabled: config.isEnabled,
+        hasApiKey: !!config.apiKey,
+        apiUrl: config.apiUrl
+      })
+      
       // Check if SMS is enabled
       if (!config.isEnabled) {
-        console.log('SMS service is disabled')
+        console.log('📱 [SMS.sendSMS] SMS service is DISABLED (SMS_ENABLED != true)')
         return { success: false, error: 'SMS service disabled', retryable: false }
+      }
+      
+      if (!config.apiKey) {
+        console.log('📱 [SMS.sendSMS] SMS API key is MISSING (SMS_API_KEY not set)')
+        return { success: false, error: 'SMS API key not configured', retryable: false }
       }
 
       // Validate and normalize phone number
       const normalizedPhone = this.normalizePhoneNumber(phoneNumber)
       if (!normalizedPhone) {
+        console.log('📱 [SMS.sendSMS] Invalid phone number format:', phoneNumber)
         return { success: false, error: 'Invalid phone number', retryable: false }
       }
+      
+      console.log('📱 [SMS.sendSMS] Phone normalized:', normalizedPhone.substring(0, 4) + '****')
 
       // Use the normalized phone number for all operations
       const smsPhoneNumber = normalizedPhone
@@ -211,10 +234,13 @@ export class SMSService {
       }
 
       // Get template
+      console.log('📱 [SMS.sendSMS] Getting template:', templateCode)
       const template = await this.getTemplate(templateCode)
       if (!template) {
+        console.log('📱 [SMS.sendSMS] Template not found:', templateCode)
         return { success: false, error: 'Template not found', retryable: false }
       }
+      console.log('📱 [SMS.sendSMS] Template found:', template.name)
 
       // Render message
       const messageContent = this.renderTemplate(template.content, variables)
@@ -256,7 +282,13 @@ export class SMSService {
       return result
 
     } catch (error: any) {
-      console.error('SMS send error:', error)
+      console.error('📱 [SMS.sendSMS] EXCEPTION:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        stack: error.stack?.substring(0, 200)
+      })
       return {
         success: false,
         error: error.message || 'Unknown error',
@@ -326,6 +358,14 @@ export class SMSService {
       time: string
     }
   ): Promise<SMSDeliveryResult> {
+    console.log('📱 [SMS.sendIncidentConfirmation] Called:', {
+      incidentId,
+      referenceId,
+      hasPhone: !!residentPhone,
+      phonePreview: residentPhone ? residentPhone.substring(0, 4) + '****' : 'NONE',
+      incidentData
+    })
+    
     return this.sendSMS(
       residentPhone,
       'TEMPLATE_INCIDENT_CONFIRM',
@@ -578,9 +618,15 @@ export class SMSService {
 
   private async sendViaAPI(phoneNumber: string, message: string): Promise<SMSDeliveryResult> {
     try {
+      console.log('📱 [SMS.sendViaAPI] Starting API call:', {
+        phonePreview: phoneNumber.substring(0, 4) + '****',
+        messageLength: message.length
+      })
+      
       const config = this.getConfig()
       // Validate configuration
       if (!config.apiKey) {
+        console.log('📱 [SMS.sendViaAPI] API key missing!')
         return {
           success: false,
           error: 'SMS API key not configured',
@@ -588,11 +634,14 @@ export class SMSService {
         }
       }
 
-      // Prepare the API request
+      console.log('📱 [SMS.sendViaAPI] Calling:', config.apiUrl)
+
+      // Prepare the API request (iProgSMS API format)
+      // API expects: api_token, phone_number, message
+      // Phone format: 639XXXXXXXXX (12 digits)
       const payload = new URLSearchParams({
         api_token: config.apiKey,
-        sender: config.sender,
-        number: phoneNumber,
+        phone_number: phoneNumber,
         message: message
       })
 
@@ -611,6 +660,12 @@ export class SMSService {
 
           const responseText = await response.text()
           
+          console.log('📱 [SMS.sendViaAPI] Response:', {
+            status: response.status,
+            ok: response.ok,
+            responseText: responseText.substring(0, 200)
+          })
+          
           // Try to parse JSON response
           let responseData: any
           try {
@@ -623,12 +678,14 @@ export class SMSService {
           // Treat success responses and 'queued for delivery' as successful
           if (response.ok && (responseData.success || responseData.status === 'success' || 
               (typeof responseData.message === 'string' && responseData.message.toLowerCase().includes('queued for delivery')))) {
+            console.log('📱 [SMS.sendViaAPI] SUCCESS!')
             return {
               success: true,
               messageId: responseData.message_id || responseData.id,
               retryable: false
             }
           } else {
+            console.log('📱 [SMS.sendViaAPI] API returned error:', responseData)
             lastError = new Error(responseData.message || responseData.error || `HTTP ${response.status}: ${response.statusText}`)
             
             // If this is the last attempt, return the error
@@ -679,30 +736,63 @@ export class SMSService {
   private normalizePhoneNumber(phoneNumber: string): string | null {
     if (!phoneNumber) return null
     
-    // Remove all non-digit characters except +
-    let normalized = phoneNumber.replace(/[^\d+]/g, '')
+    // Remove all non-digit characters (spaces, dashes, parentheses, +, etc.)
+    let normalized = phoneNumber.replace(/\D/g, '')
     
-    // Handle different formats
-    if (normalized.startsWith('+63')) {
-      normalized = '0' + normalized.substring(3)
-    } else if (normalized.startsWith('63')) {
-      normalized = '0' + normalized.substring(2)
+    console.log('📱 [SMS] Normalizing phone:', { original: phoneNumber, digitsOnly: normalized })
+    
+    // Handle various Philippine phone number formats:
+    // +639XXXXXXXXX → 639XXXXXXXXX (13 digits with +)
+    // 639XXXXXXXXX  → 639XXXXXXXXX (12 digits) ✓
+    // 09XXXXXXXXX   → 639XXXXXXXXX (11 digits)
+    // 9XXXXXXXXX    → 639XXXXXXXXX (10 digits, missing leading 0)
+    
+    if (normalized.length === 13 && normalized.startsWith('63')) {
+      // Has extra digit, might be typo - try trimming
+      normalized = normalized.substring(0, 12)
+    } else if (normalized.length === 12 && normalized.startsWith('63')) {
+      // Already in correct format: 639XXXXXXXXX
+      // Keep as is
+    } else if (normalized.length === 11 && normalized.startsWith('09')) {
+      // Local format: 09XXXXXXXXX → 639XXXXXXXXX
+      normalized = '63' + normalized.substring(1)
+    } else if (normalized.length === 11 && normalized.startsWith('9')) {
+      // Missing country code but has 0: 9XXXXXXXXX... wait this is 11 digits starting with 9
+      // This is ambiguous, could be 09... with missing 0 or something else
+      // Assume it's local format missing the leading 0
+      normalized = '63' + normalized
+    } else if (normalized.length === 10 && normalized.startsWith('9')) {
+      // 10 digits starting with 9: 9XXXXXXXXX → 639XXXXXXXXX
+      normalized = '63' + normalized
+    } else if (normalized.length === 10 && normalized.startsWith('0')) {
+      // 10 digits starting with 0: might be missing a digit
+      // Try: 09XXXXXXXX → assume missing last digit, invalid
+      console.log('📱 [SMS] Invalid: 10 digits starting with 0')
+      return null
+    } else {
+      // Invalid format
+      console.log('📱 [SMS] Invalid phone format:', { length: normalized.length, prefix: normalized.substring(0, 2) })
+      return null
     }
     
-    // Validate Philippine mobile number format
-    if (normalized.startsWith('09') && normalized.length === 11) {
+    // Final validation: must be 12 digits starting with 639
+    if (normalized.length === 12 && normalized.startsWith('639')) {
+      console.log('📱 [SMS] Phone normalized:', normalized.substring(0, 4) + '****' + normalized.substring(10))
       return normalized
     }
     
-    // Invalid format
+    console.log('📱 [SMS] Final validation failed:', { length: normalized.length, starts639: normalized.startsWith('639') })
     return null
   }
 
   private maskPhoneNumber(phoneNumber: string): string {
     if (!phoneNumber) return 'N/A'
     
-    // Show only last 4 digits
-    return phoneNumber.replace(/^(09\d{5})\d{3}(\d{3})$/, '$1***$2')
+    // Show first 4 and last 2 digits (works with 63XXXXXXXXXX format)
+    if (phoneNumber.length >= 8) {
+      return phoneNumber.substring(0, 4) + '****' + phoneNumber.substring(phoneNumber.length - 2)
+    }
+    return phoneNumber.substring(0, 2) + '****'
   }
 
   private async getTemplate(templateCode: string): Promise<SMSTemplate | null> {

@@ -5,10 +5,10 @@
 Add the following environment variables to your `.env.local` file:
 
 ```bash
-# SMS Service Configuration
+# SMS Service Configuration (iProgSMS API)
 SMS_ENABLED=true
-SMS_API_URL=https://sms.iprogtech.com/
-SMS_API_KEY=your_iprogtech_api_key_here
+SMS_API_URL=https://www.iprogsms.com/api/v1/sms_messages
+SMS_API_KEY=your_iprogsms_api_token_here
 SMS_SENDER=iprogsms
 
 # SMS Rate Limiting

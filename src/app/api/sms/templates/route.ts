@@ -28,13 +28,14 @@ async function verifyAdminAccess(request: NextRequest) {
       return { authorized: false, error: 'Unauthorized', status: 401 }
     }
 
-    const { data: adminProfile } = await supabase
-      .from('admin_profiles')
-      .select('id')
-      .eq('user_id', user.id)
-      .single()
+    // Check users table for admin role (consistent with other admin routes)
+    const { data: userData } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle()
 
-    if (!adminProfile) {
+    if (!userData || userData.role !== 'admin') {
       return { authorized: false, error: 'Admin access required', status: 403 }
     }
 

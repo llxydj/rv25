@@ -885,6 +885,8 @@ export async function POST(request: Request) {
 
     // SMS Fallback: Send confirmation SMS to resident and critical alerts
     try {
+      console.log('📱 [SMS] Starting SMS notification process for incident:', data.id)
+      
       const { smsService } = await import('@/lib/sms-service')
       const { referenceIdService } = await import('@/lib/reference-id-service')
       
@@ -894,11 +896,15 @@ export async function POST(request: Request) {
         ? referenceResult.referenceId 
         : generateReferenceId(data.id) // Fallback to simple ID
       
+      console.log('📱 [SMS] Reference ID:', referenceId)
+      
       // Send SMS notifications in background (non-blocking)
       // This allows incident to be saved and displayed immediately
       // SMS will be sent asynchronously without blocking the response
       (async () => {
         try {
+          console.log('📱 [SMS] Background SMS task started')
+          
           // Get resident phone number - ALWAYS send confirmation to reporter
           const { data: resident, error: residentError } = await supabase
             .from('users')
@@ -907,9 +913,19 @@ export async function POST(request: Request) {
             .single()
 
           if (residentError) {
-            console.error('❌ Error fetching resident for SMS:', residentError.message)
-          } else if (resident?.phone_number) {
-            console.log('📱 Attempting to send SMS confirmation to resident:', {
+            console.error('❌ [SMS] Error fetching resident:', residentError.message)
+          } else {
+            console.log('📱 [SMS] Resident data retrieved:', {
+              hasResident: !!resident,
+              hasPhone: !!resident?.phone_number,
+              phonePreview: resident?.phone_number ? resident.phone_number.substring(0, 4) + '****' : 'NONE',
+              email: resident?.email || 'N/A',
+              name: `${resident?.first_name || ''} ${resident?.last_name || ''}`.trim() || 'N/A'
+            })
+          }
+          
+          if (resident?.phone_number) {
+            console.log('📱 [SMS] Attempting to send SMS confirmation to resident:', {
               phoneNumber: resident.phone_number,
               residentId: data.reporter_id,
               residentName: `${resident.first_name || ''} ${resident.last_name || ''}`.trim() || resident.email,
@@ -933,26 +949,36 @@ export async function POST(request: Request) {
               }
             )
 
+            console.log('📱 [SMS] SMS Result:', smsResult)
+            
             if (smsResult.success) {
-              console.log('✅ SMS confirmation sent to resident:', {
+              console.log('✅ [SMS] SMS confirmation sent to resident:', {
                 phone: resident.phone_number.substring(0, 4) + '****',
                 referenceId
               })
             } else {
-              console.error('❌ SMS confirmation failed:', {
+              console.error('❌ [SMS] SMS confirmation FAILED:', {
                 error: smsResult.error,
                 retryable: smsResult.retryable,
                 phoneNumber: resident.phone_number.substring(0, 4) + '****',
                 residentId: data.reporter_id,
                 incidentType: data.incident_type,
-                barangay: data.barangay
+                barangay: data.barangay,
+                possibleCauses: [
+                  'SMS_ENABLED != true',
+                  'SMS_API_KEY not configured',
+                  'Phone number not in format 09XXXXXXXXX',
+                  'Rate limit exceeded',
+                  'Template not found'
+                ]
               })
             }
           } else {
-            console.log('⚠️ No phone number found for resident:', {
+            console.log('⚠️ [SMS] No phone number found for resident:', {
               residentId: data.reporter_id,
               hasPhone: !!resident?.phone_number,
-              email: resident?.email || 'N/A'
+              email: resident?.email || 'N/A',
+              hint: 'Resident must have a phone number in format 09XXXXXXXXX to receive SMS'
             })
           }
 
