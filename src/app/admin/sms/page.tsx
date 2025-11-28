@@ -5,6 +5,7 @@
 import React, { useState, useEffect } from 'react'
 import { Card, Button, LoadingSpinner, ErrorState, DataTable, FormField } from '@/components/ui/enhanced-components'
 import { SMSMonitoringDashboard } from '@/components/admin/sms-monitoring-dashboard'
+import { AdminLayout } from '@/components/layout/admin-layout'
 
 interface SMSTemplate {
   id: string
@@ -196,9 +197,10 @@ export default function SMSManagementPage() {
   ]
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">SMS Management</h1>
+    <AdminLayout>
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-bold text-gray-900">SMS Management</h1>
         <div className="flex space-x-2">
           <Button
             variant={activeTab === 'monitoring' ? 'primary' : 'outline'}
@@ -306,7 +308,8 @@ export default function SMSManagementPage() {
           </div>
         </Card>
       )}
-    </div>
+      </div>
+    </AdminLayout>
   )
 }
 

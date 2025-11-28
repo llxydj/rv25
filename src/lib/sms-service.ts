@@ -42,6 +42,7 @@ export interface SMSConfig {
 export interface SMSDeliveryResult {
   success: boolean
   messageId?: string
+  statusLink?: string | null
   error?: string
   retryable: boolean
 }
@@ -119,41 +120,14 @@ export class SMSService {
   
   /**
    * Validate SMS API key by checking API connectivity
+   * Note: iProgSMS doesn't have a status endpoint, so this validation is skipped
+   * The API key will be validated on the first actual SMS send
    */
   private async validateAPIKey(): Promise<boolean> {
-    try {
-      // Try a simple API call to validate key
-      // Most SMS APIs have a status/balance endpoint
-      // Note: this.config is guaranteed to be set since this is called from ensureInitialized
-      const testUrl = this.config!.apiUrl.replace('/sms_messages', '/status')
-      
-      const response = await fetch(testUrl, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${this.config!.apiKey}`,
-          'Content-Type': 'application/json'
-        },
-        // Timeout after 5 seconds
-        signal: AbortSignal.timeout(5000)
-      })
-      
-      if (response.ok) {
-        console.log('✅ SMS API key validated successfully')
-        return true
-      } else {
-        console.warn('⚠️ SMS API key validation returned non-OK status:', response.status)
-        return false
-      }
-    } catch (error: any) {
-      // Don't fail if validation fails - API might not have status endpoint
-      // Just log a warning
-      if (error.name === 'AbortError') {
-        console.warn('⚠️ SMS API validation timeout (API might not have status endpoint)')
-      } else {
-        console.warn('⚠️ SMS API validation failed (non-critical):', error.message)
-      }
-      return false
-    }
+    // Skip validation - iProgSMS API doesn't have a status/balance endpoint
+    // The API key will be validated when we actually send an SMS
+    // This prevents unnecessary 404 warnings during initialization
+    return true
   }
 
   static getInstance(): SMSService {
@@ -263,13 +237,30 @@ export class SMSService {
       // Send SMS via API using the normalized phone number
       const result = await this.sendViaAPI(smsPhoneNumber, messageContent)
 
-      // Update log with result
+      // Update log with result (include status link for delivery verification)
       await this.updateSMSLog(smsLog.id, {
         api_response_status: result.success ? '200 OK' : 'ERROR',
-        delivery_status: result.success ? 'SUCCESS' : 'FAILED',
+        delivery_status: result.success ? 'PENDING' : 'FAILED', // Set to PENDING if queued, will be verified later
         error_message: result.error,
-        api_response: result
+        api_response: {
+          ...result,
+          statusLink: result.statusLink,
+          messageId: result.messageId,
+          timestamp: new Date().toISOString()
+        }
       })
+      
+      // If SMS was queued, schedule a delivery status check (after 30 seconds)
+      if (result.success && result.statusLink) {
+        // Schedule async delivery status check
+        setTimeout(async () => {
+          try {
+            await this.checkDeliveryStatus(smsLog.id, result.statusLink!)
+          } catch (err) {
+            console.error('📱 [SMS] Error checking delivery status:', err)
+          }
+        }, 30000) // Check after 30 seconds
+      }
 
       // Update rate limit tracker
       this.updateRateLimit(smsPhoneNumber)
@@ -679,9 +670,17 @@ export class SMSService {
           if (response.ok && (responseData.success || responseData.status === 'success' || 
               (typeof responseData.message === 'string' && responseData.message.toLowerCase().includes('queued for delivery')))) {
             console.log('📱 [SMS.sendViaAPI] SUCCESS!')
+            
+            // Store status link for delivery verification
+            const statusLink = responseData.message_status_link || null
+            if (statusLink) {
+              console.log('📱 [SMS] Status link available for delivery check:', statusLink.substring(0, 80) + '...')
+            }
+            
             return {
               success: true,
               messageId: responseData.message_id || responseData.id,
+              statusLink: statusLink,
               retryable: false
             }
           } else {
@@ -798,6 +797,7 @@ export class SMSService {
   private async getTemplate(templateCode: string): Promise<SMSTemplate | null> {
     // First try to get from database
     try {
+      this.ensureInitialized()
       const { data, error } = await this.supabaseAdmin
         .from('sms_templates')
         .select('*')
@@ -958,6 +958,7 @@ export class SMSService {
 
   private async isDuplicateSend(incidentId: string, triggerSource: string): Promise<boolean> {
     try {
+      this.ensureInitialized()
       const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
       
       const { data, error } = await this.supabaseAdmin
@@ -977,6 +978,7 @@ export class SMSService {
 
   private async createSMSLog(logData: Partial<SMSLog>): Promise<SMSLog> {
     try {
+      this.ensureInitialized()
       const { data, error } = await this.supabaseAdmin
         .from('sms_logs')
         .insert(logData)
@@ -993,6 +995,7 @@ export class SMSService {
 
   private async updateSMSLog(logId: string, updates: Partial<SMSLog>): Promise<void> {
     try {
+      this.ensureInitialized()
       const { error } = await this.supabaseAdmin
         .from('sms_logs')
         .update(updates)
@@ -1019,6 +1022,9 @@ export class SMSService {
     }>
   }> {
     try {
+      // Ensure supabaseAdmin is initialized
+      this.ensureInitialized()
+      
       const { data: logs } = await this.supabaseAdmin
         .from('sms_logs')
         .select('delivery_status, timestamp_sent')
@@ -1198,8 +1204,123 @@ export class SMSService {
     }
   }
 
+  /**
+   * Check delivery status of an SMS using the status link from the API response
+   */
+  async checkDeliveryStatus(logId: string, statusLink: string): Promise<void> {
+    try {
+      console.log(`📱 [SMS] Checking delivery status for log ${logId}...`)
+      
+      const response = await fetch(statusLink, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        signal: AbortSignal.timeout(10000) // 10 second timeout
+      })
+
+      if (!response.ok) {
+        console.warn(`📱 [SMS] Status check failed: HTTP ${response.status}`)
+        return
+      }
+
+      const responseText = await response.text()
+      let statusData: any
+      
+      try {
+        statusData = JSON.parse(responseText)
+      } catch {
+        console.warn('📱 [SMS] Status response is not JSON:', responseText.substring(0, 100))
+        return
+      }
+
+      // Check delivery status from API response
+      // iProgSMS typically returns: { status: 'delivered' | 'pending' | 'failed', ... }
+      const deliveryStatus = statusData.status || statusData.delivery_status || statusData.message_status
+      
+      let dbStatus: 'PENDING' | 'SUCCESS' | 'FAILED' = 'PENDING'
+      
+      if (deliveryStatus) {
+        const statusLower = deliveryStatus.toLowerCase()
+        if (statusLower.includes('delivered') || statusLower.includes('completed') || statusLower === 'success') {
+          dbStatus = 'SUCCESS'
+          console.log(`📱 [SMS] ✅ SMS ${logId} confirmed as DELIVERED`)
+        } else if (statusLower.includes('failed') || statusLower.includes('error') || statusLower === 'rejected') {
+          dbStatus = 'FAILED'
+          console.log(`📱 [SMS] ❌ SMS ${logId} marked as FAILED: ${deliveryStatus}`)
+        } else {
+          console.log(`📱 [SMS] ⏳ SMS ${logId} still PENDING: ${deliveryStatus}`)
+        }
+      }
+
+      // Update SMS log with actual delivery status
+      await this.updateSMSLog(logId, {
+        delivery_status: dbStatus,
+        api_response: {
+          ...statusData,
+          lastChecked: new Date().toISOString()
+        }
+      })
+
+    } catch (error: any) {
+      console.error(`📱 [SMS] Error checking delivery status for ${logId}:`, error.message)
+      // Don't throw - this is a background check, shouldn't fail the main flow
+    }
+  }
+
+  /**
+   * Check delivery status for a specific phone number (for manual verification)
+   */
+  async checkDeliveryStatusByPhone(phoneNumber: string): Promise<Array<{
+    logId: string
+    incidentId: string
+    referenceId: string
+    status: string
+    timestamp: string
+  }>> {
+    try {
+      this.ensureInitialized()
+      // Get SMS logs for this phone number
+      const { data: logs } = await this.supabaseAdmin
+        .from('sms_logs')
+        .select('id, incident_id, reference_id, delivery_status, timestamp_sent, api_response')
+        .ilike('phone_masked', `%${phoneNumber.slice(-4)}%`) // Match last 4 digits
+        .order('timestamp_sent', { ascending: false })
+        .limit(10)
+
+      if (!logs || logs.length === 0) {
+        return []
+      }
+
+      // Check status for each log that has a status link
+      const results = await Promise.allSettled(
+        logs.map(async (log: any) => {
+          const statusLink = log.api_response?.statusLink
+          if (statusLink) {
+            await this.checkDeliveryStatus(log.id, statusLink)
+          }
+          return {
+            logId: log.id,
+            incidentId: log.incident_id,
+            referenceId: log.reference_id,
+            status: log.delivery_status,
+            timestamp: log.timestamp_sent
+          }
+        })
+      )
+
+      return results
+        .filter(r => r.status === 'fulfilled')
+        .map(r => (r as PromiseFulfilledResult<any>).value)
+    } catch (error: any) {
+      console.error('📱 [SMS] Error checking delivery status by phone:', error)
+      return []
+    }
+  }
+
   private async unmaskPhoneNumber(maskedPhone: string, userId: string): Promise<string | null> {
     try {
+      this.ensureInitialized()
       // Fetch actual phone number from user record
       const { data: user, error } = await this.supabaseAdmin
         .from('users')

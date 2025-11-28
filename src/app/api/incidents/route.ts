@@ -11,6 +11,10 @@ import webpush from 'web-push'
 
 export const dynamic = 'force-dynamic'
 
+// Note: web-push library uses deprecated url.parse() which generates a deprecation warning
+// This is a known issue in the web-push library and will be fixed in a future update
+// The warning is harmless and doesn't affect functionality
+
 // Helper function to get required skills for incident type
 function getRequiredSkillsForIncidentType(incidentType: string): string[] {
   const skillMapping: Record<string, string[]> = {
@@ -781,13 +785,23 @@ export async function POST(request: Request) {
               })
               
               // If subscription expired (410), remove it from database
-              if (error.statusCode === 410 && sub.subscription?.endpoint) {
+              if (error.statusCode === 410) {
                 console.log(`[push] Removing expired subscription for admin ${sub.user_id}`)
                 try {
-                  await supabase
-                    .from('push_subscriptions')
-                    .delete()
-                    .eq('endpoint', sub.subscription.endpoint)
+                  // Get the endpoint from subscription object
+                  let subscriptionObj = sub.subscription
+                  if (typeof subscriptionObj === 'string') {
+                    subscriptionObj = JSON.parse(subscriptionObj)
+                  }
+                  const endpoint = subscriptionObj?.endpoint || sub.endpoint
+                  
+                  if (endpoint) {
+                    await supabase
+                      .from('push_subscriptions')
+                      .delete()
+                      .eq('endpoint', endpoint)
+                    console.log(`[push] ✅ Removed expired subscription for admin ${sub.user_id}`)
+                  }
                 } catch (deleteError) {
                   console.error('[push] Failed to delete expired subscription:', deleteError)
                 }
@@ -990,8 +1004,20 @@ export async function POST(request: Request) {
             .not('phone_number', 'is', null)
 
           if (admins && admins.length > 0) {
-            const adminPhones = admins.map(admin => admin.phone_number).filter(Boolean)
-            const adminUserIds = admins.map(admin => admin.id)
+            // Deduplicate by phone number to prevent sending multiple SMS to the same admin
+            const uniqueAdmins = new Map<string, { id: string; phone: string }>()
+            admins.forEach(admin => {
+              if (admin.phone_number) {
+                // Use normalized phone as key to catch duplicates in different formats
+                const normalized = admin.phone_number.replace(/[^\d+]/g, '')
+                if (!uniqueAdmins.has(normalized)) {
+                  uniqueAdmins.set(normalized, { id: admin.id, phone: admin.phone_number })
+                }
+              }
+            })
+
+            const adminPhones = Array.from(uniqueAdmins.values()).map(admin => admin.phone)
+            const adminUserIds = Array.from(uniqueAdmins.values()).map(admin => admin.id)
 
             if (adminPhones.length > 0) {
               const adminSMSResult = await smsService.sendAdminCriticalAlert(
