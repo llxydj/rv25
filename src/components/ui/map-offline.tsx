@@ -7,6 +7,7 @@ import "leaflet/dist/leaflet.css"
 import { TALISAY_CENTER } from "@/lib/geo-utils"
 import { offlineStorageService } from "@/lib/offline-storage"
 import { WifiOff, Download, AlertCircle } from "lucide-react"
+import { createCustomIcon, getIncidentColor, createVolunteerIcon, createUserIcon } from "@/lib/map-icons"
 
 interface MapOfflineProps {
   center?: [number, number]
@@ -28,32 +29,6 @@ interface MapOfflineProps {
   showVolunteerLocations?: boolean
 }
 
-// Custom marker icons
-const createCustomIcon = (color: string, type: 'incident' | 'volunteer' | 'user') => {
-  const iconHtml = type === 'volunteer' 
-    ? `<div style="background-color: ${color}; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`
-    : `<div style="background-color: ${color}; width: 25px; height: 25px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`
-  
-  return L.divIcon({
-    html: iconHtml,
-    className: 'custom-marker',
-    iconSize: [25, 25],
-    iconAnchor: [12, 12],
-    popupAnchor: [0, -12]
-  })
-}
-
-// Incident status colors
-const getIncidentColor = (status: string) => {
-  switch (status) {
-    case 'PENDING': return '#ef4444'
-    case 'ASSIGNED': return '#f59e0b'
-    case 'RESPONDING': return '#3b82f6'
-    case 'RESOLVED': return '#10b981'
-    case 'CANCELLED': return '#6b7280'
-    default: return '#6b7280'
-  }
-}
 
 // Offline tile layer component
 function OfflineTileLayer() {
@@ -346,20 +321,30 @@ export function MapOffline({
           <Marker
             key={marker.id}
             position={marker.position}
-            icon={createCustomIcon(getIncidentColor(marker.status), 'incident')}
+            icon={createCustomIcon(getIncidentColor(marker.status), 'incident', marker.status)}
             eventHandlers={{
               click: () => marker.onClick?.(marker.id)
             }}
           >
-            <Popup>
-              <div className="p-2">
-                <h3 className="font-semibold text-sm">{marker.title}</h3>
-                <p className="text-xs text-gray-600 capitalize">{marker.status.toLowerCase()}</p>
+            <Popup className="incident-popup">
+              <div className="p-3 min-w-[200px]">
+                <h3 className="font-semibold text-base text-gray-900 mb-1">{marker.title}</h3>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${
+                    marker.status === 'PENDING' ? 'bg-red-100 text-red-800' :
+                    marker.status === 'ASSIGNED' ? 'bg-amber-100 text-amber-800' :
+                    marker.status === 'RESPONDING' ? 'bg-blue-100 text-blue-800' :
+                    marker.status === 'RESOLVED' ? 'bg-green-100 text-green-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {marker.status}
+                  </span>
+                </div>
                 {marker.description && (
-                  <p className="text-xs text-gray-500 mt-1">{marker.description}</p>
+                  <p className="text-sm text-gray-700 mt-2 mb-2 leading-relaxed">{marker.description}</p>
                 )}
-                <p className="text-xs text-gray-400 mt-1">
-                  {marker.position[0].toFixed(6)}, {marker.position[1].toFixed(6)}
+                <p className="text-xs text-gray-500 mt-2 pt-2 border-t border-gray-200">
+                  📍 {marker.position[0].toFixed(6)}, {marker.position[1].toFixed(6)}
                 </p>
               </div>
             </Popup>
@@ -371,15 +356,21 @@ export function MapOffline({
           <Marker
             key={incident.id}
             position={[incident.location_lat, incident.location_lng]}
-            icon={createCustomIcon('#f59e0b', 'incident')}
+            icon={createCustomIcon('#f59e0b', 'incident', 'ASSIGNED')}
           >
-            <Popup>
-              <div className="p-2">
-                <h3 className="font-semibold text-sm">{incident.incident_type}</h3>
-                <p className="text-xs text-yellow-600">Offline - Pending Sync</p>
-                <p className="text-xs text-gray-500 mt-1">{incident.description}</p>
-                <p className="text-xs text-gray-400 mt-1">
-                  {incident.location_lat.toFixed(6)}, {incident.location_lng.toFixed(6)}
+            <Popup className="incident-popup">
+              <div className="p-3 min-w-[200px]">
+                <h3 className="font-semibold text-base text-gray-900 mb-1">{incident.incident_type}</h3>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="inline-block px-2 py-1 rounded text-xs font-medium bg-amber-100 text-amber-800">
+                    Offline - Pending Sync
+                  </span>
+                </div>
+                {incident.description && (
+                  <p className="text-sm text-gray-700 mt-2 mb-2 leading-relaxed">{incident.description}</p>
+                )}
+                <p className="text-xs text-gray-500 mt-2 pt-2 border-t border-gray-200">
+                  📍 {incident.location_lat.toFixed(6)}, {incident.location_lng.toFixed(6)}
                 </p>
               </div>
             </Popup>
@@ -390,13 +381,13 @@ export function MapOffline({
         {userLocationState && (
           <Marker
             position={userLocationState}
-            icon={createCustomIcon('#3b82f6', 'user')}
+            icon={createUserIcon()}
           >
-            <Popup>
-              <div className="p-2">
-                <h3 className="font-semibold text-sm">Your Location</h3>
-                <p className="text-xs text-gray-500">
-                  {userLocationState[0].toFixed(6)}, {userLocationState[1].toFixed(6)}
+            <Popup className="user-location-popup">
+              <div className="p-3 min-w-[180px]">
+                <h3 className="font-semibold text-base text-gray-900 mb-1">Your Location</h3>
+                <p className="text-sm text-gray-600 mt-2">
+                  📍 {userLocationState[0].toFixed(6)}, {userLocationState[1].toFixed(6)}
                 </p>
               </div>
             </Popup>

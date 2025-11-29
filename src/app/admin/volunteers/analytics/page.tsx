@@ -11,6 +11,7 @@ import {
   TrendingDown, AlertCircle, Star, Award as AwardIcon, Brain, ArrowUp, ArrowDown, Minus
 } from "lucide-react"
 import { toast } from "sonner"
+import { VolunteerInsightsCard } from "@/components/admin/volunteer-insights-card"
 import {
   BarChart,
   Bar,
@@ -160,6 +161,9 @@ export default function VolunteerAnalyticsPage() {
             </p>
           </div>
         </div>
+
+        {/* Enhanced Insights Card - Shows aggregate insights */}
+        <VolunteerInsightsCard />
 
         {/* Filters */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 md:p-6 border border-gray-200 dark:border-gray-700">

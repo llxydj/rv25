@@ -19,7 +19,7 @@ function HeatmapOverlay() {
       try {
         if (!map || !map.getContainer) return false
         const container = map.getContainer()
-        if (!container || !container._leaflet_id) return false
+        if (!container || !(container as any)._leaflet_id) return false
         const panes = (map as any)._panes
         if (!panes || !panes.mapPane) return false
         return true
@@ -81,6 +81,8 @@ function HeatmapOverlay() {
 
 import { locationTrackingService, LocationData } from "@/lib/location-tracking"
 import { useRealtimeVolunteerLocations } from "@/hooks/use-realtime-volunteer-locations"
+import { createCustomIcon, getIncidentColor, createVolunteerIcon, createUserIcon } from "@/lib/map-icons"
+import { FitBoundsToMarkers } from "./map-fit-bounds"
 
 // Keep the same props interface
 interface MapComponentProps {
@@ -104,33 +106,6 @@ interface MapComponentProps {
   showHeatmap?: boolean
 }
 
-// Custom marker icons
-const createCustomIcon = (color: string, type: 'incident' | 'volunteer' | 'user') => {
-  const iconHtml = type === 'volunteer' 
-    ? `<div style="background-color: ${color}; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`
-    : `<div style="background-color: ${color}; width: 25px; height: 25px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`
-  
-  return L.divIcon({
-    html: iconHtml,
-    className: 'custom-marker',
-    iconSize: [25, 25],
-    iconAnchor: [12, 12],
-    popupAnchor: [0, -12]
-  })
-}
-
-// Incident status colors
-const getIncidentColor = (status: string) => {
-  switch (status) {
-    case 'PENDING': return '#ef4444' // red
-    case 'ASSIGNED': return '#f59e0b' // amber
-    case 'RESPONDING': return '#3b82f6' // blue
-    case 'RESOLVED': return '#10b981' // green
-    case 'CANCELLED': return '#6b7280' // gray
-    default: return '#6b7280'
-  }
-}
-
 // Recenter map component
 function RecenterMap({ center }: { center: [number, number] }) {
   const map = useMap()
@@ -143,7 +118,7 @@ function RecenterMap({ center }: { center: [number, number] }) {
     const isMapReady = () => {
       try {
         const container = map.getContainer()
-        if (!container || !container._leaflet_id) return false
+        if (!container || !(container as any)._leaflet_id) return false
         
         // Check if map panes exist and are ready
         const panes = (map as any)._panes
@@ -213,7 +188,7 @@ function TalisayCityBoundary() {
     const isMapReady = () => {
       try {
         const container = map.getContainer()
-        if (!container || !container._leaflet_id) return false
+        if (!container || !(container as any)._leaflet_id) return false
         
         // Check if map panes exist and are ready
         const panes = (map as any)._panes
@@ -343,7 +318,7 @@ function VolunteerLocations({ showVolunteerLocations }: { showVolunteerLocations
     try {
       if (!map || !map.getContainer || !map.getCenter) return false
       const container = map.getContainer()
-      if (!container || !container._leaflet_id) return false
+      if (!container || !(container as any)._leaflet_id) return false
       const panes = (map as any)._panes
       if (!panes || !panes.mapPane) return false
       return true
@@ -406,23 +381,23 @@ function VolunteerLocations({ showVolunteerLocations }: { showVolunteerLocations
         <Marker
           key={volunteer.user_id}
           position={[volunteer.latitude, volunteer.longitude]}
-          icon={createCustomIcon('#10b981', 'volunteer')}
+          icon={createVolunteerIcon('#10b981')}
         >
-          <Popup>
-            <div className="p-2">
-              <h3 className="font-semibold text-sm">
+          <Popup className="volunteer-popup">
+            <div className="p-3 min-w-[200px]">
+              <h3 className="font-semibold text-base text-gray-900 mb-2">
                 {volunteer.first_name} {volunteer.last_name}
               </h3>
               {volunteer.distance_km && (
-                <p className="text-xs text-gray-600">
-                  Distance: {volunteer.distance_km.toFixed(1)} km
+                <p className="text-sm text-gray-700 mb-1">
+                  📏 Distance: <span className="font-medium">{volunteer.distance_km.toFixed(1)} km</span>
                 </p>
               )}
-              <p className="text-xs text-gray-500">
-                Last seen: {new Date(volunteer.last_seen).toLocaleTimeString()}
+              <p className="text-xs text-gray-600 mb-2">
+                🕒 Last seen: {new Date(volunteer.last_seen).toLocaleTimeString()}
               </p>
               {volunteer.phone_number && (
-                <p className="text-xs text-blue-600">
+                <p className="text-sm text-blue-600 font-medium">
                   📞 {volunteer.phone_number}
                 </p>
               )}
@@ -460,9 +435,9 @@ const MapInternal: React.FC<MapComponentProps> = ({
   useEffect(() => {
     setMounted(true)
     const c = containerRef.current as any
-    if (c && (c.querySelector?.('.leaflet-container') || c._leaflet_id)) {
+    if (c && (c.querySelector?.('.leaflet-container') || (c as any)._leaflet_id)) {
       try {
-        c._leaflet_id = null
+        (c as any)._leaflet_id = null
         c.innerHTML = ''
       } catch (err) {
         console.error('Failed to pre-clean leaflet container:', err)
@@ -471,9 +446,9 @@ const MapInternal: React.FC<MapComponentProps> = ({
     // Mark ready after pre-clean, in next tick to ensure DOM is flushed
     const t = setTimeout(() => {
       const cc = containerRef.current as any
-      if (cc && (cc.querySelector?.('.leaflet-container') || cc._leaflet_id)) {
+      if (cc && (cc.querySelector?.('.leaflet-container') || (cc as any)._leaflet_id)) {
         try {
-          cc._leaflet_id = null
+          (cc as any)._leaflet_id = null
           cc.innerHTML = ''
         } catch (err) {
           console.error('Failed to clean leaflet container (defer):', err)
@@ -494,9 +469,9 @@ const MapInternal: React.FC<MapComponentProps> = ({
   useEffect(() => {
     const c = containerRef.current as any
     if (!c) return
-    if (c._leaflet_id || c.querySelector?.('.leaflet-container')) {
+    if ((c as any)._leaflet_id || c.querySelector?.('.leaflet-container')) {
       try {
-        c._leaflet_id = null
+        (c as any)._leaflet_id = null
         c.innerHTML = ''
       } catch (err) {
         console.error('Failed to clean leaflet container (HMR):', err)
@@ -515,14 +490,19 @@ const MapInternal: React.FC<MapComponentProps> = ({
     }
   }, [mounted, containerReady])
 
-  // Fix Leaflet icon issue
+  // Fix Leaflet icon issue - ensure default icons work
   useEffect(() => {
-    delete (L.Icon.Default.prototype as any)._getIconUrl
-    L.Icon.Default.mergeOptions({
-      iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-      iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-    })
+    try {
+      delete (L.Icon.Default.prototype as any)._getIconUrl
+      L.Icon.Default.mergeOptions({
+        iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+        iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+      })
+      console.log('[MapInternal] Leaflet default icons configured')
+    } catch (error) {
+      console.error('[MapInternal] Failed to configure Leaflet icons:', error)
+    }
   }, [])
 
   // Get user location
@@ -570,9 +550,40 @@ const MapInternal: React.FC<MapComponentProps> = ({
     }
   }, [showVolunteerLocations])
 
-  const mapJsx = useMemo(() => (
+  // Calculate center based on markers if available
+  const calculatedCenter = useMemo(() => {
+    if (markers.length > 0) {
+      const validMarkers = markers.filter(m => 
+        m.position && 
+        Array.isArray(m.position) && 
+        m.position.length === 2 &&
+        !isNaN(m.position[0]) && 
+        !isNaN(m.position[1]) &&
+        m.position[0] !== 0 && 
+        m.position[1] !== 0
+      )
+      
+      if (validMarkers.length > 0) {
+        const avgLat = validMarkers.reduce((sum, m) => sum + m.position[0], 0) / validMarkers.length
+        const avgLng = validMarkers.reduce((sum, m) => sum + m.position[1], 0) / validMarkers.length
+        console.log('[MapInternal] Calculated center from markers:', { avgLat, avgLng, markerCount: validMarkers.length })
+        return [avgLat, avgLng] as [number, number]
+      }
+    }
+    return center
+  }, [markers, center])
+
+  const mapJsx = useMemo(() => {
+    console.log('[MapInternal] Rendering map with:', {
+      center: calculatedCenter,
+      zoom,
+      markerCount: markers.length,
+      markers: markers.map(m => ({ id: m.id, position: m.position, status: m.status }))
+    })
+    
+    return (
       <MapContainer
-        center={center}
+        center={calculatedCenter}
         zoom={zoom}
         style={{ height: "100%", width: "100%" }}
         zoomControl={true}
@@ -584,8 +595,11 @@ const MapInternal: React.FC<MapComponentProps> = ({
           }
         />
         
+        {/* Fit bounds to show all markers */}
+        <FitBoundsToMarkers markers={markers} />
+        
         {/* Recenter map when center changes */}
-        <RecenterMap center={center} />
+        <RecenterMap center={calculatedCenter} />
         
         {/* Talisay City boundary */}
         {showBoundary && <TalisayCityBoundary />}
@@ -594,41 +608,107 @@ const MapInternal: React.FC<MapComponentProps> = ({
         <MapClickHandler onMapClick={onMapClick} />
         
         {/* Incident markers */}
-        {markers.map((marker) => (
-           <Marker
-             key={marker.id}
-             position={marker.position}
-             icon={createCustomIcon(getIncidentColor(marker.status), 'incident') as L.DivIcon}
-             eventHandlers={{
-               click: (e: L.LeafletMouseEvent) => marker.onClick?.(marker.id)
-             }}
-           >
-            <Popup>
-              <div className="p-2">
-                <h3 className="font-semibold text-sm">{marker.title}</h3>
-                <p className="text-xs text-gray-600 capitalize">{marker.status.toLowerCase()}</p>
-                {marker.description && (
-                  <p className="text-xs text-gray-500 mt-1">{marker.description}</p>
-                )}
-                <p className="text-xs text-gray-400 mt-1">
-                  {marker.position[0].toFixed(6)}, {marker.position[1].toFixed(6)}
-                </p>
-              </div>
-            </Popup>
-          </Marker>
-        ))}
+        {markers
+          .filter((marker) => {
+            // Validate marker position
+            if (!marker.position || !Array.isArray(marker.position) || marker.position.length !== 2) {
+              console.error('[MapInternal] Invalid marker position:', marker)
+              return false
+            }
+            
+            const [lat, lng] = marker.position
+            if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) {
+              console.error('[MapInternal] Invalid marker coordinates:', { marker, lat, lng })
+              return false
+            }
+            
+            return true
+          })
+          .map((marker) => {
+            // Debug logging
+            if (process.env.NODE_ENV === 'development') {
+              console.log('[MapInternal] Rendering marker:', marker.id, marker.position, marker.status)
+            }
+            
+            const [lat, lng] = marker.position as [number, number]
+            const color = getIncidentColor(marker.status)
+            
+            // Use the ABSOLUTE SIMPLEST icon - guaranteed to work
+            // Simple colored circle, no transforms, minimal CSS
+            const icon = L.divIcon({
+              html: `<div style="width:30px;height:30px;background:${color};border:4px solid white;border-radius:50%;box-shadow:0 3px 10px rgba(0,0,0,0.6);"></div>`,
+              className: '',
+              iconSize: [30, 30],
+              iconAnchor: [15, 15],
+              popupAnchor: [0, -15],
+            })
+            
+            console.log('[MapInternal] Created marker icon:', {
+              id: marker.id,
+              position: [lat, lng],
+              color,
+              status: marker.status,
+              iconCreated: !!icon
+            })
+            
+            // Final validation
+            if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) {
+              console.error('[MapInternal] ❌ Invalid position, skipping:', marker.id, [lat, lng])
+              return null
+            }
+            
+            return (
+              <Marker
+                key={`marker-${marker.id}`}
+                position={[Number(lat), Number(lng)] as [number, number]}
+                icon={icon}
+                eventHandlers={{
+                  click: (e: L.LeafletMouseEvent) => {
+                    console.log('[MapInternal] Marker clicked:', marker.id)
+                    marker.onClick?.(marker.id)
+                  },
+                  add: () => {
+                    console.log('[MapInternal] ✅ Marker ADDED to map:', marker.id, [lat, lng])
+                  }
+                }}
+              >
+                <Popup className="incident-popup">
+                  <div className="p-3 min-w-[200px]">
+                    <h3 className="font-semibold text-base text-gray-900 mb-1">{marker.title}</h3>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${
+                        marker.status === 'PENDING' ? 'bg-red-100 text-red-800' :
+                        marker.status === 'ASSIGNED' ? 'bg-amber-100 text-amber-800' :
+                        marker.status === 'RESPONDING' ? 'bg-blue-100 text-blue-800' :
+                        marker.status === 'RESOLVED' ? 'bg-green-100 text-green-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {marker.status}
+                      </span>
+                    </div>
+                    {marker.description && (
+                      <p className="text-sm text-gray-700 mt-2 mb-2 leading-relaxed">{marker.description}</p>
+                    )}
+                    <p className="text-xs text-gray-500 mt-2 pt-2 border-t border-gray-200">
+                      📍 {lat.toFixed(6)}, {lng.toFixed(6)}
+                    </p>
+                  </div>
+                </Popup>
+              </Marker>
+            )
+          })}
         
         {/* User location marker (only when there are no other markers) */}
          {userLocationState && markers.length === 0 && (
           <Marker
             position={userLocationState}
-            icon={createCustomIcon('#3b82f6', 'user') as L.DivIcon}
+            icon={createUserIcon() as L.DivIcon}
           >
-            <Popup>
-              <div className="p-2">
-                <h3 className="font-semibold text-sm">Your Location</h3>
-                <p className="text-xs text-gray-500">
-                  {userLocationState[0].toFixed(6)}, {userLocationState[1].toFixed(6)}
+            <Popup className="user-location-popup">
+              <div className="p-3 min-w-[180px]">
+                <h3 className="font-semibold text-base text-gray-900 mb-1">Your Location</h3>
+                <p className="text-sm text-gray-600 mt-2">
+                  📍 {userLocationState[0].toFixed(6)}, {userLocationState[1].toFixed(6)}
                 </p>
               </div>
             </Popup>
@@ -665,7 +745,8 @@ const MapInternal: React.FC<MapComponentProps> = ({
           />
         )}
       </MapContainer>
-  ), [center, zoom, markers, offlineMode, showBoundary, onMapClick, userLocationState, isLoadingLocation, showVolunteerLocations, showGeofence, showHeatmap])
+    )
+  }, [calculatedCenter, zoom, markers, offlineMode, showBoundary, onMapClick, userLocationState, isLoadingLocation, showVolunteerLocations, showGeofence, showHeatmap])
 
   return (
     <div ref={containerRef} style={{ height, width: "100%" }} className="rounded-lg overflow-hidden shadow-md relative z-0">

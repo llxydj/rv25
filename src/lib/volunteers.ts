@@ -466,6 +466,7 @@ export const getVolunteerById = async (volunteerId: string) => {
           assigned_barangays,
           total_incidents_resolved,
           notes,
+          bio,
           created_at,
           updated_at,
           last_status_change,

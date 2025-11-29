@@ -11,6 +11,7 @@ export interface VolunteerProfile {
   assigned_barangays: string[] | null;
   total_incidents_resolved: number;
   notes: string | null;
+  bio: string | null;
   is_available: boolean;
   created_at: string;
   updated_at: string;
@@ -42,6 +43,7 @@ export interface VolunteerProfileUpdate {
   skills?: string[];
   availability?: string[];
   notes?: string;
+  bio?: string;
   is_available?: boolean;
   assigned_barangays?: string[];
 }

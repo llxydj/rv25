@@ -40,13 +40,45 @@ export default function ResidentDashboard() {
     fetchIncidents()
   }, [user])
 
-  const mapMarkers = incidents.map((incident) => ({
-    id: incident.id,
-    position: [incident.location_lat, incident.location_lng] as [number, number],
-    status: incident.status,
-    title: incident.incident_type,
-    description: incident.description,
-  }))
+  // Filter and create map markers only for incidents with valid coordinates
+  const mapMarkers = incidents
+    .filter((incident) => {
+      const hasValidCoords = 
+        incident.location_lat != null && 
+        incident.location_lng != null &&
+        !isNaN(Number(incident.location_lat)) &&
+        !isNaN(Number(incident.location_lng)) &&
+        Number(incident.location_lat) !== 0 &&
+        Number(incident.location_lng) !== 0
+      
+      if (!hasValidCoords) {
+        console.warn('[Resident Dashboard] Incident missing valid coordinates:', {
+          id: incident.id,
+          lat: incident.location_lat,
+          lng: incident.location_lng
+        })
+      }
+      
+      return hasValidCoords
+    })
+    .map((incident) => ({
+      id: incident.id,
+      position: [Number(incident.location_lat), Number(incident.location_lng)] as [number, number],
+      status: incident.status,
+      title: incident.incident_type,
+      description: incident.description,
+    }))
+
+  // Debug logging
+  useEffect(() => {
+    console.log('[Resident Dashboard] Map Debug:', {
+      totalIncidents: incidents.length,
+      validMarkers: mapMarkers.length,
+      markers: mapMarkers,
+      loading,
+      error
+    })
+  }, [incidents, mapMarkers, loading, error])
 
   const statusBadge = (status: string) => {
     const colors: Record<string, string> = {
@@ -212,14 +244,37 @@ export default function ResidentDashboard() {
 
         {/* Incident Map */}
         <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-          <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Incident Map</h2>
+          <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
+            Incident Map
+            {mapMarkers.length > 0 && (
+              <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">
+                ({mapMarkers.length} {mapMarkers.length === 1 ? 'incident' : 'incidents'})
+              </span>
+            )}
+          </h2>
           {loading ? (
             <div className="flex justify-center py-8">
               <LoadingSpinner size="lg" text="Loading map..." />
             </div>
+          ) : mapMarkers.length === 0 ? (
+            <div className="h-[400px] w-full rounded-lg overflow-hidden border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+              <div className="text-center p-6">
+                <MapPin className="h-12 w-12 text-gray-400 dark:text-gray-500 mx-auto mb-3" />
+                <p className="text-gray-600 dark:text-gray-400 mb-1">
+                  {incidents.length === 0 
+                    ? "No incidents reported yet" 
+                    : "No incidents with valid location data"}
+                </p>
+                {incidents.length > 0 && (
+                  <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
+                    {incidents.length - mapMarkers.length} incident(s) missing location coordinates
+                  </p>
+                )}
+              </div>
+            </div>
           ) : (
-            <div id="map-container" className="h-[400px] w-full rounded-lg overflow-hidden">
-              {typeof window !== 'undefined' && <MapComponent markers={mapMarkers} height="400px" />}
+            <div id="map-container" className="h-[400px] w-full rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+              {typeof window !== 'undefined' && <MapComponent markers={mapMarkers} height="400px" showBoundary={true} />}
             </div>
           )}
         </div>

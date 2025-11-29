@@ -5,7 +5,7 @@ import { VolunteerLayout } from "@/components/layout/volunteer-layout"
 import { useAuth } from "@/lib/auth"
 import { getVolunteerProfile, updateVolunteerProfile, updateVolunteerAvailability, updateVolunteerPersonalInfo } from "@/lib/volunteers"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
-import { AlertTriangle, CheckCircle, Save, User, FileText, Activity, Download, Calendar } from "lucide-react"
+import { AlertTriangle, CheckCircle, Save, User, FileText, Activity, Download, Calendar, GraduationCap, AlertCircle, BarChart3 } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/components/ui/use-toast"
 import { UserWithVolunteerProfile } from "@/types/volunteer"
@@ -15,6 +15,12 @@ import { ActivityLog } from "@/components/volunteer/activity-log"
 import { ProfileExport } from "@/components/volunteer/profile-export"
 import { SkillsSelector, AvailabilitySelector, StatusBadge } from "./profile-components"
 import { ScheduleHistory } from "@/components/volunteer/schedule-history"
+import { ProfileCompletenessIndicator } from "@/components/volunteer/profile-completeness-indicator"
+import { MissingFieldsList } from "@/components/volunteer/missing-fields-list"
+import { TrainingHistory } from "@/components/volunteer/training-history"
+import { IncidentHistory } from "@/components/volunteer/incident-history"
+import { PerformanceMetrics } from "@/components/volunteer/performance-metrics"
+import { validateVolunteerProfileUpdate, validateVolunteerPersonalInfo, formatPhilippinePhone } from "@/lib/validation"
 
 // Main component
 
@@ -44,11 +50,12 @@ export default function VolunteerProfilePage() {
   const [volunteerData, setVolunteerData] = useState({
     skills: [] as string[],
     availability: [] as string[],
-    notes: ""
+    notes: "",
+    bio: ""
   })
 
   // Active tab state
-  const [activeTab, setActiveTab] = useState<'profile' | 'schedules' | 'documents' | 'activity'>('profile')
+  const [activeTab, setActiveTab] = useState<'profile' | 'schedules' | 'documents' | 'activity' | 'training' | 'incidents' | 'performance'>('profile')
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -77,7 +84,8 @@ export default function VolunteerProfilePage() {
           setVolunteerData({
             skills: result.data.volunteer_profiles?.skills || [],
             availability: result.data.volunteer_profiles?.availability || [],
-            notes: result.data.volunteer_profiles?.notes || ""
+            notes: result.data.volunteer_profiles?.notes || "",
+            bio: result.data.volunteer_profiles?.bio || ""
           })
         } else {
           setError(result.message || "Failed to load profile")
@@ -127,14 +135,47 @@ export default function VolunteerProfilePage() {
       setError(null)
       setSuccess(null)
 
-      // Update personal information
-      const personalResult = await updateVolunteerPersonalInfo(user.id, {
+      // Validate personal information
+      const personalValidation = validateVolunteerPersonalInfo({
         phone_number: personalInfo.phoneNumber,
         address: personalInfo.address,
         barangay: personalInfo.barangay,
         gender: personalInfo.gender || undefined,
         emergency_contact_name: personalInfo.emergencyContactName,
         emergency_contact_phone: personalInfo.emergencyContactPhone,
+        emergency_contact_relationship: personalInfo.emergencyContactRelationship
+      })
+
+      if (!personalValidation.valid) {
+        const errorMessages = personalValidation.errors.map(e => `${e.field}: ${e.message}`).join(", ")
+        throw new Error(errorMessages)
+      }
+
+      // Validate volunteer profile
+      const profileValidation = validateVolunteerProfileUpdate({
+        skills: volunteerData.skills,
+        availability: volunteerData.availability,
+        notes: volunteerData.notes,
+        bio: volunteerData.bio
+      })
+
+      if (!profileValidation.valid) {
+        const errorMessages = profileValidation.errors.map(e => `${e.field}: ${e.message}`).join(", ")
+        throw new Error(errorMessages)
+      }
+
+      // Format phone numbers
+      const formattedPhone = personalInfo.phoneNumber ? formatPhilippinePhone(personalInfo.phoneNumber) : undefined
+      const formattedEmergencyPhone = personalInfo.emergencyContactPhone ? formatPhilippinePhone(personalInfo.emergencyContactPhone) : undefined
+
+      // Update personal information
+      const personalResult = await updateVolunteerPersonalInfo(user.id, {
+        phone_number: formattedPhone,
+        address: personalInfo.address,
+        barangay: personalInfo.barangay,
+        gender: personalInfo.gender || undefined,
+        emergency_contact_name: personalInfo.emergencyContactName,
+        emergency_contact_phone: formattedEmergencyPhone,
         emergency_contact_relationship: personalInfo.emergencyContactRelationship
       })
 
@@ -146,7 +187,8 @@ export default function VolunteerProfilePage() {
       const profileResult = await updateVolunteerProfile(user.id, {
         skills: volunteerData.skills,
         availability: volunteerData.availability,
-        notes: volunteerData.notes
+        notes: volunteerData.notes,
+        bio: volunteerData.bio
       })
 
       if (!profileResult.success) {
@@ -232,6 +274,27 @@ export default function VolunteerProfilePage() {
               {profile && <ProfileExport profile={profile} />}
             </div>
           </div>
+          
+          {/* Profile Completeness Indicator */}
+          {profile && (
+            <div className="mt-6">
+              <ProfileCompletenessIndicator profile={profile} showDetails={true} />
+            </div>
+          )}
+          
+          {/* Missing Fields List */}
+          {profile && (
+            <div className="mt-4">
+              <MissingFieldsList 
+                profile={profile} 
+                onCompleteProfile={() => {
+                  setActiveTab('profile')
+                  // Scroll to top of form
+                  window.scrollTo({ top: 0, behavior: 'smooth' })
+                }}
+              />
+            </div>
+          )}
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
               <div className="flex items-center">
@@ -342,6 +405,48 @@ export default function VolunteerProfilePage() {
                   Activity Log
                 </div>
               </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('training')}
+                className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'training'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <GraduationCap className="w-4 h-4" />
+                  Training
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('incidents')}
+                className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'incidents'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4" />
+                  Incidents
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('performance')}
+                className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'performance'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4" />
+                  Performance
+                </div>
+              </button>
             </nav>
           </div>
         </div>
@@ -375,10 +480,19 @@ export default function VolunteerProfilePage() {
                     type="tel"
                     id="phoneNumber"
                     value={personalInfo.phoneNumber}
-                    onChange={(e) => setPersonalInfo(prev => ({ ...prev, phoneNumber: e.target.value }))}
-                    placeholder="+63 XXX XXX XXXX"
+                    onChange={(e) => {
+                      const value = e.target.value
+                      setPersonalInfo(prev => ({ ...prev, phoneNumber: value }))
+                    }}
+                    placeholder="+63 XXX XXX XXXX or 09XXXXXXXXX"
                     className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 transition-colors"
                   />
+                  {personalInfo.phoneNumber && (() => {
+                    const validation = validateVolunteerPersonalInfo({ phone_number: personalInfo.phoneNumber })
+                    return !validation.valid && validation.errors.length > 0 ? (
+                      <p className="mt-1 text-xs text-red-600">{validation.errors[0].message}</p>
+                    ) : null
+                  })()}
                 </div>
 
                 <div>
@@ -455,10 +569,19 @@ export default function VolunteerProfilePage() {
                     type="tel"
                     id="emergencyContactPhone"
                     value={personalInfo.emergencyContactPhone}
-                    onChange={(e) => setPersonalInfo(prev => ({ ...prev, emergencyContactPhone: e.target.value }))}
-                    placeholder="+63 XXX XXX XXXX"
+                    onChange={(e) => {
+                      const value = e.target.value
+                      setPersonalInfo(prev => ({ ...prev, emergencyContactPhone: value }))
+                    }}
+                    placeholder="+63 XXX XXX XXXX or 09XXXXXXXXX"
                     className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 transition-colors"
                   />
+                  {personalInfo.emergencyContactPhone && (() => {
+                    const validation = validateVolunteerPersonalInfo({ emergency_contact_phone: personalInfo.emergencyContactPhone })
+                    return !validation.valid && validation.errors.length > 0 ? (
+                      <p className="mt-1 text-xs text-red-600">{validation.errors[0].message}</p>
+                    ) : null
+                  })()}
                 </div>
 
                 <div>
@@ -487,6 +610,23 @@ export default function VolunteerProfilePage() {
             <div className="bg-white shadow-sm rounded-lg border border-gray-200 p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Availability</h2>
               <AvailabilitySelector availability={volunteerData.availability} onToggleDay={toggleDay} />
+            </div>
+
+            {/* Bio Section */}
+            <div className="bg-white shadow-sm rounded-lg border border-gray-200 p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Bio / Description</h2>
+              <textarea
+                id="bio"
+                rows={4}
+                value={volunteerData.bio}
+                onChange={(e) => setVolunteerData(prev => ({ ...prev, bio: e.target.value }))}
+                placeholder="Tell us about yourself, your background, and why you volunteer..."
+                maxLength={1000}
+                className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 transition-colors resize-none"
+              />
+              <p className="mt-2 text-xs text-gray-500">
+                {volunteerData.bio.length}/1000 characters
+              </p>
             </div>
 
             {/* Notes Section */}
@@ -569,6 +709,30 @@ export default function VolunteerProfilePage() {
         {activeTab === 'activity' && user && (
           <div className="bg-white shadow-sm rounded-lg border border-gray-200 p-6">
             <ActivityLog volunteerId={user.id} showFilters={true} />
+          </div>
+        )}
+
+        {/* Training History Tab */}
+        {activeTab === 'training' && user && (
+          <div className="bg-white shadow-sm rounded-lg border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Training History</h2>
+            <TrainingHistory volunteerId={user.id} />
+          </div>
+        )}
+
+        {/* Incident History Tab */}
+        {activeTab === 'incidents' && user && (
+          <div className="bg-white shadow-sm rounded-lg border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Incident History</h2>
+            <IncidentHistory volunteerId={user.id} />
+          </div>
+        )}
+
+        {/* Performance Metrics Tab */}
+        {activeTab === 'performance' && user && (
+          <div className="bg-white shadow-sm rounded-lg border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Performance Metrics</h2>
+            <PerformanceMetrics volunteerId={user.id} />
           </div>
         )}
       </div>

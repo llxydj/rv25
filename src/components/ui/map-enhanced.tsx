@@ -8,6 +8,7 @@ import "leaflet/dist/leaflet.css"
 import { TALISAY_CENTER, isWithinTalisayCity } from "@/lib/geo-utils"
 import { useRealtimeVolunteerLocations } from "@/hooks/use-realtime-volunteer-locations"
 import { RealtimeStatusIndicator } from "@/components/realtime-status-indicator"
+import { createCustomIcon as createSharedIcon, getIncidentColor as getSharedIncidentColor, createVolunteerIcon, createUserIcon, createTeardropPinIcon } from "@/lib/map-icons"
 
 // ------------------------------
 // Animated Marker
@@ -46,6 +47,129 @@ const AnimatedMarker = memo(({ position, icon, children, animate = true, duratio
 })
 
 AnimatedMarker.displayName = "AnimatedMarker"
+
+// ------------------------------
+// Talisay City Boundary Component (GeoJSON)
+// ------------------------------
+function TalisayCityBoundary() {
+  const map = useMap()
+  const boundaryLayerRef = useRef<L.GeoJSON<any> | null>(null)
+  
+  useEffect(() => {
+    if (!map || !map.getContainer) return
+    
+    // Helper to check if map panes are ready
+    const isMapReady = () => {
+      try {
+        const container = map.getContainer()
+        if (!container || !(container as any)._leaflet_id) return false
+        
+        // Check if map panes exist and are ready
+        const panes = (map as any)._panes
+        if (!panes || !panes.mapPane) return false
+        
+        return true
+      } catch {
+        return false
+      }
+    }
+    
+    // Wait for map to be ready before loading boundary
+    const loadBoundary = () => {
+      try {
+        if (!isMapReady()) {
+          // Map not ready, retry
+          setTimeout(loadBoundary, 100)
+          return
+        }
+      } catch (err) {
+        return
+      }
+      
+      // Load GeoJSON boundary
+      fetch('/talisay.geojson')
+        .then(response => response.json())
+        .then(data => {
+          // Basic validation for GeoJSON
+          const isFeatureCollection = data && data.type === 'FeatureCollection' && Array.isArray(data.features)
+          const isFeature = data && data.type === 'Feature' && data.geometry
+          if (!isFeatureCollection && !isFeature) {
+            throw new Error('Loaded file is not valid GeoJSON (Feature/FeatureCollection)')
+          }
+
+          // Remove previous boundary layer if any
+          if (boundaryLayerRef.current && map.removeLayer) {
+            try {
+              map.removeLayer(boundaryLayerRef.current)
+            } catch (err) {
+              // Ignore errors when removing layer
+            }
+            boundaryLayerRef.current = null
+          }
+
+          try {
+            const geoJsonLayer = L.geoJSON(data, {
+              style: {
+                color: '#3b82f6',
+                weight: 2,
+                opacity: 0.8,
+                fillOpacity: 0.1
+              }
+            }).addTo(map)
+
+            boundaryLayerRef.current = geoJsonLayer
+
+            // Expose polygon coordinates (lat, lng) globally for guards if available
+            try {
+              const first = (data.type === 'FeatureCollection' ? data.features?.[0] : data) as any
+              const geom = first?.geometry
+              if (geom?.type === 'Polygon' && Array.isArray(geom.coordinates?.[0])) {
+                // GeoJSON is [lng, lat]; convert to [lat, lng]
+                const ring = geom.coordinates[0]
+                  .map((pt: number[]) => [pt[1], pt[0]])
+                  .filter((pt: any) => Array.isArray(pt) && pt.length === 2)
+                if (ring.length > 3 && typeof window !== 'undefined') {
+                  ;(window as any).__TALISAY_POLYGON__ = ring as [number, number][]
+                }
+              }
+            } catch (err) {
+              console.error('Failed to expose polygon coordinates:', err)
+            }
+
+            // Fit map to boundary bounds once loaded
+            try {
+              const bounds = geoJsonLayer.getBounds()
+              if (bounds && bounds.isValid() && map.fitBounds) {
+                map.fitBounds(bounds, { padding: [20, 20] })
+              }
+            } catch (err) {
+              console.error('Failed to fit bounds to boundary:', err)
+            }
+          } catch (err) {
+            console.error('Failed to add boundary layer to map:', err)
+          }
+        })
+        .catch(error => {
+          console.error('Error loading boundary:', error)
+        })
+    }
+    
+    loadBoundary()
+    
+    return () => {
+      if (boundaryLayerRef.current && map && map.removeLayer) {
+        try {
+          map.removeLayer(boundaryLayerRef.current)
+        } catch (err) {
+          // Ignore cleanup errors
+        }
+      }
+      boundaryLayerRef.current = null
+    }
+  }, [map])
+  
+  return null
+}
 
 // ------------------------------
 // Heatmap Overlay
@@ -99,63 +223,42 @@ function HeatmapOverlay() {
 // Helpers and Icon Creation
 // ------------------------------
 const createCustomIcon = (color: string, type: "incident" | "volunteer" | "user", isActive = false, status?: string) => {
-  const pulseClass = isActive ? "animate-pulse" : ""
-  
-  // Larger, more visible sizes
-  const size = type === "volunteer" ? "32px" : type === "user" ? "28px" : "30px"
-  const borderWidth = type === "volunteer" ? "4px" : "3px"
-  
-  // Enhanced shadow for better visibility
-  const shadow = "0 4px 12px rgba(0,0,0,0.4), 0 2px 4px rgba(0,0,0,0.3)"
-  
-  // Status-based inner indicator for volunteers
-  const statusIndicator = type === "volunteer" && status 
-    ? `<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 12px; height: 12px; border-radius: 50%; background-color: white; border: 2px solid ${color};"></div>`
-    : ""
+  // For volunteers, keep the enhanced circular design with pulse animation
+  if (type === "volunteer") {
+    const pulseClass = isActive ? "animate-pulse" : ""
+    const size = 32
+    const borderWidth = 4
+    const shadow = "0 4px 12px rgba(0,0,0,0.4), 0 2px 4px rgba(0,0,0,0.3)"
+    
+    const statusIndicator = status 
+      ? `<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 12px; height: 12px; border-radius: 50%; background-color: white; border: 2px solid ${color};"></div>`
+      : ""
 
-  const iconHtml =
-    type === "volunteer"
-      ? `<div class="${pulseClass}" style="background-color: ${color}; width: ${size}; height: ${size}; border-radius: 50%; border: ${borderWidth} solid white; box-shadow: ${shadow}; position: relative; z-index: 1000;">
-           ${statusIndicator}
-           ${
-             isActive
-               ? '<div style="position: absolute; top: -8px; left: -8px; width: 48px; height: 48px; border-radius: 50%; background-color: ' +
-                 color +
-                 '; opacity: 0.25; animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite; z-index: -1;"></div>'
-               : ""
-           }
-         </div>`
-      : type === "user"
-      ? `<div class="${pulseClass}" style="background-color: ${color}; width: ${size}; height: ${size}; border-radius: 50%; border: ${borderWidth} solid white; box-shadow: ${shadow}; position: relative; z-index: 1000;">
-           <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 14px; height: 14px; border-radius: 50%; background-color: white;"></div>
-         </div>`
-      : `<div class="${pulseClass}" style="background-color: ${color}; width: ${size}; height: ${size}; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: ${borderWidth} solid white; box-shadow: ${shadow}; position: relative; z-index: 1000;"></div>`
+    const iconHtml = `
+      <div class="${pulseClass}" style="background-color: ${color}; width: ${size}px; height: ${size}px; border-radius: 50%; border: ${borderWidth}px solid white; box-shadow: ${shadow}; position: relative; z-index: 1000;">
+        ${statusIndicator}
+        ${
+          isActive
+            ? `<div style="position: absolute; top: -8px; left: -8px; width: 48px; height: 48px; border-radius: 50%; background-color: ${color}; opacity: 0.25; animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite; z-index: -1;"></div>`
+            : ""
+        }
+      </div>
+    `
 
-  return L.divIcon({
-    html: iconHtml,
-    className: "custom-marker",
-    iconSize: type === "volunteer" ? [40, 40] : type === "user" ? [36, 36] : [34, 34],
-    iconAnchor: type === "volunteer" ? [20, 20] : type === "user" ? [18, 18] : [17, 17],
-    popupAnchor: type === "volunteer" ? [0, -20] : [0, -18]
-  })
-}
-
-const getIncidentColor = (status: string) => {
-  switch (status) {
-    case "PENDING":
-      return "#ef4444"
-    case "ASSIGNED":
-      return "#f59e0b"
-    case "RESPONDING":
-      return "#3b82f6"
-    case "RESOLVED":
-      return "#10b981"
-    case "CANCELLED":
-      return "#6b7280"
-    default:
-      return "#6b7280"
+    return L.divIcon({
+      html: iconHtml,
+      className: "custom-marker",
+      iconSize: [40, 40],
+      iconAnchor: [20, 20],
+      popupAnchor: [0, -20]
+    })
   }
+
+  // For incidents and user, use the shared teardrop pin
+  return createSharedIcon(color, type, status)
 }
+
+const getIncidentColor = getSharedIncidentColor
 
 // Get volunteer color based on status
 const getVolunteerColor = (status?: string): string => {
@@ -369,11 +472,11 @@ function UserLocation({ showUserLocation }: { showUserLocation?: boolean }) {
   if (!userPosition) return null
 
   return (
-    <AnimatedMarker position={userPosition} icon={createCustomIcon("#3b82f6", "user")} animate duration={600}>
-      <Popup>
-        <div className="p-2">
-          <h3 className="font-semibold text-sm">Your Location</h3>
-          <p className="text-xs text-gray-600">
+    <AnimatedMarker position={userPosition} icon={createUserIcon()} animate duration={600}>
+      <Popup className="user-location-popup">
+        <div className="p-3 min-w-[180px]">
+          <h3 className="font-semibold text-base text-gray-900 mb-1">Your Location</h3>
+          <p className="text-sm text-gray-600 mt-2">
             📍 {userPosition[0].toFixed(6)}, {userPosition[1].toFixed(6)}
           </p>
         </div>
@@ -434,21 +537,8 @@ const MapInternal: React.FC<MapComponentProps> = ({
         <RecenterMap center={center} />
         <MapClickHandler onMapClick={onMapClick} />
 
-        {/* City boundary */}
-        {showBoundary && (
-          <Rectangle
-            bounds={[
-              [10.6, 122.8],
-              [10.8, 123.0]
-            ]}
-            pathOptions={{
-              color: "#3b82f6",
-              weight: 2,
-              fillColor: "transparent",
-              fillOpacity: 0
-            }}
-          />
-        )}
+        {/* City boundary - using GeoJSON like map-internal.tsx */}
+        {showBoundary && <TalisayCityBoundary />}
 
         {/* Geofence circles */}
         {showGeofence && (
@@ -496,31 +586,24 @@ const MapInternal: React.FC<MapComponentProps> = ({
               animate
               duration={500}
             >
-              <Popup>
-                <div className="p-2 min-w-[200px]">
-                  <h3 className="font-semibold text-sm text-gray-900">{marker.title}</h3>
-                  <p className="text-xs text-gray-600 mt-1">
-                    Status:{" "}
-                    <span
-                      className={`font-medium ${
-                        marker.status === "RESOLVED"
-                          ? "text-green-600"
-                          : marker.status === "RESPONDING"
-                          ? "text-blue-600"
-                          : marker.status === "ASSIGNED"
-                          ? "text-yellow-600"
-                          : marker.status === "PENDING"
-                          ? "text-red-600"
-                          : "text-gray-600"
-                      }`}
-                    >
+              <Popup className="incident-popup">
+                <div className="p-3 min-w-[200px]">
+                  <h3 className="font-semibold text-base text-gray-900 mb-1">{marker.title}</h3>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${
+                      marker.status === 'PENDING' ? 'bg-red-100 text-red-800' :
+                      marker.status === 'ASSIGNED' ? 'bg-amber-100 text-amber-800' :
+                      marker.status === 'RESPONDING' ? 'bg-blue-100 text-blue-800' :
+                      marker.status === 'RESOLVED' ? 'bg-green-100 text-green-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
                       {marker.status}
                     </span>
-                  </p>
+                  </div>
                   {marker.description && (
-                    <p className="text-xs text-gray-500 mt-1">{marker.description}</p>
+                    <p className="text-sm text-gray-700 mt-2 mb-2 leading-relaxed">{marker.description}</p>
                   )}
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-gray-500 mt-2 pt-2 border-t border-gray-200">
                     📍 {marker.position[0].toFixed(6)}, {marker.position[1].toFixed(6)}
                   </p>
                   {marker.onClick && (

@@ -1,6 +1,7 @@
 import { supabase } from "./supabase"
 import { Database } from "@/types/supabase"
 import { fetchWithTimeout } from "./fetch-with-timeout"
+import { getUserWithTimeout, getSessionWithTimeout } from "./supabase-auth-timeout"
 
 // Use hyphen instead of underscore for the bucket name
 const BUCKET_NAME = "incident-photos"
@@ -300,9 +301,15 @@ export const createIncident = async (
     notifyStage("verify-session")
     let authUserId = options?.sessionUserId
     if (!authUserId) {
-      const { data: { user } } = await supabase.auth.getUser()
-      console.log("Current auth user:", user?.id)
-      authUserId = user?.id || undefined
+      // CRITICAL FIX: Add timeout to prevent infinite hang on mobile
+      try {
+        const { data: { user } } = await getUserWithTimeout(5000)
+        console.log("Current auth user:", user?.id)
+        authUserId = user?.id || undefined
+      } catch (error: any) {
+        console.error("Auth getUser timeout or error:", error)
+        throw new Error(error.message || 'Failed to verify authentication. Please check your connection and try again.')
+      }
     }
 
     if (!authUserId || authUserId !== reporterId) {
@@ -334,8 +341,14 @@ export const createIncident = async (
 
       let accessToken = options?.accessToken
       if (!accessToken) {
-        const { data: { session } } = await supabase.auth.getSession()
-        accessToken = session?.access_token || undefined
+        // CRITICAL FIX: Add timeout to prevent infinite hang on mobile
+        try {
+          const { data: { session } } = await getSessionWithTimeout(5000)
+          accessToken = session?.access_token || undefined
+        } catch (error: any) {
+          console.error("Auth getSession timeout in photo upload:", error)
+          throw new Error('Session verification timeout during photo upload. Please try again.')
+        }
       }
       const headers: Record<string, string> = {}
       if (accessToken) {
@@ -371,8 +384,14 @@ export const createIncident = async (
 
         let accessToken = options?.accessToken
         if (!accessToken) {
-          const { data: { session } } = await supabase.auth.getSession()
-          accessToken = session?.access_token || undefined
+          // CRITICAL FIX: Add timeout to prevent infinite hang on mobile
+          try {
+            const { data: { session } } = await getSessionWithTimeout(5000)
+            accessToken = session?.access_token || undefined
+          } catch (error: any) {
+            console.error("Auth getSession timeout in voice upload:", error)
+            throw new Error('Session verification timeout during voice upload. Please try again.')
+          }
         }
         const headers: Record<string, string> = {}
         if (accessToken) {

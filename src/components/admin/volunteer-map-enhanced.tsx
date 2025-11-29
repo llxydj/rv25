@@ -14,6 +14,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { MapPin, Navigation, Clock, Radio, Eye, EyeOff, TrendingUp as RouteIcon, User, List, Map, Filter, AlertCircle, ArrowRight } from "lucide-react"
 import { GEOLOCATION_CONFIG } from "@/lib/geolocation-config"
 import Link from "next/link"
+import { createIncidentIcon, getIncidentColor } from "@/lib/map-icons"
 
 /**
  * Enhanced Volunteer Map with Phase 2 Features:
@@ -620,56 +621,44 @@ export function VolunteerMapEnhanced({
 
             {/* Render incidents */}
             {showIncidents && incidents.map(incident => {
-              const incidentColor = incident.status === 'ASSIGNED' ? '#f59e0b' : 
-                                   incident.status === 'RESPONDING' ? '#ef4444' : '#6b7280'
-              const incidentIcon = L.divIcon({
-                className: 'custom-incident-marker',
-                html: `
-                  <div class="relative">
-                    <div class="absolute -translate-x-1/2 -translate-y-full">
-                      <div class="relative">
-                        <div class="w-8 h-8 rounded-full flex items-center justify-center" style="background: ${incidentColor}; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
-                          <span style="color: white; font-size: 16px;">⚠️</span>
-                        </div>
-                        ${incident.severity <= 2 ? '<div class="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-500 animate-pulse"></div>' : ''}
-                      </div>
-                    </div>
-                  </div>
-                `,
-                iconSize: [32, 32],
-                iconAnchor: [16, 32],
-                popupAnchor: [0, -32]
-              })
-
               return (
                 <Marker
                   key={incident.id}
                   position={[incident.location_lat, incident.location_lng]}
-                  icon={incidentIcon}
+                  icon={createIncidentIcon(incident.status)}
                 >
-                  <Popup>
-                    <div className="min-w-[180px] p-2">
+                  <Popup className="incident-popup">
+                    <div className="min-w-[200px] p-3">
                       <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-semibold text-sm">{incident.incident_type}</h4>
+                        <h4 className="font-semibold text-base text-gray-900">{incident.incident_type}</h4>
                         <Badge 
                           variant="outline" 
-                          className={`text-xs ${
-                            incident.status === 'ASSIGNED' ? 'bg-amber-500 text-white border-0' :
-                            incident.status === 'RESPONDING' ? 'bg-red-500 text-white border-0' :
-                            'bg-gray-500 text-white border-0'
+                          className={`text-xs font-medium ${
+                            incident.status === 'ASSIGNED' ? 'bg-amber-100 text-amber-800 border-0' :
+                            incident.status === 'RESPONDING' ? 'bg-red-100 text-red-800 border-0' :
+                            'bg-gray-100 text-gray-800 border-0'
                           }`}
                         >
                           {incident.status}
                         </Badge>
                       </div>
-                      <div className="space-y-1 text-xs text-gray-600">
-                        <p>📍 {incident.barangay}</p>
-                        <p>🚨 Priority: {incident.severity}/5</p>
-                        <p>🕒 {new Date(incident.created_at).toLocaleTimeString()}</p>
+                      <div className="space-y-2 text-sm text-gray-700 mt-3">
+                        <p className="flex items-center gap-1">
+                          <span>📍</span>
+                          <span className="font-medium">{incident.barangay}</span>
+                        </p>
+                        <p className="flex items-center gap-1">
+                          <span>🚨</span>
+                          <span>Priority: <span className="font-semibold">{incident.severity}/5</span></span>
+                        </p>
+                        <p className="flex items-center gap-1">
+                          <span>🕒</span>
+                          <span>{new Date(incident.created_at).toLocaleTimeString()}</span>
+                        </p>
                       </div>
                       {incident.assigned_to && (
                         <Link href={`/admin/incidents/${incident.id}`} target="_blank">
-                          <Button size="sm" variant="outline" className="w-full mt-2">
+                          <Button size="sm" variant="outline" className="w-full mt-3 bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200">
                             View Details
                           </Button>
                         </Link>

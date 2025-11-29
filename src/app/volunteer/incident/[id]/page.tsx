@@ -607,6 +607,7 @@ export default function VolunteerIncidentDetailPage() {
                         status: incident.status,
                       },
                     ]}
+                    showBoundary={true}
                   />
                 )}
               </div>

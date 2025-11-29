@@ -22,6 +22,7 @@ import {
   getIncidentsByBarangay,
   getIncidentsByStatus,
   getIncidentsByType,
+  getIncidentsByReporterRole,
   exportIncidentsToCSV
 } from "@/lib/reports"
 import { useAuth } from "@/lib/auth"
@@ -152,9 +153,13 @@ export default function AdminReports() {
   const [incidentsByBarangay, setIncidentsByBarangay] = useState<any[]>([])
   const [incidentsByType, setIncidentsByType] = useState<any[]>([])
   const [incidentsByStatus, setIncidentsByStatus] = useState<any[]>([])
+  const [incidentsByReporterRole, setIncidentsByReporterRole] = useState<any[]>([])
   
   // Resident analytics state
   const [residentAnalytics, setResidentAnalytics] = useState<any>(null)
+  
+  // Reporter role filter
+  const [reporterRoleFilter, setReporterRoleFilter] = useState<string>("ALL")
 
   // Year-based reports
   const [years, setYears] = useState<any[]>([])
@@ -359,11 +364,12 @@ export default function AdminReports() {
         const { startDate, endDate } = getDateRangeParams()
 
         if (reportType === "incidents") {
-          const [incidentsRes, barangayRes, typeRes, statusRes, residentRes] = await Promise.all([
+          const [incidentsRes, barangayRes, typeRes, statusRes, roleRes, residentRes] = await Promise.all([
             getAllIncidents(),
             getIncidentsByBarangay(startDate, endDate),
             getIncidentsByType(startDate, endDate),
             getIncidentsByStatus(startDate, endDate),
+            getIncidentsByReporterRole(startDate, endDate),
             fetch(`/api/analytics/resident-incidents?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`, {
               signal: controller.signal
             }).then(res => res.json()).catch(() => ({ success: false }))
@@ -377,6 +383,7 @@ export default function AdminReports() {
           if (barangayRes.success) setIncidentsByBarangay(barangayRes.data || [])
           if (typeRes.success) setIncidentsByType(typeRes.data || [])
           if (statusRes.success) setIncidentsByStatus(statusRes.data || [])
+          if (roleRes.success) setIncidentsByReporterRole(roleRes.data || [])
           
           // Set resident analytics
           if (residentRes.success && residentRes.data) {
@@ -386,11 +393,56 @@ export default function AdminReports() {
           }
 
         } else if (reportType === "volunteers") {
-          const result = await getAllVolunteers()
-          if (!isMounted) return
+          // Check if enhanced report is requested
+          const useEnhanced = new URLSearchParams(window.location.search).get('enhanced') === 'true'
+          
+          if (useEnhanced) {
+            // Use enhanced endpoint
+            const enhancedRes = await fetch('/api/admin/reports/volunteers/enhanced?format=json&include_completeness=true&include_bio=true&include_metrics=true')
+            if (!isMounted) return
+            
+            if (enhancedRes.ok) {
+              const enhancedData = await enhancedRes.json()
+              if (enhancedData.success && enhancedData.data) {
+                // Transform enhanced data to match existing structure
+                setVolunteers(enhancedData.data.map((v: any) => ({
+                  id: v.id,
+                  first_name: v.name?.split(' ')[0] || '',
+                  last_name: v.name?.split(' ').slice(1).join(' ') || '',
+                  email: v.email,
+                  phone_number: v.phone,
+                  address: v.address,
+                  barangay: v.barangay,
+                  volunteer_profiles: {
+                    status: v.status,
+                    skills: v.skills || [],
+                    availability: v.availability || [],
+                    bio: v.bio,
+                    notes: v.notes,
+                    is_available: v.isAvailable,
+                    total_incidents_resolved: v.totalIncidentsResolved,
+                  },
+                  profileCompleteness: v.profileCompleteness,
+                  performanceMetrics: v.performanceMetrics,
+                })))
+              } else {
+                setError(enhancedData.message || "Failed to fetch enhanced volunteers")
+              }
+            } else {
+              // Fallback to regular if enhanced fails
+              const result = await getAllVolunteers()
+              if (!isMounted) return
+              if (result.success) setVolunteers(result.data || [])
+              else setError(result.message || "Failed to fetch volunteers")
+            }
+          } else {
+            // Use regular endpoint
+            const result = await getAllVolunteers()
+            if (!isMounted) return
 
-          if (result.success) setVolunteers(result.data || [])
-          else setError(result.message || "Failed to fetch volunteers")
+            if (result.success) setVolunteers(result.data || [])
+            else setError(result.message || "Failed to fetch volunteers")
+          }
 
         } else if (reportType === "schedules") {
           const result = await getAllSchedules()
@@ -422,12 +474,23 @@ export default function AdminReports() {
     const rangeStart = new Date(startDate)
     const rangeEnd = new Date(endDate)
 
-    return data.filter(item => {
+    let filtered = data.filter(item => {
       if (!item?.created_at) return false
       const createdAt = new Date(item.created_at)
       return createdAt >= rangeStart && createdAt <= rangeEnd
     })
-  }, [getDateRangeParams])
+
+    // Apply reporter role filter if set
+    if (reportType === "incidents" && reporterRoleFilter !== "ALL") {
+      filtered = filtered.filter(item => {
+        const reporter = Array.isArray(item.reporter) ? item.reporter[0] : item.reporter
+        const role = reporter?.role?.toLowerCase() || "unknown"
+        return role === reporterRoleFilter.toLowerCase()
+      })
+    }
+
+    return filtered
+  }, [getDateRangeParams, reportType, reporterRoleFilter])
 
   // ✅ GENERATE REPORT (WITH ERROR HANDLING)
   const generateReport = useCallback(async () => {
@@ -445,6 +508,78 @@ export default function AdminReports() {
           user_id: user.id
         })
       })
+
+      if (reportType === "volunteers") {
+        // Check if enhanced report is requested
+        const useEnhanced = new URLSearchParams(window.location.search).get('enhanced') === 'true'
+        
+        if (useEnhanced) {
+          // Use enhanced endpoint for CSV
+          const response = await fetch('/api/admin/reports/volunteers/enhanced?format=csv&include_completeness=true&include_bio=true&include_metrics=true')
+          
+          if (response.ok) {
+            const blob = await response.blob()
+            const url = URL.createObjectURL(blob)
+            const link = document.createElement('a')
+            link.href = url
+            link.download = `enhanced-volunteers-report-${new Date().toISOString().split('T')[0]}.csv`
+            document.body.appendChild(link)
+            link.click()
+            document.body.removeChild(link)
+            URL.revokeObjectURL(url)
+            return
+          } else {
+            throw new Error('Failed to generate enhanced report')
+          }
+        } else {
+          // Regular volunteer CSV export
+          const filteredVolunteers = filterDataByDateRange(volunteers)
+          if (filteredVolunteers.length === 0) {
+            alert('No volunteers found in selected date range')
+            return
+          }
+
+          const { generateEnhancedCSV } = await import('@/lib/enhanced-csv-export')
+          const csvData = filteredVolunteers.map((v: any) => ({
+            'Name': `${v.first_name || ''} ${v.last_name || ''}`.trim(),
+            'Email': v.email || '',
+            'Phone': v.phone_number || '',
+            'Address': v.address || '',
+            'Barangay': v.barangay || '',
+            'Status': v.volunteer_profiles?.status || 'UNKNOWN',
+            'Skills': Array.isArray(v.volunteer_profiles?.skills) ? v.volunteer_profiles.skills.join('; ') : '',
+            'Availability': Array.isArray(v.volunteer_profiles?.availability) ? v.volunteer_profiles.availability.join('; ') : '',
+            'Is Available': v.volunteer_profiles?.is_available ? 'Yes' : 'No',
+            'Total Incidents Resolved': v.volunteer_profiles?.total_incidents_resolved || 0,
+            'Created At': v.created_at ? new Date(v.created_at).toLocaleDateString() : '',
+          }))
+
+          const headers = Object.keys(csvData[0])
+          const { startDate, endDate } = getDateRangeParams()
+          const csvContent = generateEnhancedCSV(csvData, headers, {
+            organizationName: 'RVOIS - Rescue Volunteers Operations Information System',
+            reportTitle: 'Volunteer Report',
+            includeMetadata: true,
+            includeSummary: true,
+            metadata: {
+              'Report Period': `${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}`
+            }
+          })
+
+          const BOM = '\uFEFF'
+          const csvWithBOM = BOM + csvContent
+          const blob = new Blob([csvWithBOM], { type: 'text/csv;charset=utf-8;' })
+          const url = URL.createObjectURL(blob)
+          const link = document.createElement('a')
+          link.href = url
+          link.download = `volunteers-report-${new Date().toISOString().split('T')[0]}.csv`
+          document.body.appendChild(link)
+          link.click()
+          document.body.removeChild(link)
+          URL.revokeObjectURL(url)
+          return
+        }
+      }
 
       if (reportType === "incidents") {
         const { startDate, endDate } = getDateRangeParams()
@@ -648,9 +783,10 @@ export default function AdminReports() {
       const byStatus = incidentsByStatus.map((item) => [item.status, parseInt(item.count || "0", 10)])
       const byType = incidentsByType.map((item) => [item.incident_type, parseInt(item.count || "0", 10)])
       const byBarangay = incidentsByBarangay.map((item) => [item.barangay, parseInt(item.count || "0", 10)])
+      const byReporterRole = incidentsByReporterRole.map((item) => [item.role, item.count])
       const total = byStatus.reduce((sum, [_, count]) => sum + (count as number), 0) || filterDataByDateRange(incidents).length
 
-      return { total, byType, byStatus, byBarangay }
+      return { total, byType, byStatus, byBarangay, byReporterRole }
     }
 
     if (reportType === "volunteers") {
@@ -1386,6 +1522,37 @@ export default function AdminReports() {
                     </SelectContent>
                   </Select>
 
+                  {reportType === "incidents" && (
+                    <Select value={reporterRoleFilter} onValueChange={(value: any) => setReporterRoleFilter(value)}>
+                      <SelectTrigger
+                        disabled={loading}
+                        className="w-full sm:w-48 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700"
+                      >
+                        <SelectValue placeholder="Filter by reporter" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700">
+                        <SelectItem value="ALL">All Reporters</SelectItem>
+                        <SelectItem value="volunteer">Reported by Volunteers</SelectItem>
+                        <SelectItem value="resident">Reported by Residents</SelectItem>
+                        <SelectItem value="admin">Reported by Admins</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+
+                  {reportType === "volunteers" && (
+                    <Button
+                      onClick={() => {
+                        const url = new URL(window.location.href)
+                        url.searchParams.set('enhanced', 'true')
+                        window.location.href = url.toString()
+                      }}
+                      variant="outline"
+                      className="w-full sm:w-auto bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/30"
+                    >
+                      <Activity className="mr-2 h-4 w-4" />
+                      Enhanced Report
+                    </Button>
+                  )}
                   <Button
                     onClick={generateReport}
                     disabled={loading || generatingReport}
@@ -1394,7 +1561,7 @@ export default function AdminReports() {
                     {generatingReport ? <LoadingSpinner size="sm" /> : (
                       <>
                         <Download className="mr-2 h-4 w-4" />
-                        Export Report
+                        Export {reportType === "volunteers" && new URLSearchParams(window.location.search).get('enhanced') === 'true' ? 'Enhanced ' : ''}Report
                       </>
                     )}
                   </Button>
@@ -1510,6 +1677,60 @@ export default function AdminReports() {
                     </Card>
                   )}
                 </div>
+
+                {/* REPORTER ROLE BREAKDOWN - NEW */}
+                {reportType === "incidents" && reportData?.byReporterRole && reportData.byReporterRole.length > 0 && (
+                  <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base md:text-lg text-gray-900 dark:text-gray-100">
+                        Incidents by Reporter Type
+                      </CardTitle>
+                      <CardDescription className="text-sm text-gray-600 dark:text-gray-400">
+                        Breakdown of incidents reported by volunteers vs residents
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        {reportData.byReporterRole.map(([role, count]: any) => {
+                          const roleLabel = role === 'volunteer' ? 'Volunteers' : 
+                                           role === 'resident' ? 'Residents' : 
+                                           role === 'admin' ? 'Admins' : 'Unknown'
+                          const total = reportData.byReporterRole.reduce((sum: number, [_, c]: any) => sum + c, 0)
+                          const percentage = total > 0 ? ((count / total) * 100).toFixed(1) : 0
+                          const color = role === 'volunteer' ? 'text-blue-600 dark:text-blue-400' :
+                                      role === 'resident' ? 'text-green-600 dark:text-green-400' :
+                                      role === 'admin' ? 'text-purple-600 dark:text-purple-400' :
+                                      'text-gray-600 dark:text-gray-400'
+                          
+                          return (
+                            <div key={role} className="text-center p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                              <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">{roleLabel}</p>
+                              <p className={`text-2xl font-bold ${color}`}>{count}</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">{percentage}%</p>
+                            </div>
+                          )
+                        })}
+                      </div>
+                      {reportData.byReporterRole.length > 0 && (
+                        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-gray-600 dark:text-gray-400">
+                              Volunteer Reporting Rate
+                            </span>
+                            <span className="font-semibold text-gray-900 dark:text-gray-100">
+                              {(() => {
+                                const volunteerCount = reportData.byReporterRole.find(([r]: any) => r === 'volunteer')?.[1] || 0
+                                const residentCount = reportData.byReporterRole.find(([r]: any) => r === 'resident')?.[1] || 0
+                                const total = volunteerCount + residentCount
+                                return total > 0 ? ((volunteerCount / total) * 100).toFixed(1) : 0
+                              })()}%
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* VOLUNTEER SKILLS AND AVAILABILITY */}
                 {reportType === "volunteers" && reportData?.bySkills && reportData.bySkills.length > 0 && (
@@ -1817,6 +2038,9 @@ export default function AdminReports() {
                                 Reporter
                               </th>
                               <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Reporter Type
+                              </th>
+                              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                 Contact
                               </th>
                               <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -1856,6 +2080,20 @@ export default function AdminReports() {
                                     </div>
                                   ) : (
                                     <span className="text-gray-500 dark:text-gray-400">Anonymous</span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  {incident.reporter?.role ? (
+                                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                      incident.reporter.role.toLowerCase() === 'volunteer' ? 'bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-200' :
+                                      incident.reporter.role.toLowerCase() === 'resident' ? 'bg-green-100 dark:bg-green-950 text-green-800 dark:text-green-200' :
+                                      incident.reporter.role.toLowerCase() === 'admin' ? 'bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-200' :
+                                      'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200'
+                                    }`}>
+                                      {incident.reporter.role}
+                                    </span>
+                                  ) : (
+                                    <span className="text-gray-400 dark:text-gray-500">—</span>
                                   )}
                                 </td>
                                 <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">

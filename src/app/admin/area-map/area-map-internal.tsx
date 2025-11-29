@@ -1,11 +1,11 @@
 "use client"
 
-import { MapContainer, TileLayer, Circle, Popup, Rectangle } from "react-leaflet"
+import { MapContainer, TileLayer, Circle, Popup, Rectangle, useMap } from "react-leaflet"
 import L from "leaflet"
 import "leaflet/dist/leaflet.css"
 import { TALISAY_CENTER, TALISAY_BOUNDARIES } from "@/lib/geo-utils"
 import { Badge } from "@/components/ui/badge"
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 
 // Fix for default marker icons
 if (typeof window !== 'undefined') {
@@ -61,6 +61,127 @@ const getCircleOpacity = (riskLevel: string) => {
   }
 }
 
+// Talisay City Boundary Component (GeoJSON) - same as map-internal.tsx
+function TalisayCityBoundary() {
+  const map = useMap()
+  const boundaryLayerRef = useRef<L.GeoJSON<any> | null>(null)
+  
+  useEffect(() => {
+    if (!map || !map.getContainer) return
+    
+    // Helper to check if map panes are ready
+    const isMapReady = () => {
+      try {
+        const container = map.getContainer()
+        if (!container || !(container as any)._leaflet_id) return false
+        
+        // Check if map panes exist and are ready
+        const panes = (map as any)._panes
+        if (!panes || !panes.mapPane) return false
+        
+        return true
+      } catch {
+        return false
+      }
+    }
+    
+    // Wait for map to be ready before loading boundary
+    const loadBoundary = () => {
+      try {
+        if (!isMapReady()) {
+          // Map not ready, retry
+          setTimeout(loadBoundary, 100)
+          return
+        }
+      } catch (err) {
+        return
+      }
+      
+      // Load GeoJSON boundary
+      fetch('/talisay.geojson')
+        .then(response => response.json())
+        .then(data => {
+          // Basic validation for GeoJSON
+          const isFeatureCollection = data && data.type === 'FeatureCollection' && Array.isArray(data.features)
+          const isFeature = data && data.type === 'Feature' && data.geometry
+          if (!isFeatureCollection && !isFeature) {
+            throw new Error('Loaded file is not valid GeoJSON (Feature/FeatureCollection)')
+          }
+
+          // Remove previous boundary layer if any
+          if (boundaryLayerRef.current && map.removeLayer) {
+            try {
+              map.removeLayer(boundaryLayerRef.current)
+            } catch (err) {
+              // Ignore errors when removing layer
+            }
+            boundaryLayerRef.current = null
+          }
+
+          try {
+            const geoJsonLayer = L.geoJSON(data, {
+              style: {
+                color: '#3b82f6',
+                weight: 2,
+                opacity: 0.8,
+                fillOpacity: 0.1
+              }
+            }).addTo(map)
+
+            boundaryLayerRef.current = geoJsonLayer
+
+            // Expose polygon coordinates (lat, lng) globally for guards if available
+            try {
+              const first = (data.type === 'FeatureCollection' ? data.features?.[0] : data) as any
+              const geom = first?.geometry
+              if (geom?.type === 'Polygon' && Array.isArray(geom.coordinates?.[0])) {
+                // GeoJSON is [lng, lat]; convert to [lat, lng]
+                const ring = geom.coordinates[0]
+                  .map((pt: number[]) => [pt[1], pt[0]])
+                  .filter((pt: any) => Array.isArray(pt) && pt.length === 2)
+                if (ring.length > 3 && typeof window !== 'undefined') {
+                  ;(window as any).__TALISAY_POLYGON__ = ring as [number, number][]
+                }
+              }
+            } catch (err) {
+              console.error('Failed to expose polygon coordinates:', err)
+            }
+
+            // Fit map to boundary bounds once loaded
+            try {
+              const bounds = geoJsonLayer.getBounds()
+              if (bounds && bounds.isValid() && map.fitBounds) {
+                map.fitBounds(bounds, { padding: [20, 20] })
+              }
+            } catch (err) {
+              console.error('Failed to fit bounds to boundary:', err)
+            }
+          } catch (err) {
+            console.error('Failed to add boundary layer to map:', err)
+          }
+        })
+        .catch(error => {
+          console.error('Error loading boundary:', error)
+        })
+    }
+    
+    loadBoundary()
+    
+    return () => {
+      if (boundaryLayerRef.current && map && map.removeLayer) {
+        try {
+          map.removeLayer(boundaryLayerRef.current)
+        } catch (err) {
+          // Ignore cleanup errors
+        }
+      }
+      boundaryLayerRef.current = null
+    }
+  }, [map])
+  
+  return null
+}
+
 export default function AreaMapInternal({ areas }: AreaMapInternalProps) {
   // Fix Leaflet icon issue on mount
   useEffect(() => {
@@ -85,20 +206,8 @@ export default function AreaMapInternal({ areas }: AreaMapInternalProps) {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         
-        {/* City Boundary */}
-        <Rectangle
-          bounds={[
-            [TALISAY_BOUNDARIES[2][0], TALISAY_BOUNDARIES[2][1]],
-            [TALISAY_BOUNDARIES[0][0], TALISAY_BOUNDARIES[0][1]]
-          ]}
-          pathOptions={{
-            color: '#3b82f6',
-            fillColor: 'transparent',
-            fillOpacity: 0,
-            weight: 3,
-            dashArray: '10, 5'
-          }}
-        />
+        {/* City Boundary - using GeoJSON like other maps */}
+        <TalisayCityBoundary />
 
         {/* Area Circles */}
         {areas.map((area, idx) => (

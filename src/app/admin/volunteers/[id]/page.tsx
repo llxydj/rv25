@@ -6,7 +6,12 @@ import { AdminLayout } from "@/components/layout/admin-layout"
 import { useAuth } from "@/lib/auth"
 import { getVolunteerById, updateVolunteerStatus } from "@/lib/volunteers"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
-import { AlertTriangle, ArrowLeft, CheckCircle, Clock, Mail, Phone, X, Settings } from "lucide-react"
+import { AlertTriangle, ArrowLeft, CheckCircle, Clock, Mail, Phone, X, Settings, User, FileText, Activity, GraduationCap, BarChart3, MapPin } from "lucide-react"
+import { ProfileCompletenessIndicator } from "@/components/volunteer/profile-completeness-indicator"
+import { TrainingHistory } from "@/components/volunteer/training-history"
+import { IncidentHistory } from "@/components/volunteer/incident-history"
+import { PerformanceMetrics } from "@/components/volunteer/performance-metrics"
+import { UserWithVolunteerProfile } from "@/types/volunteer"
 
 export default function VolunteerDetailPage() {
   const { id } = useParams()
@@ -19,6 +24,7 @@ export default function VolunteerDetailPage() {
   const [success, setSuccess] = useState<string | null>(null)
   const [showStatusModal, setShowStatusModal] = useState(false)
   const [selectedStatus, setSelectedStatus] = useState<"ACTIVE" | "INACTIVE" | "SUSPENDED">("INACTIVE")
+  const [activeTab, setActiveTab] = useState<'overview' | 'profile' | 'performance' | 'history' | 'training' | 'incidents'>('overview')
 
   useEffect(() => {
     const fetchVolunteerData = async () => {
@@ -278,6 +284,16 @@ export default function VolunteerDetailPage() {
                       <span className="hidden sm:inline">Call</span>
                     </button>
                   )}
+                  {volunteer.email && (
+                    <button
+                      onClick={handleEmailVolunteer}
+                      className="flex-1 sm:flex-initial inline-flex items-center justify-center px-3 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-xs md:text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors whitespace-nowrap"
+                      aria-label="Email volunteer"
+                    >
+                      <Mail className="h-3 w-3 md:h-4 md:w-4 sm:mr-2 flex-shrink-0" />
+                      <span className="hidden sm:inline">Email</span>
+                    </button>
+                  )}
                   <button
                     onClick={() => setShowStatusModal(true)}
                     className="flex-1 sm:flex-initial inline-flex items-center justify-center px-3 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-xs md:text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors whitespace-nowrap"
@@ -409,6 +425,20 @@ export default function VolunteerDetailPage() {
                 </div>
               </div>
 
+              {/* Bio */}
+              {volunteer.volunteer_profiles?.bio && (
+                <div className="mt-6">
+                  <h3 className="text-xs md:text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+                    Bio / Description
+                  </h3>
+                  <div className="bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 p-3 md:p-4 rounded-md">
+                    <p className="text-xs md:text-sm text-gray-700 dark:text-gray-300">
+                      {volunteer.volunteer_profiles.bio}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Admin Notes */}
               {volunteer.volunteer_profiles?.notes && (
                 <div className="mt-6">
@@ -422,6 +452,104 @@ export default function VolunteerDetailPage() {
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* Tabbed Interface */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 mt-4 md:mt-6">
+              <div className="border-b border-gray-200 dark:border-gray-700">
+                <nav className="flex -mb-px overflow-x-auto">
+                  <button
+                    onClick={() => setActiveTab('overview')}
+                    className={`px-4 py-3 text-xs md:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                      activeTab === 'overview'
+                        ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                        : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <User className="w-4 h-4" />
+                      Overview
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('performance')}
+                    className={`px-4 py-3 text-xs md:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                      activeTab === 'performance'
+                        ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                        : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <BarChart3 className="w-4 h-4" />
+                      Performance
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('training')}
+                    className={`px-4 py-3 text-xs md:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                      activeTab === 'training'
+                        ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                        : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <GraduationCap className="w-4 h-4" />
+                      Training
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('incidents')}
+                    className={`px-4 py-3 text-xs md:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                      activeTab === 'incidents'
+                        ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                        : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4" />
+                      Incidents
+                    </div>
+                  </button>
+                </nav>
+              </div>
+
+              <div className="p-4 md:p-6">
+                {activeTab === 'overview' && (
+                  <div className="space-y-4">
+                    {/* Profile Completeness */}
+                    {volunteer && (
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Profile Completeness</h3>
+                        <ProfileCompletenessIndicator 
+                          profile={volunteer as UserWithVolunteerProfile} 
+                          showDetails={true} 
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === 'performance' && id && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Performance Metrics</h3>
+                    <PerformanceMetrics volunteerId={id as string} />
+                  </div>
+                )}
+
+                {activeTab === 'training' && id && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Training History</h3>
+                    <TrainingHistory volunteerId={id as string} />
+                  </div>
+                )}
+
+                {activeTab === 'incidents' && id && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Incident History</h3>
+                    <IncidentHistory volunteerId={id as string} />
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -459,6 +587,16 @@ export default function VolunteerDetailPage() {
                 )}
               </div>
             </div>
+
+            {/* Profile Completeness Card */}
+            {volunteer && (
+              <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+                <ProfileCompletenessIndicator 
+                  profile={volunteer as UserWithVolunteerProfile} 
+                  compact={true}
+                />
+              </div>
+            )}
 
             {/* Actions Card */}
             <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">

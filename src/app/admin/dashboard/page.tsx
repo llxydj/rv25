@@ -19,6 +19,7 @@ import { MetricsChart } from "@/components/admin/metrics-chart"
 import { StatWidget } from "@/components/admin/stat-widget"
 import { AdminMetrics } from "@/types/admin-metrics"
 import { BackupMonitor } from "@/components/admin/backup-monitor"
+import { VolunteerInsightsCard } from "@/components/admin/volunteer-insights-card"
 
 export default function AdminDashboard() {
   const { user } = useAuth()
@@ -593,6 +594,7 @@ export default function AdminDashboard() {
                       markers={mapMarkers} 
                       height="300px" 
                       showVolunteerLocations={true}
+                      showBoundary={true}
                     />
                   </div>
                 ) : (
@@ -619,6 +621,11 @@ export default function AdminDashboard() {
                 </div>
                 <HotspotsList />
               </div>
+            </div>
+
+            {/* VOLUNTEER INSIGHTS - Enhanced Analytics */}
+            <div className="mt-4 md:mt-6">
+              <VolunteerInsightsCard />
             </div>
 
             {/* CALL ANALYTICS */}

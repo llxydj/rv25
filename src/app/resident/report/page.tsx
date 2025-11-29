@@ -198,6 +198,7 @@ export default function ReportIncidentPage() {
   }, [toast])
 
   // Reverse geocode when location changes and we're online
+  // PERFORMANCE FIX: Add timeout and make it non-blocking for mobile
   useEffect(() => {
     let cancelled = false;
     const run = async () => {
@@ -206,7 +207,31 @@ export default function ReportIncidentPage() {
         setGeoMessage('Detecting address from map pin…');
         const [lat, lng] = location;
         const url = `/api/geocode/reverse?lat=${lat}&lon=${lng}&zoom=16&addressdetails=1`;
-        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        
+        // PERFORMANCE FIX: Add timeout to prevent hanging on slow mobile networks
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+        
+        let res: Response;
+        try {
+          res = await fetch(url, { 
+            headers: { 'Accept': 'application/json' },
+            signal: controller.signal
+          });
+          clearTimeout(timeoutId);
+        } catch (fetchError: any) {
+          clearTimeout(timeoutId);
+          if (fetchError.name === 'AbortError') {
+            // Timeout - don't fail, just show message
+            if (!cancelled) {
+              setGeoMessage('Address detection timed out; you can type it manually');
+              setAutoGeoLock({ address: false, barangay: false });
+            }
+            return;
+          }
+          throw fetchError;
+        }
+        
         if (!res.ok) throw new Error('Reverse geocoding failed');
         const data = await res.json();
         if (cancelled) return;
@@ -647,10 +672,35 @@ export default function ReportIncidentPage() {
     // Check user from hook first
     let currentUser = user;
     
+    // PERFORMANCE FIX: Optimize session verification with timeout
     // If user is null, try to get session directly (race condition fix)
     if (!currentUser) {
       try {
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        // Add timeout to prevent hanging on slow mobile networks
+        const sessionPromise = supabase.auth.getSession();
+        const timeoutPromise = new Promise<{ error: { message: string } }>((resolve) => 
+          setTimeout(() => resolve({ error: { message: 'Session verification timeout' } }), 5000)
+        );
+        
+        const sessionResult = await Promise.race([sessionPromise, timeoutPromise]);
+        
+        // CRITICAL FIX: Check if timeout won the race
+        if ('error' in sessionResult && sessionResult.error?.message === 'Session verification timeout') {
+          const errorMsg = "Session verification is taking too long. Please check your connection and try again.";
+          setError(errorMsg);
+          toast({
+            variant: "destructive",
+            title: "Connection Timeout",
+            description: errorMsg
+          });
+          setLoading(false);
+          setSubmitStage(null);
+          return;
+        }
+        
+        // If we get here, sessionPromise won the race - use the result directly
+        const { data: { session }, error: sessionError } = sessionResult as Awaited<typeof sessionPromise>;
+          
         if (sessionError || !session) {
           const errorMsg = "You must be logged in to report an incident. Please refresh the page and try again.";
           setError(errorMsg);
@@ -662,12 +712,35 @@ export default function ReportIncidentPage() {
           return;
         }
         
-        // If we have a session but no user object, fetch user data
-        const { data: userData, error: userError } = await supabase
+        // PERFORMANCE FIX: Fetch user data with timeout
+        const userDataPromise = supabase
           .from("users")
           .select("id, role, first_name, last_name, phone_number, address, barangay")
           .eq("id", session.user.id)
           .maybeSingle();
+        
+        const userTimeoutPromise = new Promise<{ error: { message: string } }>((resolve) => 
+          setTimeout(() => resolve({ error: { message: 'User data fetch timeout' } }), 5000)
+        );
+        
+        const userResult = await Promise.race([userDataPromise, userTimeoutPromise]);
+        
+        // CRITICAL FIX: Check if timeout won the race
+        if ('error' in userResult && userResult.error?.message === 'User data fetch timeout') {
+          const errorMsg = "Loading your account information is taking too long. Please check your connection and try again.";
+          setError(errorMsg);
+          toast({
+            variant: "destructive",
+            title: "Connection Timeout",
+            description: errorMsg
+          });
+          setLoading(false);
+          setSubmitStage(null);
+          return;
+        }
+        
+        // If we get here, userDataPromise won the race - use the result directly
+        const { data: userData, error: userError } = userResult as Awaited<typeof userDataPromise>;
         
         if (userError || !userData) {
           const errorMsg = "Unable to verify your account. Please refresh the page and try again.";
@@ -700,6 +773,8 @@ export default function ReportIncidentPage() {
           title: "Authentication Error",
           description: errorMsg
         });
+        setLoading(false);
+        setSubmitStage(null);
         return;
       }
     }

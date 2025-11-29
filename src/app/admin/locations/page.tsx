@@ -68,7 +68,7 @@ export default function AdminLiveLocationsPage() {
         )}
         <div className="bg-white p-4 rounded shadow">
           <div className="h-[500px] w-full rounded overflow-hidden">
-            <MapComponent markers={markers} height="500px" />
+            <MapComponent markers={markers} height="500px" showBoundary={true} />
           </div>
         </div>
       </div>

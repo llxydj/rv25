@@ -416,10 +416,29 @@ export async function POST(request: Request) {
         const origin = new URL(request.url).origin
         const reverseUrl = `${origin}/api/geocode/reverse?lat=${encodeURIComponent(String(location_lat))}&lon=${encodeURIComponent(String(location_lng))}&zoom=16&addressdetails=1`
 
+        // PERFORMANCE FIX: Add timeout to background geocoding to prevent hanging
         const [geoData, knownBarangays] = await Promise.all([
           (async () => {
             try {
-              const geoRes = await fetch(reverseUrl, { cache: 'no-store' })
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+              
+              let geoRes: Response;
+              try {
+                geoRes = await fetch(reverseUrl, { 
+                  cache: 'no-store',
+                  signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+              } catch (fetchError: any) {
+                clearTimeout(timeoutId);
+                if (fetchError.name === 'AbortError') {
+                  console.warn('Background geocoding timeout (non-critical)');
+                  return null;
+                }
+                throw fetchError;
+              }
+              
               if (!geoRes.ok) return null
               return geoRes.json()
             } catch {

@@ -837,7 +837,7 @@ export default function VolunteerDashboard() {
 
             <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-6 rounded-lg shadow-md">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Incident Map</h2>
-              <MapComponent markers={mapMarkers} height="400px" />
+              <MapComponent markers={mapMarkers} height="400px" showBoundary={true} />
             </div>
           </>
         )}

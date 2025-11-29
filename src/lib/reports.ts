@@ -97,6 +97,55 @@ export const getIncidentsByStatus = async (startDate?: string, endDate?: string)
   }
 }
 
+// Get incident statistics by reporter role (volunteer vs resident)
+export const getIncidentsByReporterRole = async (startDate?: string, endDate?: string) => {
+  try {
+    let query = supabase
+      .from("incidents")
+      .select("reporter_id, created_at, reporter:users!incidents_reporter_id_fkey(role)")
+
+    if (startDate) {
+      query = query.gte("created_at", startDate)
+    }
+
+    if (endDate) {
+      query = query.lte("created_at", endDate)
+    }
+
+    const { data, error } = await query
+
+    if (error) throw error
+
+    const counts: Record<string, number> = {
+      volunteer: 0,
+      resident: 0,
+      admin: 0,
+      unknown: 0
+    }
+
+    ;(data || []).forEach((row: any) => {
+      const reporter = Array.isArray(row.reporter) ? row.reporter[0] : row.reporter
+      const role = reporter?.role?.toLowerCase() || "unknown"
+      
+      if (role === "volunteer") {
+        counts.volunteer++
+      } else if (role === "resident") {
+        counts.resident++
+      } else if (role === "admin") {
+        counts.admin++
+      } else {
+        counts.unknown++
+      }
+    })
+
+    const result = Object.entries(counts).map(([role, count]) => ({ role, count }))
+
+    return { success: true, data: result }
+  } catch (error: any) {
+    return { success: false, message: error.message, data: [] }
+  }
+}
+
 // Get volunteer performance statistics
 export const getVolunteerPerformance = async () => {
   try {
@@ -207,7 +256,8 @@ export const exportIncidentsToCSV = async (startDate?: string, endDate?: string)
           first_name,
           last_name,
           email,
-          phone_number
+          phone_number,
+          role
         ),
         assigned_to_user:users!incidents_assigned_to_fkey(
           id,
@@ -313,6 +363,7 @@ export const exportIncidentsToCSV = async (startDate?: string, endDate?: string)
         "Reporter Name": reporter ? `${reporter.first_name || ""} ${reporter.last_name || ""}`.trim() : "Unknown",
         "Reporter Email": reporter?.email || "N/A",
         "Reporter Phone": reporter?.phone_number || "N/A",
+        "Reporter Role": reporter?.role || "N/A",
         "Assigned To ID": incident.assigned_to || "N/A",
         "Assigned To Name": assignedTo ? `${assignedTo.first_name || ""} ${assignedTo.last_name || ""}`.trim() : "Unassigned",
         "Assigned To Email": assignedTo?.email || "N/A",

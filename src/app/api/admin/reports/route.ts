@@ -71,7 +71,8 @@ export async function GET(request: Request) {
             first_name,
             last_name,
             email,
-            phone_number
+            phone_number,
+            role
           ),
           assigned_to_user:users!incidents_assigned_to_fkey(
             id,
@@ -164,6 +165,7 @@ export async function GET(request: Request) {
           "Reporter Name": reporter ? `${reporter.first_name || ""} ${reporter.last_name || ""}`.trim() : "Unknown",
           "Reporter Email": reporter?.email || "N/A",
           "Reporter Phone": reporter?.phone_number || "N/A",
+          "Reporter Role": reporter?.role || "N/A",
           "Assigned To ID": incident.assigned_to || "N/A",
           "Assigned To Name": assignedTo ? `${assignedTo.first_name || ""} ${assignedTo.last_name || ""}`.trim() : "Unassigned",
           "Assigned To Email": assignedTo?.email || "N/A",

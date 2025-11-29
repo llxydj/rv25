@@ -98,4 +98,247 @@ export const IncidentHandoffUpdateSchema = z.object({
 
 export type IncidentHandoffUpdate = z.infer<typeof IncidentHandoffUpdateSchema>
 
+// ============================================================================
+// Volunteer Profile Validation Utilities
+// ============================================================================
+
+/**
+ * Philippine phone number validation
+ * Accepts formats:
+ * - +63XXXXXXXXXX (with country code)
+ * - 09XXXXXXXXX (local format)
+ * - 9XXXXXXXXX (without leading 0)
+ */
+export const PHILIPPINE_PHONE_REGEX = /^(\+63|0)?9\d{9}$/
+
+export function isValidPhilippinePhone(phone: string): boolean {
+  if (!phone) return false
+  // Remove spaces, dashes, and parentheses
+  const cleaned = phone.replace(/[\s\-\(\)]/g, '')
+  return PHILIPPINE_PHONE_REGEX.test(cleaned)
+}
+
+/**
+ * Format Philippine phone number to standard format (+63XXXXXXXXXX)
+ */
+export function formatPhilippinePhone(phone: string): string {
+  if (!phone) return ''
+  // Remove all non-digit characters
+  const cleaned = phone.replace(/\D/g, '')
+  
+  // If starts with 63, add +
+  if (cleaned.startsWith('63') && cleaned.length === 12) {
+    return `+${cleaned}`
+  }
+  // If starts with 0, remove it and add +63
+  if (cleaned.startsWith('0') && cleaned.length === 11) {
+    return `+63${cleaned.slice(1)}`
+  }
+  // If starts with 9, add +63
+  if (cleaned.startsWith('9') && cleaned.length === 10) {
+    return `+63${cleaned}`
+  }
+  // If already in +63 format, return as is
+  if (cleaned.startsWith('63') && cleaned.length === 12) {
+    return `+${cleaned}`
+  }
+  
+  return phone // Return original if can't format
+}
+
+/**
+ * Email validation
+ */
+export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+export function isValidEmail(email: string): boolean {
+  if (!email) return false
+  return EMAIL_REGEX.test(email.trim())
+}
+
+/**
+ * Check for duplicate email (would need to query database)
+ * This is a placeholder - actual implementation would query the database
+ */
+export async function isDuplicateEmail(email: string, excludeUserId?: string): Promise<boolean> {
+  // This would need to be implemented with actual database query
+  // For now, return false as placeholder
+  return false
+}
+
+/**
+ * Validate skills array
+ */
+export function isValidSkillsArray(skills: any): boolean {
+  if (!Array.isArray(skills)) return false
+  const validSkills = [
+    "FIRST AID",
+    "CPR",
+    "FIREFIGHTING",
+    "WATER RESCUE",
+    "SEARCH AND RESCUE",
+    "EMERGENCY RESPONSE",
+    "DISASTER MANAGEMENT",
+    "MEDICAL ASSISTANCE",
+    "TRAFFIC MANAGEMENT",
+    "COMMUNICATION",
+  ]
+  return skills.every(skill => validSkills.includes(skill))
+}
+
+/**
+ * Validate availability array
+ */
+export function isValidAvailabilityArray(availability: any): boolean {
+  if (!Array.isArray(availability)) return false
+  const validDays = [
+    "MONDAY",
+    "TUESDAY",
+    "WEDNESDAY",
+    "THURSDAY",
+    "FRIDAY",
+    "SATURDAY",
+    "SUNDAY",
+  ]
+  return availability.every(day => validDays.includes(day))
+}
+
+/**
+ * Validate date format (ISO 8601)
+ */
+export function isValidDate(dateString: string): boolean {
+  if (!dateString) return false
+  const date = new Date(dateString)
+  return !isNaN(date.getTime())
+}
+
+/**
+ * Volunteer Profile Update Schema
+ */
+export const VolunteerProfileUpdateSchema = z.object({
+  skills: z.array(z.string()).optional(),
+  availability: z.array(z.string()).optional(),
+  notes: z.string().max(1000).nullable().optional(),
+  bio: z.string().max(1000).nullable().optional(),
+  is_available: z.boolean().optional(),
+  assigned_barangays: z.array(z.string()).optional(),
+})
+
+/**
+ * Volunteer Personal Info Update Schema
+ */
+export const VolunteerPersonalInfoUpdateSchema = z.object({
+  phone_number: z.string().refine(
+    (val) => !val || isValidPhilippinePhone(val),
+    { message: "Invalid Philippine phone number format" }
+  ).optional(),
+  address: z.string().max(500).optional(),
+  barangay: z.string().max(100).optional(),
+  gender: z.enum(['male', 'female', 'other', 'prefer_not_to_say']).optional(),
+  emergency_contact_name: z.string().max(200).optional(),
+  emergency_contact_phone: z.string().refine(
+    (val) => !val || isValidPhilippinePhone(val),
+    { message: "Invalid Philippine phone number format" }
+  ).optional(),
+  emergency_contact_relationship: z.string().max(100).optional(),
+})
+
+export type VolunteerProfileUpdate = z.infer<typeof VolunteerProfileUpdateSchema>
+export type VolunteerPersonalInfoUpdate = z.infer<typeof VolunteerPersonalInfoUpdateSchema>
+
+/**
+ * Validation error result
+ */
+export interface ValidationError {
+  field: string
+  message: string
+}
+
+/**
+ * Validate volunteer profile update
+ */
+export function validateVolunteerProfileUpdate(data: any): { valid: boolean; errors: ValidationError[] } {
+  const errors: ValidationError[] = []
+
+  // Validate skills
+  if (data.skills !== undefined && !isValidSkillsArray(data.skills)) {
+    errors.push({
+      field: 'skills',
+      message: 'Invalid skills array. Skills must be from the predefined list.'
+    })
+  }
+
+  // Validate availability
+  if (data.availability !== undefined && !isValidAvailabilityArray(data.availability)) {
+    errors.push({
+      field: 'availability',
+      message: 'Invalid availability array. Days must be valid day names.'
+    })
+  }
+
+  // Validate notes/bio length
+  if (data.notes !== undefined && data.notes && data.notes.length > 1000) {
+    errors.push({
+      field: 'notes',
+      message: 'Notes must be 1000 characters or less.'
+    })
+  }
+
+  if (data.bio !== undefined && data.bio && data.bio.length > 1000) {
+    errors.push({
+      field: 'bio',
+      message: 'Bio must be 1000 characters or less.'
+    })
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors
+  }
+}
+
+/**
+ * Validate volunteer personal info update
+ */
+export function validateVolunteerPersonalInfo(data: any): { valid: boolean; errors: ValidationError[] } {
+  const errors: ValidationError[] = []
+
+  // Validate phone number
+  if (data.phone_number && !isValidPhilippinePhone(data.phone_number)) {
+    errors.push({
+      field: 'phone_number',
+      message: 'Invalid Philippine phone number. Use format: +63XXXXXXXXXX or 09XXXXXXXXX'
+    })
+  }
+
+  // Validate emergency contact phone
+  if (data.emergency_contact_phone && !isValidPhilippinePhone(data.emergency_contact_phone)) {
+    errors.push({
+      field: 'emergency_contact_phone',
+      message: 'Invalid Philippine phone number. Use format: +63XXXXXXXXXX or 09XXXXXXXXX'
+    })
+  }
+
+  // Validate address length
+  if (data.address && data.address.length > 500) {
+    errors.push({
+      field: 'address',
+      message: 'Address must be 500 characters or less.'
+    })
+  }
+
+  // Validate barangay length
+  if (data.barangay && data.barangay.length > 100) {
+    errors.push({
+      field: 'barangay',
+      message: 'Barangay must be 100 characters or less.'
+    })
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors
+  }
+}
+
 

@@ -1,10 +1,10 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { AlertTriangle, Phone, User, X, Home, FileText, MapPin, Calendar, BarChart3, Settings, Bell, MessageSquare } from "lucide-react"
+import { AlertTriangle, Phone, User, X, Home, FileText, MapPin, Calendar, BarChart3, Settings, Bell, MessageSquare, ChevronDown, Power } from "lucide-react"
 import { useNotificationsChannel } from '@/lib/use-notifications'
 import { signOut } from "@/lib/auth"
 import { AuthLayout } from "./auth-layout"
@@ -16,6 +16,7 @@ import { RealtimeStatusIndicator } from "@/components/realtime-status-indicator"
 import { SystemClock } from "@/components/system-clock"
 import { pushNotificationService } from "@/lib/push-notification-service"
 import { SignOutModal } from "@/components/ui/signout-modal"
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible"
 
 interface AdminLayoutProps {
   children: React.ReactNode
@@ -83,6 +84,122 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     return pathname === path || pathname.startsWith(`${path}/`)
   }
 
+  // Navigation groups structure
+  interface NavItem {
+    href: string
+    label: string
+    icon: React.ComponentType<{ className?: string }>
+    exact?: boolean
+  }
+
+  interface NavGroup {
+    id: string
+    label: string
+    icon: React.ComponentType<{ className?: string }>
+    items: NavItem[]
+  }
+
+  const navigationGroups: NavGroup[] = useMemo(() => [
+    {
+      id: 'core-operations',
+      label: 'Operations',
+      icon: BarChart3,
+      items: [
+        { href: '/admin/documents', label: 'Documents', icon: FileText },
+        { href: '/admin/incidents', label: 'Incidents', icon: AlertTriangle },
+        { href: '/admin/schedules', label: 'Schedules', icon: Calendar },
+        { href: '/admin/schedules/analytics', label: 'Schedule Analytics', icon: BarChart3 },
+        { href: '/admin/activities/dashboard', label: 'Activity Dashboard', icon: BarChart3 },
+        { href: '/admin/activities/reports', label: 'Activity Reports', icon: BarChart3 },
+      ],
+    },
+    {
+      id: 'volunteers',
+      label: 'Volunteers',
+      icon: User,
+      items: [
+        { href: '/admin/volunteers', label: 'Volunteers', icon: User },
+        { href: '/admin/volunteers/analytics', label: 'Volunteer Analytics', icon: BarChart3 },
+        { href: '/admin/volunteers/map', label: 'Volunteer Tracking', icon: MapPin },
+      ],
+    },
+    {
+      id: 'locations',
+      label: 'Locations & Areas',
+      icon: MapPin,
+      items: [
+        { href: '/admin/barangay', label: 'Barangay', icon: MapPin },
+        { href: '/admin/area-map', label: 'Area Map', icon: MapPin },
+      ],
+    },
+    {
+      id: 'reports',
+      label: 'Reports & Analytics',
+      icon: BarChart3,
+      items: [
+        { href: '/admin/reports', label: 'Reports', icon: BarChart3 },
+      ],
+    },
+    {
+      id: 'communication',
+      label: 'Communication',
+      icon: MessageSquare,
+      items: [
+        { href: '/admin/feedback', label: 'Feedback', icon: MessageSquare },
+        { href: '/admin/announcements', label: 'Announcements', icon: Bell },
+        { href: '/admin/sms', label: 'SMS Management', icon: Phone },
+        { href: '/admin/contacts', label: 'Contacts', icon: Phone },
+        { href: '/admin/lgu-contacts', label: 'LGU Contacts', icon: Phone },
+      ],
+    },
+    {
+      id: 'management',
+      label: 'Management',
+      icon: Settings,
+      items: [
+        { href: '/admin/users', label: 'Users', icon: User },
+        ...(process.env.NEXT_PUBLIC_FEATURE_TRAININGS_ENABLED === 'true' ? [
+          { href: '/admin/trainings', label: 'Trainings', icon: Calendar },
+          { href: '/admin/training-evaluations', label: 'Training Evaluations', icon: FileText },
+        ] : []),
+        { href: '/admin/settings', label: 'Settings', icon: Settings },
+      ],
+    },
+  ], [])
+
+  // Check if any item in a group is active (for auto-expand)
+  const isGroupActive = (group: NavGroup): boolean => {
+    return group.items.some(item => {
+      if (item.exact) {
+        return pathname === item.href
+      }
+      return pathname === item.href || pathname?.startsWith(`${item.href}/`)
+    })
+  }
+
+  // State for open/closed collapsible sections
+  const [openSections, setOpenSections] = useState<Set<string>>(new Set())
+
+  // Auto-expand active sections on mount and pathname change
+  useEffect(() => {
+    const activeSections = navigationGroups
+      .filter(group => isGroupActive(group))
+      .map(group => group.id)
+    setOpenSections(new Set(activeSections))
+  }, [pathname, navigationGroups])
+
+  const toggleSection = (sectionId: string) => {
+    setOpenSections(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(sectionId)) {
+        newSet.delete(sectionId)
+      } else {
+        newSet.add(sectionId)
+      }
+      return newSet
+    })
+  }
+
   return (
     <AuthLayout allowedRoles={["admin"]}>
       <div className="flex h-screen bg-gray-100">
@@ -96,11 +213,12 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
 
         {/* Sidebar */}
         <aside
-          className={`fixed inset-y-0 left-0 z-[1000] w-64 transform bg-blue-800 text-white transition duration-300 ease-in-out lg:static lg:translate-x-0 lg:z-auto ${
+          className={`fixed inset-y-0 left-0 z-[1000] w-72 sm:w-80 transform bg-blue-800 text-white transition duration-300 ease-in-out lg:static lg:w-64 lg:translate-x-0 lg:z-auto flex flex-col ${
             sidebarOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
-          <div className="flex items-center justify-between p-4 border-b border-blue-700">
+          {/* Header - Fixed at top */}
+          <div className="flex items-center justify-between p-4 border-b border-blue-700 flex-shrink-0">
             <div className="flex items-center space-x-2">
               <AlertTriangle className="h-6 w-6" />
               <span className="text-xl font-bold">RVOIS Admin</span>
@@ -114,273 +232,126 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
             </button>
           </div>
 
-          <nav className="p-4 space-y-1 overflow-y-auto h-[calc(100vh-4rem)]">
-            <Link
-              href="/admin/dashboard"
-              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
-                isActive("/admin/dashboard") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
-              }`}
-              onClick={() => setSidebarOpen(false)}
-            >
-              <Home className="h-5 w-5 flex-shrink-0 text-white" />
-              <span className="font-medium truncate text-white">Dashboard</span>
-            </Link>
+          {/* Navigation with collapsible groups - Flex layout to ensure sign out is always visible */}
+          <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+            {/* Scrollable navigation area */}
+            <nav className="flex-1 p-4 space-y-2 overflow-y-auto overflow-x-hidden min-h-0 pb-2">
+              {/* Dashboard - Always visible, standalone */}
+              <Link
+                href="/admin/dashboard"
+                className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white min-h-[44px] ${
+                  isActive("/admin/dashboard") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
+                }`}
+                onClick={() => setSidebarOpen(false)}
+              >
+                <Home className="h-5 w-5 flex-shrink-0 text-white" />
+                <span className="font-medium text-white whitespace-nowrap">Dashboard</span>
+              </Link>
 
-            <Link
-              href="/admin/documents"
-              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
-                isActive("/admin/documents") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
-              }`}
-              onClick={() => setSidebarOpen(false)}
-            >
-              <FileText className="h-5 w-5 flex-shrink-0 text-white" />
-              <span className="font-medium truncate text-white">Documents</span>
-            </Link>
+              {/* Collapsible Navigation Groups */}
+              {navigationGroups.map((group) => {
+                const isOpen = openSections.has(group.id)
+                const GroupIcon = group.icon
+                const hasActiveItem = isGroupActive(group)
 
-            <Link
-              href="/admin/incidents"
-              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
-                isActive("/admin/incidents") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
-              }`}
-              onClick={() => setSidebarOpen(false)}
-            >
-              <AlertTriangle className="h-5 w-5 flex-shrink-0 text-white" />
-              <span className="font-medium truncate text-white">Incidents</span>
-            </Link>
+                return (
+                  <Collapsible
+                    key={group.id}
+                    open={isOpen}
+                    onOpenChange={() => toggleSection(group.id)}
+                  >
+                    <CollapsibleTrigger
+                      className={`flex items-center justify-between w-full p-3 rounded-lg transition-colors duration-200 text-white min-h-[44px] cursor-pointer ${
+                        hasActiveItem ? "bg-blue-700/50 text-white" : "hover:bg-blue-700 hover:shadow-md text-white"
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3 flex-1 min-w-0">
+                        <GroupIcon className="h-5 w-5 flex-shrink-0 text-white" />
+                        <span className="font-medium text-white whitespace-nowrap">{group.label}</span>
+                      </div>
+                      <ChevronDown
+                        className={`h-4 w-4 flex-shrink-0 text-white transition-transform duration-200 ${
+                          isOpen ? "transform rotate-180" : ""
+                        }`}
+                      />
+                    </CollapsibleTrigger>
 
-            <Link
-              href="/admin/volunteers"
-              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
-                pathname === "/admin/volunteers" ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
-              }`}
-              onClick={() => setSidebarOpen(false)}
-            >
-              <User className="h-5 w-5 flex-shrink-0 text-white" />
-              <span className="font-medium truncate text-white">Volunteers</span>
-            </Link>
+                    <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down pointer-events-auto">
+                      <div className="pl-6 pt-1 space-y-1">
+                        {group.items.map((item) => {
+                          const ItemIcon = item.icon
+                          // Check if this item matches the current pathname
+                          const itemMatches = item.exact
+                            ? pathname === item.href
+                            : pathname === item.href || pathname?.startsWith(`${item.href}/`)
+                          
+                          // Only highlight if this item matches AND there's no more specific item that also matches
+                          let isItemActive = false
+                          if (itemMatches) {
+                            // Check if there's a more specific item (longer path) that also matches
+                            const hasMoreSpecificMatch = group.items.some(otherItem => {
+                              if (otherItem.href === item.href) return false // Skip self
+                              if (otherItem.href.length <= item.href.length) return false // Not more specific
+                              
+                              // Check if the more specific item matches
+                              if (otherItem.exact) {
+                                return pathname === otherItem.href
+                              }
+                              return pathname === otherItem.href || pathname?.startsWith(`${otherItem.href}/`)
+                            })
+                            
+                            // Only highlight if no more specific match exists
+                            isItemActive = !hasMoreSpecificMatch
+                          }
 
-            <Link
-              href="/admin/volunteers/analytics"
-              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
-                pathname === "/admin/volunteers/analytics" || pathname.startsWith("/admin/volunteers/analytics/") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
-              }`}
-              onClick={() => setSidebarOpen(false)}
-            >
-              <BarChart3 className="h-5 w-5 flex-shrink-0 text-white" />
-              <span className="font-medium truncate text-white">Volunteer Analytics</span>
-            </Link>
+                          return (
+                            <Link
+                              key={item.href}
+                              href={item.href}
+                              className={`flex items-center space-x-3 p-2.5 rounded-lg transition-colors duration-200 text-white min-h-[44px] relative z-10 cursor-pointer ${
+                                isItemActive
+                                  ? "bg-blue-700 text-white shadow-lg"
+                                  : "hover:bg-blue-700/70 hover:shadow-md text-white"
+                              }`}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setSidebarOpen(false)
+                              }}
+                            >
+                              <ItemIcon className="h-4 w-4 flex-shrink-0 text-white" />
+                              <span className="font-medium text-white text-sm whitespace-nowrap">{item.label}</span>
+                            </Link>
+                          )
+                        })}
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                )
+              })}
+            </nav>
 
-            <Link
-              href="/admin/volunteers/map"
-              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
-                pathname === "/admin/volunteers/map" || pathname.startsWith("/admin/volunteers/map/") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
-              }`}
-              onClick={() => setSidebarOpen(false)}
-            >
-              <MapPin className="h-5 w-5 flex-shrink-0 text-white" />
-              <span className="font-medium truncate text-white">Volunteer Tracking</span>
-            </Link>
-
-            <Link
-              href="/admin/barangay"
-              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
-                pathname.startsWith("/admin/barangay") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
-              }`}
-              onClick={() => setSidebarOpen(false)}
-            >
-              <MapPin className="h-5 w-5 flex-shrink-0 text-white" />
-              <span className="font-medium truncate text-white">Barangay</span>
-            </Link>
-
-            <Link
-              href="/admin/activities/dashboard"
-              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
-                pathname === "/admin/activities/dashboard" || pathname.startsWith("/admin/activities/dashboard/") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
-              }`}
-              onClick={() => setSidebarOpen(false)}
-            >
-              <BarChart3 className="h-5 w-5 flex-shrink-0 text-white" />
-              <span className="font-medium truncate text-white">Activity Dashboard</span>
-            </Link>
-
-            <Link
-              href="/admin/schedules"
-              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
-                pathname === "/admin/schedules" || (pathname.startsWith("/admin/schedules/") && !pathname.includes("/analytics")) ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
-              }`}
-              onClick={() => setSidebarOpen(false)}
-            >
-              <Calendar className="h-5 w-5 flex-shrink-0 text-white" />
-              <span className="font-medium truncate text-white">Schedules</span>
-            </Link>
-
-            <Link
-              href="/admin/activities/reports"
-              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
-                pathname === "/admin/activities/reports" || pathname.startsWith("/admin/activities/reports/") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
-              }`}
-              onClick={() => setSidebarOpen(false)}
-            >
-              <BarChart3 className="h-5 w-5 flex-shrink-0 text-white" />
-              <span className="font-medium truncate text-white">Activity Reports</span>
-            </Link>
-
-
-            <Link
-              href="/admin/area-map"
-              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
-                pathname === "/admin/area-map" || pathname.startsWith("/admin/area-map/") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
-              }`}
-              onClick={() => setSidebarOpen(false)}
-            >
-              <MapPin className="h-5 w-5 flex-shrink-0 text-white" />
-              <span className="font-medium truncate text-white">Area Map</span>
-            </Link>
-
-            <Link
-              href="/admin/schedules/analytics"
-              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
-                pathname === "/admin/schedules/analytics" || pathname.startsWith("/admin/schedules/analytics/") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
-              }`}
-              onClick={() => setSidebarOpen(false)}
-            >
-              <BarChart3 className="h-5 w-5 flex-shrink-0 text-white" />
-              <span className="font-medium truncate text-white">Schedule Analytics</span>
-            </Link>
-
-            <Link
-              href="/admin/reports"
-              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
-                isActive("/admin/reports") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
-              }`}
-              onClick={() => setSidebarOpen(false)}
-            >
-              <BarChart3 className="h-5 w-5 flex-shrink-0 text-white" />
-              <span className="font-medium truncate text-white">Reports</span>
-            </Link>
-
-            <Link
-              href="/admin/feedback"
-              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
-                isActive("/admin/feedback") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
-              }`}
-              onClick={() => setSidebarOpen(false)}
-            >
-              <MessageSquare className="h-5 w-5 flex-shrink-0 text-white" />
-              <span className="font-medium truncate text-white">Feedback</span>
-            </Link>
-
-            <Link
-              href="/admin/announcements"
-              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
-                isActive("/admin/announcements") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
-              }`}
-              onClick={() => setSidebarOpen(false)}
-            >
-              <Bell className="h-5 w-5 flex-shrink-0 text-white" />
-              <span className="font-medium truncate text-white">Announcements</span>
-            </Link>
-
-            <Link
-              href="/admin/sms"
-              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
-                pathname.startsWith("/admin/sms") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
-              }`}
-              onClick={() => setSidebarOpen(false)}
-            >
-              <Phone className="h-5 w-5 flex-shrink-0 text-white" />
-              <span className="font-medium truncate text-white">SMS Management</span>
-            </Link>
-
-            <Link
-              href="/admin/contacts"
-              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
-                isActive("/admin/contacts") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
-              }`}
-              onClick={() => setSidebarOpen(false)}
-            >
-              <Phone className="h-5 w-5 flex-shrink-0 text-white" />
-              <span className="font-medium truncate text-white">Contacts</span>
-            </Link>
-
-            <Link
-              href="/admin/lgu-contacts"
-              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
-                isActive("/admin/lgu-contacts") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
-              }`}
-              onClick={() => setSidebarOpen(false)}
-            >
-              <Phone className="h-5 w-5 flex-shrink-0 text-white" />
-              <span className="font-medium truncate text-white">LGU Contacts</span>
-            </Link>
-
-            <Link
-              href="/admin/users"
-              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
-                pathname.startsWith("/admin/users") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
-              }`}
-              onClick={() => setSidebarOpen(false)}
-            >
-              <User className="h-5 w-5 flex-shrink-0 text-white" />
-              <span className="font-medium truncate text-white">Users</span>
-            </Link>
-
-            {process.env.NEXT_PUBLIC_FEATURE_TRAININGS_ENABLED === 'true' && (
-              <>
-                <Link
-                  href="/admin/trainings"
-                  className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
-                    isActive("/admin/trainings") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
-                  }`}
-                  onClick={() => setSidebarOpen(false)}
-                >
-                  <Calendar className="h-5 w-5 flex-shrink-0 text-white" />
-                  <span className="font-medium truncate text-white">Trainings</span>
-                </Link>
-
-                <Link
-                  href="/admin/training-evaluations"
-                  className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
-                    isActive("/admin/training-evaluations") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
-                  }`}
-                  onClick={() => setSidebarOpen(false)}
-                >
-                  <FileText className="h-5 w-5 flex-shrink-0 text-white" />
-                  <span className="font-medium truncate text-white">Training Evaluations</span>
-                </Link>
-              </>
-            )}
-
-            <Link
-              href="/admin/settings"
-              className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 text-white ${
-                isActive("/admin/settings") ? "bg-blue-700 text-white shadow-lg" : "hover:bg-blue-700 hover:shadow-md text-white"
-              }`}
-              onClick={() => setSidebarOpen(false)}
-            >
-              <Settings className="h-5 w-5 flex-shrink-0 text-white" />
-              <span className="font-medium truncate text-white">Settings</span>
-            </Link>
-
-            <button
-              onClick={() => {
-                setSidebarOpen(false);
-                setShowSignOutModal(true);
-              }}
-              disabled={loading}
-              className="flex items-center space-x-3 p-3 rounded-lg w-full text-left text-white hover:bg-blue-700 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-white"
-              aria-label="Sign out"
-            >
-              {loading ? (
-                <LoadingSpinner size="sm" color="text-white" />
-              ) : (
-                <>
-                  <AlertTriangle className="h-5 w-5 flex-shrink-0 text-white" />
-                  <span className="font-medium truncate text-white">Sign Out</span>
-                </>
-              )}
-            </button>
-          </nav>
+            {/* Sign Out Button - ALWAYS VISIBLE at bottom, outside scrollable area */}
+            <div className="flex-shrink-0 border-t border-blue-700 p-3">
+              <button
+                onClick={() => {
+                  setSidebarOpen(false)
+                  setShowSignOutModal(true)
+                }}
+                disabled={loading}
+                className="flex items-center justify-center space-x-2 px-3 py-2 rounded-md w-full text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-blue-800 transition-colors duration-200 text-sm font-medium"
+                aria-label="Sign out"
+              >
+                {loading ? (
+                  <LoadingSpinner size="sm" color="text-white" />
+                ) : (
+                  <>
+                    <Power className="h-4 w-4 flex-shrink-0 text-white" />
+                    <span className="text-white whitespace-nowrap">Sign Out</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </aside>
 
         {/* Main content */}
