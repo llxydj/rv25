@@ -17,7 +17,8 @@ import { useToast } from "@/components/ui/use-toast"
 import { supabase } from "@/lib/supabase"
 import { VoiceRecorder } from "@/components/voice-recorder"
 
-const MAX_PHOTOS = 3
+// Mobile: Limit to 1 photo for instant submission. Desktop: Allow 3 photos
+const MAX_PHOTOS = typeof window !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent) ? 1 : 3
 
 export default function ReportIncidentPage() {
   const { toast } = useToast()
@@ -440,10 +441,10 @@ export default function ReportIncidentPage() {
       }
   
       loadImage().then(({ imageBitmap, img, width, height }) => {
-        // AGGRESSIVE MOBILE COMPRESSION: 640px max, 0.4 quality
-        // This reduces 3MB photos to ~300KB (10x smaller!)
-        const MAX_DIM = isMobile ? 640 : 1280  // Reduced from 800px to 640px
-        const JPEG_QUALITY = isMobile ? 0.4 : 0.7  // Reduced from 0.5 to 0.4
+        // ULTRA-AGGRESSIVE MOBILE COMPRESSION: 480px max, 0.35 quality
+        // This reduces 3MB photos to ~150KB (20x smaller!) for instant mobile uploads
+        const MAX_DIM = isMobile ? 480 : 1280  // Ultra-aggressive: 480px for mobile
+        const JPEG_QUALITY = isMobile ? 0.35 : 0.7  // Ultra-aggressive: 0.35 quality for mobile
 
         const originalSizeKB = (file.size / 1024).toFixed(1)
         console.log(`📸 [PHOTO] Original: ${width}x${height}px, ${originalSizeKB}KB`)
@@ -481,41 +482,40 @@ export default function ReportIncidentPage() {
           ctx.drawImage(img, 0, 0, targetW, targetH)
         }
 
-        // OPTIMIZED WATERMARK: Readable but efficient
-        const watermarkHeight = isMobile ? 50 : 60  // Adequate height for readability
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'  // Slightly darker for better contrast
-        ctx.fillRect(0, canvas.height - watermarkHeight, canvas.width, watermarkHeight)
+        // MOBILE: Skip watermark for instant processing. Desktop: Add watermark
+        if (!isMobile) {
+          // OPTIMIZED WATERMARK: Readable but efficient (desktop only)
+          const watermarkHeight = 60
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
+          ctx.fillRect(0, canvas.height - watermarkHeight, canvas.width, watermarkHeight)
 
-        // Readable font size with good contrast
-        const fontSize = isMobile ? 13 : 15
-        ctx.font = `bold ${fontSize}px Arial`  // Bold for better readability
-        ctx.fillStyle = '#FFFFFF'
-        ctx.textBaseline = 'middle'
+          const fontSize = 15
+          ctx.font = `bold ${fontSize}px Arial`
+          ctx.fillStyle = '#FFFFFF'
+          ctx.textBaseline = 'middle'
 
-        const date = new Date().toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric',
-        })
-        const time = new Date().toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: true,
-        })
+          const date = new Date().toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+          })
+          const time = new Date().toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+          })
 
-        const locationText = formData.barangay || 'Talisay City'
+          const locationText = formData.barangay || 'Talisay City'
 
-        // Two-line watermark for better readability
-        const padding = 10
-        const lineHeight = fontSize + 4
-        const firstLineY = canvas.height - watermarkHeight + (watermarkHeight / 2) - (lineHeight / 2)
-        const secondLineY = firstLineY + lineHeight
+          const padding = 10
+          const lineHeight = fontSize + 4
+          const firstLineY = canvas.height - watermarkHeight + (watermarkHeight / 2) - (lineHeight / 2)
+          const secondLineY = firstLineY + lineHeight
 
-        // Location on first line
-        ctx.fillText(`📍 ${locationText}`, padding, firstLineY)
-        
-        // Date and time on second line
-        ctx.fillText(`📅 ${date} ${time}`, padding, secondLineY)
+          ctx.fillText(`📍 ${locationText}`, padding, firstLineY)
+          ctx.fillText(`📅 ${date} ${time}`, padding, secondLineY)
+        }
+        // Mobile: No watermark = instant processing
 
         // Convert to blob with aggressive compression
         const convertToBlob = () => {
@@ -624,6 +624,7 @@ export default function ReportIncidentPage() {
 
   const validateForm = () => {
     // Step 1: Photo is REQUIRED (at least 1 photo)
+    // Mobile: Only require 1 photo (not 3) for faster submission
     if (photoFiles.length === 0) {
       setError("Please capture at least one photo of the incident");
       return false;

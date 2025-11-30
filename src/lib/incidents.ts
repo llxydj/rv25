@@ -340,64 +340,49 @@ export const createIncident = async (
 
     const uploadSinglePhoto = async (file: File, photoIndex: number): Promise<string | null> => {
       const fileSizeKB = (file.size / 1024).toFixed(1)
-      console.log(`📤 [PHOTO ${photoIndex + 1}] Starting upload:`, {
+      console.log(`📤 [PHOTO ${photoIndex + 1}] Starting DIRECT client upload:`, {
         fileName: file.name,
         fileSize: `${fileSizeKB}KB`,
         fileType: file.type
       })
       
-      const form = new FormData()
-      form.append('file', file)
-      form.append('reporter_id', reporterId)
-
-      let accessToken = options?.accessToken
-      if (!accessToken) {
-        try {
-          const { data: { session } } = await getSessionWithTimeout(5000)
-          accessToken = session?.access_token || undefined
-        } catch (error: any) {
-          console.error(`❌ [PHOTO ${photoIndex + 1}] Auth timeout:`, error)
-          return null // Return null instead of throwing - allows other photos to continue
-        }
-      }
-      const headers: Record<string, string> = {}
-      if (accessToken) {
-        headers['Authorization'] = `Bearer ${accessToken}`
-      }
-
       const uploadStartTime = Date.now()
       try {
-        // INDIVIDUAL PHOTO TIMEOUT: 30 seconds per photo
-        // If one fails, others still upload
-        const uploadRes = await fetchWithTimeout('/api/incidents/upload', {
-          method: 'POST',
-          body: form,
-          headers,
-          timeout: 30000 // 30 seconds per photo
-        })
+        // DIRECT CLIENT UPLOAD: Client → Supabase Storage (no server middleman = MUCH faster!)
+        // This bypasses the API endpoint and uploads directly to Supabase Storage
+        const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+        const path = `raw/${reporterId}-${Date.now()}-${photoIndex}.${ext}`
+        
+        // Use Supabase client directly - RLS policies will handle security
+        const { data, error: uploadError } = await supabase.storage
+          .from('incident-photos')
+          .upload(path, file, {
+            contentType: 'image/jpeg',
+            upsert: true,
+            cacheControl: '3600',
+          })
         
         const uploadElapsed = Date.now() - uploadStartTime
-        const uploadJson = await uploadRes.json()
         
-        if (!uploadRes.ok || !uploadJson?.success || !uploadJson?.path) {
-          console.error(`❌ [PHOTO ${photoIndex + 1}] Upload failed:`, uploadJson)
+        if (uploadError) {
+          console.error(`❌ [PHOTO ${photoIndex + 1}] Direct upload failed (${uploadElapsed}ms):`, uploadError)
           return null // Return null - don't throw, allow other photos to continue
         }
         
-        console.log(`✅ [PHOTO ${photoIndex + 1}] Uploaded successfully in ${uploadElapsed}ms:`, uploadJson.path)
-        return uploadJson.path as string
+        if (!data?.path) {
+          console.error(`❌ [PHOTO ${photoIndex + 1}] No path returned from upload`)
+          return null
+        }
+        
+        console.log(`✅ [PHOTO ${photoIndex + 1}] Direct upload SUCCESS in ${uploadElapsed}ms:`, data.path)
+        return data.path
       } catch (error: any) {
         const uploadElapsed = Date.now() - uploadStartTime
-        console.error(`❌ [PHOTO ${photoIndex + 1}] Upload error (${uploadElapsed}ms):`, {
+        console.error(`❌ [PHOTO ${photoIndex + 1}] Direct upload error (${uploadElapsed}ms):`, {
           error: error.message,
           name: error.name,
           fileSize: `${fileSizeKB}KB`
         })
-        
-        if (error.name === 'AbortError' || error.message?.includes('timeout')) {
-          console.warn(`⏱️ [PHOTO ${photoIndex + 1}] Upload timeout after ${uploadElapsed}ms - continuing with other photos`)
-          return null // Return null instead of throwing - allows other photos to continue
-        }
         return null // Return null for any error - allows other photos to continue
       }
     }
@@ -550,19 +535,21 @@ export const createIncident = async (
     console.log('Incident created via API:', apiJson.data)
     const incidentId = apiJson.data?.id
 
-    // PERFORMANCE FIX: Upload photos and voice in background AFTER incident is created
+    // CRITICAL: Upload photos and voice in background AFTER incident is created
     // This allows the user to get immediate feedback while uploads happen in background
+    // DO NOT WAIT for uploads - return success immediately
     if ((filesToUpload.length > 0 || voiceBlob) && incidentId) {
-      // Fire and forget - don't block the response
+      // Fire and forget - don't block the response AT ALL
+      // Start uploads but don't await them
       ;(async () => {
         try {
-          notifyStage("upload-photo")
+          // Don't even notify stage - just upload silently in background
           const backgroundUploads: Promise<any>[] = []
           
           // Upload photos in background with individual timeouts
-          // Each photo has 20s timeout - if one fails, others continue
+          // Each photo has 30s timeout - if one fails, others continue
           if (filesToUpload.length > 0) {
-            console.log(`📤 [PHOTOS] Starting upload of ${filesToUpload.length} photo(s) with individual 30s timeouts`)
+            console.log(`📤 [PHOTOS] Starting background upload of ${filesToUpload.length} photo(s) (non-blocking)`)
             const photoPromises = filesToUpload.map((file, index) => 
               uploadSinglePhoto(file, index)
             )
