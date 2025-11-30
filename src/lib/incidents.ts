@@ -338,25 +338,26 @@ export const createIncident = async (
     const filesToUpload = Array.isArray(photoFiles) ? photoFiles.slice(0, 3) : []
     const uploadedPhotoPaths: string[] = []
 
-    const uploadSinglePhoto = async (file: File): Promise<string> => {
-      console.log("Attempting server-managed photo upload:", {
+    const uploadSinglePhoto = async (file: File, photoIndex: number): Promise<string | null> => {
+      const fileSizeKB = (file.size / 1024).toFixed(1)
+      console.log(`📤 [PHOTO ${photoIndex + 1}] Starting upload:`, {
         fileName: file.name,
-        fileSize: file.size,
+        fileSize: `${fileSizeKB}KB`,
         fileType: file.type
       })
+      
       const form = new FormData()
       form.append('file', file)
       form.append('reporter_id', reporterId)
 
       let accessToken = options?.accessToken
       if (!accessToken) {
-        // CRITICAL FIX: Add timeout to prevent infinite hang on mobile
         try {
           const { data: { session } } = await getSessionWithTimeout(5000)
           accessToken = session?.access_token || undefined
         } catch (error: any) {
-          console.error("Auth getSession timeout in photo upload:", error)
-          throw new Error('Session verification timeout during photo upload. Please try again.')
+          console.error(`❌ [PHOTO ${photoIndex + 1}] Auth timeout:`, error)
+          return null // Return null instead of throwing - allows other photos to continue
         }
       }
       const headers: Record<string, string> = {}
@@ -364,29 +365,41 @@ export const createIncident = async (
         headers['Authorization'] = `Bearer ${accessToken}`
       }
 
-      console.time('createIncident.upload')
-      // Use fetchWithTimeout to prevent hanging on slow mobile networks
-      // MOBILE FIX: Reduced timeout for mobile - if it takes longer, fail gracefully
-      const uploadRes = await fetchWithTimeout('/api/incidents/upload', {
-        method: 'POST',
-        body: form,
-        headers,
-        timeout: 30000 // 30 seconds for photo uploads (reduced from 60s for mobile)
-      }).catch((error: any) => {
-        console.error('❌ Photo upload failed:', error)
-        if (error.name === 'AbortError' || error.message?.includes('timeout')) {
-          throw new Error('Photo upload timeout. The incident will be created without photos. You can add photos later.')
+      const uploadStartTime = Date.now()
+      try {
+        // INDIVIDUAL PHOTO TIMEOUT: 30 seconds per photo
+        // If one fails, others still upload
+        const uploadRes = await fetchWithTimeout('/api/incidents/upload', {
+          method: 'POST',
+          body: form,
+          headers,
+          timeout: 30000 // 30 seconds per photo
+        })
+        
+        const uploadElapsed = Date.now() - uploadStartTime
+        const uploadJson = await uploadRes.json()
+        
+        if (!uploadRes.ok || !uploadJson?.success || !uploadJson?.path) {
+          console.error(`❌ [PHOTO ${photoIndex + 1}] Upload failed:`, uploadJson)
+          return null // Return null - don't throw, allow other photos to continue
         }
-        throw error
-      })
-      const uploadJson = await uploadRes.json()
-      console.timeEnd('createIncident.upload')
-      if (!uploadRes.ok || !uploadJson?.success || !uploadJson?.path) {
-        console.error('Upload endpoint failed:', uploadJson)
-        throw new Error(uploadJson?.message || 'Failed to upload photo')
+        
+        console.log(`✅ [PHOTO ${photoIndex + 1}] Uploaded successfully in ${uploadElapsed}ms:`, uploadJson.path)
+        return uploadJson.path as string
+      } catch (error: any) {
+        const uploadElapsed = Date.now() - uploadStartTime
+        console.error(`❌ [PHOTO ${photoIndex + 1}] Upload error (${uploadElapsed}ms):`, {
+          error: error.message,
+          name: error.name,
+          fileSize: `${fileSizeKB}KB`
+        })
+        
+        if (error.name === 'AbortError' || error.message?.includes('timeout')) {
+          console.warn(`⏱️ [PHOTO ${photoIndex + 1}] Upload timeout after ${uploadElapsed}ms - continuing with other photos`)
+          return null // Return null instead of throwing - allows other photos to continue
+        }
+        return null // Return null for any error - allows other photos to continue
       }
-      console.log('Photo uploaded successfully via server endpoint, path:', uploadJson.path)
-      return uploadJson.path as string
     }
 
     // Upload voice in parallel with photos (non-blocking)
@@ -546,16 +559,13 @@ export const createIncident = async (
           notifyStage("upload-photo")
           const backgroundUploads: Promise<any>[] = []
           
-          // Upload photos in background
+          // Upload photos in background with individual timeouts
+          // Each photo has 20s timeout - if one fails, others continue
           if (filesToUpload.length > 0) {
-            const photoPromises = filesToUpload.map(async (file) => {
-              try {
-                return await uploadSinglePhoto(file)
-              } catch (error) {
-                console.error('Background photo upload failed:', error)
-                return null
-              }
-            })
+            console.log(`📤 [PHOTOS] Starting upload of ${filesToUpload.length} photo(s) with individual 30s timeouts`)
+            const photoPromises = filesToUpload.map((file, index) => 
+              uploadSinglePhoto(file, index)
+            )
             backgroundUploads.push(...photoPromises)
           }
 
@@ -579,18 +589,28 @@ export const createIncident = async (
             if (filesToUpload.length > 0) {
               const photoResults = results.slice(0, filesToUpload.length)
               photoPaths.push(...photoResults.filter((path): path is string => path !== null))
+              
+              const successCount = photoPaths.length
+              const failCount = filesToUpload.length - successCount
+              console.log(`📊 [PHOTOS] Upload summary: ${successCount}/${filesToUpload.length} succeeded${failCount > 0 ? `, ${failCount} failed` : ''}`)
             }
             
             if (voiceBlob) {
               voicePath = results[filesToUpload.length] || null
+              if (voicePath) {
+                console.log('✅ [VOICE] Uploaded successfully')
+              } else {
+                console.warn('⚠️ [VOICE] Upload failed (non-critical)')
+              }
             }
 
-            // Update incident with uploaded media paths
+            // Update incident with uploaded media paths (even if only some photos succeeded)
             if (photoPaths.length > 0 || voicePath) {
               const updatePayload: any = {}
               if (photoPaths.length > 0) {
                 updatePayload.photo_url = photoPaths[0]
                 updatePayload.photo_urls = photoPaths
+                console.log(`📸 [PHOTOS] Updating incident with ${photoPaths.length} photo(s)`)
               }
               if (voicePath) {
                 updatePayload.voice_url = voicePath
@@ -605,8 +625,10 @@ export const createIncident = async (
                   ...updatePayload
                 })
               }).catch(err => {
-                console.error('Failed to update incident with media:', err)
+                console.error('❌ Failed to update incident with media:', err)
               })
+            } else {
+              console.warn('⚠️ [MEDIA] No photos or voice uploaded - incident created without media')
             }
           }
         } catch (err) {

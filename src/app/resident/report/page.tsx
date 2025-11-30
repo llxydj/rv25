@@ -440,22 +440,27 @@ export default function ReportIncidentPage() {
       }
   
       loadImage().then(({ imageBitmap, img, width, height }) => {
-        // Set max dimension & JPEG quality based on device - more aggressive for mobile
-        const MAX_DIM = isMobile ? 800 : 1280
-        const JPEG_QUALITY = isMobile ? 0.5 : 0.7
-  
+        // AGGRESSIVE MOBILE COMPRESSION: 640px max, 0.4 quality
+        // This reduces 3MB photos to ~300KB (10x smaller!)
+        const MAX_DIM = isMobile ? 640 : 1280  // Reduced from 800px to 640px
+        const JPEG_QUALITY = isMobile ? 0.4 : 0.7  // Reduced from 0.5 to 0.4
+
+        const originalSizeKB = (file.size / 1024).toFixed(1)
+        console.log(`📸 [PHOTO] Original: ${width}x${height}px, ${originalSizeKB}KB`)
+
         let targetW = width
         let targetH = height
         if (Math.max(width, height) > MAX_DIM) {
           const scale = MAX_DIM / Math.max(width, height)
           targetW = Math.round(width * scale)
           targetH = Math.round(height * scale)
+          console.log(`📸 [PHOTO] Resizing to: ${targetW}x${targetH}px (scale: ${(scale * 100).toFixed(0)}%)`)
         }
-  
+
         const canvas = document.createElement('canvas')
         canvas.width = targetW
         canvas.height = targetH
-        // Optimize canvas context for performance - willReadFrequently: false for better speed
+        // Optimize canvas context for performance
         const ctx = canvas.getContext('2d', { 
           willReadFrequently: false,
           alpha: true,
@@ -467,7 +472,7 @@ export default function ReportIncidentPage() {
           resolve(null)
           return
         }
-  
+
         // Draw image (use imageBitmap if available, otherwise img)
         if (imageBitmap) {
           ctx.drawImage(imageBitmap, 0, 0, targetW, targetH)
@@ -475,57 +480,52 @@ export default function ReportIncidentPage() {
         } else if (img) {
           ctx.drawImage(img, 0, 0, targetW, targetH)
         }
-  
-        // Dynamically adjust watermark height based on canvas height
-        const watermarkHeight = Math.max(50, Math.round(canvas.height * 0.1))
-        
-        // Optimize watermark rendering - batch operations
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'
+
+        // OPTIMIZED WATERMARK: Readable but efficient
+        const watermarkHeight = isMobile ? 50 : 60  // Adequate height for readability
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'  // Slightly darker for better contrast
         ctx.fillRect(0, canvas.height - watermarkHeight, canvas.width, watermarkHeight)
-  
-        // Font size scales with watermark height
-        const fontSize = Math.max(12, Math.round(watermarkHeight * 0.3))
-        ctx.font = `bold ${fontSize}px Arial`
+
+        // Readable font size with good contrast
+        const fontSize = isMobile ? 13 : 15
+        ctx.font = `bold ${fontSize}px Arial`  // Bold for better readability
         ctx.fillStyle = '#FFFFFF'
-  
+        ctx.textBaseline = 'middle'
+
         const date = new Date().toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: 'long',
+          month: 'short',
           day: 'numeric',
+          year: 'numeric',
         })
         const time = new Date().toLocaleTimeString('en-US', {
           hour: '2-digit',
           minute: '2-digit',
           hour12: true,
         })
-  
-        const locationText = formData.barangay
-          ? `${formData.barangay}, Talisay City`
-          : location
-          ? `Lat: ${location[0].toFixed(6)}, Lng: ${location[1].toFixed(6)}`
-          : 'Talisay City'
-  
-        // Optimize shadow - use simpler shadow for mobile
-        if (!isMobile) {
-          ctx.shadowColor = 'rgba(0, 0, 0, 0.5)'
-          ctx.shadowBlur = 4
-          ctx.shadowOffsetX = 2
-          ctx.shadowOffsetY = 2
-        }
-  
+
+        const locationText = formData.barangay || 'Talisay City'
+
+        // Two-line watermark for better readability
         const padding = 10
-        ctx.fillText(`📍 ${locationText}`, padding, canvas.height - watermarkHeight / 2 - 5)
-        ctx.fillText(`📅 ${date} ${time}`, padding, canvas.height - padding)
-  
-        if (!isMobile) {
-          ctx.shadowColor = 'transparent'
-        }
-  
-        // Convert to blob - use requestIdleCallback on mobile for better responsiveness
+        const lineHeight = fontSize + 4
+        const firstLineY = canvas.height - watermarkHeight + (watermarkHeight / 2) - (lineHeight / 2)
+        const secondLineY = firstLineY + lineHeight
+
+        // Location on first line
+        ctx.fillText(`📍 ${locationText}`, padding, firstLineY)
+        
+        // Date and time on second line
+        ctx.fillText(`📅 ${date} ${time}`, padding, secondLineY)
+
+        // Convert to blob with aggressive compression
         const convertToBlob = () => {
           canvas.toBlob(
             (blob) => {
               if (blob) {
+                const compressedSizeKB = (blob.size / 1024).toFixed(1)
+                const compressionRatio = ((1 - blob.size / file.size) * 100).toFixed(0)
+                console.log(`📸 [PHOTO] Compressed: ${compressedSizeKB}KB (${compressionRatio}% smaller)`)
+                
                 const watermarkedFile = new File([blob], `incident_photo_${Date.now()}.jpg`, {
                   type: 'image/jpeg',
                 })
@@ -623,17 +623,21 @@ export default function ReportIncidentPage() {
   }
 
   const validateForm = () => {
-    // Step 1: Location must be captured first
-    if (!location || !locationCaptured) {
-      setError("Please capture your location first by clicking 'Use My Location' or waiting for automatic detection");
+    // Step 1: Photo is REQUIRED (at least 1 photo)
+    if (photoFiles.length === 0) {
+      setError("Please capture at least one photo of the incident");
       return false;
     }
 
-    // Step 2: Photo is now optional, so we don't require it anymore
+    // Step 2: Voice message is REQUIRED
+    if (!voiceBlob) {
+      setError("Please record a voice message describing the incident");
+      return false;
+    }
 
-    // Step 3: Description required
-    if (!formData.description || formData.description.trim().length < 10) {
-      setError("Please provide a detailed description (at least 10 characters)");
+    // Step 3: Location must be captured
+    if (!location || !locationCaptured) {
+      setError("Please capture your location by clicking 'Use My Location' or clicking on the map");
       return false;
     }
 
@@ -648,6 +652,8 @@ export default function ReportIncidentPage() {
       setError("Please provide a valid address (at least 5 characters)");
       return false;
     }
+
+    // Description is OPTIONAL - no validation needed
 
     // Clear any previous errors
     setError(null);
@@ -1038,10 +1044,103 @@ export default function ReportIncidentPage() {
             </div>
           )}
 
-          {/* STEP 1: Automatic Location Capture */}
+          {/* STEP 1: Photo Upload (REQUIRED) */}
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+            <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Step 1: Photo Evidence * {photoFiles.length > 0 && "✅"}
+                </h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Capture at least one photo of the incident. This is required to help responders understand the situation.
+                </p>
+              </div>
+              <span className="text-sm text-gray-500">
+                {photoFiles.length}/{MAX_PHOTOS} added
+              </span>
+            </div>
+
+            {photoPreviews.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                {photoPreviews.map((preview, index) => (
+                  <div key={preview} className="relative rounded-lg overflow-hidden border bg-gray-50">
+                    <img
+                      src={preview}
+                      alt={`Incident photo ${index + 1}`}
+                      className="h-40 w-full object-cover cursor-pointer"
+                      onClick={() => setSelectedPhotoIndex(index)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removePhoto(index)}
+                      aria-label={`Remove photo ${index + 1}`}
+                      className="absolute top-2 right-2 bg-red-600 text-white p-1 rounded-full hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {photoFiles.length < MAX_PHOTOS && (
+              <div className="flex items-center justify-center">
+                <label
+                  htmlFor="photo-upload"
+                  className="cursor-pointer bg-background py-6 px-4 border-2 border-dashed border-gray-300 rounded-lg text-center hover:bg-accent w-full transition-colors"
+                >
+                  <div className="space-y-2">
+                    <div className="mx-auto h-12 w-12 text-gray-400">
+                      <Camera className="h-12 w-12 mx-auto" />
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      <span className="font-medium text-red-600 hover:text-red-500">
+                        {photoFiles.length === 0 ? "Capture a photo (Required)" : "Add another photo"}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      JPG only · up to 3MB per photo · best to capture clear evidence
+                    </p>
+                  </div>
+                  <input
+                    id="photo-upload"
+                    name="photo"
+                    type="file"
+                    accept="image/jpeg"
+                    capture="environment"
+                    multiple
+                    className="sr-only"
+                    onChange={handlePhotoChange}
+                    disabled={loading}
+                  />
+                </label>
+              </div>
+            )}
+          </div>
+
+          {/* STEP 2: Voice Message (REQUIRED) */}
           <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
             <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
-              Step 1: Location Capture {locationCaptured && "✅"}
+              Step 2: Voice Message * {voiceBlob && "✅"}
+            </h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Record a voice message describing the incident. This is required to provide context to responders.
+            </p>
+            <VoiceRecorder
+              onRecordingComplete={(blob) => {
+                setVoiceBlob(blob)
+              }}
+              onRecordingDelete={() => {
+                setVoiceBlob(null)
+              }}
+              disabled={loading}
+            />
+          </div>
+
+          {/* STEP 3: Location Capture (REQUIRED) */}
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+            <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
+              Step 3: Location Capture * {locationCaptured && "✅"}
             </h2>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
               Your location will be automatically captured via GPS (target accuracy: 5-10 meters). 
@@ -1219,81 +1318,7 @@ export default function ReportIncidentPage() {
             </div>
           </div>
 
-          {/* STEP 2: Optional Photo Upload */}
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-            <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-              <div>
-                <h2 className="text-lg font-semibold">
-                  Step 2: Photo Evidence (Optional) {photoFiles.length > 0 && "✅"}
-                </h2>
-                <p className="text-sm text-gray-600">
-                  Add up to {MAX_PHOTOS} photos to help responders understand the situation faster.
-                </p>
-              </div>
-              <span className="text-sm text-gray-500">
-                {photoFiles.length}/{MAX_PHOTOS} added
-              </span>
-            </div>
-
-            {photoPreviews.length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-                {photoPreviews.map((preview, index) => (
-                  <div key={preview} className="relative rounded-lg overflow-hidden border bg-gray-50">
-                    <img
-                      src={preview}
-                      alt={`Incident photo ${index + 1}`}
-                      className="h-40 w-full object-cover cursor-pointer"
-                      onClick={() => setSelectedPhotoIndex(index)}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removePhoto(index)}
-                      aria-label={`Remove photo ${index + 1}`}
-                      className="absolute top-2 right-2 bg-red-600 text-white p-1 rounded-full hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {photoFiles.length < MAX_PHOTOS && (
-              <div className="flex items-center justify-center">
-                <label
-                  htmlFor="photo-upload"
-                  className="cursor-pointer bg-background py-6 px-4 border-2 border-dashed border-gray-300 rounded-lg text-center hover:bg-accent w-full transition-colors"
-                >
-                  <div className="space-y-2">
-                    <div className="mx-auto h-12 w-12 text-gray-400">
-                      <Camera className="h-12 w-12 mx-auto" />
-                    </div>
-                    <div className="text-sm text-gray-600">
-                      <span className="font-medium text-red-600 hover:text-red-500">
-                        {photoFiles.length === 0 ? "Add a photo" : "Add another photo"}
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500">
-                      JPG only · up to 3MB per photo · best to capture clear evidence
-                    </p>
-                  </div>
-                  <input
-                    id="photo-upload"
-                    name="photo"
-                    type="file"
-                    accept="image/jpeg"
-                    capture="environment"
-                    multiple
-                    className="sr-only"
-                    onChange={handlePhotoChange}
-                    disabled={loading}
-                  />
-                </label>
-              </div>
-            )}
-          </div>
-
-          {/* STEP 3: Incident Classification */}
+          {/* STEP 4: Incident Classification */}
           <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
             <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Step 3: Incident Classification</h2>
             <div className="space-y-4">
@@ -1347,9 +1372,9 @@ export default function ReportIncidentPage() {
             </div>
           </div>
 
-          {/* STEP 4: Auto-populated fields (user info, timestamp) - shown as read-only */}
+          {/* STEP 5: Auto-populated fields (user info, timestamp) - shown as read-only */}
           <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-            <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Step 4: Your Information (Auto-filled)</h2>
+            <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Step 5: Your Information (Auto-filled)</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700">Your Name</label>
@@ -1394,42 +1419,26 @@ export default function ReportIncidentPage() {
             </div>
           </div>
 
-          {/* STEP 5: User inputs description */}
+          {/* STEP 6: Description (OPTIONAL) */}
           <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-            <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Step 5: What Happened?</h2>
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="description" className="block text-sm font-medium text-gray-700">
-                  Description * (Short, clear description)
-                </label>
-                <textarea
-                  id="description"
-                  name="description"
-                  rows={3}
-                  required
-                  className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 sm:text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-700 uppercase"
-                  placeholder="Please describe what happened..."
-                  value={formData.description}
-                  onChange={handleChange}
-                  disabled={loading}
-                ></textarea>
-              </div>
-              
-              {/* Optional Voice Message */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Voice Message (Optional)
-                </label>
-                <VoiceRecorder
-                  onRecordingComplete={(blob) => {
-                    setVoiceBlob(blob)
-                  }}
-                  onRecordingDelete={() => {
-                    setVoiceBlob(null)
-                  }}
-                  disabled={loading}
-                />
-              </div>
+            <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Step 6: Additional Description (Optional)</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              You can provide additional written details about the incident. This is optional since you've already provided a voice message.
+            </p>
+            <div>
+              <label htmlFor="description" className="block text-sm font-medium text-gray-700">
+                Description (Optional)
+              </label>
+              <textarea
+                id="description"
+                name="description"
+                rows={3}
+                className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 sm:text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-700 uppercase"
+                placeholder="Add any additional details about the incident (optional)..."
+                value={formData.description}
+                onChange={handleChange}
+                disabled={loading}
+              ></textarea>
             </div>
           </div>
 
