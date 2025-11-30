@@ -838,77 +838,84 @@ export async function POST(request: Request) {
               }
             }
             
-            // Send push notifications directly using webpush (more reliable than HTTP calls)
-            const results = await Promise.allSettled(
+            // CRITICAL FIX: Send push notifications in background (non-blocking)
+            // This prevents API from hanging if push service is slow or unresponsive
+            // Don't await - let it run in background and log results asynchronously
+            Promise.allSettled(
               validSubscriptions.map(async (sub: any) => {
-            try {
-              // Ensure subscription is in the correct format
-              let subscriptionObj = sub.subscription
-              if (typeof subscriptionObj === 'string') {
-                subscriptionObj = JSON.parse(subscriptionObj)
-              }
-              
-              // Validate subscription structure
-              if (!subscriptionObj?.endpoint || !subscriptionObj?.keys?.p256dh || !subscriptionObj?.keys?.auth) {
-                throw new Error('Invalid subscription structure')
-              }
-              
-              console.log(`[push] Sending to admin ${sub.user_id} at ${subscriptionObj.endpoint.substring(0, 50)}...`)
-              
-              // Send push notification directly using webpush
-              const payloadString = JSON.stringify(payload)
-              await webpush.sendNotification(
-                subscriptionObj as webpush.PushSubscription,
-                payloadString
-              )
-              
-              console.log(`[push] ✅ Successfully sent push to admin ${sub.user_id}`)
-              return { success: true }
-            } catch (error: any) {
-              console.error(`[push] ❌ Failed to send push to admin ${sub.user_id}:`, {
-                message: error.message,
-                statusCode: error.statusCode,
-                endpoint: sub.subscription?.endpoint?.substring(0, 50) || 'unknown'
-              })
-              
-              // If subscription expired (410) or invalid (403), remove it from database
-              if (error.statusCode === 410 || error.statusCode === 403) {
-                const reason = error.statusCode === 410 ? 'expired' : 'invalid (VAPID key mismatch)'
-                console.log(`[push] Removing ${reason} subscription for admin ${sub.user_id}`)
                 try {
-                  // Get the endpoint from subscription object
+                  // Ensure subscription is in the correct format
                   let subscriptionObj = sub.subscription
                   if (typeof subscriptionObj === 'string') {
                     subscriptionObj = JSON.parse(subscriptionObj)
                   }
-                  const endpoint = subscriptionObj?.endpoint || sub.endpoint
                   
-                  if (endpoint) {
-                    await supabase
-                      .from('push_subscriptions')
-                      .delete()
-                      .eq('endpoint', endpoint)
-                    console.log(`[push] ✅ Removed ${reason} subscription for admin ${sub.user_id}`)
+                  // Validate subscription structure
+                  if (!subscriptionObj?.endpoint || !subscriptionObj?.keys?.p256dh || !subscriptionObj?.keys?.auth) {
+                    throw new Error('Invalid subscription structure')
                   }
-                } catch (deleteError) {
-                  console.error('[push] Failed to delete invalid subscription:', deleteError)
+                  
+                  console.log(`[push] Sending to admin ${sub.user_id} at ${subscriptionObj.endpoint.substring(0, 50)}...`)
+                  
+                  // Send push notification directly using webpush
+                  const payloadString = JSON.stringify(payload)
+                  await webpush.sendNotification(
+                    subscriptionObj as webpush.PushSubscription,
+                    payloadString
+                  )
+                  
+                  console.log(`[push] ✅ Successfully sent push to admin ${sub.user_id}`)
+                  return { success: true }
+                } catch (error: any) {
+                  console.error(`[push] ❌ Failed to send push to admin ${sub.user_id}:`, {
+                    message: error.message,
+                    statusCode: error.statusCode,
+                    endpoint: sub.subscription?.endpoint?.substring(0, 50) || 'unknown'
+                  })
+                  
+                  // If subscription expired (410) or invalid (403), remove it from database
+                  if (error.statusCode === 410 || error.statusCode === 403) {
+                    const reason = error.statusCode === 410 ? 'expired' : 'invalid (VAPID key mismatch)'
+                    console.log(`[push] Removing ${reason} subscription for admin ${sub.user_id}`)
+                    try {
+                      // Get the endpoint from subscription object
+                      let subscriptionObj = sub.subscription
+                      if (typeof subscriptionObj === 'string') {
+                        subscriptionObj = JSON.parse(subscriptionObj)
+                      }
+                      const endpoint = subscriptionObj?.endpoint || sub.endpoint
+                      
+                      if (endpoint) {
+                        await supabase
+                          .from('push_subscriptions')
+                          .delete()
+                          .eq('endpoint', endpoint)
+                        console.log(`[push] ✅ Removed ${reason} subscription for admin ${sub.user_id}`)
+                      }
+                    } catch (deleteError) {
+                      console.error('[push] Failed to delete invalid subscription:', deleteError)
+                    }
+                  }
+                  
+                  return { success: false, error: error.message }
                 }
-              }
-              
-              return { success: false, error: error.message }
-            }
               })
-            )
-
-            const successCount = results.filter(r => r.status === 'fulfilled' && r.value.success).length
-            const failureCount = results.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.success)).length
+            ).then((results) => {
+              // Log results asynchronously (non-blocking)
+              const successCount = results.filter(r => r.status === 'fulfilled' && r.value?.success).length
+              const failureCount = results.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value?.success)).length
+              
+              if (successCount > 0) {
+                console.log(`✅ Push notifications sent to ${successCount}/${validSubscriptions.length} admin device(s)`)
+              }
+              if (failureCount > 0) {
+                console.warn(`⚠️ Failed to send ${failureCount} push notification(s)`)
+              }
+            }).catch((err) => {
+              console.error('[push] Error in push notification background task:', err)
+            })
             
-            if (successCount > 0) {
-              console.log(`✅ Push notifications sent to ${successCount}/${validSubscriptions.length} admin device(s)`)
-            }
-            if (failureCount > 0) {
-              console.warn(`⚠️ Failed to send ${failureCount} push notification(s)`)
-            }
+            console.log(`[push] Push notifications queued for ${validSubscriptions.length} admin device(s) (non-blocking)`)
           }
         } else {
           console.log('⚠️ No active push subscriptions found for admins')
@@ -946,11 +953,12 @@ export async function POST(request: Request) {
           data.assigned_at = new Date().toISOString()
           data.status = 'ASSIGNED'
           
-          // Send push notification to auto-assigned volunteer
+          // Send push notification to auto-assigned volunteer (non-blocking)
           try {
             const { sendPushToUser } = await import('@/lib/push-notification-helper')
             
-            await sendPushToUser(assignmentResult.assignedVolunteer.volunteerId, {
+            // Don't await - send in background to prevent blocking
+            sendPushToUser(assignmentResult.assignedVolunteer.volunteerId, {
               title: '📋 New Incident Assignment',
               body: `You have been auto-assigned to a ${data.incident_type || 'incident'} in ${data.barangay || 'your area'}`,
               icon: '/favicon/android-chrome-192x192.png',

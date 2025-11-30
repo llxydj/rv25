@@ -213,11 +213,29 @@ export class LocationTrackingService {
 
   /**
    * Save location to database
+   * Only saves for volunteers - residents should not post to volunteer location API
    */
   private async saveLocationToDatabase(location: LocationData): Promise<void> {
     if (!this.userId) return
 
     try {
+      // Check user role before posting to volunteer location API
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user?.id) return
+
+      // Get user role from database
+      const { data: userData } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle()
+
+      // Only save location if user is a volunteer
+      if (!userData || userData.role !== 'volunteer') {
+        // Silently skip - residents don't need to post location to volunteer API
+        return
+      }
+
       // Get session token for authentication
       const { data: { session } } = await supabase.auth.getSession()
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
