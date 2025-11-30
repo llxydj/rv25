@@ -678,28 +678,38 @@ export const createIncident = async (
             // Get fresh session token if not provided (for background context)
             let accessToken = backgroundAccessToken
             if (!accessToken) {
+              console.log('⚠️ [BACKGROUND] No access token provided, attempting to get one...')
+              // Try direct Supabase call first (faster, no timeout wrapper)
               try {
-                // Shorter timeout for background (3 seconds)
-                const { data: { session } } = await getSessionWithTimeout(3000)
-                accessToken = session?.access_token || undefined
-                if (accessToken) {
-                  console.log('✅ [BACKGROUND] Got fresh session token')
+                const { data: { session: directSession }, error: directError } = await supabase.auth.getSession()
+                if (directSession?.access_token && !directError) {
+                  accessToken = directSession.access_token
+                  console.log('✅ [BACKGROUND] Got token via direct Supabase call')
+                } else {
+                  throw new Error(directError?.message || 'No session found')
                 }
-              } catch (err) {
-                console.warn('⚠️ [BACKGROUND] Could not get session token via timeout, trying direct Supabase call:', err)
-                // Last resort: try direct Supabase call (no timeout wrapper)
+              } catch (directErr: any) {
+                console.warn('⚠️ [BACKGROUND] Direct Supabase call failed, trying timeout wrapper:', directErr?.message || directErr)
+                // Fallback: try timeout wrapper
                 try {
-                  const { data: { session: directSession } } = await supabase.auth.getSession()
-                  if (directSession?.access_token) {
-                    accessToken = directSession.access_token
-                    console.log('✅ [BACKGROUND] Got token via direct Supabase call')
+                  const { data: { session } } = await getSessionWithTimeout(3000)
+                  accessToken = session?.access_token || undefined
+                  if (accessToken) {
+                    console.log('✅ [BACKGROUND] Got token via timeout wrapper')
+                  } else {
+                    throw new Error('No access token in session')
                   }
-                } catch (directErr) {
-                  console.warn('⚠️ [BACKGROUND] Direct Supabase call also failed, continuing without token:', directErr)
+                } catch (timeoutErr) {
+                  console.error('❌ [BACKGROUND] All token retrieval methods failed:', timeoutErr)
+                  // Continue anyway - upload might work without token (depending on API route)
                 }
               }
             } else {
               console.log('✅ [BACKGROUND] Using provided access token')
+            }
+            
+            if (!accessToken) {
+              console.warn('⚠️ [BACKGROUND] No access token available, uploads may fail if API requires auth')
             }
             
             const uploadedPhotoPaths: string[] = []

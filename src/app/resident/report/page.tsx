@@ -836,6 +836,9 @@ export default function ReportIncidentPage() {
           },
         },
       )
+      
+      // Log token availability for debugging
+      console.log("🔴 [REPORT SUBMIT] Access token available:", !!(sessionAccessToken || session.access_token))
 
       // 60-second overall timeout (increased for slow mobile networks)
       const timeoutPromise = new Promise<{ success: false; message: string }>((resolve) => 
