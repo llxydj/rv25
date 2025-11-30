@@ -327,8 +327,8 @@ export const createIncident = async (
       throw new Error("Authentication mismatch. Please try logging in again.")
     }
 
-    // Validate required fields
-    if (!reporterId || !incidentType || !description || !barangay) {
+    // Validate required fields (description is optional)
+    if (!reporterId || !incidentType || !barangay) {
       return {
         success: false,
         message: "Missing required fields",
@@ -338,7 +338,6 @@ export const createIncident = async (
     const submissionTimestamp = createdAtLocal ?? new Date().toISOString()
 
     const filesToUpload = Array.isArray(photoFiles) ? photoFiles.slice(0, 3) : []
-    const uploadedPhotoPaths: string[] = []
 
     const uploadSinglePhoto = async (file: File, photoIndex: number, retries = 2): Promise<string | null> => {
       const fileSizeKB = (file.size / 1024).toFixed(1)
@@ -418,8 +417,7 @@ export const createIncident = async (
       return null
     }
 
-    // Upload voice in parallel with photos (non-blocking)
-    let uploadedVoicePath: string | null = null
+    // Upload voice function (non-blocking, can fail silently)
     const uploadVoice = async (blob: Blob): Promise<string | null> => {
       try {
         const form = new FormData()
@@ -473,24 +471,26 @@ export const createIncident = async (
     }
 
     // ============================================================
-    // EMERGENCY FIX: Create incident FIRST, upload photos LATER
+    // MOBILE OPTIMIZATION: Create incident FIRST (instant), upload photos in background
+    // This ensures users see success immediately on mobile (fast networks)
     // ============================================================
 
-    // Step 1: Create incident record IMMEDIATELY (no photos, fast ~2 seconds)
+    // Step 1: Create incident record IMMEDIATELY (fast ~1-2 seconds, no waiting for photos)
     notifyStage("create-record")
-    console.log('🚀 [EMERGENCY] Creating incident WITHOUT photos first (fast path)')
+    console.log('🚀 [MOBILE] Creating incident immediately (photos will upload in background)')
 
     const payload: any = {
       reporter_id: reporterId,
       incident_type: incidentType,
-      description,
+      description: description || null, // Allow empty description
       location_lat: locationLat || 10.2465,
       location_lng: locationLng || 122.9735,
       address: address && address.trim() ? address.trim() : null,
       barangay,
       priority,
-      photo_url: null, // Will be added later
-      voice_url: null, // Will be added later
+      photo_url: null, // Will be added in background
+      photo_urls: null, // Will be added in background
+      voice_url: null, // Will be added in background
       is_offline: !!isOffline,
       created_at_local: submissionTimestamp,
     }
@@ -499,7 +499,7 @@ export const createIncident = async (
       ? `${window.location.origin}/api/incidents`
       : '/api/incidents'
 
-    console.time('createIncident.fast')
+    console.time('createIncident.api')
     
     // MOBILE FIX: Use native fetch without custom timeout wrapper
     // Mobile browsers handle timeouts differently than desktop
@@ -507,7 +507,6 @@ export const createIncident = async (
     const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 seconds
 
     let apiJson: any
-    let incidentId: string
 
     try {
       const apiRes = await fetch(apiUrl, {
@@ -526,20 +525,88 @@ export const createIncident = async (
       
       if (!apiRes.ok) {
         const errorText = await apiRes.text()
-        console.error('❌ [EMERGENCY] API error:', errorText)
+        console.error('❌ [INCIDENT] API error:', errorText)
         throw new Error('Failed to create incident: ' + errorText)
       }
 
       apiJson = await apiRes.json()
-      console.timeEnd('createIncident.fast')
+      console.timeEnd('createIncident.api')
 
       if (!apiJson?.success || !apiJson?.data?.id) {
-        console.error('❌ [EMERGENCY] Invalid API response:', apiJson)
+        console.error('❌ [INCIDENT] Invalid API response:', apiJson)
         throw new Error('Failed to create incident: Invalid response')
       }
 
-      incidentId = apiJson.data.id
-      console.log('✅ [EMERGENCY] Incident created:', incidentId)
+      const incidentId = apiJson.data.id
+      console.log('✅ [INCIDENT] Incident created successfully:', incidentId)
+      
+      // Step 2: Upload photos and voice in background (non-blocking, user sees success immediately)
+      if ((filesToUpload.length > 0 || voiceBlob) && typeof window !== 'undefined') {
+        // Use setTimeout to make it truly non-blocking (escapes current execution context)
+        setTimeout(async () => {
+          try {
+            notifyStage("upload-photo")
+            console.log(`📤 [BACKGROUND] Starting background upload for ${filesToUpload.length} photo(s)`)
+            
+            const uploadedPhotoPaths: string[] = []
+            
+            // Upload photos in parallel for faster mobile uploads (mobile networks can handle parallel)
+            if (filesToUpload.length > 0) {
+              const photoUploadPromises = filesToUpload.map((file, index) => 
+                uploadSinglePhoto(file, index).catch((err) => {
+                  console.warn(`⚠️ [BACKGROUND] Photo ${index + 1} upload failed:`, err)
+                  return null
+                })
+              )
+              
+              const photoResults = await Promise.all(photoUploadPromises)
+              uploadedPhotoPaths.push(...photoResults.filter((p): p is string => p !== null))
+              
+              console.log(`✅ [BACKGROUND] Uploaded ${uploadedPhotoPaths.length}/${filesToUpload.length} photo(s)`)
+            }
+            
+            // Upload voice in background (non-critical)
+            let uploadedVoicePath: string | null = null
+            if (voiceBlob) {
+              try {
+                uploadedVoicePath = await uploadVoice(voiceBlob).catch((err) => {
+                  console.warn('⚠️ [BACKGROUND] Voice upload failed (non-critical):', err)
+                  return null
+                })
+              } catch (err) {
+                console.warn('⚠️ [BACKGROUND] Voice upload error (non-critical):', err)
+              }
+            }
+            
+            // Update incident with media paths
+            if (uploadedPhotoPaths.length > 0 || uploadedVoicePath) {
+              const updatePayload: any = {}
+              if (uploadedPhotoPaths.length > 0) {
+                updatePayload.photo_url = uploadedPhotoPaths[0]
+                updatePayload.photo_urls = uploadedPhotoPaths
+              }
+              if (uploadedVoicePath) {
+                updatePayload.voice_url = uploadedVoicePath
+              }
+              
+              const updateRes = await fetch('/api/incidents', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: incidentId, ...updatePayload })
+              })
+              
+              if (updateRes.ok) {
+                console.log('✅ [BACKGROUND] Incident updated with media paths')
+              } else {
+                console.warn('⚠️ [BACKGROUND] Failed to update incident with media (non-critical)')
+              }
+            }
+          } catch (err) {
+            console.error('❌ [BACKGROUND] Background upload error (non-critical):', err)
+            // Don't throw - incident already created, user already sees success
+          }
+        }, 100) // Small delay to ensure incident creation response is sent first
+      }
       
     } catch (error: any) {
       clearTimeout(timeoutId)
@@ -549,68 +616,10 @@ export const createIncident = async (
       throw error
     }
 
-    // Step 2: IMMEDIATELY return success to user (incident exists in DB)
+    // Step 3: Return success IMMEDIATELY (user sees success, photos upload in background)
     notifyStage("done")
     console.timeEnd('createIncident.total')
-
-    // Step 3: Upload photos in TRUE background (after user sees success)
-    if ((filesToUpload.length > 0 || voiceBlob) && incidentId && typeof window !== 'undefined') {
-      console.log('📤 [EMERGENCY] Starting background media upload')
-      
-      // Use setTimeout to escape current execution context
-      setTimeout(async () => {
-        try {
-          const uploadPromises: Promise<string | null>[] = []
-          
-          // Upload photos sequentially (one at a time, more reliable)
-          for (let i = 0; i < filesToUpload.length; i++) {
-            console.log(`📸 [BACKGROUND] Uploading photo ${i + 1}/${filesToUpload.length}`)
-            const photoPath = await uploadSinglePhoto(filesToUpload[i], i)
-            if (photoPath) {
-              uploadPromises.push(Promise.resolve(photoPath))
-            }
-          }
-          
-          // Upload voice
-          let voicePath: string | null = null
-          if (voiceBlob) {
-            console.log('🎤 [BACKGROUND] Uploading voice')
-            voicePath = await uploadVoice(voiceBlob).catch((err) => {
-              console.error('Voice upload failed:', err)
-              return null
-            })
-          }
-          
-          const photoPaths = (await Promise.all(uploadPromises)).filter((p): p is string => p !== null)
-          
-          // Update incident with media
-          if (photoPaths.length > 0 || voicePath) {
-            console.log('📝 [BACKGROUND] Updating incident with media')
-            const updatePayload: any = {}
-            if (photoPaths.length > 0) {
-              updatePayload.photo_url = photoPaths[0]
-              updatePayload.photo_urls = photoPaths
-            }
-            if (voicePath) {
-              updatePayload.voice_url = voicePath
-            }
-            
-            await fetch('/api/incidents', {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ id: incidentId, ...updatePayload })
-            })
-            
-            console.log('✅ [BACKGROUND] Media added to incident')
-          }
-        } catch (err) {
-          console.error('❌ [BACKGROUND] Media upload failed (non-critical):', err)
-          // Don't throw - incident already created
-        }
-      }, 500) // Start after 500ms delay
-    }
-
-    console.log('✅ [EMERGENCY] Returning success immediately')
+    console.log('✅ [MOBILE] Submission complete - user sees success immediately')
     return { success: true, data: apiJson.data }
   } catch (error: any) {
     console.error("Error creating incident:", error)
