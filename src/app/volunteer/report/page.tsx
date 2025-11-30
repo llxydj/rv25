@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import { AlertTriangle, Camera, MapPin, Upload, X } from "lucide-react"
 import { VolunteerLayout } from "@/components/layout/volunteer-layout"
 import { useAuth } from "@/lib/auth"
-import { createIncident } from "@/lib/incidents"
+import { createIncident, type CreateIncidentStage } from "@/lib/incidents"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import { MapComponent } from "@/components/ui/map-component"
 import { LocationTracker } from "@/components/location-tracker"
@@ -476,6 +476,10 @@ export default function VolunteerReportIncidentPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    setLoading(true)
+
+    console.log("🟢 [VOLUNTEER REPORT SUBMIT] ========== STARTING SUBMISSION ==========")
+    console.log("🟢 [VOLUNTEER REPORT SUBMIT] Timestamp:", new Date().toISOString())
 
     if (!user) {
       const errorMsg = "You must be logged in to report an incident"
@@ -485,6 +489,7 @@ export default function VolunteerReportIncidentPage() {
         title: "Authentication Error",
         description: errorMsg
       })
+      setLoading(false)
       return
     }
 
@@ -494,6 +499,7 @@ export default function VolunteerReportIncidentPage() {
         title: "Validation Error",
         description: error
       })
+      setLoading(false)
       return
     }
 
@@ -505,10 +511,9 @@ export default function VolunteerReportIncidentPage() {
         title: "Photo Required",
         description: "Please take a photo of the incident"
       })
+      setLoading(false)
       return
     }
-
-    setLoading(true)
 
     // If offline, store the report locally
     if (isOffline) {
@@ -563,18 +568,98 @@ export default function VolunteerReportIncidentPage() {
       return
     }
 
+    // Online submission
     try {
-      // Ensure we have a location (either selected or default)
       const reportLocation = location || TALISAY_CENTER
 
-      // Verify user session is still valid
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        throw new Error("Your session has expired. Please log in again.")
+      console.log("🟢 [VOLUNTEER REPORT SUBMIT] Getting session for submission...")
+      
+      // OPTIMIZATION: Since we already have currentUser from useAuth hook, we can skip session check
+      // and just use the user ID directly. The createIncident function will handle auth internally.
+      let session: any = null
+      let sessionAccessToken: string | undefined = undefined
+      
+      // Quick session check with short timeout (3 seconds) - just to get access token
+      // If it fails, we proceed anyway since we have user
+      try {
+        const { getSessionWithTimeout } = await import('@/lib/supabase-auth-timeout')
+        const sessionResult = await getSessionWithTimeout(3000) // Short timeout - just for token
+        if (sessionResult.data?.session && !sessionResult.error) {
+          session = sessionResult.data.session
+          sessionAccessToken = sessionResult.data.session.access_token
+          console.log("🟢 [VOLUNTEER REPORT SUBMIT] ✅ Session obtained (with token):", { userId: session.user.id.substring(0, 8) + '...' });
+        }
+      } catch (sessionErr: any) {
+        console.warn("🟢 [VOLUNTEER REPORT SUBMIT] Session check timeout (non-critical, proceeding with user):", sessionErr.message);
+        // Continue anyway - we have user from hook
+      }
+      
+      // If session check failed, create minimal session from user (we already validated it exists)
+      if (!session && user && user.id) {
+        console.log("🟢 [VOLUNTEER REPORT SUBMIT] Using user directly (session check skipped):", user.id.substring(0, 8) + '...');
+        session = { user: { id: user.id, email: user.email || '' } }
+        // CRITICAL: Try to get token with timeout to prevent hanging
+        try {
+          // Use Promise.race with timeout to prevent infinite hang
+          const sessionPromise = supabase.auth.getSession()
+          const timeoutPromise = new Promise<{ data: { session: null }, error: { message: string } }>((_, reject) =>
+            setTimeout(() => reject(new Error('Token retrieval timeout')), 3000) // 3 second timeout
+          )
+          
+          const result = await Promise.race([sessionPromise, timeoutPromise]) as any
+          if (result?.data?.session?.access_token && !result.error) {
+            sessionAccessToken = result.data.session.access_token
+            session = result.data.session // Use full session if we got it
+            // PERMANENT FIX: Cache token for background uploads
+            if (typeof window !== 'undefined') {
+              try {
+                localStorage.setItem('supabase.auth.token', JSON.stringify({ 
+                  access_token: sessionAccessToken,
+                  cached_at: Date.now()
+                }))
+              } catch (e) {
+                // Ignore localStorage errors
+              }
+            }
+            console.log("🟢 [VOLUNTEER REPORT SUBMIT] ✅ Got access token via direct Supabase call (cached)");
+          } else {
+            console.warn("🟢 [VOLUNTEER REPORT SUBMIT] Direct Supabase call returned no token:", result?.error?.message || 'No session');
+          }
+        } catch (directErr: any) {
+          if (directErr?.message?.includes('timeout')) {
+            console.warn("🟢 [VOLUNTEER REPORT SUBMIT] Token retrieval timed out (non-critical, continuing without token)");
+          } else {
+            console.warn("🟢 [VOLUNTEER REPORT SUBMIT] Direct Supabase call failed:", directErr?.message || 'Unknown error');
+          }
+          // Continue anyway - we have user, background upload will try to get token
+        }
+      }
+      
+      if (!session || !session.user) {
+        throw new Error("Unable to verify your session. Please refresh the page and try again.");
+      }
+
+      console.log("🟢 [VOLUNTEER REPORT SUBMIT] ✅ Ready for submission:", { 
+        userId: session.user.id.substring(0, 8) + '...',
+        hasToken: !!sessionAccessToken 
+      });
+
+      const stageMessages: Record<CreateIncidentStage, string> = {
+        "verify-session": "Verifying your session…",
+        "upload-photo": "Uploading photo evidence…",
+        "create-record": "Sending report to command center…",
+        done: "Finalizing…",
       }
 
       const submissionTimestamp = new Date().toISOString()
-      const result = await createIncident(
+      console.log("🟢 [VOLUNTEER REPORT SUBMIT] Calling createIncident:", {
+        reporterId: user.id.substring(0, 8) + '...',
+        incidentType: formData.incidentType,
+        location: reportLocation,
+        timestamp: submissionTimestamp
+      });
+      
+      const createIncidentPromise = createIncident(
         user.id,
         formData.incidentType,
         formData.description,
@@ -586,11 +671,39 @@ export default function VolunteerReportIncidentPage() {
         Number.parseInt(formData.priority),
         false,
         submissionTimestamp,
+        undefined, // voiceBlob
+        {
+          sessionUserId: session.user.id,
+          accessToken: sessionAccessToken || session.access_token || undefined,
+          onStageChange: (stage) => {
+            // Optional: show stage messages
+          },
+        },
+      )
+      
+      // 60-second overall timeout (increased for slow mobile networks)
+      const timeoutPromise = new Promise<{ success: false; message: string }>((resolve) => 
+        setTimeout(() => resolve({ 
+          success: false, 
+          message: 'Submission is taking longer than expected. Your report may still be processing. Please wait a moment and check your dashboard.' 
+        }), 60000) // 60 seconds
       )
 
+      console.log("🟢 [VOLUNTEER REPORT SUBMIT] Waiting for createIncident (60s timeout)...");
+      const result = await Promise.race([createIncidentPromise, timeoutPromise])
+      console.log("🟢 [VOLUNTEER REPORT SUBMIT] Result received:", {
+        success: result?.success,
+        hasData: !!(result as any)?.data,
+        message: (result as any)?.message
+      });
+
       if (!result.success) {
-        throw new Error(result.message || "Failed to create incident report")
+        console.error("🟢 [VOLUNTEER REPORT SUBMIT] createIncident failed:", result);
+        throw new Error((result as any).message || "Failed to create incident report")
       }
+
+      console.log("🟢 [VOLUNTEER REPORT SUBMIT] ✅ Submission successful:", (result as any).data)
+      console.log("🟢 [VOLUNTEER REPORT SUBMIT] ========== SUBMISSION COMPLETE ==========");
 
       toast({
         title: "Success",
@@ -613,12 +726,23 @@ export default function VolunteerReportIncidentPage() {
       // Redirect to dashboard with success message
       router.push("/volunteer/dashboard?success=Incident reported successfully")
     } catch (err: any) {
+      console.error("🟢 [VOLUNTEER REPORT SUBMIT] ❌ Error:", {
+        message: err.message,
+        name: err.name,
+        stack: err.stack,
+        timestamp: new Date().toISOString(),
+        networkType: (navigator as any).connection?.effectiveType || 'unknown',
+        isOnline: navigator.onLine
+      })
+      
       // Handle specific error cases
       let errorMessage = err.message || "Failed to submit incident report"
       if (errorMessage.includes("row-level security policy")) {
         errorMessage = "Authentication error. Please try logging out and back in."
       } else if (errorMessage.includes("storage")) {
         errorMessage = "Failed to upload photo. Please try again with a different photo."
+      } else if (errorMessage.includes("Network is slow")) {
+        errorMessage += " If the problem persists, your report may still be processing. Please check your dashboard."
       }
 
       setError(errorMessage)
@@ -858,7 +982,7 @@ export default function VolunteerReportIncidentPage() {
                 userLocation={true}
                 showBoundary={true}
                 showGeofence={false}
-                showVolunteerLocations={true}
+                showVolunteerLocations={false} // CRITICAL: Disable volunteer location polling on report page
                 offlineMode={isOffline}
               />
               {location && (

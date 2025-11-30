@@ -341,7 +341,9 @@ export const createIncident = async (
       hasIncidentType: !!incidentType,
       hasBarangay: !!barangay,
       photoCount: photoFiles?.length || 0,
-      hasVoice: !!voiceBlob
+      hasVoice: !!voiceBlob,
+      voiceBlobType: voiceBlob?.constructor?.name || 'none',
+      voiceBlobSize: voiceBlob ? `${(voiceBlob.size / 1024).toFixed(1)}KB` : '0KB'
     })
     
     if (!reporterId || !incidentType || !barangay) {
@@ -440,6 +442,9 @@ export const createIncident = async (
 
     // Upload voice function (non-blocking, can fail silently)
     const uploadVoice = async (blob: Blob, providedAccessToken?: string): Promise<string | null> => {
+      const voiceSizeKB = (blob.size / 1024).toFixed(1)
+      console.log(`🎤 [VOICE] Starting voice upload (${voiceSizeKB}KB)`)
+      
       try {
         const form = new FormData()
         form.append('file', blob, 'voice.webm')
@@ -448,31 +453,43 @@ export const createIncident = async (
         // Use provided token first, then fallback to options, then try to get fresh one
         let accessToken = providedAccessToken || options?.accessToken
         if (!accessToken) {
+          console.log('🎤 [VOICE] No token provided, attempting to get one...')
           // CRITICAL FIX: Add timeout to prevent infinite hang on mobile
           try {
             // Shorter timeout for background (3 seconds)
             const { data: { session } } = await getSessionWithTimeout(3000)
             accessToken = session?.access_token || undefined
+            if (accessToken) {
+              console.log('🎤 [VOICE] ✅ Got token via timeout wrapper')
+            }
           } catch (error: any) {
-            console.warn("Auth getSession timeout in voice upload, trying direct call:", error)
+            console.warn("🎤 [VOICE] Auth getSession timeout, trying direct call:", error?.message || error)
             // Last resort: try direct Supabase call
             try {
               const { data: { session: directSession } } = await supabase.auth.getSession()
               if (directSession?.access_token) {
                 accessToken = directSession.access_token
+                console.log('🎤 [VOICE] ✅ Got token via direct Supabase call')
               } else {
-                throw new Error('Session verification timeout during voice upload. Please try again.')
+                throw new Error('No access token in session')
               }
-            } catch (directErr) {
-              throw new Error('Session verification timeout during voice upload. Please try again.')
+            } catch (directErr: any) {
+              console.warn('🎤 [VOICE] ⚠️ Direct Supabase call also failed, continuing without token (API will use cookies)')
+              // Continue anyway - API has cookie fallback
             }
           }
+        } else {
+          console.log('🎤 [VOICE] ✅ Using provided access token')
         }
+        
         const headers: Record<string, string> = {}
         if (accessToken) {
           headers['Authorization'] = `Bearer ${accessToken}`
         }
 
+        console.log('🎤 [VOICE] Calling upload API...')
+        const uploadStart = Date.now()
+        
         // MOBILE FIX: Reduced timeout for mobile
         const uploadRes = await fetchWithTimeout('/api/incidents/upload-voice', {
           method: 'POST',
@@ -480,25 +497,34 @@ export const createIncident = async (
           headers,
           timeout: 30000 // 30 seconds for voice upload (reduced from 60s for mobile)
         }).catch((error: any) => {
-          console.error('❌ Voice upload failed:', error)
+          console.error('❌ [VOICE] Upload fetch failed:', error?.message || error)
           // Voice upload failure is non-critical, return null
           return null
         })
         
+        const uploadTime = Date.now() - uploadStart
+        console.log(`⏱️  [VOICE] Upload fetch completed in ${uploadTime}ms`)
+        
         if (!uploadRes) {
-          console.error('Voice upload failed: No response')
+          console.error('❌ [VOICE] Upload failed: No response')
           return null
         }
         
         const uploadJson = await uploadRes.json()
         if (!uploadRes.ok || !uploadJson?.success || !uploadJson?.path) {
-          console.error('Voice upload failed:', uploadJson)
+          console.error('❌ [VOICE] Upload failed:', {
+            status: uploadRes.status,
+            response: uploadJson
+          })
           return null // Don't fail incident creation if voice upload fails
         }
-        console.log('Voice uploaded successfully, path:', uploadJson.path)
+        console.log('✅ [VOICE] Voice uploaded successfully, path:', uploadJson.path)
         return uploadJson.path as string
-      } catch (error) {
-        console.error('Failed to upload voice:', error)
+      } catch (error: any) {
+        console.error('❌ [VOICE] Upload exception:', {
+          message: error?.message || 'Unknown error',
+          stack: error?.stack?.substring(0, 200)
+        })
         return null // Don't fail incident creation if voice upload fails
       }
     }
@@ -656,6 +682,12 @@ export const createIncident = async (
       // Step 2: Upload photos in TRUE background (only after user sees success)
       // Use requestIdleCallback or setTimeout to ensure it doesn't block
       if ((filesToUpload.length > 0 || voiceBlob) && typeof window !== 'undefined') {
+        console.log('🚀 [MOBILE] Scheduling background upload:', {
+          photoCount: filesToUpload.length,
+          hasVoice: !!voiceBlob,
+          voiceSize: voiceBlob ? `${(voiceBlob.size / 1024).toFixed(1)}KB` : '0KB'
+        })
+        
         // Capture everything needed before async context
         const backgroundIncidentId = incidentId
         let backgroundAccessToken = options?.accessToken
@@ -795,15 +827,23 @@ export const createIncident = async (
             // Upload voice in background (non-critical)
             let uploadedVoicePath: string | null = null
             if (backgroundVoice) {
+              console.log(`🎤 [BACKGROUND] Starting voice upload (${(backgroundVoice.size / 1024).toFixed(1)}KB)`)
               try {
                 // Pass access token to uploadVoice
                 uploadedVoicePath = await uploadVoice(backgroundVoice, accessToken).catch((err) => {
                   console.warn('⚠️ [BACKGROUND] Voice upload failed (non-critical):', err?.message || err)
                   return null
                 })
+                if (uploadedVoicePath) {
+                  console.log('✅ [BACKGROUND] Voice uploaded successfully:', uploadedVoicePath)
+                } else {
+                  console.warn('⚠️ [BACKGROUND] Voice upload returned null (may have failed silently)')
+                }
               } catch (err: any) {
                 console.warn('⚠️ [BACKGROUND] Voice upload error (non-critical):', err?.message || err)
               }
+            } else {
+              console.log('⚠️ [BACKGROUND] No voice blob to upload')
             }
             
             // Update incident with media paths
