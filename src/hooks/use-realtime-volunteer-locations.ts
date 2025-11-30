@@ -82,10 +82,10 @@ export function useRealtimeVolunteerLocations({
   const fetchVolunteers = useCallback(async () => {
     if (!enabled || !isMountedRef.current) return
 
-    // Throttle fetches to avoid excessive API calls (min 2 seconds between fetches)
+    // Throttle fetches to avoid excessive API calls (min 5 seconds between fetches for mobile)
     const now = Date.now()
     const timeSinceLastFetch = now - lastFetchRef.current
-    if (timeSinceLastFetch < 2000) {
+    if (timeSinceLastFetch < 5000) {
       return
     }
     lastFetchRef.current = now
@@ -146,8 +146,20 @@ export function useRealtimeVolunteerLocations({
 
       // For residents, use the public API endpoint (they don't have direct DB access)
       if (user?.role === 'resident') {
+        // Add timeout to prevent hanging (5 seconds max)
+        const controller = new AbortController()
+        let timeoutId: NodeJS.Timeout | null = null
+        
         try {
-          const publicResponse = await fetch('/api/volunteer/location/public?since=30&limit=100')
+          timeoutId = setTimeout(() => controller.abort(), 5000)
+          
+          const publicResponse = await fetch('/api/volunteer/location/public?since=30&limit=100', {
+            signal: controller.signal,
+            cache: 'no-store'
+          })
+          
+          if (timeoutId) clearTimeout(timeoutId)
+          
           if (publicResponse.ok) {
             const publicJson = await publicResponse.json()
             if (publicJson.success && publicJson.data && Array.isArray(publicJson.data)) {
@@ -180,9 +192,21 @@ export function useRealtimeVolunteerLocations({
               }
               return
             }
+          } else {
+            console.warn('Public API returned non-OK status:', publicResponse.status)
           }
-        } catch (publicErr) {
-          console.warn('Public API not available, trying direct query:', publicErr)
+        } catch (publicErr: any) {
+          if (timeoutId) clearTimeout(timeoutId)
+          // Don't spam console with timeout errors - they're expected on slow networks
+          if (publicErr.name === 'AbortError' || publicErr.message?.includes('timeout')) {
+            // Silently handle timeout - it's non-critical for volunteer locations
+            if (isMountedRef.current) {
+              setVolunteers([]) // Clear volunteers on timeout
+            }
+            return // Don't try fallback on timeout
+          } else {
+            console.warn('Public API not available, trying direct query:', publicErr)
+          }
         }
       }
 

@@ -623,15 +623,26 @@ export default function ReportIncidentPage() {
           return;
         }
 
+        // Type assertion - we've already checked userData is not null
+        const validUserData = userData as {
+          id: string
+          role: string
+          first_name: string
+          last_name: string
+          phone_number: string | null
+          address: string | null
+          barangay: string | null
+        }
+
         currentUser = {
           id: session.user.id,
           email: session.user.email || "",
-          role: userData.role,
-          firstName: userData.first_name,
-          lastName: userData.last_name,
-          phone_number: userData.phone_number || undefined,
-          address: userData.address || undefined,
-          barangay: userData.barangay || undefined,
+          role: (validUserData.role as "admin" | "volunteer" | "resident" | "barangay") || null,
+          firstName: validUserData.first_name,
+          lastName: validUserData.last_name,
+          phone_number: validUserData.phone_number || undefined,
+          address: validUserData.address || undefined,
+          barangay: validUserData.barangay || undefined,
         };
       } catch (authErr: any) {
         console.error("🔴 [REPORT SUBMIT] Auth check error:", authErr);
@@ -742,10 +753,24 @@ export default function ReportIncidentPage() {
       const reportLocation = location || TALISAY_CENTER
 
       console.log("🔴 [REPORT SUBMIT] Getting session for submission...");
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
-      if (sessionError || !session) {
-        console.error("🔴 [REPORT SUBMIT] Session error:", sessionError);
+      // CRITICAL FIX: Add timeout to prevent hanging on mobile (increased for slow networks)
+      let session: any = null
+      try {
+        const { getSessionWithTimeout } = await import('@/lib/supabase-auth-timeout')
+        // Increased timeout to 15 seconds for slow mobile networks
+        const sessionResult = await getSessionWithTimeout(15000)
+        session = sessionResult.data?.session
+        if (sessionResult.error || !session) {
+          console.error("🔴 [REPORT SUBMIT] Session error:", sessionResult.error);
+          throw new Error("Your session has expired. Please log in again.");
+        }
+      } catch (sessionErr: any) {
+        console.error("🔴 [REPORT SUBMIT] Session timeout/error:", sessionErr);
+        if (sessionErr.message?.includes('timeout')) {
+          // More helpful error message
+          throw new Error("Network is slow. Please wait a moment and try again, or check your connection.");
+        }
         throw new Error("Your session has expired. Please log in again.");
       }
 
@@ -790,15 +815,15 @@ export default function ReportIncidentPage() {
         },
       )
 
-      // 45-second overall timeout
+      // 60-second overall timeout (increased for slow mobile networks)
       const timeoutPromise = new Promise<{ success: false; message: string }>((resolve) => 
         setTimeout(() => resolve({ 
           success: false, 
-          message: 'Submission is taking too long. This may be due to slow network. Please try again or submit without photos.' 
-        }), 45000)
+          message: 'Submission is taking longer than expected. Your report may still be processing. Please wait a moment and check your dashboard.' 
+        }), 60000) // 60 seconds
       )
 
-      console.log("🔴 [REPORT SUBMIT] Waiting for createIncident (45s timeout)...");
+      console.log("🔴 [REPORT SUBMIT] Waiting for createIncident (60s timeout)...");
       const result = await Promise.race([createIncidentPromise, timeoutPromise])
       console.log("🔴 [REPORT SUBMIT] Result received:", {
         success: result?.success,
@@ -847,6 +872,10 @@ export default function ReportIncidentPage() {
         errorMessage = "Authentication error. Please try logging out and back in."
       } else if (errorMessage.includes("storage")) {
         errorMessage = "Failed to upload photo. Please try again with a different photo."
+      } else if (errorMessage.includes("timeout") || errorMessage.includes("Network is slow")) {
+        // Don't change the message - it's already helpful
+        // But add a note that the report might still be processing
+        errorMessage = errorMessage + " If the problem persists, your report may still be processing. Please check your dashboard."
       }
 
       setError(errorMessage)
@@ -1182,7 +1211,7 @@ export default function ReportIncidentPage() {
                 userLocation={true}
                 showBoundary={true}
                 showGeofence={false}
-                showVolunteerLocations={!isSubmitting} // Disable during submission to prevent interference
+                showVolunteerLocations={false} // DISABLED: Prevents slow API calls and connection timeouts during reporting
                 offlineMode={isOffline}
               />
               {location && (

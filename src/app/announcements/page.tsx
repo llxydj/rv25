@@ -1,7 +1,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Calendar, MapPin, Users, AlertCircle, CheckCircle, User, Clock, Filter, Facebook, ExternalLink } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { useAuth } from "@/lib/auth"
+import { Calendar, MapPin, Users, AlertCircle, CheckCircle, User, Clock, Filter, Facebook, ExternalLink, LogIn } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
@@ -83,6 +85,8 @@ const PRIORITY_CONFIG = {
 }
 
 export default function AnnouncementsPage() {
+  const router = useRouter()
+  const { user, loading: authLoading } = useAuth()
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [filter, setFilter] = useState<'ALL' | 'TRAINING' | 'MEETING' | 'ALERT' | 'GENERAL'>('ALL')
   const [loading, setLoading] = useState(true)
@@ -193,12 +197,29 @@ export default function AnnouncementsPage() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8">
         {/* Header */}
         <div className="mb-6 md:mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-2">
-            Announcements
-          </h1>
-          <p className="text-sm md:text-base text-gray-600 dark:text-gray-400">
-            Stay updated with the latest news, training schedules, and important alerts.
-          </p>
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
+            <div className="flex-1">
+              <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-2">
+                Announcements
+              </h1>
+              <p className="text-sm md:text-base text-gray-600 dark:text-gray-400">
+                Stay updated with the latest news, training schedules, and important alerts.
+              </p>
+            </div>
+            {/* Login Button - Only show if user is not logged in */}
+            {!authLoading && !user && (
+              <div className="flex-shrink-0">
+                <Button
+                  onClick={() => router.push('/login')}
+                  className="w-full sm:w-auto bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white shadow-lg hover:shadow-xl transition-all duration-200 flex items-center gap-2 px-6 py-3 rounded-lg font-semibold"
+                >
+                  <LogIn className="h-5 w-5" />
+                  <span className="hidden sm:inline">Login to Access</span>
+                  <span className="sm:hidden">Login</span>
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Filter Buttons */}
@@ -397,22 +418,61 @@ export default function AnnouncementsPage() {
         </div>
 
         {sortedAnnouncements.length === 0 && (
-          <Card className="bg-white dark:bg-gray-800">
-            <CardContent className="text-center py-12">
-              <AlertCircle className="h-12 w-12 md:h-16 md:w-16 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
-              <h3 className="text-lg md:text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                No announcements found
-              </h3>
-              <p className="text-sm md:text-base text-gray-600 dark:text-gray-400">
-                {filter === 'ALL' 
-                  ? "There are no announcements available at this time."
-                  : `There are no ${TYPE_CONFIG[filter].label.toLowerCase()} announcements matching your filter.`
-                }
-              </p>
-            </CardContent>
-          </Card>
+          <div className="space-y-4">
+            <Card className="bg-white dark:bg-gray-800">
+              <CardContent className="text-center py-12">
+                <AlertCircle className="h-12 w-12 md:h-16 md:w-16 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
+                <h3 className="text-lg md:text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                  No announcements found
+                </h3>
+                <p className="text-sm md:text-base text-gray-600 dark:text-gray-400">
+                  {filter === 'ALL' 
+                    ? "There are no announcements available at this time."
+                    : `There are no ${TYPE_CONFIG[filter].label.toLowerCase()} announcements matching your filter.`
+                  }
+                </p>
+              </CardContent>
+            </Card>
+            
+            {/* Login Prompt Card - Only show if user is not logged in */}
+            {!authLoading && !user && (
+              <Card className="bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border-2 border-red-200 dark:border-red-800">
+                <CardContent className="text-center py-8 px-6">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 mb-4">
+                    <LogIn className="h-8 w-8 text-red-600 dark:text-red-400" />
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                    Want to access more features?
+                  </h3>
+                  <p className="text-sm md:text-base text-gray-700 dark:text-gray-300 mb-6">
+                    Login to report incidents, view your history, and access exclusive content.
+                  </p>
+                  <Button
+                    onClick={() => router.push('/login')}
+                    className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white shadow-lg hover:shadow-xl transition-all duration-200 flex items-center gap-2 px-8 py-3 rounded-lg font-semibold mx-auto"
+                  >
+                    <LogIn className="h-5 w-5" />
+                    Login Now
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         )}
       </div>
+
+      {/* Floating Login Button (Mobile) - Only show if user is not logged in */}
+      {!authLoading && !user && (
+        <div className="fixed bottom-6 right-6 z-50 sm:hidden">
+          <Button
+            onClick={() => router.push('/login')}
+            className="h-14 w-14 rounded-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white shadow-2xl hover:shadow-3xl transition-all duration-200 flex items-center justify-center p-0"
+            aria-label="Login"
+          >
+            <LogIn className="h-6 w-6" />
+          </Button>
+        </div>
+      )}
     </div>
   )
 }

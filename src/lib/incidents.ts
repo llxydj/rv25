@@ -303,10 +303,11 @@ export const createIncident = async (
     notifyStage("verify-session")
     let authUserId = options?.sessionUserId
     if (!authUserId) {
-      // CRITICAL FIX: Add timeout to prevent infinite hang on mobile
+      // CRITICAL FIX: Add timeout to prevent infinite hang on mobile (increased for slow networks)
       try {
         console.log("[createIncident] Verifying user session...")
-        const { data: { user } } = await getUserWithTimeout(8000) // Increased to 8s for slow networks
+        // Increased to 15 seconds for slow mobile networks
+        const { data: { user } } = await getUserWithTimeout(15000)
         console.log("[createIncident] User verified:", user?.id)
         authUserId = user?.id || undefined
       } catch (error: any) {
@@ -315,11 +316,11 @@ export const createIncident = async (
           name: error.name,
           cause: error.cause
         })
-        // Provide more specific error messages
+        // Provide more helpful error messages
         if (error.message?.includes('timeout') || error.message?.includes('Connection timeout')) {
-          throw new Error('Connection timeout. Please check your internet connection and try again.')
+          throw new Error('Network is slow. Please wait a moment and try again, or check your connection.')
         }
-        throw new Error(error.message || 'Failed to verify authentication. Please check your connection and try again.')
+        throw new Error(error.message || 'Failed to verify authentication. Please try again.')
       }
     }
 
@@ -500,37 +501,95 @@ export const createIncident = async (
       : '/api/incidents'
 
     console.time('createIncident.api')
+    console.log('🚀 [INCIDENT] Making API request to:', apiUrl)
+    console.log('🚀 [INCIDENT] Payload size:', JSON.stringify(payload).length, 'bytes')
     
-    // MOBILE FIX: Use native fetch without custom timeout wrapper
-    // Mobile browsers handle timeouts differently than desktop
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 seconds
-
     let apiJson: any
+    const fetchStartTime = Date.now()
 
     try {
-      const apiRes = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Connection': 'keep-alive' // Mobile network stability
-        },
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-        cache: 'no-store',
-        keepalive: true // CRITICAL for mobile - keeps connection alive
-      })
+      console.log('🚀 [INCIDENT] Starting fetch request...')
       
-      clearTimeout(timeoutId)
+      // Retry logic for network errors (up to 2 retries)
+      let lastError: any = null
+      let apiRes: Response | null = null
       
-      if (!apiRes.ok) {
-        const errorText = await apiRes.text()
-        console.error('❌ [INCIDENT] API error:', errorText)
-        throw new Error('Failed to create incident: ' + errorText)
+      for (let attempt = 0; attempt < 3; attempt++) {
+        // Create new controller for each attempt (resets timeout)
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => {
+          console.error(`❌ [INCIDENT] API request timeout after 30 seconds (attempt ${attempt + 1})`)
+          controller.abort()
+        }, 30000) // 30 seconds per attempt
+        
+        try {
+          if (attempt > 0) {
+            console.log(`🔄 [INCIDENT] Retry attempt ${attempt}/2...`)
+            // Wait before retry (exponential backoff: 1s, 2s)
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempt))
+          }
+          
+          apiRes = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Connection': 'keep-alive' // Mobile network stability
+            },
+            body: JSON.stringify(payload),
+            signal: controller.signal,
+            cache: 'no-store',
+            keepalive: true // CRITICAL for mobile - keeps connection alive
+          })
+          
+          clearTimeout(timeoutId)
+          const fetchTime = Date.now() - fetchStartTime
+          console.log(`✅ [INCIDENT] Fetch completed in ${fetchTime}ms, status: ${apiRes.status} (attempt ${attempt + 1})`)
+          
+          if (!apiRes.ok) {
+            const errorText = await apiRes.text()
+            console.error(`❌ [INCIDENT] API error (attempt ${attempt + 1}):`, errorText)
+            // Don't retry on 4xx errors (client errors)
+            if (apiRes.status >= 400 && apiRes.status < 500) {
+              throw new Error('Failed to create incident: ' + errorText)
+            }
+            // Retry on 5xx errors (server errors)
+            lastError = new Error('Server error: ' + errorText)
+            if (attempt < 2) continue
+            throw lastError
+          }
+          
+          // Success - break out of retry loop
+          break
+        } catch (fetchErr: any) {
+          clearTimeout(timeoutId)
+          lastError = fetchErr
+          if (fetchErr.name === 'AbortError') {
+            // Timeout - retry if we have attempts left
+            if (attempt < 2) {
+              console.warn(`⚠️ [INCIDENT] Timeout (attempt ${attempt + 1}), will retry...`)
+              continue
+            }
+            throw new Error('Network is slow. Please wait a moment and try again, or check your connection.')
+          }
+          // Network errors - retry
+          if (attempt < 2) {
+            console.warn(`⚠️ [INCIDENT] Network error (attempt ${attempt + 1}), will retry...`, fetchErr.message)
+            continue
+          }
+          // Last attempt failed
+          throw fetchErr
+        }
+      }
+      
+      if (!apiRes) {
+        throw lastError || new Error('Failed to create incident after retries')
       }
 
+      console.log('🚀 [INCIDENT] Parsing JSON response...')
       apiJson = await apiRes.json()
+      const totalTime = Date.now() - fetchStartTime
       console.timeEnd('createIncident.api')
+      console.log(`✅ [INCIDENT] Total API time: ${totalTime}ms`)
 
       if (!apiJson?.success || !apiJson?.data?.id) {
         console.error('❌ [INCIDENT] Invalid API response:', apiJson)
@@ -664,9 +723,10 @@ export const createIncident = async (
       return { success: true, data: apiJson.data }
       
     } catch (error: any) {
-      clearTimeout(timeoutId)
+      // Timeout is already cleared in retry loop
       if (error.name === 'AbortError') {
-        throw new Error('Request timeout - please check your connection and try again')
+        // More helpful error message
+        throw new Error('Network is slow. Please wait a moment and try again, or check your connection.')
       }
       throw error
     }
