@@ -357,7 +357,7 @@ export const createIncident = async (
 
     const filesToUpload = Array.isArray(photoFiles) ? photoFiles.slice(0, 3) : []
 
-    const uploadSinglePhoto = async (file: File, photoIndex: number, retries = 2): Promise<string | null> => {
+    const uploadSinglePhoto = async (file: File, photoIndex: number, providedAccessToken?: string, retries = 2): Promise<string | null> => {
       const fileSizeKB = (file.size / 1024).toFixed(1)
       console.log(`📤 [PHOTO ${photoIndex + 1}] Starting upload (${fileSizeKB}KB, ${retries} retries available)`)
       
@@ -369,17 +369,20 @@ export const createIncident = async (
           form.append('file', file)
           form.append('reporter_id', reporterId)
 
-          let accessToken = options?.accessToken
+          // Use provided token first, then fallback to options, then try to get fresh one
+          let accessToken = providedAccessToken || options?.accessToken
           if (!accessToken) {
             try {
-              const { data: { session } } = await getSessionWithTimeout(5000)
+              // Shorter timeout for background uploads (3 seconds)
+              const { data: { session } } = await getSessionWithTimeout(3000)
               accessToken = session?.access_token || undefined
             } catch (error: any) {
-              console.error(`❌ [PHOTO ${photoIndex + 1}] Auth timeout (attempt ${attempt + 1}/${retries + 1})`)
+              console.warn(`⚠️ [PHOTO ${photoIndex + 1}] Auth timeout (attempt ${attempt + 1}/${retries + 1}), will retry...`)
               if (attempt < retries) {
                 await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)))
                 continue
               }
+              console.error(`❌ [PHOTO ${photoIndex + 1}] All auth attempts failed`)
               return null
             }
           }
@@ -436,21 +439,33 @@ export const createIncident = async (
     }
 
     // Upload voice function (non-blocking, can fail silently)
-    const uploadVoice = async (blob: Blob): Promise<string | null> => {
+    const uploadVoice = async (blob: Blob, providedAccessToken?: string): Promise<string | null> => {
       try {
         const form = new FormData()
         form.append('file', blob, 'voice.webm')
         form.append('reporter_id', reporterId)
 
-        let accessToken = options?.accessToken
+        // Use provided token first, then fallback to options, then try to get fresh one
+        let accessToken = providedAccessToken || options?.accessToken
         if (!accessToken) {
           // CRITICAL FIX: Add timeout to prevent infinite hang on mobile
           try {
-            const { data: { session } } = await getSessionWithTimeout(5000)
+            // Shorter timeout for background (3 seconds)
+            const { data: { session } } = await getSessionWithTimeout(3000)
             accessToken = session?.access_token || undefined
           } catch (error: any) {
-            console.error("Auth getSession timeout in voice upload:", error)
-            throw new Error('Session verification timeout during voice upload. Please try again.')
+            console.warn("Auth getSession timeout in voice upload, trying direct call:", error)
+            // Last resort: try direct Supabase call
+            try {
+              const { data: { session: directSession } } = await supabase.auth.getSession()
+              if (directSession?.access_token) {
+                accessToken = directSession.access_token
+              } else {
+                throw new Error('Session verification timeout during voice upload. Please try again.')
+              }
+            } catch (directErr) {
+              throw new Error('Session verification timeout during voice upload. Please try again.')
+            }
           }
         }
         const headers: Record<string, string> = {}
@@ -664,16 +679,27 @@ export const createIncident = async (
             let accessToken = backgroundAccessToken
             if (!accessToken) {
               try {
-                const { data: { session } } = await getSessionWithTimeout(5000)
+                // Shorter timeout for background (3 seconds)
+                const { data: { session } } = await getSessionWithTimeout(3000)
                 accessToken = session?.access_token || undefined
+                if (accessToken) {
+                  console.log('✅ [BACKGROUND] Got fresh session token')
+                }
               } catch (err) {
-                console.warn('⚠️ [BACKGROUND] Could not get session token, continuing anyway:', err)
+                console.warn('⚠️ [BACKGROUND] Could not get session token via timeout, trying direct Supabase call:', err)
+                // Last resort: try direct Supabase call (no timeout wrapper)
+                try {
+                  const { data: { session: directSession } } = await supabase.auth.getSession()
+                  if (directSession?.access_token) {
+                    accessToken = directSession.access_token
+                    console.log('✅ [BACKGROUND] Got token via direct Supabase call')
+                  }
+                } catch (directErr) {
+                  console.warn('⚠️ [BACKGROUND] Direct Supabase call also failed, continuing without token:', directErr)
+                }
               }
-            }
-            
-            // Update options with token for upload functions (they use closure)
-            if (accessToken && options) {
-              options.accessToken = accessToken
+            } else {
+              console.log('✅ [BACKGROUND] Using provided access token')
             }
             
             const uploadedPhotoPaths: string[] = []
@@ -681,7 +707,8 @@ export const createIncident = async (
             // Upload photos in parallel for faster mobile uploads (mobile networks can handle parallel)
             if (backgroundFiles.length > 0) {
               const photoUploadPromises = backgroundFiles.map((file, index) => {
-                return uploadSinglePhoto(file, index).catch((err) => {
+                // Pass the access token to uploadSinglePhoto
+                return uploadSinglePhoto(file, index, accessToken).catch((err) => {
                   console.warn(`⚠️ [BACKGROUND] Photo ${index + 1} upload failed:`, err?.message || err)
                   return null
                 })
@@ -697,7 +724,8 @@ export const createIncident = async (
             let uploadedVoicePath: string | null = null
             if (backgroundVoice) {
               try {
-                uploadedVoicePath = await uploadVoice(backgroundVoice).catch((err) => {
+                // Pass access token to uploadVoice
+                uploadedVoicePath = await uploadVoice(backgroundVoice, accessToken).catch((err) => {
                   console.warn('⚠️ [BACKGROUND] Voice upload failed (non-critical):', err?.message || err)
                   return null
                 })
