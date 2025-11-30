@@ -501,14 +501,14 @@ export const createIncident = async (
     const payload: any = {
       reporter_id: reporterId,
       incident_type: incidentType,
-      description: description || null, // Allow empty description
+      description: description || null, // Optional - can be null/empty
       location_lat: locationLat || 10.2465,
       location_lng: locationLng || 122.9735,
       address: address && address.trim() ? address.trim() : null,
       barangay,
       priority,
       photo_url: null, // Will be added in background
-      photo_urls: null, // Will be added in background
+      photo_urls: [], // REQUIRED - must be array (empty initially, will be updated in background)
       voice_url: null, // Will be added in background
       is_offline: !!isOffline,
       created_at_local: submissionTimestamp,

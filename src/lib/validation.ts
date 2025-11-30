@@ -50,14 +50,14 @@ export type FeedbackCreate = z.infer<typeof FeedbackCreateSchema>
 export const IncidentCreateSchema = z.object({
   reporter_id: z.string().uuid(),
   incident_type: z.string().min(1),
-  description: z.string().min(1),
+  description: z.string().min(1).nullable().optional(), // Optional - can be null/empty
   location_lat: z.coerce.number().min(-90).max(90),
   location_lng: z.coerce.number().min(-180).max(180),
   address: z.string().transform(val => val === '' ? null : val).nullable().optional(),
   barangay: z.string().min(1),
   priority: z.coerce.number().int().min(1).max(5).default(3),
   photo_url: z.string().nullable().optional(),
-  photo_urls: z.array(z.string()).max(3).optional(),
+  photo_urls: z.array(z.string()).max(3), // REQUIRED - must be array (can be empty initially, will be updated in background)
   voice_url: z.string().nullable().optional(),
   is_offline: z.coerce.boolean().optional(),
   created_at_local: z.string().optional(),

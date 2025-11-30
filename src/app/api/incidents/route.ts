@@ -616,7 +616,7 @@ export async function POST(request: Request) {
     const payload = {
       reporter_id,
       incident_type: normalizedIncidentType,
-      description: description.trim(),
+      description: description && typeof description === 'string' ? description.trim() : null, // Optional - can be null
       location_lat,
       location_lng,
       address: resolvedAddress,
@@ -627,7 +627,7 @@ export async function POST(request: Request) {
       priority: normalizedPriority,
       severity: mapPriorityToSeverity(String(normalizedPriority)),
       photo_url: primaryPhotoPath,
-      photo_urls: processedPhotoPaths.length ? processedPhotoPaths : [],
+      photo_urls: processedPhotoPaths.length ? processedPhotoPaths : (photo_urls || []), // REQUIRED - must be array (empty initially, updated in background)
       voice_url: voice_url || null,
     }
 
