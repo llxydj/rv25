@@ -20,7 +20,7 @@
 -- USAGE: Run this migration ONCE to populate historical data
 -- ROLLBACK: See rollback section at end of file
 -- ============================================================================
-
+BEGIN;
 -- Enable necessary extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
@@ -212,7 +212,7 @@ BEGIN
         WHEN 0 THEN 'ACTIVE'::volunteer_status
         WHEN 1 THEN 'ACTIVE'::volunteer_status
         WHEN 2 THEN 'INACTIVE'::volunteer_status
-        ELSE 'ON_LEAVE'::volunteer_status
+        ELSE 'SUSPENDED'::volunteer_status
       END,
       ARRAY[
         CASE (i % 8) WHEN 0 THEN 'First Aid' WHEN 1 THEN 'Firefighting' WHEN 2 THEN 'Water Rescue' 
@@ -246,7 +246,7 @@ DECLARE
   ];
   statuses TEXT[] := ARRAY['PENDING', 'ASSIGNED', 'RESPONDING', 'RESOLVED'];
   priorities INTEGER[] := ARRAY[1, 2, 3, 4];
-  severities TEXT[] := ARRAY['LOW', 'MODERATE', 'HIGH', 'CRITICAL'];
+  severities TEXT[] := ARRAY['MINOR', 'MODERATE', 'SEVERE', 'CRITICAL'];
   barangays TEXT[] := ARRAY['Zone 1', 'Zone 2', 'Zone 3', 'Zone 4', 'Zone 5', 'Zone 6', 'Zone 7', 'Zone 8', 'Zone 9', 'Zone 10'];
   
   volunteer_ids UUID[];
@@ -324,18 +324,22 @@ BEGIN
       DECLARE
         reporter_role TEXT;
         is_emergency BOOLEAN;
+        mod_value INTEGER;
       BEGIN
-        CASE (incident_count % 20)
-          WHEN 0 THEN 
-            reporter_id := admin_id; -- 5% admin
-            reporter_role := 'admin';
-          WHEN 1..8 THEN 
-            reporter_id := resident_ids[1 + (random() * (array_length(resident_ids, 1) - 1))::INTEGER]; -- 40% resident
-            reporter_role := 'resident';
-          ELSE
-            reporter_id := volunteer_ids[1 + (random() * (array_length(volunteer_ids, 1) - 1))::INTEGER]; -- 55% volunteer
-            reporter_role := 'volunteer';
-        END CASE;
+        mod_value := incident_count % 20;
+        IF mod_value = 0 THEN
+          -- 5% admin
+          reporter_id := admin_id;
+          reporter_role := 'admin';
+        ELSIF mod_value >= 1 AND mod_value <= 8 THEN
+          -- 40% resident (8 out of 20)
+          reporter_id := resident_ids[1 + (random() * (array_length(resident_ids, 1) - 1))::INTEGER];
+          reporter_role := 'resident';
+        ELSE
+          -- 55% volunteer (11 out of 20)
+          reporter_id := volunteer_ids[1 + (random() * (array_length(volunteer_ids, 1) - 1))::INTEGER];
+          reporter_role := 'volunteer';
+        END IF;
         
         -- Get realistic coordinates based on barangay
       selected_barangay := barangays[1 + (random() * (array_length(barangays, 1) - 1))::INTEGER];
@@ -379,7 +383,7 @@ BEGIN
         will_be_resolved := (status_idx = 4); -- RESOLVED
         
         -- CRITICAL: Severity assessment differs by reporter type
-        -- Volunteers: Trained to assess severity (LOW, MODERATE, HIGH, CRITICAL)
+        -- Volunteers: Trained to assess severity (MINOR, MODERATE, SEVERE, CRITICAL)
         -- Residents: Only report Emergency/Non-Emergency (mapped to severity)
         IF reporter_role = 'volunteer' OR reporter_role = 'admin' THEN
           -- Trained assessment: Full severity range
@@ -389,12 +393,12 @@ BEGIN
           -- Resident: Emergency vs Non-Emergency classification
           is_emergency := (random() > 0.3); -- 70% are emergencies
           IF is_emergency THEN
-            -- Emergency: Map to HIGH or CRITICAL severity
-            selected_severity := CASE WHEN random() > 0.5 THEN 'HIGH' ELSE 'CRITICAL' END;
+            -- Emergency: Map to SEVERE or CRITICAL severity
+            selected_severity := CASE WHEN random() > 0.5 THEN 'SEVERE' ELSE 'CRITICAL' END;
             selected_priority := CASE WHEN random() > 0.5 THEN 1 ELSE 2 END; -- Critical or High priority
           ELSE
-            -- Non-Emergency: Map to LOW or MODERATE severity
-            selected_severity := CASE WHEN random() > 0.5 THEN 'LOW' ELSE 'MODERATE' END;
+            -- Non-Emergency: Map to MINOR or MODERATE severity
+            selected_severity := CASE WHEN random() > 0.5 THEN 'MINOR' ELSE 'MODERATE' END;
             selected_priority := CASE WHEN random() > 0.5 THEN 3 ELSE 4 END; -- Medium or Low priority
           END IF;
         END IF;
@@ -675,7 +679,7 @@ BEGIN
     
     -- Generate 2-4 trainings per year
     FOR training_count IN 1..(2 + (random() * 2)::INTEGER) LOOP
-      training_date := random_date_between(year_start, year_start + INTERVAL '11 months');
+      training_date := random_date_between(year_start, (year_start + INTERVAL '11 months')::DATE);
       training_start := (training_date || ' ' || LPAD((8 + (random() * 4)::INTEGER)::TEXT, 2, '0') || ':00:00')::TIMESTAMPTZ;
       training_end := training_start + (4 + (random() * 4))::INTEGER * INTERVAL '1 hour';
       
@@ -849,7 +853,8 @@ WHERE volunteer_user_id IN (
 
 -- DROP FUNCTION IF EXISTS random_date_between(DATE, DATE);
 -- DROP FUNCTION IF EXISTS random_timestamp_between(TIMESTAMPTZ, TIMESTAMPTZ);
-
+--COMMIT;
+ROLLBACK;
 -- ============================================================================
 -- END OF MIGRATION
 -- ============================================================================
