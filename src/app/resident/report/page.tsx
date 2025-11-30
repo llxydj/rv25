@@ -16,9 +16,11 @@ import { isWithinTalisayCity, TALISAY_CENTER } from "@/lib/geo-utils"
 import { useToast } from "@/components/ui/use-toast"
 import { supabase } from "@/lib/supabase"
 import { VoiceRecorder } from "@/components/voice-recorder"
+import { CameraCapture } from "@/components/camera-capture"
+import { isAndroid, isMobile, isCameraAvailable } from "@/lib/camera-utils"
 
 // Mobile: Limit to 1 photo for instant submission. Desktop: Allow 3 photos
-const MAX_PHOTOS = typeof window !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent) ? 1 : 3
+const MAX_PHOTOS = typeof window !== 'undefined' && isMobile() ? 1 : 3
 
 export default function ReportIncidentPage() {
   const { toast } = useToast()
@@ -44,6 +46,7 @@ export default function ReportIncidentPage() {
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null);
   const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
+  const [showCameraCapture, setShowCameraCapture] = useState(false);
   const previewUrlsRef = useRef<string[]>([]);
   
   // Add effect to log location changes
@@ -460,6 +463,24 @@ export default function ReportIncidentPage() {
     }
 
     e.target.value = ''
+  }
+
+  const handleCameraCapture = (file: File) => {
+    const availableSlots = MAX_PHOTOS - photoFiles.length
+    if (availableSlots <= 0) {
+      setError(`You can upload up to ${MAX_PHOTOS} photos.`)
+      setShowCameraCapture(false)
+      return
+    }
+
+    processPhotoFile(file).then((processed) => {
+      if (processed) {
+        setPhotoFiles((prev) => [...prev, processed.processed])
+        setPhotoPreviews((prev) => [...prev, processed.previewUrl])
+        setError(null)
+        setShowCameraCapture(false)
+      }
+    })
   }
 
   const removePhoto = (index: number) => {
@@ -958,37 +979,83 @@ export default function ReportIncidentPage() {
               </div>
             )}
 
-            {photoFiles.length < MAX_PHOTOS && (
-              <div className="flex items-center justify-center">
-                <label
-                  htmlFor="photo-upload"
-                  className="cursor-pointer bg-background py-6 px-4 border-2 border-dashed border-gray-300 rounded-lg text-center hover:bg-accent w-full transition-colors"
-                >
-                  <div className="space-y-2">
-                    <div className="mx-auto h-12 w-12 text-gray-400">
-                      <Camera className="h-12 w-12 mx-auto" />
-                    </div>
-                    <div className="text-sm text-gray-600">
-                      <span className="font-medium text-red-600 hover:text-red-500">
-                        {photoFiles.length === 0 ? "Capture a photo (Required)" : "Add another photo"}
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500">
-                      JPG only · up to 3MB per photo · best to capture clear evidence
-                    </p>
+            {photoFiles.length < MAX_PHOTOS && !showCameraCapture && (
+              <div className="space-y-3">
+                {/* Camera Capture Button (Primary for Android/Mobile) */}
+                {isCameraAvailable() && (
+                  <div className="flex items-center justify-center">
+                    <button
+                      type="button"
+                      onClick={() => setShowCameraCapture(true)}
+                      disabled={loading}
+                      className="cursor-pointer bg-background py-6 px-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-center hover:bg-accent w-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <div className="space-y-2">
+                        <div className="mx-auto h-12 w-12 text-gray-400">
+                          <Camera className="h-12 w-12 mx-auto" />
+                        </div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                          <span className="font-medium text-red-600 dark:text-red-400 hover:text-red-500">
+                            {photoFiles.length === 0 ? "Take Photo with Camera (Required)" : "Take Another Photo"}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Direct camera access · optimized for Android
+                        </p>
+                      </div>
+                    </button>
                   </div>
-                  <input
-                    id="photo-upload"
-                    name="photo"
-                    type="file"
-                    accept="image/jpeg"
-                    capture="environment"
-                    multiple
-                    className="sr-only"
-                    onChange={handlePhotoChange}
-                    disabled={loading}
-                  />
-                </label>
+                )}
+
+                {/* File Input (Fallback or Alternative) */}
+                <div className="flex items-center justify-center">
+                  <label
+                    htmlFor="photo-upload"
+                    className="cursor-pointer bg-background py-6 px-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-center hover:bg-accent w-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <div className="space-y-2">
+                      <div className="mx-auto h-12 w-12 text-gray-400">
+                        <Upload className="h-12 w-12 mx-auto" />
+                      </div>
+                      <div className="text-sm text-gray-600 dark:text-gray-400">
+                        <span className="font-medium text-blue-600 dark:text-blue-400 hover:text-blue-500">
+                          {photoFiles.length === 0 
+                            ? "Choose from Gallery (Required)" 
+                            : "Add Another Photo from Gallery"}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {isAndroid() 
+                          ? "Select photo from gallery or camera app"
+                          : "JPG, PNG · up to 3MB per photo"}
+                      </p>
+                    </div>
+                    <input
+                      id="photo-upload"
+                      name="photo"
+                      type="file"
+                      accept="image/*"
+                      capture={isMobile() ? "environment" : undefined}
+                      multiple={!isAndroid() && MAX_PHOTOS > 1}
+                      className="sr-only"
+                      onChange={handlePhotoChange}
+                      disabled={loading}
+                    />
+                  </label>
+                </div>
+              </div>
+            )}
+
+            {/* Camera Capture Component */}
+            {showCameraCapture && photoFiles.length < MAX_PHOTOS && (
+              <div className="space-y-4">
+                <CameraCapture
+                  onPhotoCapture={handleCameraCapture}
+                  onCancel={() => setShowCameraCapture(false)}
+                  disabled={loading}
+                  maxPhotos={MAX_PHOTOS}
+                  currentPhotoCount={photoFiles.length}
+                />
               </div>
             )}
           </div>
