@@ -1,3 +1,5 @@
+//src/app/api/incidents/upload/route.ts
+
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { getServerSupabase } from '@/lib/supabase-server'
@@ -35,47 +37,43 @@ export async function POST(request: Request) {
       reporterId: reporterId.substring(0, 8) + '...'
     })
 
-    // Validate reporter matches session user
-    try {
-      // Debug: Check cookies and headers
-      const { cookies, headers } = await import('next/headers')
-      const cookieStore = cookies()
-      const headersList = headers()
-      const allCookies = cookieStore.getAll()
-      const authHeader = headersList.get('authorization')
-      
-      console.log('📝 Cookies received:', allCookies.length, allCookies.map(c => c.name))
-      console.log('🔑 Authorization header:', authHeader ? 'Present' : 'Missing')
-      
-      const supabase = await getServerSupabase()
-      
-      // Use getUser() instead of getSession() - it validates the JWT from Authorization header
-      const { data: { user }, error: userError } = await supabase.auth.getUser()
-      
-      console.log('🔍 User error:', userError)
-      console.log('🔍 User ID:', user?.id)
-      
-      if (userError) {
-        console.error('Error getting user:', userError)
-        return NextResponse.json({ success: false, code: 'AUTH_ERROR', message: 'Failed to validate authentication' }, { status: 500 })
-      }
-      
-      const sessionUserId = user?.id
-      if (!sessionUserId) {
-        console.warn('❌ No user found - cookies:', allCookies.length)
-        return NextResponse.json({ success: false, code: 'UNAUTHORIZED', message: 'Authentication required' }, { status: 401 })
-      }
-      
-      if (sessionUserId !== reporterId) {
-        console.warn('Reporter ID mismatch:', { sessionUserId, reporterId })
-        return NextResponse.json({ success: false, code: 'FORBIDDEN', message: 'Reporter id does not match authenticated user' }, { status: 403 })
-      }
-      
-      console.log('✅ Upload authenticated for user:', sessionUserId)
-    } catch (authErr) {
-      console.error('Error validating session:', authErr)
-      return NextResponse.json({ success: false, code: 'AUTH_ERROR', message: 'Failed to validate authentication' }, { status: 500 })
+    // Get token from Authorization header (mobile sends this reliably, cookies are unreliable)
+    const authHeader = request.headers.get('authorization')
+    if (!authHeader?.startsWith('Bearer ')) {
+      console.error(`❌ [${requestId}] No Authorization header - mobile auth will fail without this`)
+      return NextResponse.json({ 
+        success: false, 
+        code: 'UNAUTHORIZED', 
+        message: 'Authorization header required' 
+      }, { status: 401 })
     }
+
+    const token = authHeader.replace('Bearer ', '')
+    console.log(`🔑 [${requestId}] Using Authorization header for auth (cookie-independent)`)
+
+    // Verify token using admin client (bypasses cookie issues)
+    const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token)
+
+    if (userError || !user) {
+      console.error(`❌ [${requestId}] Token verification failed:`, userError?.message)
+      return NextResponse.json({ 
+        success: false, 
+        code: 'UNAUTHORIZED', 
+        message: 'Invalid or expired token' 
+      }, { status: 401 })
+    }
+
+    const sessionUserId = user.id
+    if (sessionUserId !== reporterId) {
+      console.error(`❌ [${requestId}] Reporter ID mismatch:`, { sessionUserId, reporterId })
+      return NextResponse.json({ 
+        success: false, 
+        code: 'FORBIDDEN', 
+        message: 'Reporter id does not match authenticated user' 
+      }, { status: 403 })
+    }
+
+    console.log(`✅ [${requestId}] Authenticated user: ${sessionUserId.substring(0, 8)}...`)
 
     if (!file) {
       return NextResponse.json({ success: false, code: 'VALIDATION_ERROR', message: 'file is required' }, { status: 400 })
@@ -106,12 +104,12 @@ export async function POST(request: Request) {
       
       console.log(`🖼️ [SERVER] [${requestId}] Compressing image: ${(originalSize / 1024).toFixed(1)}KB`)
       
-      // Aggressive compression for mobile: 400px max, 60% quality = ~80-100KB
+      // Optimized compression for mobile: 800px max, 70% quality = ~40-60KB (good quality, fast upload)
       // Desktop gets better quality: 1280px max, 85% quality
       // Detect from file size (mobile photos are usually smaller)
       const isLikelyMobile = originalSize < 2 * 1024 * 1024 // < 2MB suggests mobile
-      const maxDimension = isLikelyMobile ? 400 : 1280
-      const quality = isLikelyMobile ? 60 : 85 // More aggressive: 60% for mobile
+      const maxDimension = isLikelyMobile ? 800 : 1280  // 800px sufficient for incident photos
+      const quality = isLikelyMobile ? 70 : 85  // 70% = ~40-60KB = faster mobile upload
       
       compressedBuffer = await sharp(Buffer.from(arrayBuf))
         .resize(maxDimension, maxDimension, {

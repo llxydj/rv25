@@ -1,3 +1,5 @@
+//src/lib/incidents.ts
+
 import { supabase } from "./supabase"
 import { Database } from "@/types/supabase"
 import { fetchWithTimeout } from "./fetch-with-timeout"
@@ -338,61 +340,82 @@ export const createIncident = async (
     const filesToUpload = Array.isArray(photoFiles) ? photoFiles.slice(0, 3) : []
     const uploadedPhotoPaths: string[] = []
 
-    const uploadSinglePhoto = async (file: File, photoIndex: number): Promise<string | null> => {
+    const uploadSinglePhoto = async (file: File, photoIndex: number, retries = 2): Promise<string | null> => {
       const fileSizeKB = (file.size / 1024).toFixed(1)
-      console.log(`📤 [PHOTO ${photoIndex + 1}] Uploading raw file (${fileSizeKB}KB) - server will compress`)
+      console.log(`📤 [PHOTO ${photoIndex + 1}] Starting upload (${fileSizeKB}KB, ${retries} retries available)`)
       
-      const uploadStartTime = Date.now()
-      try {
-        // BEST PRACTICE: Upload raw file to server, server compresses with Sharp
-        // This is MUCH faster than client-side compression on mobile
-        const form = new FormData()
-        form.append('file', file)
-        form.append('reporter_id', reporterId)
+      for (let attempt = 0; attempt <= retries; attempt++) {
+        const uploadStartTime = Date.now()
+        
+        try {
+          const form = new FormData()
+          form.append('file', file)
+          form.append('reporter_id', reporterId)
 
-        let accessToken = options?.accessToken
-        if (!accessToken) {
-          try {
-            const { data: { session } } = await getSessionWithTimeout(5000)
-            accessToken = session?.access_token || undefined
-          } catch (error: any) {
-            console.error(`❌ [PHOTO ${photoIndex + 1}] Auth timeout:`, error)
+          let accessToken = options?.accessToken
+          if (!accessToken) {
+            try {
+              const { data: { session } } = await getSessionWithTimeout(5000)
+              accessToken = session?.access_token || undefined
+            } catch (error: any) {
+              console.error(`❌ [PHOTO ${photoIndex + 1}] Auth timeout (attempt ${attempt + 1}/${retries + 1})`)
+              if (attempt < retries) {
+                await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)))
+                continue
+              }
+              return null
+            }
+          }
+          
+          const headers: Record<string, string> = {}
+          if (accessToken) {
+            headers['Authorization'] = `Bearer ${accessToken}`
+          }
+
+          const uploadRes = await fetchWithTimeout('/api/incidents/upload', {
+            method: 'POST',
+            body: form,
+            headers,
+            timeout: 90000 // 90 seconds - matches mobile network reality
+          })
+          
+          const uploadElapsed = Date.now() - uploadStartTime
+          const uploadJson = await uploadRes.json()
+          
+          if (!uploadRes.ok || !uploadJson?.success || !uploadJson?.path) {
+            if (attempt < retries) {
+              const waitTime = 1000 * (attempt + 1) // Exponential backoff: 1s, 2s
+              console.warn(`⚠️ [PHOTO ${photoIndex + 1}] Upload failed (${uploadElapsed}ms), retrying in ${waitTime}ms... (attempt ${attempt + 1}/${retries + 1})`)
+              await new Promise(resolve => setTimeout(resolve, waitTime))
+              continue
+            }
+            console.error(`❌ [PHOTO ${photoIndex + 1}] Upload failed after ${retries + 1} attempts (${uploadElapsed}ms):`, uploadJson)
             return null
           }
-        }
-        
-        const headers: Record<string, string> = {}
-        if (accessToken) {
-          headers['Authorization'] = `Bearer ${accessToken}`
-        }
-
-        // Upload to server endpoint - server compresses with Sharp (fast!)
-        const uploadRes = await fetchWithTimeout('/api/incidents/upload', {
-          method: 'POST',
-          body: form,
-          headers,
-          timeout: 30000 // 30 seconds per photo
-        })
-        
-        const uploadElapsed = Date.now() - uploadStartTime
-        const uploadJson = await uploadRes.json()
-        
-        if (!uploadRes.ok || !uploadJson?.success || !uploadJson?.path) {
-          console.error(`❌ [PHOTO ${photoIndex + 1}] Upload failed (${uploadElapsed}ms):`, uploadJson)
+          
+          console.log(`✅ [PHOTO ${photoIndex + 1}] Uploaded successfully in ${uploadElapsed}ms:`, uploadJson.path)
+          return uploadJson.path as string
+          
+        } catch (error: any) {
+          const uploadElapsed = Date.now() - uploadStartTime
+          
+          if (attempt < retries) {
+            const waitTime = 1000 * (attempt + 1)
+            console.warn(`⚠️ [PHOTO ${photoIndex + 1}] Error (${uploadElapsed}ms): ${error.message}. Retrying in ${waitTime}ms... (attempt ${attempt + 1}/${retries + 1})`)
+            await new Promise(resolve => setTimeout(resolve, waitTime))
+            continue
+          }
+          
+          console.error(`❌ [PHOTO ${photoIndex + 1}] Failed after ${retries + 1} attempts (${uploadElapsed}ms):`, {
+            error: error.message,
+            name: error.name,
+            fileSize: `${fileSizeKB}KB`
+          })
           return null
         }
-        
-        console.log(`✅ [PHOTO ${photoIndex + 1}] Uploaded and compressed on server in ${uploadElapsed}ms:`, uploadJson.path)
-        return uploadJson.path as string
-      } catch (error: any) {
-        const uploadElapsed = Date.now() - uploadStartTime
-        console.error(`❌ [PHOTO ${photoIndex + 1}] Upload error (${uploadElapsed}ms):`, {
-          error: error.message,
-          name: error.name,
-          fileSize: `${fileSizeKB}KB`
-        })
-        return null
       }
+      
+      return null
     }
 
     // Upload voice in parallel with photos (non-blocking)
@@ -430,6 +453,12 @@ export const createIncident = async (
           // Voice upload failure is non-critical, return null
           return null
         })
+        
+        if (!uploadRes) {
+          console.error('Voice upload failed: No response')
+          return null
+        }
+        
         const uploadJson = await uploadRes.json()
         if (!uploadRes.ok || !uploadJson?.success || !uploadJson?.path) {
           console.error('Voice upload failed:', uploadJson)
