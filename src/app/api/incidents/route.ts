@@ -205,6 +205,8 @@ export async function PUT(request: Request) {
       status,
       priority,
       photo_url,
+      photo_urls,
+      voice_url,
       assigned_to,
       resolved_at,
       resolution_notes,
@@ -243,6 +245,14 @@ export async function PUT(request: Request) {
       update.severity = mapPriorityToSeverity(String(priorityNum))
     }
     if (typeof photo_url === 'string' || photo_url === null) update.photo_url = photo_url ?? null
+    if (Array.isArray(photo_urls)) {
+      update.photo_urls = photo_urls
+      console.log(`📸 [PUT] Updating photo_urls: ${photo_urls.length} photo(s)`)
+    }
+    if (typeof voice_url === 'string' || voice_url === null) {
+      update.voice_url = voice_url ?? null
+      console.log(`🎤 [PUT] Updating voice_url: ${voice_url || 'null'}`)
+    }
     if (assigned_to !== undefined) update.assigned_to = assigned_to
     if (resolved_at !== undefined) update.resolved_at = resolved_at
     if (resolution_notes !== undefined) update.resolution_notes = resolution_notes

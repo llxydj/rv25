@@ -863,6 +863,14 @@ export const createIncident = async (
                 updateHeaders['Authorization'] = `Bearer ${accessToken}`
               }
               
+              console.log('🔄 [BACKGROUND] Updating incident with media paths:', {
+                incidentId: backgroundIncidentId.substring(0, 8) + '...',
+                photoCount: uploadedPhotoPaths.length,
+                hasVoice: !!uploadedVoicePath,
+                voicePath: uploadedVoicePath || 'none',
+                payload: updatePayload
+              })
+              
               const updateRes = await fetch('/api/incidents', {
                 method: 'PUT',
                 headers: updateHeaders,
@@ -873,13 +881,17 @@ export const createIncident = async (
                 const updateJson = await updateRes.json()
                 console.log('✅ [BACKGROUND] Incident updated with media paths:', {
                   photos: uploadedPhotoPaths.length,
-                  hasVoice: !!uploadedVoicePath
+                  hasVoice: !!uploadedVoicePath,
+                  voicePath: uploadedVoicePath || 'none',
+                  response: updateJson?.data?.voice_url ? 'voice_url saved' : 'voice_url missing in response'
                 })
               } else {
                 const errorText = await updateRes.text()
-                console.warn('⚠️ [BACKGROUND] Failed to update incident with media:', {
+                console.error('❌ [BACKGROUND] Failed to update incident with media:', {
                   status: updateRes.status,
-                  error: errorText.substring(0, 200)
+                  statusText: updateRes.statusText,
+                  error: errorText.substring(0, 500),
+                  payload: updatePayload
                 })
               }
             } else {
