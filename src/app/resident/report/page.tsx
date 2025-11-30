@@ -778,15 +778,20 @@ export default function ReportIncidentPage() {
       if (!session && currentUser && currentUser.id) {
         console.log("🔴 [REPORT SUBMIT] Using currentUser directly (session check skipped):", currentUser.id.substring(0, 8) + '...');
         session = { user: { id: currentUser.id, email: currentUser.email || '' } }
-        // Try to get token from direct call (non-blocking)
-        supabase.auth.getSession().then(({ data }) => {
-          if (data?.session?.access_token) {
-            sessionAccessToken = data.session.access_token
-            console.log("🔴 [REPORT SUBMIT] ✅ Got access token asynchronously");
+        // CRITICAL: Try to get token synchronously (blocking) for background uploads
+        try {
+          const { data: { session: directSession }, error: directError } = await supabase.auth.getSession()
+          if (directSession?.access_token && !directError) {
+            sessionAccessToken = directSession.access_token
+            session = directSession // Use full session if we got it
+            console.log("🔴 [REPORT SUBMIT] ✅ Got access token via direct Supabase call");
+          } else {
+            console.warn("🔴 [REPORT SUBMIT] Direct Supabase call returned no token:", directError?.message || 'No session');
           }
-        }).catch(() => {
-          // Ignore - we'll proceed without token, createIncident can handle it
-        })
+        } catch (directErr: any) {
+          console.warn("🔴 [REPORT SUBMIT] Direct Supabase call failed:", directErr?.message || 'Unknown error');
+          // Continue anyway - we have currentUser
+        }
       }
       
       if (!session || !session.user) {
