@@ -302,10 +302,12 @@ export const createIncident = async (
 
     notifyStage("verify-session")
     let authUserId = options?.sessionUserId
+    
+    // Skip session check if we already have sessionUserId (faster, no network call)
     if (!authUserId) {
+      console.log("[createIncident] No sessionUserId provided, fetching user session...")
       // CRITICAL FIX: Add timeout to prevent infinite hang on mobile (increased for slow networks)
       try {
-        console.log("[createIncident] Verifying user session...")
         // Increased to 15 seconds for slow mobile networks
         const { data: { user } } = await getUserWithTimeout(15000)
         console.log("[createIncident] User verified:", user?.id)
@@ -322,14 +324,28 @@ export const createIncident = async (
         }
         throw new Error(error.message || 'Failed to verify authentication. Please try again.')
       }
+    } else {
+      console.log("[createIncident] Using provided sessionUserId (skipping session check):", authUserId.substring(0, 8) + '...')
     }
 
     if (!authUserId || authUserId !== reporterId) {
+      console.error("[createIncident] Auth mismatch:", { authUserId: authUserId?.substring(0, 8), reporterId: reporterId.substring(0, 8) })
       throw new Error("Authentication mismatch. Please try logging in again.")
     }
+    
+    console.log("[createIncident] ✅ Authentication verified, proceeding to create incident...")
 
     // Validate required fields (description is optional)
+    console.log("[createIncident] Validating fields:", {
+      hasReporterId: !!reporterId,
+      hasIncidentType: !!incidentType,
+      hasBarangay: !!barangay,
+      photoCount: photoFiles?.length || 0,
+      hasVoice: !!voiceBlob
+    })
+    
     if (!reporterId || !incidentType || !barangay) {
+      console.error("[createIncident] ❌ Validation failed - missing required fields")
       return {
         success: false,
         message: "Missing required fields",
@@ -337,6 +353,7 @@ export const createIncident = async (
     }
 
     const submissionTimestamp = createdAtLocal ?? new Date().toISOString()
+    console.log("[createIncident] ✅ Validation passed, creating incident payload...")
 
     const filesToUpload = Array.isArray(photoFiles) ? photoFiles.slice(0, 3) : []
 
@@ -479,6 +496,7 @@ export const createIncident = async (
     // Step 1: Create incident record IMMEDIATELY (fast ~1-2 seconds, no waiting for photos)
     notifyStage("create-record")
     console.log('🚀 [MOBILE] Creating incident immediately (photos will upload in background)')
+    console.log('🚀 [MOBILE] Photo files count:', photoFiles?.length || 0, '- will upload in background')
 
     const payload: any = {
       reporter_id: reporterId,
@@ -501,14 +519,25 @@ export const createIncident = async (
       : '/api/incidents'
 
     console.time('createIncident.api')
-    console.log('🚀 [INCIDENT] Making API request to:', apiUrl)
-    console.log('🚀 [INCIDENT] Payload size:', JSON.stringify(payload).length, 'bytes')
+    console.log('🚀 [INCIDENT] ========== ABOUT TO MAKE API REQUEST ==========')
+    console.log('🚀 [INCIDENT] URL:', apiUrl)
+    console.log('🚀 [INCIDENT] Payload:', {
+      reporter_id: payload.reporter_id.substring(0, 8) + '...',
+      incident_type: payload.incident_type,
+      barangay: payload.barangay,
+      has_description: !!payload.description,
+      location: [payload.location_lat, payload.location_lng],
+      payload_size: JSON.stringify(payload).length + ' bytes'
+    })
+    console.log('🚀 [INCIDENT] About to call fetch()...')
     
     let apiJson: any
     const fetchStartTime = Date.now()
 
     try {
       console.log('🚀 [INCIDENT] Starting fetch request...')
+      console.log('🚀 [INCIDENT] Window location:', typeof window !== 'undefined' ? window.location.origin : 'server-side')
+      console.log('🚀 [INCIDENT] API URL:', apiUrl)
       
       // Retry logic for network errors (up to 2 retries)
       let lastError: any = null
@@ -529,6 +558,14 @@ export const createIncident = async (
             await new Promise(resolve => setTimeout(resolve, 1000 * attempt))
           }
           
+          console.log(`🚀 [INCIDENT] Attempt ${attempt + 1}: Calling fetch() NOW...`)
+          console.log(`🚀 [INCIDENT] Request details:`, {
+            method: 'POST',
+            url: apiUrl,
+            hasBody: !!payload,
+            bodySize: JSON.stringify(payload).length
+          })
+          
           apiRes = await fetch(apiUrl, {
             method: 'POST',
             headers: { 
@@ -540,6 +577,8 @@ export const createIncident = async (
             cache: 'no-store',
             keepalive: true // CRITICAL for mobile - keeps connection alive
           })
+          
+          console.log(`✅ [INCIDENT] Fetch call completed (attempt ${attempt + 1})`)
           
           clearTimeout(timeoutId)
           const fetchTime = Date.now() - fetchStartTime

@@ -824,16 +824,30 @@ export default function ReportIncidentPage() {
       )
 
       console.log("🔴 [REPORT SUBMIT] Waiting for createIncident (60s timeout)...");
-      const result = await Promise.race([createIncidentPromise, timeoutPromise])
-      console.log("🔴 [REPORT SUBMIT] Result received:", {
-        success: result?.success,
-        hasData: !!(result as any)?.data,
-        message: (result as any)?.message
-      });
+      console.log("🔴 [REPORT SUBMIT] Photo files being passed:", photoFiles.length);
+      
+      let result: any
+      try {
+        result = await Promise.race([createIncidentPromise, timeoutPromise])
+        console.log("🔴 [REPORT SUBMIT] Result received:", {
+          success: result?.success,
+          hasData: !!(result as any)?.data,
+          message: (result as any)?.message
+        });
+      } catch (raceError: any) {
+        console.error("🔴 [REPORT SUBMIT] Promise.race error:", {
+          message: raceError?.message,
+          name: raceError?.name,
+          stack: raceError?.stack?.substring(0, 500)
+        });
+        throw raceError
+      }
 
-      if (!result.success) {
+      if (!result || !result.success) {
         console.error("🔴 [REPORT SUBMIT] createIncident failed:", result);
-        throw new Error((result as any).message || "Failed to create incident report")
+        const errorMsg = (result as any)?.message || "Failed to create incident report"
+        console.error("🔴 [REPORT SUBMIT] Error message:", errorMsg);
+        throw new Error(errorMsg)
       }
 
       console.log("🔴 [REPORT SUBMIT] ✅ Submission successful:", (result as any).data)
