@@ -616,7 +616,7 @@ export async function POST(request: Request) {
     const payload = {
       reporter_id,
       incident_type: normalizedIncidentType,
-      description: description && typeof description === 'string' ? description.trim() : null, // Optional - can be null
+      description: description && typeof description === 'string' ? description.trim() : '', // Database requires NOT NULL, so use empty string instead of null
       location_lat,
       location_lng,
       address: resolvedAddress,
