@@ -37,22 +37,45 @@ export async function POST(request: Request) {
       reporterId: reporterId.substring(0, 8) + '...'
     })
 
-    // Get token from Authorization header (mobile sends this reliably, cookies are unreliable)
+    // Get token from Authorization header (preferred) or fallback to cookies/session
     const authHeader = request.headers.get('authorization')
-    if (!authHeader?.startsWith('Bearer ')) {
-      console.error(`❌ [${requestId}] No Authorization header - mobile auth will fail without this`)
+    let token: string | null = null
+    let user: any = null
+    let userError: any = null
+    
+    if (authHeader?.startsWith('Bearer ')) {
+      token = authHeader.replace('Bearer ', '')
+      console.log(`🔑 [${requestId}] Using Authorization header for auth`)
+      // Verify token using admin client
+      const result = await supabaseAdmin.auth.getUser(token)
+      user = result.data?.user
+      userError = result.error
+    } else {
+      // FALLBACK: Try to get session from cookies (for background uploads when token retrieval times out)
+      console.log(`⚠️ [${requestId}] No Authorization header, trying cookie-based session...`)
+      try {
+        const supabase = await getServerSupabase()
+        const { data: { user: sessionUser }, error: sessionError } = await supabase.auth.getUser()
+        if (sessionUser && !sessionError) {
+          user = sessionUser
+          console.log(`✅ [${requestId}] Got user from cookie-based session`)
+        } else {
+          userError = sessionError || new Error('No session found in cookies')
+        }
+      } catch (cookieErr: any) {
+        console.error(`❌ [${requestId}] Cookie-based session also failed:`, cookieErr?.message)
+        userError = cookieErr
+      }
+    }
+
+    if (!token && !user) {
+      console.error(`❌ [${requestId}] No Authorization header and no cookie session - auth failed`)
       return NextResponse.json({ 
         success: false, 
         code: 'UNAUTHORIZED', 
-        message: 'Authorization header required' 
+        message: 'Authentication required (token or session)' 
       }, { status: 401 })
     }
-
-    const token = authHeader.replace('Bearer ', '')
-    console.log(`🔑 [${requestId}] Using Authorization header for auth (cookie-independent)`)
-
-    // Verify token using admin client (bypasses cookie issues)
-    const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token)
 
     if (userError || !user) {
       console.error(`❌ [${requestId}] Token verification failed:`, userError?.message)

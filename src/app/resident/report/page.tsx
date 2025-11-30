@@ -790,7 +790,18 @@ export default function ReportIncidentPage() {
           if (result?.data?.session?.access_token && !result.error) {
             sessionAccessToken = result.data.session.access_token
             session = result.data.session // Use full session if we got it
-            console.log("🔴 [REPORT SUBMIT] ✅ Got access token via direct Supabase call");
+            // PERMANENT FIX: Cache token for background uploads
+            if (typeof window !== 'undefined') {
+              try {
+                localStorage.setItem('supabase.auth.token', JSON.stringify({ 
+                  access_token: sessionAccessToken,
+                  cached_at: Date.now()
+                }))
+              } catch (e) {
+                // Ignore localStorage errors
+              }
+            }
+            console.log("🔴 [REPORT SUBMIT] ✅ Got access token via direct Supabase call (cached)");
           } else {
             console.warn("🔴 [REPORT SUBMIT] Direct Supabase call returned no token:", result?.error?.message || 'No session');
           }

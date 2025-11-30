@@ -658,7 +658,30 @@ export const createIncident = async (
       if ((filesToUpload.length > 0 || voiceBlob) && typeof window !== 'undefined') {
         // Capture everything needed before async context
         const backgroundIncidentId = incidentId
-        const backgroundAccessToken = options?.accessToken
+        let backgroundAccessToken = options?.accessToken
+        
+        // PERMANENT FIX: Try to get token from localStorage cache (set when user logs in)
+        if (!backgroundAccessToken && typeof window !== 'undefined') {
+          try {
+            const cachedToken = localStorage.getItem('supabase.auth.token')
+            if (cachedToken) {
+              try {
+                const parsed = JSON.parse(cachedToken)
+                backgroundAccessToken = parsed?.access_token || parsed
+                if (backgroundAccessToken) {
+                  console.log('✅ [BACKGROUND] Using cached token from localStorage')
+                }
+              } catch {
+                // If not JSON, use as-is
+                backgroundAccessToken = cachedToken
+                console.log('✅ [BACKGROUND] Using cached token (raw) from localStorage')
+              }
+            }
+          } catch (e) {
+            // localStorage might not be available
+          }
+        }
+        
         const backgroundFiles = [...filesToUpload]
         const backgroundVoice = voiceBlob
         
@@ -675,45 +698,80 @@ export const createIncident = async (
           try {
             console.log(`📤 [BACKGROUND] Starting background upload for ${backgroundFiles.length} photo(s)`)
             
-            // Get fresh session token if not provided (for background context)
+            // PERMANENT FIX: Multi-layer token retrieval with caching to break the cycle
             let accessToken = backgroundAccessToken
+            
             if (!accessToken) {
-              console.log('⚠️ [BACKGROUND] No access token provided, attempting to get one...')
-              // Try multiple methods to get token
-              let tokenRetrieved = false
-              
-              // Method 1: Direct Supabase call (fastest, no timeout)
-              try {
-                const { data: { session: directSession }, error: directError } = await supabase.auth.getSession()
-                if (directSession?.access_token && !directError) {
-                  accessToken = directSession.access_token
-                  console.log('✅ [BACKGROUND] Got token via direct Supabase call')
-                  tokenRetrieved = true
-                }
-              } catch (directErr: any) {
-                console.warn('⚠️ [BACKGROUND] Direct Supabase call failed:', directErr?.message || 'Unknown error')
-              }
-              
-              // Method 2: Try timeout wrapper (if direct call failed)
-              if (!tokenRetrieved) {
+              // Layer 1: localStorage cache (instant, no network, prevents recurring issues)
+              if (typeof window !== 'undefined') {
                 try {
-                  const { data: { session } } = await getSessionWithTimeout(5000) // Longer timeout for background
-                  if (session?.access_token) {
-                    accessToken = session.access_token
-                    console.log('✅ [BACKGROUND] Got token via timeout wrapper')
-                    tokenRetrieved = true
+                  const cached = localStorage.getItem('supabase.auth.token')
+                  if (cached) {
+                    try {
+                      const parsed = JSON.parse(cached)
+                      // Check if cache is recent (within 1 hour)
+                      const cacheAge = Date.now() - (parsed.cached_at || 0)
+                      if (cacheAge < 3600000) { // 1 hour
+                        accessToken = parsed.access_token || parsed
+                        console.log('✅ [BACKGROUND] Using cached token (Layer 1: localStorage)')
+                      } else {
+                        console.log('⚠️ [BACKGROUND] Cached token expired, refreshing...')
+                        localStorage.removeItem('supabase.auth.token')
+                      }
+                    } catch {
+                      accessToken = cached
+                      console.log('✅ [BACKGROUND] Using cached token (raw format)')
+                    }
                   }
-                } catch (timeoutErr: any) {
-                  console.warn('⚠️ [BACKGROUND] Timeout wrapper also failed:', timeoutErr?.message || 'Unknown error')
+                } catch (e) {
+                  // localStorage unavailable
                 }
               }
               
-              if (!tokenRetrieved) {
-                console.error('❌ [BACKGROUND] Could not retrieve access token - photo uploads will fail')
-                console.error('❌ [BACKGROUND] Incident was created successfully, but photos cannot be uploaded without authentication')
+              // Layer 2: Quick Supabase call with timeout (if cache missed)
+              if (!accessToken) {
+                try {
+                  const sessionPromise = supabase.auth.getSession()
+                  const timeoutPromise = new Promise<{ data: { session: null }, error: { message: string } }>((_, reject) =>
+                    setTimeout(() => reject(new Error('Timeout')), 2000) // 2s max
+                  )
+                  
+                  const result = await Promise.race([sessionPromise, timeoutPromise]) as any
+                  if (result?.data?.session?.access_token && !result.error) {
+                    accessToken = result.data.session.access_token
+                    // Cache for future (breaks the cycle)
+                    if (typeof window !== 'undefined') {
+                      try {
+                        localStorage.setItem('supabase.auth.token', JSON.stringify({ 
+                          access_token: accessToken,
+                          cached_at: Date.now()
+                        }))
+                      } catch (e) {}
+                    }
+                    console.log('✅ [BACKGROUND] Got token (Layer 2: Supabase, cached)')
+                  }
+                } catch (err: any) {
+                  if (!err?.message?.includes('Timeout')) {
+                    console.warn('⚠️ [BACKGROUND] Layer 2 failed:', err?.message || 'Unknown')
+                  }
+                }
+              }
+              
+              // Layer 3: Upload without token (API uses cookie fallback)
+              if (!accessToken) {
+                console.log('⚠️ [BACKGROUND] No token - using Layer 3: Cookie auth (API fallback)')
               }
             } else {
-              console.log('✅ [BACKGROUND] Using provided access token')
+              // Cache provided token for future use
+              if (typeof window !== 'undefined' && accessToken) {
+                try {
+                  localStorage.setItem('supabase.auth.token', JSON.stringify({ 
+                    access_token: accessToken,
+                    cached_at: Date.now()
+                  }))
+                } catch (e) {}
+              }
+              console.log('✅ [BACKGROUND] Using provided token (cached)')
             }
             
             const uploadedPhotoPaths: string[] = []

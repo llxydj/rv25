@@ -89,6 +89,18 @@ export const useAuth = () => {
           data: { session },
         } = await supabase.auth.getSession()
 
+        // PERMANENT FIX: Cache token when we get initial session
+        if (session?.access_token && typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('supabase.auth.token', JSON.stringify({ 
+              access_token: session.access_token,
+              cached_at: Date.now()
+            }))
+          } catch (e) {
+            // Ignore localStorage errors
+          }
+        }
+
         if (session) {
           try {
         // Get user profile data including role and status
@@ -177,10 +189,28 @@ export const useAuth = () => {
 
     getInitialSession()
 
+    // PERMANENT FIX: Cache token helper function
+    const cacheToken = (token: string | undefined) => {
+      if (token && typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('supabase.auth.token', JSON.stringify({ 
+            access_token: token,
+            cached_at: Date.now()
+          }))
+        } catch (e) {
+          // Ignore localStorage errors
+        }
+      }
+    }
+
     // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // PERMANENT FIX: Cache token whenever we get a session
+      if (session?.access_token) {
+        cacheToken(session.access_token)
+      }
       if (event === "SIGNED_IN" && session) {
         // CRITICAL: Verify we have the correct session user
         // Double-check by getting the current user to ensure session is correct
@@ -575,6 +605,19 @@ export const signIn = async (email: string, password: string) => {
     // Verify we got the correct user
     if (!data.user) {
       throw new Error("Failed to authenticate user")
+    }
+
+    // PERMANENT FIX: Cache token immediately after login (prevents recurring token issues)
+    if (data.session?.access_token && typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('supabase.auth.token', JSON.stringify({ 
+          access_token: data.session.access_token,
+          cached_at: Date.now()
+        }))
+        console.log('[Auth] ✅ Token cached after login (prevents future retrieval issues)')
+      } catch (e) {
+        // Ignore localStorage errors (private mode, etc.)
+      }
     }
 
     // Double-check: Verify the session user exists
