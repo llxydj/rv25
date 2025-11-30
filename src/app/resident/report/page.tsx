@@ -610,10 +610,13 @@ export default function ReportIncidentPage() {
   }
 
   const handleMapClick = (lat: number, lng: number) => {
+    console.log('[REPORT] Map clicked:', { lat, lng })
     // Only set location if within Talisay City
     if (isWithinTalisayCity(lat, lng)) {
       setLocation([lat, lng])
+      setLocationCaptured(true) // CRITICAL: Mark location as captured when user clicks map
       setError(null)
+      console.log('[REPORT] Location set from map click:', [lat, lng])
     } else {
       setError("Selected location is outside Talisay City. Please select a location within Talisay City.")
     }
@@ -655,10 +658,14 @@ export default function ReportIncidentPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setIsSubmitting(true); // Disable map volunteer location fetching during submission
+    setIsSubmitting(true);
 
-    // Wait for auth to load if still loading
+    console.log("🔴 [REPORT SUBMIT] ========== STARTING SUBMISSION ==========");
+    console.log("🔴 [REPORT SUBMIT] Timestamp:", new Date().toISOString());
+
+    // Wait for auth to load
     if (authLoading) {
+      console.log("🔴 [REPORT SUBMIT] Auth still loading, waiting...");
       const errorMsg = "Please wait, verifying your session...";
       setError(errorMsg);
       toast({
@@ -666,41 +673,44 @@ export default function ReportIncidentPage() {
         title: "Please wait",
         description: errorMsg
       });
+      setIsSubmitting(false);
       return;
     }
 
-    // Check user from hook first
+    // Validate form first
+    if (!validateForm()) {
+      console.log("🔴 [REPORT SUBMIT] Form validation failed");
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: error
+      });
+      setIsSubmitting(false);
+      return;
+    }
+
+    // Location validation
+    if (!location || !locationCaptured) {
+      console.log("🔴 [REPORT SUBMIT] Location not captured");
+      const errorMsg = "Location must be captured before submitting the report";
+      setError(errorMsg);
+      toast({
+        variant: "destructive",
+        title: "Location Required",
+        description: errorMsg
+      });
+      setIsSubmitting(false);
+      return;
+    }
+
+    // Check user
     let currentUser = user;
-    
-    // PERFORMANCE FIX: Optimize session verification with timeout
-    // If user is null, try to get session directly (race condition fix)
     if (!currentUser) {
+      console.log("🔴 [REPORT SUBMIT] User not found in hook, fetching session...");
       try {
-        // Add timeout to prevent hanging on slow mobile networks
-        const sessionPromise = supabase.auth.getSession();
-        const timeoutPromise = new Promise<{ error: { message: string } }>((resolve) => 
-          setTimeout(() => resolve({ error: { message: 'Session verification timeout' } }), 5000)
-        );
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        console.log("🔴 [REPORT SUBMIT] Session fetch result:", { hasSession: !!session, error: sessionError?.message });
         
-        const sessionResult = await Promise.race([sessionPromise, timeoutPromise]);
-        
-        // CRITICAL FIX: Check if timeout won the race
-        if ('error' in sessionResult && sessionResult.error?.message === 'Session verification timeout') {
-          const errorMsg = "Session verification is taking too long. Please check your connection and try again.";
-          setError(errorMsg);
-          toast({
-            variant: "destructive",
-            title: "Connection Timeout",
-            description: errorMsg
-          });
-          setLoading(false);
-          setSubmitStage(null);
-          return;
-        }
-        
-        // If we get here, sessionPromise won the race - use the result directly
-        const { data: { session }, error: sessionError } = sessionResult as Awaited<typeof sessionPromise>;
-          
         if (sessionError || !session) {
           const errorMsg = "You must be logged in to report an incident. Please refresh the page and try again.";
           setError(errorMsg);
@@ -709,39 +719,19 @@ export default function ReportIncidentPage() {
             title: "Authentication Error",
             description: errorMsg
           });
+          setIsSubmitting(false);
           return;
         }
-        
-        // PERFORMANCE FIX: Fetch user data with timeout
-        const userDataPromise = supabase
+
+        // Fetch user data
+        const { data: userData, error: userError } = await supabase
           .from("users")
           .select("id, role, first_name, last_name, phone_number, address, barangay")
           .eq("id", session.user.id)
           .maybeSingle();
-        
-        const userTimeoutPromise = new Promise<{ error: { message: string } }>((resolve) => 
-          setTimeout(() => resolve({ error: { message: 'User data fetch timeout' } }), 5000)
-        );
-        
-        const userResult = await Promise.race([userDataPromise, userTimeoutPromise]);
-        
-        // CRITICAL FIX: Check if timeout won the race
-        if ('error' in userResult && userResult.error?.message === 'User data fetch timeout') {
-          const errorMsg = "Loading your account information is taking too long. Please check your connection and try again.";
-          setError(errorMsg);
-          toast({
-            variant: "destructive",
-            title: "Connection Timeout",
-            description: errorMsg
-          });
-          setLoading(false);
-          setSubmitStage(null);
-          return;
-        }
-        
-        // If we get here, userDataPromise won the race - use the result directly
-        const { data: userData, error: userError } = userResult as Awaited<typeof userDataPromise>;
-        
+
+        console.log("🔴 [REPORT SUBMIT] User data fetch result:", { hasData: !!userData, error: userError?.message });
+
         if (userError || !userData) {
           const errorMsg = "Unable to verify your account. Please refresh the page and try again.";
           setError(errorMsg);
@@ -750,10 +740,10 @@ export default function ReportIncidentPage() {
             title: "Authentication Error",
             description: errorMsg
           });
+          setIsSubmitting(false);
           return;
         }
-        
-        // Create user object from fetched data
+
         currentUser = {
           id: session.user.id,
           email: session.user.email || "",
@@ -765,7 +755,7 @@ export default function ReportIncidentPage() {
           barangay: userData.barangay || undefined,
         };
       } catch (authErr: any) {
-        console.error("Auth check error:", authErr);
+        console.error("🔴 [REPORT SUBMIT] Auth check error:", authErr);
         const errorMsg = "Authentication error. Please refresh the page and try again.";
         setError(errorMsg);
         toast({
@@ -773,14 +763,13 @@ export default function ReportIncidentPage() {
           title: "Authentication Error",
           description: errorMsg
         });
-        setLoading(false);
-        setSubmitStage(null);
+        setIsSubmitting(false);
         return;
       }
     }
 
-    // Use currentUser instead of user for the rest of the function
     if (!currentUser) {
+      console.log("🔴 [REPORT SUBMIT] No user available");
       const errorMsg = "You must be logged in to report an incident";
       setError(errorMsg);
       toast({
@@ -788,43 +777,21 @@ export default function ReportIncidentPage() {
         title: "Authentication Error",
         description: errorMsg
       });
+      setIsSubmitting(false);
       return;
     }
 
-    if (!validateForm()) {
-      toast({
-        variant: "destructive",
-        title: "Validation Error",
-        description: error
-      });
-      return;
-    }
-
-    // Additional location validation
-    if (!location || !locationCaptured) {
-      const errorMsg = "Location must be captured before submitting the report";
-      setError(errorMsg);
-      toast({
-        variant: "destructive",
-        title: "Location Required",
-        description: errorMsg
-      });
-      return;
-    }
-
-    // Check online status right before submission
+    // Check online status
     if (!navigator.onLine) {
+      console.log("🔴 [REPORT SUBMIT] Offline detected, saving locally");
       setIsOffline(true);
     }
 
     setLoading(true);
     setSubmitStage(isOffline ? "Saving report for offline delivery…" : "Preparing your report…");
     
-    // CRITICAL DEBUG: Log start of submission with detailed info
-    console.log("🚀 [REPORT SUBMIT] ========== STARTING INCIDENT SUBMISSION ==========");
-    console.log("📱 [REPORT SUBMIT] Starting incident submission:", {
-      timestamp: new Date().toISOString(),
-      userId: currentUser.id,
+    console.log("🔴 [REPORT SUBMIT] Submission details:", {
+      userId: currentUser.id.substring(0, 8) + '...',
       incidentType: formData.incidentType,
       hasPhotos: photoFiles.length > 0,
       photoCount: photoFiles.length,
@@ -832,12 +799,11 @@ export default function ReportIncidentPage() {
       isOffline: isOffline || !navigator.onLine,
       networkType: (navigator as any).connection?.effectiveType || 'unknown',
       location: location,
-      locationCaptured: locationCaptured,
       address: formData.address,
       barangay: formData.barangay
     });
 
-    // If offline, store the report locally
+    // Handle offline submission
     if (!navigator.onLine || isOffline) {
       try {
         const submissionTimestamp = new Date().toISOString()
@@ -857,13 +823,14 @@ export default function ReportIncidentPage() {
         setPendingReports(updatedPendingReports)
         localStorage.setItem("pendingIncidentReports", JSON.stringify(updatedPendingReports))
 
+        console.log("🔴 [REPORT SUBMIT] Report saved offline");
+
         toast({
           title: "Report Saved Offline",
           description: "Your report has been saved and will be submitted when you're back online.",
           duration: 5000
         })
 
-        // Reset form
         setFormData({
           incidentType: "",
           description: "",
@@ -874,9 +841,9 @@ export default function ReportIncidentPage() {
         setLocation(null)
         clearPhotos()
 
-        // Redirect to dashboard
         router.push("/resident/dashboard?offline=true")
       } catch (err: any) {
+        console.error("🔴 [REPORT SUBMIT] Offline save error:", err);
         setError("Failed to save report offline. Please try again.")
         toast({
           variant: "destructive",
@@ -886,46 +853,24 @@ export default function ReportIncidentPage() {
       } finally {
         setLoading(false)
         setSubmitStage(null)
+        setIsSubmitting(false)
       }
       return
     }
 
+    // Online submission
     try {
-      // Ensure we have a location (either selected or default)
       const reportLocation = location || TALISAY_CENTER
 
-      // Debug: Log the incident data being sent
-      console.log("Submitting incident with data:", {
-        user_id: currentUser.id,
-        incidentType: formData.incidentType,
-        description: formData.description,
-        location: reportLocation,
-        address: formData.address,
-        barangay: formData.barangay,
-        priority: formData.priority,
-        photoCount: photoFiles.length,
-        hasVoiceBlob: !!voiceBlob,
-        voiceBlobSize: voiceBlob?.size || 0,
-        voiceBlobType: voiceBlob?.type || 'none'
-      })
-
-      // CRITICAL FIX: Verify user session with timeout to prevent hanging
-      // This was causing infinite hang on "Preparing your report"
-      let session
-      try {
-        const { getSessionWithTimeout } = await import('@/lib/supabase-auth-timeout')
-        const sessionResult = await getSessionWithTimeout(8000) // 8 second timeout
-        session = sessionResult.data?.session
-        if (!session) {
-          throw new Error("Your session has expired. Please log in again.")
-        }
-      } catch (sessionError: any) {
-        console.error("❌ [REPORT] Session verification failed:", sessionError)
-        if (sessionError.message?.includes('timeout') || sessionError.message?.includes('Connection timeout')) {
-          throw new Error("Connection timeout. Please check your internet connection and try again.")
-        }
-        throw new Error(sessionError.message || "Your session has expired. Please log in again.")
+      console.log("🔴 [REPORT SUBMIT] Getting session for submission...");
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !session) {
+        console.error("🔴 [REPORT SUBMIT] Session error:", sessionError);
+        throw new Error("Your session has expired. Please log in again.");
       }
+
+      console.log("🔴 [REPORT SUBMIT] Session obtained:", { userId: session.user.id.substring(0, 8) + '...' });
 
       const stageMessages: Record<CreateIncidentStage, string> = {
         "verify-session": "Verifying your session…",
@@ -935,14 +880,13 @@ export default function ReportIncidentPage() {
       }
 
       const submissionTimestamp = new Date().toISOString()
-      console.log("📤 [REPORT SUBMIT] About to call createIncident:", {
-        reporterId: currentUser.id,
+      console.log("🔴 [REPORT SUBMIT] Calling createIncident:", {
+        reporterId: currentUser.id.substring(0, 8) + '...',
         incidentType: formData.incidentType,
         location: reportLocation,
         timestamp: submissionTimestamp
       });
       
-      // MOBILE FIX: Add overall timeout wrapper to prevent infinite hanging
       const createIncidentPromise = createIncident(
         currentUser.id,
         formData.incidentType,
@@ -960,7 +904,6 @@ export default function ReportIncidentPage() {
           sessionUserId: session.user.id,
           accessToken: session.access_token || undefined,
           onStageChange: (stage) => {
-            // Small debounce to prevent flickering
             setTimeout(() => {
               setSubmitStage(stageMessages[stage] || null)
             }, 50)
@@ -968,7 +911,7 @@ export default function ReportIncidentPage() {
         },
       )
 
-      // Add overall timeout of 45 seconds for the entire operation
+      // 45-second overall timeout
       const timeoutPromise = new Promise<{ success: false; message: string }>((resolve) => 
         setTimeout(() => resolve({ 
           success: false, 
@@ -976,22 +919,21 @@ export default function ReportIncidentPage() {
         }), 45000)
       )
 
-      console.log("⏳ [REPORT SUBMIT] Waiting for createIncident to complete (race with 45s timeout)...");
+      console.log("🔴 [REPORT SUBMIT] Waiting for createIncident (45s timeout)...");
       const result = await Promise.race([createIncidentPromise, timeoutPromise])
-      console.log("📥 [REPORT SUBMIT] Promise.race completed:", {
-        hasResult: !!result,
+      console.log("🔴 [REPORT SUBMIT] Result received:", {
         success: result?.success,
-        hasData: !!result?.data
+        hasData: !!(result as any)?.data,
+        message: (result as any)?.message
       });
 
       if (!result.success) {
-        console.error("❌ [REPORT SUBMIT] createIncident returned failure:", result);
-        throw new Error(result.message || "Failed to create incident report")
+        console.error("🔴 [REPORT SUBMIT] createIncident failed:", result);
+        throw new Error((result as any).message || "Failed to create incident report")
       }
 
-      // Debug: Log successful submission
-      console.log("✅ [REPORT SUBMIT] Incident submitted successfully:", result.data)
-      console.log("🎉 [REPORT SUBMIT] ========== SUBMISSION SUCCESS ==========");
+      console.log("🔴 [REPORT SUBMIT] ✅ Submission successful:", (result as any).data)
+      console.log("🔴 [REPORT SUBMIT] ========== SUBMISSION COMPLETE ==========");
 
       toast({
         title: "Success",
@@ -999,7 +941,6 @@ export default function ReportIncidentPage() {
         duration: 5000
       })
 
-      // Reset form
       setFormData({
         incidentType: "",
         description: "",
@@ -1011,19 +952,17 @@ export default function ReportIncidentPage() {
       setVoiceBlob(null)
       clearPhotos()
 
-      // Redirect to dashboard with success message
       router.push("/resident/dashboard?success=Incident reported successfully")
     } catch (err: any) {
-      console.error("❌ [MOBILE DEBUG] Error submitting incident report:", {
-        error: err,
+      console.error("🔴 [REPORT SUBMIT] ❌ Error:", {
         message: err.message,
+        name: err.name,
         stack: err.stack,
         timestamp: new Date().toISOString(),
         networkType: (navigator as any).connection?.effectiveType || 'unknown',
         isOnline: navigator.onLine
       })
       
-      // Handle specific error cases
       let errorMessage = err.message || "Failed to submit incident report"
       if (errorMessage.includes("row-level security policy")) {
         errorMessage = "Authentication error. Please try logging out and back in."
@@ -1040,7 +979,7 @@ export default function ReportIncidentPage() {
     } finally {
       setLoading(false)
       setSubmitStage(null)
-      setIsSubmitting(false) // Re-enable map volunteer location fetching
+      setIsSubmitting(false)
     }
   }
 
@@ -1106,16 +1045,46 @@ export default function ReportIncidentPage() {
             </h2>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
               Your location will be automatically captured via GPS (target accuracy: 5-10 meters). 
-              If it doesn't capture automatically, click "Use My Location" below.
+              If GPS accuracy is poor or it doesn't capture automatically, you can:
+              <br />• Click "Use My Location" button below, or
+              <br />• Click directly on the map to manually select your location
             </p>
             
             <div className="mb-6">
               <LocationTracker
                 onLocationUpdate={(location) => {
                   console.log("LocationTracker onLocationUpdate called:", location);
-                  setLocation([location.latitude, location.longitude]);
-                  setLocationCaptured(true);
-                  setError(null);
+                  
+                  // CRITICAL: Reject very poor accuracy locations (IP-based geolocation)
+                  // Accuracy > 1000m (1km) is likely IP-based, not GPS
+                  if (location.accuracy > 1000) {
+                    const accuracyKm = (location.accuracy / 1000).toFixed(1);
+                    console.warn(`[REPORT] Rejecting poor accuracy location: ${accuracyKm}km (likely IP-based)`);
+                    setError(`GPS accuracy is very poor (${accuracyKm}km). Please click on the map to manually select your location, or move to an open area for better GPS signal.`);
+                    // Don't set location if accuracy is too poor
+                    return;
+                  }
+                  
+                  // Only update if we don't already have a manually selected location
+                  // This prevents LocationTracker from overriding user's map click
+                  if (!locationCaptured) {
+                    // Warn if accuracy is moderate (20-1000m)
+                    if (location.accuracy > 20) {
+                      setError(`Location accuracy is ${Math.round(location.accuracy)}m. For better accuracy, click on the map to manually select your location.`);
+                    } else {
+                      setError(null);
+                    }
+                    
+                    setLocation([location.latitude, location.longitude]);
+                    setLocationCaptured(true);
+                    console.log(`[REPORT] Location captured from GPS:`, { 
+                      lat: location.latitude, 
+                      lng: location.longitude, 
+                      accuracy: `${Math.round(location.accuracy)}m` 
+                    });
+                  } else {
+                    console.log(`[REPORT] Location already captured manually, ignoring GPS update`);
+                  }
                 }}
                 showSettings={true}
                 className="mb-4"
