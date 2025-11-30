@@ -820,13 +820,21 @@ export default function ReportIncidentPage() {
     setLoading(true);
     setSubmitStage(isOffline ? "Saving report for offline delivery…" : "Preparing your report…");
     
-    // MOBILE DEBUG: Log start of submission
-    console.log("📱 [MOBILE DEBUG] Starting incident submission:", {
+    // CRITICAL DEBUG: Log start of submission with detailed info
+    console.log("🚀 [REPORT SUBMIT] ========== STARTING INCIDENT SUBMISSION ==========");
+    console.log("📱 [REPORT SUBMIT] Starting incident submission:", {
       timestamp: new Date().toISOString(),
+      userId: currentUser.id,
+      incidentType: formData.incidentType,
       hasPhotos: photoFiles.length > 0,
+      photoCount: photoFiles.length,
       hasVoice: !!voiceBlob,
       isOffline: isOffline || !navigator.onLine,
-      networkType: (navigator as any).connection?.effectiveType || 'unknown'
+      networkType: (navigator as any).connection?.effectiveType || 'unknown',
+      location: location,
+      locationCaptured: locationCaptured,
+      address: formData.address,
+      barangay: formData.barangay
     });
 
     // If offline, store the report locally
@@ -927,6 +935,13 @@ export default function ReportIncidentPage() {
       }
 
       const submissionTimestamp = new Date().toISOString()
+      console.log("📤 [REPORT SUBMIT] About to call createIncident:", {
+        reporterId: currentUser.id,
+        incidentType: formData.incidentType,
+        location: reportLocation,
+        timestamp: submissionTimestamp
+      });
+      
       // MOBILE FIX: Add overall timeout wrapper to prevent infinite hanging
       const createIncidentPromise = createIncident(
         currentUser.id,
@@ -961,14 +976,22 @@ export default function ReportIncidentPage() {
         }), 45000)
       )
 
+      console.log("⏳ [REPORT SUBMIT] Waiting for createIncident to complete (race with 45s timeout)...");
       const result = await Promise.race([createIncidentPromise, timeoutPromise])
+      console.log("📥 [REPORT SUBMIT] Promise.race completed:", {
+        hasResult: !!result,
+        success: result?.success,
+        hasData: !!result?.data
+      });
 
       if (!result.success) {
+        console.error("❌ [REPORT SUBMIT] createIncident returned failure:", result);
         throw new Error(result.message || "Failed to create incident report")
       }
 
       // Debug: Log successful submission
-      console.log("✅ [MOBILE DEBUG] Incident submitted successfully:", result.data)
+      console.log("✅ [REPORT SUBMIT] Incident submitted successfully:", result.data)
+      console.log("🎉 [REPORT SUBMIT] ========== SUBMISSION SUCCESS ==========");
 
       toast({
         title: "Success",
