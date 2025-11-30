@@ -274,10 +274,8 @@ export default function VolunteerReportIncidentPage() {
     if (name === "description" || name === "address") {
       // Only collapse multiple consecutive spaces, but allow normal spacing
       sanitizedValue = value.replace(/\s{2,}/g, " ")
-      // Apply sentence case: first character uppercase, rest lowercase
-      if (sanitizedValue.length > 0) {
-        sanitizedValue = sanitizedValue.charAt(0).toUpperCase() + sanitizedValue.slice(1).toLowerCase()
-      }
+      // Convert to uppercase
+      sanitizedValue = sanitizedValue.toUpperCase()
     } else if (name === "incidentType") {
       // Keep incident type in uppercase
       sanitizedValue = value.toUpperCase()
@@ -743,7 +741,7 @@ export default function VolunteerReportIncidentPage() {
                   name="description"
                   rows={3}
                   required
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 sm:text-sm text-gray-900 bg-white"
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 sm:text-sm text-gray-900 bg-white uppercase"
                   placeholder="Please describe what happened..."
                   value={formData.description}
                   onChange={handleChange}
@@ -778,7 +776,7 @@ export default function VolunteerReportIncidentPage() {
                   id="address"
                   name="address"
                   required
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 sm:text-sm text-gray-900 bg-white"
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 sm:text-sm text-gray-900 bg-white uppercase"
                   placeholder="Street address"
                   value={formData.address}
                   onChange={handleChange}

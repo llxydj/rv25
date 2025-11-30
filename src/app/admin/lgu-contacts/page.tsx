@@ -301,15 +301,17 @@ export default function AdminLguContactsPage() {
                       <label className="block text-sm font-medium text-gray-700 mb-1">Agency Name</label>
                       <Input
                         value={form.agency_name}
-                        onChange={(e) => setForm((f) => ({ ...f, agency_name: e.target.value }))}
+                        onChange={(e) => setForm((f) => ({ ...f, agency_name: e.target.value.toUpperCase() }))}
                         required
+                        className="uppercase"
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Contact Person</label>
                       <Input
                         value={form.contact_person}
-                        onChange={(e) => setForm((f) => ({ ...f, contact_person: e.target.value }))}
+                        onChange={(e) => setForm((f) => ({ ...f, contact_person: e.target.value.toUpperCase() }))}
+                        className="uppercase"
                       />
                     </div>
                     <div>
@@ -324,7 +326,8 @@ export default function AdminLguContactsPage() {
                       <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
                       <Input
                         value={form.notes}
-                        onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                        onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value.toUpperCase() }))}
+                        className="uppercase"
                       />
                     </div>
                   </div>

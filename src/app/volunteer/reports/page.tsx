@@ -291,8 +291,8 @@ export default function VolunteerReportsPage() {
                   type="text"
                   id="report-title"
                   value={newReportTitle}
-                  onChange={(e) => setNewReportTitle(e.target.value)}
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm text-black"
+                  onChange={(e) => setNewReportTitle(e.target.value.toUpperCase())}
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm text-black uppercase"
                   placeholder="Enter report title"
                   required
                 />
@@ -342,9 +342,9 @@ export default function VolunteerReportsPage() {
                 <textarea
                   id="report-description"
                   value={newReportDescription}
-                  onChange={(e) => setNewReportDescription(e.target.value)}
+                  onChange={(e) => setNewReportDescription(e.target.value.toUpperCase())}
                   rows={4}
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm text-black"
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm text-black uppercase"
                   placeholder="Provide details of the report..."
                   required
                 />

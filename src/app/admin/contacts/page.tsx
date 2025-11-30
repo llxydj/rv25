@@ -244,7 +244,7 @@ export default function AdminContactsPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                    <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
+                    <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value.toUpperCase() })} required className="uppercase" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Number</label>
@@ -266,7 +266,7 @@ export default function AdminContactsPage() {
                   </div>
                   <div className="sm:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                    <Input value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
+                    <Input value={form.description} onChange={e => setForm({ ...form, description: e.target.value.toUpperCase() })} className="uppercase" />
                   </div>
                 </div>
                 <div className="flex justify-end gap-2 pt-4">

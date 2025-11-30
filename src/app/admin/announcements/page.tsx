@@ -471,16 +471,16 @@ export default function AdminAnnouncementsPage() {
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-                    <Input required value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} />
+                    <Input required value={form.title} onChange={e => setForm({ ...form, title: e.target.value.toUpperCase() })} className="uppercase" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Content</label>
                     <textarea 
-                      className="w-full border border-gray-300 rounded-md py-2 px-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                      className="w-full border border-gray-300 rounded-md py-2 px-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase" 
                       rows={4} 
                       required 
                       value={form.content} 
-                      onChange={e => setForm({ ...form, content: e.target.value })} 
+                      onChange={e => setForm({ ...form, content: e.target.value.toUpperCase() })} 
                     />
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -516,12 +516,12 @@ export default function AdminAnnouncementsPage() {
                     </div>
                     <div className="sm:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-                      <Input placeholder="Venue or address" value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} />
+                      <Input placeholder="Venue or address" value={form.location} onChange={e => setForm({ ...form, location: e.target.value.toUpperCase() })} className="uppercase" />
                     </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Requirements (comma-separated)</label>
-                    <Input placeholder="e.g., Valid ID, Medical Certificate" value={form.requirements} onChange={e => setForm({ ...form, requirements: e.target.value })} />
+                    <Input placeholder="e.g., Valid ID, Medical Certificate" value={form.requirements} onChange={e => setForm({ ...form, requirements: e.target.value.toUpperCase() })} className="uppercase" />
                   </div>
 
                   {/* Facebook Post Integration */}

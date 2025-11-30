@@ -400,9 +400,9 @@ export default function ActivitySchedulesPage() {
                 type="text"
                       id="customTitle"
                       name="customTitle"
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 sm:text-sm text-gray-900"
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 sm:text-sm text-gray-900 uppercase"
                       value={formData.customTitle}
-                      onChange={(e) => setFormData({ ...formData, customTitle: e.target.value })}
+                      onChange={(e) => setFormData({ ...formData, customTitle: e.target.value.toUpperCase() })}
                     />
                     {formErrors.customTitle && (
                       <p className="mt-1 text-sm text-red-600">{formErrors.customTitle}</p>
@@ -418,9 +418,9 @@ export default function ActivitySchedulesPage() {
                     id="description"
                     name="description"
                     rows={3}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 sm:text-sm text-gray-900"
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 sm:text-sm text-gray-900 uppercase"
                     value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value.toUpperCase() })}
                   />
                 </div>
 
@@ -517,9 +517,9 @@ export default function ActivitySchedulesPage() {
                           type="text"
                           id="street"
                           name="street"
-                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 sm:text-sm text-gray-900"
+                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 sm:text-sm text-gray-900 uppercase"
                           value={formData.street}
-                          onChange={(e) => setFormData({ ...formData, street: e.target.value })}
+                          onChange={(e) => setFormData({ ...formData, street: e.target.value.toUpperCase() })}
                           placeholder="Enter street address"
                         />
                         {formErrors.street && (

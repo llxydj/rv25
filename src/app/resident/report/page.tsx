@@ -391,10 +391,8 @@ export default function ReportIncidentPage() {
     if (name === "description" || name === "address") {
       // Only collapse multiple consecutive spaces, but allow normal spacing
       sanitizedValue = value.replace(/\s{2,}/g, " ")
-      // Apply sentence case: first character uppercase, rest lowercase
-      if (sanitizedValue.length > 0) {
-        sanitizedValue = sanitizedValue.charAt(0).toUpperCase() + sanitizedValue.slice(1).toLowerCase()
-      }
+      // Convert to uppercase
+      sanitizedValue = sanitizedValue.toUpperCase()
     } else if (name === "barangay") {
       // Keep the exact option value (only trim). Do NOT change case, or the <select> value won't match an option.
       sanitizedValue = value.trim()
@@ -1075,7 +1073,7 @@ export default function ReportIncidentPage() {
                   id="address"
                   name="address"
                   required
-                  className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 sm:text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-700"
+                  className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 sm:text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-700 uppercase"
                   placeholder="Street address"
                   value={formData.address}
                   onChange={handleChange}
@@ -1375,7 +1373,7 @@ export default function ReportIncidentPage() {
                   name="description"
                   rows={3}
                   required
-                  className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 sm:text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-700"
+                  className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 sm:text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-700 uppercase"
                   placeholder="Please describe what happened..."
                   value={formData.description}
                   onChange={handleChange}
