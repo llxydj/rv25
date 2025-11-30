@@ -778,19 +778,29 @@ export default function ReportIncidentPage() {
       if (!session && currentUser && currentUser.id) {
         console.log("🔴 [REPORT SUBMIT] Using currentUser directly (session check skipped):", currentUser.id.substring(0, 8) + '...');
         session = { user: { id: currentUser.id, email: currentUser.email || '' } }
-        // CRITICAL: Try to get token synchronously (blocking) for background uploads
+        // CRITICAL: Try to get token with timeout to prevent hanging
         try {
-          const { data: { session: directSession }, error: directError } = await supabase.auth.getSession()
-          if (directSession?.access_token && !directError) {
-            sessionAccessToken = directSession.access_token
-            session = directSession // Use full session if we got it
+          // Use Promise.race with timeout to prevent infinite hang
+          const sessionPromise = supabase.auth.getSession()
+          const timeoutPromise = new Promise<{ data: { session: null }, error: { message: string } }>((_, reject) =>
+            setTimeout(() => reject(new Error('Token retrieval timeout')), 3000) // 3 second timeout
+          )
+          
+          const result = await Promise.race([sessionPromise, timeoutPromise]) as any
+          if (result?.data?.session?.access_token && !result.error) {
+            sessionAccessToken = result.data.session.access_token
+            session = result.data.session // Use full session if we got it
             console.log("🔴 [REPORT SUBMIT] ✅ Got access token via direct Supabase call");
           } else {
-            console.warn("🔴 [REPORT SUBMIT] Direct Supabase call returned no token:", directError?.message || 'No session');
+            console.warn("🔴 [REPORT SUBMIT] Direct Supabase call returned no token:", result?.error?.message || 'No session');
           }
         } catch (directErr: any) {
-          console.warn("🔴 [REPORT SUBMIT] Direct Supabase call failed:", directErr?.message || 'Unknown error');
-          // Continue anyway - we have currentUser
+          if (directErr?.message?.includes('timeout')) {
+            console.warn("🔴 [REPORT SUBMIT] Token retrieval timed out (non-critical, continuing without token)");
+          } else {
+            console.warn("🔴 [REPORT SUBMIT] Direct Supabase call failed:", directErr?.message || 'Unknown error');
+          }
+          // Continue anyway - we have currentUser, background upload will try to get token
         }
       }
       
