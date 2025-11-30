@@ -540,18 +540,27 @@ export const createIncident = async (
       const incidentId = apiJson.data.id
       console.log('✅ [INCIDENT] Incident created successfully:', incidentId)
       
-      // Step 2: Upload photos and voice in background (non-blocking, user sees success immediately)
+      // Step 2: Upload photos in TRUE background (only after user sees success)
+      // Use requestIdleCallback or setTimeout to ensure it doesn't block
       if ((filesToUpload.length > 0 || voiceBlob) && typeof window !== 'undefined') {
-        // Capture access token and create background options before setTimeout
+        // Capture everything needed before async context
+        const backgroundIncidentId = incidentId
         const backgroundAccessToken = options?.accessToken
-        const backgroundOptions = backgroundAccessToken 
-          ? { ...options, accessToken: backgroundAccessToken }
-          : options
+        const backgroundFiles = [...filesToUpload]
+        const backgroundVoice = voiceBlob
         
-        // Use setTimeout to make it truly non-blocking (escapes current execution context)
-        setTimeout(async () => {
+        // Use requestIdleCallback if available (browser optimization), otherwise setTimeout
+        const scheduleBackgroundUpload = (callback: () => void) => {
+          if ('requestIdleCallback' in window) {
+            (window as any).requestIdleCallback(callback, { timeout: 2000 })
+          } else {
+            setTimeout(callback, 500) // Start after 500ms delay
+          }
+        }
+        
+        scheduleBackgroundUpload(async () => {
           try {
-            console.log(`📤 [BACKGROUND] Starting background upload for ${filesToUpload.length} photo(s)`)
+            console.log(`📤 [BACKGROUND] Starting background upload for ${backgroundFiles.length} photo(s)`)
             
             // Get fresh session token if not provided (for background context)
             let accessToken = backgroundAccessToken
@@ -572,14 +581,8 @@ export const createIncident = async (
             const uploadedPhotoPaths: string[] = []
             
             // Upload photos in parallel for faster mobile uploads (mobile networks can handle parallel)
-            if (filesToUpload.length > 0) {
-              // Create options with access token for background uploads
-              const backgroundOptions = accessToken ? { ...options, accessToken } : options
-              
-              const photoUploadPromises = filesToUpload.map((file, index) => {
-                // uploadSinglePhoto uses options from closure, but we need to ensure it has the token
-                // Since it's in a closure, it will use the updated options if we modify it
-                // For now, we'll rely on the function getting the token itself
+            if (backgroundFiles.length > 0) {
+              const photoUploadPromises = backgroundFiles.map((file, index) => {
                 return uploadSinglePhoto(file, index).catch((err) => {
                   console.warn(`⚠️ [BACKGROUND] Photo ${index + 1} upload failed:`, err?.message || err)
                   return null
@@ -589,14 +592,14 @@ export const createIncident = async (
               const photoResults = await Promise.all(photoUploadPromises)
               uploadedPhotoPaths.push(...photoResults.filter((p): p is string => p !== null))
               
-              console.log(`✅ [BACKGROUND] Uploaded ${uploadedPhotoPaths.length}/${filesToUpload.length} photo(s)`)
+              console.log(`✅ [BACKGROUND] Uploaded ${uploadedPhotoPaths.length}/${backgroundFiles.length} photo(s)`)
             }
             
             // Upload voice in background (non-critical)
             let uploadedVoicePath: string | null = null
-            if (voiceBlob) {
+            if (backgroundVoice) {
               try {
-                uploadedVoicePath = await uploadVoice(voiceBlob).catch((err) => {
+                uploadedVoicePath = await uploadVoice(backgroundVoice).catch((err) => {
                   console.warn('⚠️ [BACKGROUND] Voice upload failed (non-critical):', err?.message || err)
                   return null
                 })
@@ -625,7 +628,7 @@ export const createIncident = async (
               const updateRes = await fetch('/api/incidents', {
                 method: 'PUT',
                 headers: updateHeaders,
-                body: JSON.stringify({ id: incidentId, ...updatePayload })
+                body: JSON.stringify({ id: backgroundIncidentId, ...updatePayload })
               })
               
               if (updateRes.ok) {
@@ -651,8 +654,14 @@ export const createIncident = async (
             })
             // Don't throw - incident already created, user already sees success
           }
-        }, 100) // Small delay to ensure incident creation response is sent first
+        })
       }
+      
+      // Step 3: Return success IMMEDIATELY (user sees success, photos upload in background)
+      notifyStage("done")
+      console.timeEnd('createIncident.total')
+      console.log('✅ [MOBILE] Submission complete - user sees success immediately')
+      return { success: true, data: apiJson.data }
       
     } catch (error: any) {
       clearTimeout(timeoutId)
@@ -661,12 +670,6 @@ export const createIncident = async (
       }
       throw error
     }
-
-    // Step 3: Return success IMMEDIATELY (user sees success, photos upload in background)
-    notifyStage("done")
-    console.timeEnd('createIncident.total')
-    console.log('✅ [MOBILE] Submission complete - user sees success immediately')
-    return { success: true, data: apiJson.data }
   } catch (error: any) {
     console.error("Error creating incident:", error)
     return { success: false, message: error.message || "An unexpected error occurred" }
