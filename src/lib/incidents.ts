@@ -542,22 +542,49 @@ export const createIncident = async (
       
       // Step 2: Upload photos and voice in background (non-blocking, user sees success immediately)
       if ((filesToUpload.length > 0 || voiceBlob) && typeof window !== 'undefined') {
+        // Capture access token and create background options before setTimeout
+        const backgroundAccessToken = options?.accessToken
+        const backgroundOptions = backgroundAccessToken 
+          ? { ...options, accessToken: backgroundAccessToken }
+          : options
+        
         // Use setTimeout to make it truly non-blocking (escapes current execution context)
         setTimeout(async () => {
           try {
-            notifyStage("upload-photo")
             console.log(`📤 [BACKGROUND] Starting background upload for ${filesToUpload.length} photo(s)`)
+            
+            // Get fresh session token if not provided (for background context)
+            let accessToken = backgroundAccessToken
+            if (!accessToken) {
+              try {
+                const { data: { session } } = await getSessionWithTimeout(5000)
+                accessToken = session?.access_token || undefined
+              } catch (err) {
+                console.warn('⚠️ [BACKGROUND] Could not get session token, continuing anyway:', err)
+              }
+            }
+            
+            // Update options with token for upload functions (they use closure)
+            if (accessToken && options) {
+              options.accessToken = accessToken
+            }
             
             const uploadedPhotoPaths: string[] = []
             
             // Upload photos in parallel for faster mobile uploads (mobile networks can handle parallel)
             if (filesToUpload.length > 0) {
-              const photoUploadPromises = filesToUpload.map((file, index) => 
-                uploadSinglePhoto(file, index).catch((err) => {
-                  console.warn(`⚠️ [BACKGROUND] Photo ${index + 1} upload failed:`, err)
+              // Create options with access token for background uploads
+              const backgroundOptions = accessToken ? { ...options, accessToken } : options
+              
+              const photoUploadPromises = filesToUpload.map((file, index) => {
+                // uploadSinglePhoto uses options from closure, but we need to ensure it has the token
+                // Since it's in a closure, it will use the updated options if we modify it
+                // For now, we'll rely on the function getting the token itself
+                return uploadSinglePhoto(file, index).catch((err) => {
+                  console.warn(`⚠️ [BACKGROUND] Photo ${index + 1} upload failed:`, err?.message || err)
                   return null
                 })
-              )
+              })
               
               const photoResults = await Promise.all(photoUploadPromises)
               uploadedPhotoPaths.push(...photoResults.filter((p): p is string => p !== null))
@@ -570,11 +597,11 @@ export const createIncident = async (
             if (voiceBlob) {
               try {
                 uploadedVoicePath = await uploadVoice(voiceBlob).catch((err) => {
-                  console.warn('⚠️ [BACKGROUND] Voice upload failed (non-critical):', err)
+                  console.warn('⚠️ [BACKGROUND] Voice upload failed (non-critical):', err?.message || err)
                   return null
                 })
-              } catch (err) {
-                console.warn('⚠️ [BACKGROUND] Voice upload error (non-critical):', err)
+              } catch (err: any) {
+                console.warn('⚠️ [BACKGROUND] Voice upload error (non-critical):', err?.message || err)
               }
             }
             
@@ -589,20 +616,39 @@ export const createIncident = async (
                 updatePayload.voice_url = uploadedVoicePath
               }
               
+              // Include auth token for update request
+              const updateHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
+              if (accessToken) {
+                updateHeaders['Authorization'] = `Bearer ${accessToken}`
+              }
+              
               const updateRes = await fetch('/api/incidents', {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: updateHeaders,
                 body: JSON.stringify({ id: incidentId, ...updatePayload })
               })
               
               if (updateRes.ok) {
-                console.log('✅ [BACKGROUND] Incident updated with media paths')
+                const updateJson = await updateRes.json()
+                console.log('✅ [BACKGROUND] Incident updated with media paths:', {
+                  photos: uploadedPhotoPaths.length,
+                  hasVoice: !!uploadedVoicePath
+                })
               } else {
-                console.warn('⚠️ [BACKGROUND] Failed to update incident with media (non-critical)')
+                const errorText = await updateRes.text()
+                console.warn('⚠️ [BACKGROUND] Failed to update incident with media:', {
+                  status: updateRes.status,
+                  error: errorText.substring(0, 200)
+                })
               }
+            } else {
+              console.warn('⚠️ [BACKGROUND] No media to update (all uploads may have failed)')
             }
-          } catch (err) {
-            console.error('❌ [BACKGROUND] Background upload error (non-critical):', err)
+          } catch (err: any) {
+            console.error('❌ [BACKGROUND] Background upload error (non-critical):', {
+              message: err?.message || 'Unknown error',
+              stack: err?.stack?.substring(0, 500)
+            })
             // Don't throw - incident already created, user already sees success
           }
         }, 100) // Small delay to ensure incident creation response is sent first
