@@ -679,37 +679,41 @@ export const createIncident = async (
             let accessToken = backgroundAccessToken
             if (!accessToken) {
               console.log('⚠️ [BACKGROUND] No access token provided, attempting to get one...')
-              // Try direct Supabase call first (faster, no timeout wrapper)
+              // Try multiple methods to get token
+              let tokenRetrieved = false
+              
+              // Method 1: Direct Supabase call (fastest, no timeout)
               try {
                 const { data: { session: directSession }, error: directError } = await supabase.auth.getSession()
                 if (directSession?.access_token && !directError) {
                   accessToken = directSession.access_token
                   console.log('✅ [BACKGROUND] Got token via direct Supabase call')
-                } else {
-                  throw new Error(directError?.message || 'No session found')
+                  tokenRetrieved = true
                 }
               } catch (directErr: any) {
-                console.warn('⚠️ [BACKGROUND] Direct Supabase call failed, trying timeout wrapper:', directErr?.message || directErr)
-                // Fallback: try timeout wrapper
+                console.warn('⚠️ [BACKGROUND] Direct Supabase call failed:', directErr?.message || 'Unknown error')
+              }
+              
+              // Method 2: Try timeout wrapper (if direct call failed)
+              if (!tokenRetrieved) {
                 try {
-                  const { data: { session } } = await getSessionWithTimeout(3000)
-                  accessToken = session?.access_token || undefined
-                  if (accessToken) {
+                  const { data: { session } } = await getSessionWithTimeout(5000) // Longer timeout for background
+                  if (session?.access_token) {
+                    accessToken = session.access_token
                     console.log('✅ [BACKGROUND] Got token via timeout wrapper')
-                  } else {
-                    throw new Error('No access token in session')
+                    tokenRetrieved = true
                   }
-                } catch (timeoutErr) {
-                  console.error('❌ [BACKGROUND] All token retrieval methods failed:', timeoutErr)
-                  // Continue anyway - upload might work without token (depending on API route)
+                } catch (timeoutErr: any) {
+                  console.warn('⚠️ [BACKGROUND] Timeout wrapper also failed:', timeoutErr?.message || 'Unknown error')
                 }
+              }
+              
+              if (!tokenRetrieved) {
+                console.error('❌ [BACKGROUND] Could not retrieve access token - photo uploads will fail')
+                console.error('❌ [BACKGROUND] Incident was created successfully, but photos cannot be uploaded without authentication')
               }
             } else {
               console.log('✅ [BACKGROUND] Using provided access token')
-            }
-            
-            if (!accessToken) {
-              console.warn('⚠️ [BACKGROUND] No access token available, uploads may fail if API requires auth')
             }
             
             const uploadedPhotoPaths: string[] = []
