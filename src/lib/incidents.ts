@@ -500,32 +500,54 @@ export const createIncident = async (
       : '/api/incidents'
 
     console.time('createIncident.fast')
-    const apiRes = await fetchWithTimeout(apiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-      timeout: 15000 // 15 seconds - creating record only, no uploads
-    }).catch((error: any) => {
-      console.error('❌ [EMERGENCY] Failed to create incident:', error)
-      throw new Error('Failed to create incident: ' + error.message)
-    })
+    
+    // MOBILE FIX: Use native fetch without custom timeout wrapper
+    // Mobile browsers handle timeouts differently than desktop
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 seconds
 
-    if (!apiRes.ok) {
-      const errorText = await apiRes.text()
-      console.error('❌ [EMERGENCY] API error:', errorText)
-      throw new Error('Failed to create incident: ' + errorText)
+    let apiJson: any
+    let incidentId: string
+
+    try {
+      const apiRes = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Connection': 'keep-alive' // Mobile network stability
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+        cache: 'no-store',
+        keepalive: true // CRITICAL for mobile - keeps connection alive
+      })
+      
+      clearTimeout(timeoutId)
+      
+      if (!apiRes.ok) {
+        const errorText = await apiRes.text()
+        console.error('❌ [EMERGENCY] API error:', errorText)
+        throw new Error('Failed to create incident: ' + errorText)
+      }
+
+      apiJson = await apiRes.json()
+      console.timeEnd('createIncident.fast')
+
+      if (!apiJson?.success || !apiJson?.data?.id) {
+        console.error('❌ [EMERGENCY] Invalid API response:', apiJson)
+        throw new Error('Failed to create incident: Invalid response')
+      }
+
+      incidentId = apiJson.data.id
+      console.log('✅ [EMERGENCY] Incident created:', incidentId)
+      
+    } catch (error: any) {
+      clearTimeout(timeoutId)
+      if (error.name === 'AbortError') {
+        throw new Error('Request timeout - please check your connection and try again')
+      }
+      throw error
     }
-
-    const apiJson = await apiRes.json()
-    console.timeEnd('createIncident.fast')
-
-    if (!apiJson?.success || !apiJson?.data?.id) {
-      console.error('❌ [EMERGENCY] Invalid API response:', apiJson)
-      throw new Error('Failed to create incident: Invalid response')
-    }
-
-    const incidentId = apiJson.data.id
-    console.log('✅ [EMERGENCY] Incident created:', incidentId)
 
     // Step 2: IMMEDIATELY return success to user (incident exists in DB)
     notifyStage("done")
