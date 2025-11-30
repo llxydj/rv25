@@ -3,6 +3,19 @@
   "installCommand": "pnpm install",
   "framework": "nextjs",
   "regions": ["sin1"],
+
+  "functions": {
+    "app/api/incidents/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/incidents/upload/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/incidents/upload-voice/route.ts": {
+      "maxDuration": 60
+    }
+  },
+
   "headers": [
     {
       "source": "/(.*)",
@@ -22,6 +35,15 @@
         {
           "key": "Referrer-Policy",
           "value": "strict-origin-when-cross-origin"
+        }
+      ]
+    },
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, max-age=0"
         }
       ]
     },

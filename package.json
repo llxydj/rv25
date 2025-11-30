@@ -29,7 +29,9 @@
     "backup:start": "pnpm ts-node scripts/start-backup-service.ts",
     "backup:manual": "pnpm ts-node scripts/manual-backup.ts",
     "backup:restore": "pnpm ts-node scripts/restore-backup.ts",
-    "backup:verify": "pnpm ts-node scripts/verify-backup.ts"
+    "backup:verify": "pnpm ts-node scripts/verify-backup.ts",
+    "vercel:logs": "vercel logs --follow",
+    "vercel:inspect": "vercel inspect"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
