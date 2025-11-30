@@ -4,6 +4,7 @@ import { getServerSupabase } from '@/lib/supabase-server'
 import webpush from 'web-push'
 import { Database } from '@/types/supabase'
 import { smsService } from '@/lib/sms-service'
+import { ScheduleCreateSchema } from '@/lib/validation'
 
 export const dynamic = 'force-dynamic'
 
@@ -100,7 +101,17 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json()
-    const { volunteer_id, volunteer_ids, title, description, start_time, end_time, location, barangay } = body || {}
+    
+    // Validate input
+    const parsed = ScheduleCreateSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { success: false, message: 'Invalid input', issues: parsed.error.flatten() },
+        { status: 400 }
+      )
+    }
+
+    const { volunteer_id, volunteer_ids, title, description, start_time, end_time, location, barangay } = parsed.data
 
     // Support both single volunteer_id and bulk volunteer_ids
     const volunteerIds = volunteer_ids && Array.isArray(volunteer_ids) && volunteer_ids.length > 0

@@ -111,9 +111,27 @@ export async function POST(request: Request) {
     
     const { training_id, user_id, rating, comments } = parsed.data
 
+    // Normalize training_id to number (database stores as bigint)
+    const trainingIdNum = typeof training_id === 'string' ? parseInt(training_id) : training_id
+
+    // Check if evaluation already exists for this user and training
+    const { data: existing } = await supabase
+      .from('training_evaluations')
+      .select('id')
+      .eq('training_id', trainingIdNum)
+      .eq('user_id', user_id)
+      .maybeSingle()
+
+    if (existing) {
+      return NextResponse.json(
+        { success: false, message: 'You have already submitted an evaluation for this training' },
+        { status: 400 }
+      )
+    }
+
     const { data, error } = await supabase
       .from('training_evaluations')
-      .insert({ training_id, user_id, rating, comments: comments ?? null })
+      .insert({ training_id: trainingIdNum, user_id, rating, comments: comments ?? null })
       .select()
       .single()
 

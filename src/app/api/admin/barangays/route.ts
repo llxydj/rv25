@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js"
 import { NextResponse } from "next/server"
+import { BarangayAccountCreateSchema } from "@/lib/validation"
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -14,7 +15,19 @@ const supabaseAdmin = createClient(
 
 export async function POST(request: Request) {
   try {
-    const { adminId, email, password, firstName, lastName, phoneNumber, barangay } = await request.json()
+    const body = await request.json()
+    const { adminId, ...accountData } = body
+
+    // Validate input
+    const parsed = BarangayAccountCreateSchema.safeParse(accountData)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { success: false, message: 'Invalid input', issues: parsed.error.flatten() },
+        { status: 400 }
+      )
+    }
+
+    const { email, password, firstName, lastName, phoneNumber, barangay } = parsed.data
 
     // Verify admin
     const { data: adminData, error: adminError } = await supabaseAdmin

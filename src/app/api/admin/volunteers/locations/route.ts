@@ -50,7 +50,11 @@ export async function GET(request: Request) {
     }
 
     if (!userRole || !['admin', 'barangay'].includes(userRole)) {
-      console.warn('[admin-locations] Access denied - invalid role:', { userId: user.id, role: userRole })
+      // Don't log as warning for expected 403s (non-admin users)
+      // Only log if it's an unexpected case (user exists but has invalid role)
+      if (userRole && !['admin', 'barangay', 'volunteer', 'resident'].includes(userRole)) {
+        console.warn('[admin-locations] Access denied - unexpected role:', { userId: user.id, role: userRole })
+      }
       return NextResponse.json({ 
         success: false, 
         code: 'FORBIDDEN',

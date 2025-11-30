@@ -17,7 +17,27 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
 
-  webpack(config) {
+  webpack(config, { isServer }) {
+    // Optimize chunk splitting for map component (non-destructive)
+    if (!isServer) {
+      // Only customize if optimization exists, otherwise keep Next.js defaults
+      if (config.optimization && config.optimization.splitChunks) {
+        const existingCacheGroups = config.optimization.splitChunks.cacheGroups || {};
+        
+        // Add map chunk optimization without disabling existing cache groups
+        config.optimization.splitChunks.cacheGroups = {
+          ...existingCacheGroups, // Keep all existing cache groups
+          // Map component in its own chunk (higher priority)
+          map: {
+            name: 'map',
+            chunks: 'all',
+            test: /[\\/]components[\\/]ui[\\/]map/,
+            priority: 20,
+            reuseExistingChunk: true,
+          },
+        };
+      }
+    }
     return config;
   },
 

@@ -15,6 +15,13 @@ const isMediaRecorderSupported = (): boolean => {
   return typeof MediaRecorder !== 'undefined'
 }
 
+// Check if getUserMedia is available
+const isGetUserMediaSupported = (): boolean => {
+  return typeof navigator !== 'undefined' && 
+         navigator.mediaDevices !== undefined && 
+         typeof navigator.mediaDevices.getUserMedia === 'function'
+}
+
 // Get supported MIME type
 const getSupportedMimeType = (): string | null => {
   if (!isMediaRecorderSupported()) return null
@@ -54,11 +61,17 @@ export function VoiceRecorder({ onRecordingComplete, onRecordingDelete, disabled
 
   // Check browser support on mount
   useEffect(() => {
-    const supported = isMediaRecorderSupported()
+    const mediaRecorderSupported = isMediaRecorderSupported()
+    const getUserMediaSupported = isGetUserMediaSupported()
+    const supported = mediaRecorderSupported && getUserMediaSupported
     setIsSupported(supported)
     
     if (!supported) {
-      setError('Voice recording is not supported on this device. Please use text description instead.')
+      if (!getUserMediaSupported) {
+        setError('Microphone access is not available. Please ensure you are using HTTPS and allow microphone permissions.')
+      } else {
+        setError('Voice recording is not supported on this device. Please use text description instead.')
+      }
     }
   }, [])
 
@@ -86,9 +99,14 @@ export function VoiceRecorder({ onRecordingComplete, onRecordingDelete, disabled
       return
     }
 
+    if (!isGetUserMediaSupported()) {
+      setError('Microphone access is not available. Please ensure you are using HTTPS and allow microphone permissions.')
+      return
+    }
+
     try {
       setError(null)
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const stream = await navigator.mediaDevices!.getUserMedia({ audio: true })
       streamRef.current = stream
 
       const mimeType = getSupportedMimeType()

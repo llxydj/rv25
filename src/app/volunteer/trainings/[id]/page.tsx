@@ -6,8 +6,9 @@ import { VolunteerLayout } from "@/components/layout/volunteer-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Calendar, MapPin, Users, Clock, ArrowLeft, CheckCircle, X, AlertCircle } from "lucide-react"
+import { Calendar, MapPin, Users, Clock, ArrowLeft, CheckCircle, X, AlertCircle, Star } from "lucide-react"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
+import { StarRating } from "@/components/ui/star-rating"
 import { useAuth } from "@/lib/auth"
 
 export default function VolunteerTrainingDetailPage() {
@@ -21,6 +22,10 @@ export default function VolunteerTrainingDetailPage() {
   const [loading, setLoading] = useState(true)
   const [enrolling, setEnrolling] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [existingEvaluation, setExistingEvaluation] = useState<any>(null)
+  const [evaluationRating, setEvaluationRating] = useState(5)
+  const [evaluationComments, setEvaluationComments] = useState("")
+  const [submittingEvaluation, setSubmittingEvaluation] = useState(false)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -43,6 +48,16 @@ export default function VolunteerTrainingDetailPage() {
           const enrollJson = await enrollRes.json()
           if (enrollRes.ok && enrollJson.success) {
             setIsEnrolled((enrollJson.data || []).length > 0)
+          }
+
+          // Check if evaluation already exists
+          const evalRes = await fetch(`/api/training-evaluations?training_id=${trainingId}`)
+          const evalJson = await evalRes.json()
+          if (evalRes.ok && evalJson.success && evalJson.data) {
+            const userEval = evalJson.data.find((e: any) => e.user_id === user.id)
+            if (userEval) {
+              setExistingEvaluation(userEval)
+            }
           }
         }
       } catch (e: any) {
@@ -92,6 +107,34 @@ export default function VolunteerTrainingDetailPage() {
       alert("Failed to unenroll: " + (e?.message || "Unknown error"))
     } finally {
       setEnrolling(false)
+    }
+  }
+
+  const handleSubmitEvaluation = async () => {
+    if (!user || !trainingId || evaluationRating === 0) return
+
+    setSubmittingEvaluation(true)
+    try {
+      const res = await fetch("/api/training-evaluations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          training_id: parseInt(trainingId),
+          user_id: user.id,
+          rating: evaluationRating,
+          comments: evaluationComments.trim() || null,
+        }),
+      })
+
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.message || "Failed to submit evaluation")
+
+      setExistingEvaluation(json.data)
+      setEvaluationComments("")
+    } catch (e: any) {
+      alert("Failed to submit evaluation: " + (e?.message || "Unknown error"))
+    } finally {
+      setSubmittingEvaluation(false)
     }
   }
 
@@ -296,6 +339,75 @@ export default function VolunteerTrainingDetailPage() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Training Evaluation */}
+            {training.status === 'COMPLETED' && isEnrolled && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Training Evaluation</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {existingEvaluation ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 text-green-600">
+                        <CheckCircle className="h-5 w-5" />
+                        <span className="font-medium">Evaluation Submitted</span>
+                      </div>
+                      <div className="pt-2 border-t">
+                        <div className="flex items-center gap-2 mb-2">
+                          <StarRating rating={existingEvaluation.rating} readonly size="sm" showLabel={false} />
+                          <span className="text-sm text-gray-600">{existingEvaluation.rating}/5</span>
+                        </div>
+                        {existingEvaluation.comments && (
+                          <p className="text-sm text-gray-700 mt-2">{existingEvaluation.comments}</p>
+                        )}
+                        <p className="text-xs text-gray-500 mt-2">
+                          Submitted on {new Date(existingEvaluation.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Rating *
+                        </label>
+                        <StarRating
+                          rating={evaluationRating}
+                          onRatingChange={setEvaluationRating}
+                          size="md"
+                          showLabel={true}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Comments
+                        </label>
+                        <textarea
+                          className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 sm:text-sm text-gray-900 uppercase"
+                          rows={3}
+                          placeholder="SHARE YOUR FEEDBACK..."
+                          value={evaluationComments}
+                          onChange={(e) => setEvaluationComments(e.target.value.toUpperCase())}
+                        />
+                      </div>
+                      <Button
+                        className="w-full bg-green-600 hover:bg-green-700 text-white"
+                        onClick={handleSubmitEvaluation}
+                        disabled={submittingEvaluation || evaluationRating === 0}
+                      >
+                        {submittingEvaluation ? (
+                          <LoadingSpinner size="sm" className="mr-2" />
+                        ) : (
+                          <Star className="h-4 w-4 mr-2" />
+                        )}
+                        {submittingEvaluation ? "Submitting..." : "Submit Evaluation"}
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Quick Actions */}
             <Card>

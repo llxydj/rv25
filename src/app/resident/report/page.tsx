@@ -817,6 +817,15 @@ export default function ReportIncidentPage() {
 
     setLoading(true);
     setSubmitStage(isOffline ? "Saving report for offline delivery…" : "Preparing your report…");
+    
+    // MOBILE DEBUG: Log start of submission
+    console.log("📱 [MOBILE DEBUG] Starting incident submission:", {
+      timestamp: new Date().toISOString(),
+      hasPhotos: photoFiles.length > 0,
+      hasVoice: !!voiceBlob,
+      isOffline: isOffline || !navigator.onLine,
+      networkType: (navigator as any).connection?.effectiveType || 'unknown'
+    });
 
     // If offline, store the report locally
     if (!navigator.onLine || isOffline) {
@@ -904,7 +913,8 @@ export default function ReportIncidentPage() {
       }
 
       const submissionTimestamp = new Date().toISOString()
-      const result = await createIncident(
+      // MOBILE FIX: Add overall timeout wrapper to prevent infinite hanging
+      const createIncidentPromise = createIncident(
         currentUser.id,
         formData.incidentType,
         formData.description,
@@ -929,12 +939,22 @@ export default function ReportIncidentPage() {
         },
       )
 
+      // Add overall timeout of 45 seconds for the entire operation
+      const timeoutPromise = new Promise<{ success: false; message: string }>((resolve) => 
+        setTimeout(() => resolve({ 
+          success: false, 
+          message: 'Submission is taking too long. This may be due to slow network. Please try again or submit without photos.' 
+        }), 45000)
+      )
+
+      const result = await Promise.race([createIncidentPromise, timeoutPromise])
+
       if (!result.success) {
         throw new Error(result.message || "Failed to create incident report")
       }
 
       // Debug: Log successful submission
-      console.log("Incident submitted successfully:", result.data)
+      console.log("✅ [MOBILE DEBUG] Incident submitted successfully:", result.data)
 
       toast({
         title: "Success",
@@ -957,7 +977,14 @@ export default function ReportIncidentPage() {
       // Redirect to dashboard with success message
       router.push("/resident/dashboard?success=Incident reported successfully")
     } catch (err: any) {
-      console.error("Error submitting incident report:", err)
+      console.error("❌ [MOBILE DEBUG] Error submitting incident report:", {
+        error: err,
+        message: err.message,
+        stack: err.stack,
+        timestamp: new Date().toISOString(),
+        networkType: (navigator as any).connection?.effectiveType || 'unknown',
+        isOnline: navigator.onLine
+      })
       
       // Handle specific error cases
       let errorMessage = err.message || "Failed to submit incident report"

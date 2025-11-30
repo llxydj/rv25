@@ -345,14 +345,29 @@ export async function PUT(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const startTime = Date.now()
+  const requestId = `inc-${Date.now()}-${Math.random().toString(36).substring(7)}`
+  
   try {
+    console.log(`\n🚀 [SERVER] [${requestId}] POST /api/incidents - Request received at ${new Date().toISOString()}`)
+    
     // Use cached service role client to bypass RLS for incident creation
     const supabase = getServiceRoleClient()
+    const rateCheckStart = Date.now()
     const rate = rateLimitAllowed(rateKeyFromRequest(request, 'incidents:post'), 30)
-    if (!rate.allowed) return NextResponse.json({ success: false, code: 'RATE_LIMITED', message: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(rate.retryAfter) } as any })
+    if (!rate.allowed) {
+      console.log(`⏱️  [SERVER] [${requestId}] Rate limit check: ${Date.now() - rateCheckStart}ms - BLOCKED`)
+      return NextResponse.json({ success: false, code: 'RATE_LIMITED', message: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(rate.retryAfter) } as any })
+    }
+    console.log(`⏱️  [SERVER] [${requestId}] Rate limit check: ${Date.now() - rateCheckStart}ms - ALLOWED`)
 
+    const parseStart = Date.now()
     const parsed = IncidentCreateSchema.safeParse(await request.json())
-    if (!parsed.success) return NextResponse.json({ success: false, code: 'VALIDATION_ERROR', message: 'Invalid payload', issues: parsed.error.flatten() }, { status: 400 })
+    console.log(`⏱️  [SERVER] [${requestId}] JSON parse + validation: ${Date.now() - parseStart}ms`)
+    if (!parsed.success) {
+      console.error(`❌ [SERVER] [${requestId}] Validation failed:`, parsed.error.flatten())
+      return NextResponse.json({ success: false, code: 'VALIDATION_ERROR', message: 'Invalid payload', issues: parsed.error.flatten() }, { status: 400 })
+    }
 
     const {
       reporter_id,
@@ -369,6 +384,19 @@ export async function POST(request: Request) {
       is_offline,
       created_at_local
     } = parsed.data
+    
+    console.log(`📋 [SERVER] [${requestId}] Incident data:`, {
+      reporter_id: reporter_id.substring(0, 8) + '...',
+      incident_type,
+      barangay,
+      priority,
+      has_photo_url: !!photo_url,
+      has_photo_urls: !!photo_urls,
+      has_voice_url: !!voice_url,
+      is_offline,
+      description_length: description?.length || 0
+    })
+    
     const normalizedIncidentType = incident_type.trim().toUpperCase()
     const normalizedPriority = Number(priority)
     const normalizedLocalTimestamp = is_offline ? sanitizeLocalTimestamp(created_at_local) : null
@@ -396,11 +424,13 @@ export async function POST(request: Request) {
     }
 
     // Debug: log coordinates being checked
-    console.log('Checking coordinates:', { location_lat, location_lng })
+    const geoCheckStart = Date.now()
+    console.log(`📍 [SERVER] [${requestId}] Checking coordinates:`, { location_lat, location_lng })
     const withinCity = isWithinTalisayCity(location_lat, location_lng)
-    console.log('Within Talisay City:', withinCity)
+    console.log(`⏱️  [SERVER] [${requestId}] Geofence check: ${Date.now() - geoCheckStart}ms - ${withinCity ? 'WITHIN' : 'OUTSIDE'}`)
     
     if (!withinCity) {
+      console.error(`❌ [SERVER] [${requestId}] Location out of bounds - Total time: ${Date.now() - startTime}ms`)
       return NextResponse.json({ success: false, code: 'OUT_OF_BOUNDS', message: 'Location must be within Talisay City' }, { status: 400 })
     }
 
@@ -598,10 +628,21 @@ export async function POST(request: Request) {
       (payload as any).created_at = normalizedLocalTimestamp
     }
 
+    const dbInsertStart = Date.now()
+    console.log(`💾 [SERVER] [${requestId}] Inserting incident into database...`)
     const { data, error } = await supabase.from('incidents').insert(payload).select().single()
-    if (error) throw error
+    const dbInsertTime = Date.now() - dbInsertStart
+    console.log(`⏱️  [SERVER] [${requestId}] Database insert: ${dbInsertTime}ms`)
+    
+    if (error) {
+      console.error(`❌ [SERVER] [${requestId}] Database insert failed:`, error)
+      throw error
+    }
+    
+    console.log(`✅ [SERVER] [${requestId}] Incident created with ID: ${data.id}`)
     
     // CRITICAL: Log incident creation in timeline (was missing!)
+    const timelineStart = Date.now()
     try {
       const { logIncidentCreation } = await import('@/lib/incident-timeline')
       await logIncidentCreation(data.id, reporter_id, {
@@ -610,9 +651,9 @@ export async function POST(request: Request) {
         isOffline: is_offline,
         offlineTimestamp: normalizedLocalTimestamp || undefined
       })
-      console.log('✅ Incident creation logged in timeline')
+      console.log(`⏱️  [SERVER] [${requestId}] Timeline logging: ${Date.now() - timelineStart}ms`)
     } catch (timelineErr) {
-      console.error('❌ Failed to log incident creation in timeline:', timelineErr)
+      console.error(`❌ [SERVER] [${requestId}] Timeline logging failed (non-critical):`, timelineErr)
       // Don't fail incident creation if timeline logging fails, but log error
     }
     
@@ -640,6 +681,7 @@ export async function POST(request: Request) {
     // However, push notifications need to be sent manually since triggers can't send push
     
     // Send push notifications to admins (database records already created by trigger)
+    const notificationStart = Date.now()
     try {
       // First get all admin user IDs
       const { data: admins } = await supabase
@@ -1144,9 +1186,27 @@ export async function POST(request: Request) {
       // Don't fail the incident creation if SMS setup fails
     }
 
+    const notificationTime = Date.now() - notificationStart
+    const totalTime = Date.now() - startTime
+    console.log(`\n✅ [SERVER] [${requestId}] POST /api/incidents - SUCCESS - Total time: ${totalTime}ms`)
+    console.log(`📊 [SERVER] [${requestId}] Performance breakdown:`)
+    console.log(`   - Rate limit check: ${Date.now() - startTime}ms`)
+    console.log(`   - JSON parse + validation: ${Date.now() - parseStart || 'N/A'}ms`)
+    console.log(`   - Geofence check: ${Date.now() - geoCheckStart || 'N/A'}ms`)
+    console.log(`   - Database insert: ${dbInsertTime || 'N/A'}ms`)
+    console.log(`   - Timeline logging: ${Date.now() - timelineStart || 'N/A'}ms`)
+    console.log(`   - Push notifications: ${notificationTime || 'N/A'}ms`)
+    console.log(`   - TOTAL: ${totalTime}ms\n`)
+    
     return NextResponse.json({ success: true, data })
   } catch (e: any) {
-    console.error('❌ Incident creation failed:', e)
+    const totalTime = Date.now() - startTime
+    console.error(`\n❌ [SERVER] [${requestId}] POST /api/incidents - ERROR after ${totalTime}ms:`, {
+      error: e.message,
+      stack: e.stack,
+      code: e.code
+    })
+    console.log(`\n`)
     return NextResponse.json({ success: false, code: 'INTERNAL_ERROR', message: e?.message || 'Failed to create incident' }, { status: 500 })
   }
 }

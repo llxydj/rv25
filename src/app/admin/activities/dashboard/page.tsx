@@ -140,7 +140,7 @@ export default function ActivityDashboardPage() {
     }
   }, [user])
 
-  if (!user || user.role !== 'admin') {
+  if (!user || (user.role && user.role.toLowerCase() !== 'admin')) {
     return (
       <AdminLayout>
         <div className="text-center py-12">

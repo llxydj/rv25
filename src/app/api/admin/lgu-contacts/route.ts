@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { LguContactCreateSchema } from '@/lib/validation'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -25,7 +26,17 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const { adminId, agency_name, contact_person, contact_number, notes } = await request.json()
+    const body = await request.json()
+    const { adminId, ...contactData } = body
+
+    // Validate input
+    const parsed = LguContactCreateSchema.safeParse(contactData)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { success: false, code: 'VALIDATION_ERROR', message: 'Invalid input', issues: parsed.error.flatten() },
+        { status: 400 }
+      )
+    }
 
     // Verify admin
     const { data: admin, error: adminErr } = await supabaseAdmin
@@ -39,7 +50,7 @@ export async function POST(request: Request) {
 
     const { data, error } = await supabaseAdmin
       .from('lgu_contacts')
-      .insert({ agency_name, contact_person, contact_number, notes })
+      .insert(parsed.data)
       .select()
       .single()
 
@@ -52,7 +63,17 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
-    const { adminId, id, agency_name, contact_person, contact_number, notes } = await request.json()
+    const body = await request.json()
+    const { adminId, id, ...contactData } = body
+
+    // Validate input
+    const parsed = LguContactCreateSchema.safeParse(contactData)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { success: false, code: 'VALIDATION_ERROR', message: 'Invalid input', issues: parsed.error.flatten() },
+        { status: 400 }
+      )
+    }
 
     // Verify admin
     const { data: admin, error: adminErr } = await supabaseAdmin
@@ -66,7 +87,7 @@ export async function PUT(request: Request) {
 
     const { data, error } = await supabaseAdmin
       .from('lgu_contacts')
-      .update({ agency_name, contact_person, contact_number, notes, updated_at: new Date().toISOString() })
+      .update({ ...parsed.data, updated_at: new Date().toISOString() })
       .eq('id', id)
       .select()
       .single()

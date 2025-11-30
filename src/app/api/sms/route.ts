@@ -4,6 +4,20 @@ import { NextRequest, NextResponse } from 'next/server'
 import { smsService } from '@/lib/sms-service'
 import { rateKeyFromRequest, rateLimitAllowed } from '@/lib/rate-limit'
 import { getServerSupabase } from '@/lib/supabase-server'
+import { createClient } from '@supabase/supabase-js'
+import type { Database } from '@/types/supabase'
+
+// Service role client for bypassing RLS
+const supabaseAdmin = createClient<Database>(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  }
+)
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -27,7 +41,7 @@ async function verifyAdminAccess(request: NextRequest) {
       .eq('id', user.id)
       .maybeSingle()
 
-    if (!userData || userData.role !== 'admin') {
+    if (!userData || (userData.role && userData.role.toLowerCase() !== 'admin')) {
       return { authorized: false, error: 'Admin access required', status: 403 }
     }
 
@@ -143,8 +157,8 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('start_date')
     const endDate = searchParams.get('end_date')
 
-    const supabase = await getServerSupabase()
-    let query = supabase
+    // Use service role client to bypass RLS for admin access
+    let query = supabaseAdmin
       .from('sms_logs')
       .select('*')
       .order('timestamp_sent', { ascending: false })
@@ -156,7 +170,11 @@ export async function GET(request: NextRequest) {
     if (endDate) query = query.lte('timestamp_sent', endDate)
 
     const { data, error } = await query
-    if (error) throw error
+    
+    if (error) {
+      console.error('SMS logs query error:', error)
+      throw error
+    }
 
     return NextResponse.json({
       success: true,

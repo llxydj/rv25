@@ -5,6 +5,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { RealtimeChannel } from '@supabase/supabase-js'
 import { isWithinTalisayCity } from '@/lib/geo-utils'
+import { useAuth } from '@/hooks/use-auth'
 
 export interface VolunteerLocation {
   user_id: string
@@ -34,6 +35,7 @@ export function useRealtimeVolunteerLocations({
   reconnectAttempts = 5,
   reconnectInterval = 3000
 }: UseRealtimeVolunteerLocationsOptions) {
+  const { user } = useAuth()
   const [volunteers, setVolunteers] = useState<VolunteerLocation[]>([])
   const [isConnected, setIsConnected] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -44,10 +46,15 @@ export function useRealtimeVolunteerLocations({
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const reconnectAttemptsRef = useRef(0)
   const isMountedRef = useRef(true)
+  const lastFetchRef = useRef<number>(0)
+  const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   
   // Store center and radius in refs to avoid dependency issues
   const centerRef = useRef(center)
   const radiusRef = useRef(radiusKm)
+  
+  // Check if user is admin or barangay
+  const isAdminOrBarangay = user?.role === 'admin' || user?.role === 'barangay'
   
   // Update refs when props change
   useEffect(() => {
@@ -75,54 +82,111 @@ export function useRealtimeVolunteerLocations({
   const fetchVolunteers = useCallback(async () => {
     if (!enabled || !isMountedRef.current) return
 
+    // Throttle fetches to avoid excessive API calls (min 2 seconds between fetches)
+    const now = Date.now()
+    const timeSinceLastFetch = now - lastFetchRef.current
+    if (timeSinceLastFetch < 2000) {
+      return
+    }
+    lastFetchRef.current = now
+
     try {
       setIsLoading(true)
       setError(null)
 
-      // Try to use admin API endpoint first (for admin users)
-      try {
-        const adminResponse = await fetch('/api/admin/volunteers/locations')
-        if (adminResponse.ok) {
-          const adminJson = await adminResponse.json()
-          if (adminJson.success && adminJson.data && Array.isArray(adminJson.data)) {
-            // Use current values from refs
-            const currentCenter = centerRef.current
-            const currentRadius = radiusRef.current
+      // Only try admin API if user is admin or barangay
+      if (isAdminOrBarangay) {
+        try {
+          const adminResponse = await fetch('/api/admin/volunteers/locations')
+          if (adminResponse.ok) {
+            const adminJson = await adminResponse.json()
+            if (adminJson.success && adminJson.data && Array.isArray(adminJson.data)) {
+              // Use current values from refs
+              const currentCenter = centerRef.current
+              const currentRadius = radiusRef.current
 
-            // Don't filter by radius for admin - show all volunteers
-            const filtered = adminJson.data
-              .filter((loc: any) => loc.lat && loc.lng && isWithinTalisayCity(loc.lat, loc.lng))
-              .map((loc: any) => {
-                const distance = calculateDistance(currentCenter[0], currentCenter[1], loc.lat, loc.lng)
-                return {
-                  user_id: loc.user_id,
-                  latitude: loc.lat,
-                  longitude: loc.lng,
-                  accuracy: loc.accuracy,
-                  speed: loc.speed || null,
-                  last_seen: loc.created_at,
-                  first_name: loc.first_name,
-                  last_name: loc.last_name,
-                  phone_number: loc.phone_number || '',
-                  distance_km: distance
-                }
-              })
-              // For admin, show all volunteers regardless of radius
-              .sort((a: any, b: any) => a.distance_km - b.distance_km)
+              // Don't filter by radius for admin - show all volunteers
+              const filtered = adminJson.data
+                .filter((loc: any) => loc.lat && loc.lng && isWithinTalisayCity(loc.lat, loc.lng))
+                .map((loc: any) => {
+                  const distance = calculateDistance(currentCenter[0], currentCenter[1], loc.lat, loc.lng)
+                  return {
+                    user_id: loc.user_id,
+                    latitude: loc.lat,
+                    longitude: loc.lng,
+                    accuracy: loc.accuracy,
+                    speed: loc.speed || null,
+                    last_seen: loc.created_at,
+                    first_name: loc.first_name,
+                    last_name: loc.last_name,
+                    phone_number: loc.phone_number || '',
+                    distance_km: distance
+                  }
+                })
+                // For admin, show all volunteers regardless of radius
+                .sort((a: any, b: any) => a.distance_km - b.distance_km)
 
-            if (isMountedRef.current) {
-              setVolunteers(filtered)
-              console.log(`✅ Fetched ${filtered.length} volunteers via admin API`)
+              if (isMountedRef.current) {
+                setVolunteers(filtered)
+                console.log(`✅ Fetched ${filtered.length} volunteers via admin API`)
+              }
+              return
             }
-            return
+          } else if (adminResponse.status === 403) {
+            // Expected 403 for non-admin users - don't log as error, just fall through
+            // This shouldn't happen if isAdminOrBarangay is correct, but handle gracefully
+          }
+        } catch (adminErr: any) {
+          // Only log non-403 errors
+          if (adminErr?.status !== 403) {
+            console.warn('Admin API error (non-403), using direct query:', adminErr)
           }
         }
-      } catch (adminErr) {
-        // Fall back to direct database query if admin API fails
-        console.log('Admin API not available, using direct query:', adminErr)
       }
 
-      // Fallback to direct database query
+      // For residents, use the public API endpoint (they don't have direct DB access)
+      if (user?.role === 'resident') {
+        try {
+          const publicResponse = await fetch('/api/volunteer/location/public?since=30&limit=100')
+          if (publicResponse.ok) {
+            const publicJson = await publicResponse.json()
+            if (publicJson.success && publicJson.data && Array.isArray(publicJson.data)) {
+              const currentCenter = centerRef.current
+              const currentRadius = radiusRef.current
+
+              const filtered = publicJson.data
+                .filter((loc: any) => loc.lat && loc.lng && isWithinTalisayCity(loc.lat, loc.lng))
+                .map((loc: any) => {
+                  const distance = calculateDistance(currentCenter[0], currentCenter[1], loc.lat, loc.lng)
+                  return {
+                    user_id: loc.user_id,
+                    latitude: loc.lat,
+                    longitude: loc.lng,
+                    accuracy: loc.accuracy,
+                    speed: loc.speed || null,
+                    last_seen: loc.created_at,
+                    first_name: loc.first_name || '',
+                    last_name: loc.last_name || '',
+                    phone_number: loc.phone_number || '',
+                    distance_km: distance
+                  }
+                })
+                .filter((v: any) => v.distance_km <= currentRadius)
+                .sort((a: any, b: any) => a.distance_km - b.distance_km)
+
+              if (isMountedRef.current) {
+                setVolunteers(filtered)
+                console.log(`✅ Fetched ${filtered.length} volunteers via public API (resident)`)
+              }
+              return
+            }
+          }
+        } catch (publicErr) {
+          console.warn('Public API not available, trying direct query:', publicErr)
+        }
+      }
+
+      // Fallback to direct database query (for volunteers and other roles with DB access)
       const { data: locations, error: locError } = await supabase
         .from('volunteer_locations')
         .select(`
@@ -140,7 +204,15 @@ export function useRealtimeVolunteerLocations({
         `)
         .order('created_at', { ascending: false })
 
-      if (locError) throw locError
+      if (locError) {
+        // If direct query fails (e.g., RLS permission denied), return empty array gracefully
+        console.warn('Direct database query failed (may be RLS restriction):', locError.message)
+        if (isMountedRef.current) {
+          setVolunteers([])
+          setError(null) // Don't show error for expected permission issues
+        }
+        return
+      }
 
       const uniqueVolunteers = new Map<string, any>()
       locations?.forEach(loc => {
@@ -186,7 +258,7 @@ export function useRealtimeVolunteerLocations({
     } finally {
       if (isMountedRef.current) setIsLoading(false)
     }
-  }, [enabled, calculateDistance]) // Only depend on enabled and calculateDistance
+  }, [enabled, calculateDistance, isAdminOrBarangay]) // Include isAdminOrBarangay
 
   // --- Cleanup (stable, no dependencies) ---
   const cleanup = useCallback(() => {
@@ -218,7 +290,7 @@ export function useRealtimeVolunteerLocations({
           table: 'volunteer_locations'
         },
         () => {
-          // Fetch volunteers when data changes
+          // Fetch volunteers when data changes (throttled by fetchVolunteers itself)
           fetchVolunteers()
         }
       )
@@ -299,12 +371,21 @@ export function useRealtimeVolunteerLocations({
   useEffect(() => {
     if (!enabled) return
     
-    // Debounce refetch to avoid excessive calls
-    const timeoutId = setTimeout(() => {
-      fetchVolunteers()
-    }, 300)
+    // Clear any pending fetch
+    if (fetchTimeoutRef.current) {
+      clearTimeout(fetchTimeoutRef.current)
+    }
     
-    return () => clearTimeout(timeoutId)
+    // Debounce refetch to avoid excessive calls (increased to 1 second)
+    fetchTimeoutRef.current = setTimeout(() => {
+      fetchVolunteers()
+    }, 1000)
+    
+    return () => {
+      if (fetchTimeoutRef.current) {
+        clearTimeout(fetchTimeoutRef.current)
+      }
+    }
   }, [center[0], center[1], radiusKm, enabled, fetchVolunteers])
 
   // Manual reconnect function

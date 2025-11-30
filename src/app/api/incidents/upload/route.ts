@@ -16,10 +16,23 @@ const MAX_BYTES = 3 * 1024 * 1024
 const ALLOWED = new Set(['image/jpeg', 'image/jpg'])
 
 export async function POST(request: Request) {
+  const startTime = Date.now()
+  const requestId = `upload-${Date.now()}-${Math.random().toString(36).substring(7)}`
+  
   try {
+    console.log(`\n📤 [SERVER] [${requestId}] POST /api/incidents/upload - Request received at ${new Date().toISOString()}`)
+    
     const form = await request.formData()
     const file = form.get('file') as File | null
     const reporterId = String(form.get('reporter_id') || '')
+    
+    console.log(`📋 [SERVER] [${requestId}] Upload data:`, {
+      hasFile: !!file,
+      fileName: file?.name || 'N/A',
+      fileSize: file?.size || 0,
+      fileType: file?.type || 'N/A',
+      reporterId: reporterId.substring(0, 8) + '...'
+    })
 
     // Validate reporter matches session user
     try {
@@ -90,12 +103,24 @@ export async function POST(request: Request) {
         cacheControl: '3600',
       })
 
+    const uploadTime = Date.now() - startTime
     if (upErr) {
+      console.error(`❌ [SERVER] [${requestId}] Upload failed after ${uploadTime}ms:`, upErr)
       return NextResponse.json({ success: false, code: 'UPLOAD_FAILED', message: upErr.message }, { status: 500 })
     }
 
+    console.log(`✅ [SERVER] [${requestId}] POST /api/incidents/upload - SUCCESS - Total time: ${uploadTime}ms`)
+    console.log(`   - File: ${file.name} (${file.size} bytes)`)
+    console.log(`   - Path: ${path}\n`)
+    
     return NextResponse.json({ success: true, path })
   } catch (e: any) {
+    const totalTime = Date.now() - startTime
+    console.error(`❌ [SERVER] [${requestId}] POST /api/incidents/upload - ERROR after ${totalTime}ms:`, {
+      error: e.message,
+      stack: e.stack
+    })
+    console.log(`\n`)
     return NextResponse.json({ success: false, code: 'INTERNAL_ERROR', message: e?.message || 'Failed to upload image' }, { status: 500 })
   }
 }

@@ -341,4 +341,60 @@ export function validateVolunteerPersonalInfo(data: any): { valid: boolean; erro
   }
 }
 
+/**
+ * LGU Contact Create/Update Schema
+ */
+export const LguContactCreateSchema = z.object({
+  agency_name: z.string().min(1, "Agency name is required").max(200),
+  contact_person: z.string().max(200).nullable().optional(),
+  contact_number: z.string().min(1, "Contact number is required").max(50),
+  notes: z.string().max(1000).nullable().optional(),
+})
+
+export type LguContactCreate = z.infer<typeof LguContactCreateSchema>
+
+/**
+ * Barangay Account Create Schema
+ */
+export const BarangayAccountCreateSchema = z.object({
+  email: z.string().email("Invalid email format").min(1, "Email is required"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  firstName: z.string().min(1, "First name is required").max(100),
+  lastName: z.string().min(1, "Last name is required").max(100),
+  phoneNumber: z.string().max(50).optional(),
+  barangay: z.string().min(1, "Barangay is required").max(100),
+})
+
+export type BarangayAccountCreate = z.infer<typeof BarangayAccountCreateSchema>
+
+/**
+ * Schedule Create Schema
+ */
+export const ScheduleCreateSchema = z.object({
+  volunteer_id: z.string().uuid().optional(),
+  volunteer_ids: z.array(z.string().uuid()).optional(),
+  title: z.string().min(1, "Title is required").max(200),
+  description: z.string().max(1000).nullable().optional(),
+  start_time: z.string().datetime("Invalid start time format"),
+  end_time: z.string().datetime("Invalid end time format"),
+  location: z.string().max(200).nullable().optional(),
+  barangay: z.string().max(100).nullable().optional(),
+}).refine((data) => {
+  // At least one volunteer must be selected
+  return data.volunteer_id || (data.volunteer_ids && data.volunteer_ids.length > 0)
+}, {
+  message: "At least one volunteer must be selected",
+  path: ["volunteer_id"]
+}).refine((data) => {
+  // End time must be after start time
+  if (data.start_time && data.end_time) {
+    return new Date(data.end_time) > new Date(data.start_time)
+  }
+  return true
+}, {
+  message: "End time must be after start time",
+  path: ["end_time"]
+})
+
+export type ScheduleCreate = z.infer<typeof ScheduleCreateSchema>
 

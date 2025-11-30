@@ -357,12 +357,18 @@ export const createIncident = async (
 
       console.time('createIncident.upload')
       // Use fetchWithTimeout to prevent hanging on slow mobile networks
-      // Photo uploads can be large, so give them 60 seconds
+      // MOBILE FIX: Reduced timeout for mobile - if it takes longer, fail gracefully
       const uploadRes = await fetchWithTimeout('/api/incidents/upload', {
         method: 'POST',
         body: form,
         headers,
-        timeout: 60000 // 60 seconds for photo uploads
+        timeout: 30000 // 30 seconds for photo uploads (reduced from 60s for mobile)
+      }).catch((error: any) => {
+        console.error('❌ Photo upload failed:', error)
+        if (error.name === 'AbortError' || error.message?.includes('timeout')) {
+          throw new Error('Photo upload timeout. The incident will be created without photos. You can add photos later.')
+        }
+        throw error
       })
       const uploadJson = await uploadRes.json()
       console.timeEnd('createIncident.upload')
@@ -398,11 +404,16 @@ export const createIncident = async (
           headers['Authorization'] = `Bearer ${accessToken}`
         }
 
+        // MOBILE FIX: Reduced timeout for mobile
         const uploadRes = await fetchWithTimeout('/api/incidents/upload-voice', {
           method: 'POST',
           body: form,
           headers,
-          timeout: 60000 // 60 seconds for voice upload
+          timeout: 30000 // 30 seconds for voice upload (reduced from 60s for mobile)
+        }).catch((error: any) => {
+          console.error('❌ Voice upload failed:', error)
+          // Voice upload failure is non-critical, return null
+          return null
         })
         const uploadJson = await uploadRes.json()
         if (!uploadRes.ok || !uploadJson?.success || !uploadJson?.path) {
@@ -442,11 +453,22 @@ export const createIncident = async (
     // Only include photo_urls if we have photos (omit it otherwise to avoid null)
     // photo_urls will be added after background upload completes
     
+    // MOBILE FIX: Reduce timeout for mobile networks, add better error handling
     const apiRes = await fetchWithTimeout('/api/incidents', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
-      timeout: 10000 // 10 seconds max for incident creation (should be <2s)
+      timeout: 15000 // 15 seconds max for incident creation (increased from 10s for mobile)
+    }).catch((error: any) => {
+      console.error('❌ Incident API fetch failed:', error)
+      // Provide more specific error messages
+      if (error.name === 'AbortError' || error.message?.includes('timeout')) {
+        throw new Error('Connection timeout. Please check your internet connection and try again. If the problem persists, try submitting without photos.')
+      }
+      if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
+        throw new Error('Network error. Please check your internet connection and try again.')
+      }
+      throw error
     })
     const apiJson = await apiRes.json()
     console.timeEnd('createIncident.api')

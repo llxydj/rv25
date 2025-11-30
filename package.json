@@ -24,6 +24,7 @@
     "ui:debug": "node scripts/ui-debug.js",
     "ui:check": "echo 'Run RVOISUIDebug.run() in browser console to check UI issues'",
     "ui:dev": "next dev & echo 'UI Debugging: Run RVOISUIDebug.debugCSS.add() in browser console to add visual debugging outlines'",
+    "dev:mobile": "next dev --hostname 0.0.0.0 --port 3000",
     "gen-types": "supabase gen types typescript --project-id zcgbzbviyaqqplpamcbh > ./types/supabase.ts",
     "backup:start": "pnpm ts-node scripts/start-backup-service.ts",
     "backup:manual": "pnpm ts-node scripts/manual-backup.ts",
