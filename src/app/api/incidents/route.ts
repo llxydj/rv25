@@ -223,10 +223,10 @@ export async function PUT(request: Request) {
       }
     }
 
-    // Read existing to compare status
+    // Read existing to compare status and photos
     const { data: existing, error: readErr } = await supabase
       .from('incidents')
-      .select('id,status')
+      .select('id,status,photo_url,photo_urls')
       .eq('id', id)
       .single()
     if (readErr) throw readErr
@@ -272,14 +272,22 @@ export async function PUT(request: Request) {
     const userId = userRes?.user?.id || null
     
     // Log photo addition if photos were added
-    if (photo_url && (!existing || !(existing as any)?.photo_url)) {
+    // Check if photo_urls array was updated and has photos
+    const existingPhotoUrls = Array.isArray((existing as any)?.photo_urls) ? (existing as any).photo_urls : []
+    const existingPhotoCount = existingPhotoUrls.length
+    const newPhotoUrls = Array.isArray((data as any)?.photo_urls) ? (data as any).photo_urls : []
+    const newPhotoCount = newPhotoUrls.length
+    
+    // Log if photos were added (array length increased or went from empty to non-empty)
+    const photosWereAdded = newPhotoCount > existingPhotoCount || 
+                           (newPhotoCount > 0 && existingPhotoCount === 0) ||
+                           (photo_url && !(existing as any)?.photo_url && newPhotoCount > 0)
+    
+    if (photosWereAdded && newPhotoCount > 0) {
       try {
         const { logPhotoAdded } = await import('@/lib/incident-timeline')
-        const photoCount = Array.isArray((data as any)?.photo_urls) 
-          ? (data as any).photo_urls.length 
-          : (photo_url ? 1 : 0)
-        await logPhotoAdded(id, userId, photoCount)
-        console.log('✅ Photo addition logged in timeline')
+        await logPhotoAdded(id, userId, newPhotoCount)
+        console.log(`✅ Photo addition logged in timeline: ${existingPhotoCount} → ${newPhotoCount} photo(s)`)
       } catch (logError) {
         console.error('❌ Failed to log photo addition:', logError)
       }
@@ -661,13 +669,21 @@ export async function POST(request: Request) {
     // CRITICAL: Log incident creation in timeline (was missing!)
     const timelineStart = Date.now()
     try {
-      const { logIncidentCreation } = await import('@/lib/incident-timeline')
+      const { logIncidentCreation, logPhotoAdded } = await import('@/lib/incident-timeline')
       await logIncidentCreation(data.id, reporter_id, {
         type: normalizedIncidentType,
         barangay: resolvedBarangay || barangay.toUpperCase(),
         isOffline: is_offline,
         offlineTimestamp: normalizedLocalTimestamp || undefined
       })
+      
+      // Log photos if they were included in initial creation
+      const finalPhotoCount = processedPhotoPaths.length
+      if (finalPhotoCount > 0) {
+        await logPhotoAdded(data.id, reporter_id, finalPhotoCount)
+        console.log(`📸 [SERVER] [${requestId}] Initial photos logged: ${finalPhotoCount} photo(s)`)
+      }
+      
       console.log(`⏱️  [SERVER] [${requestId}] Timeline logging: ${Date.now() - timelineStart}ms`)
     } catch (timelineErr) {
       console.error(`❌ [SERVER] [${requestId}] Timeline logging failed (non-critical):`, timelineErr)

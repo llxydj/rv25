@@ -190,7 +190,8 @@ export async function PATCH(
         params.id,
         currentIncident.severity || 'MODERATE',
         severity,
-        updated_by || userId
+        updated_by || userId,
+        currentIncident.status // Pass current incident status to preserve it in timeline
       )
       console.log('✅ Severity change logged in timeline')
     } catch (logError) {

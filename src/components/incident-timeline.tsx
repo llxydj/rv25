@@ -113,11 +113,35 @@ export function IncidentTimeline({
       case 'REASSIGNED':
         return 'Reassigned to Different Volunteer'
       case 'PHOTO_ADDED':
+        const photoCount = event.metadata?.photo_count
+        if (photoCount !== undefined && photoCount > 0) {
+          return `${photoCount} Photo${photoCount > 1 ? 's' : ''} Added`
+        }
+        // Fallback: try to extract from notes
+        if (event.notes) {
+          const match = event.notes.match(/(\d+)\s*photo/i)
+          if (match) {
+            const count = parseInt(match[1])
+            return `${count} Photo${count > 1 ? 's' : ''} Added`
+          }
+        }
         return 'Photo Added'
       case 'LOCATION_UPDATED':
         return 'Location Updated'
       case 'SEVERITY_CHANGED':
-        return `Severity Changed${event.metadata?.new_severity ? ` to ${event.metadata.new_severity}` : ''}`
+        if (event.metadata?.previous_severity && event.metadata?.new_severity) {
+          return `Severity Changed from ${event.metadata.previous_severity} to ${event.metadata.new_severity}`
+        } else if (event.metadata?.new_severity) {
+          return `Severity Changed to ${event.metadata.new_severity}`
+        } else if (event.notes) {
+          // Fallback: extract from notes
+          const match = event.notes.match(/Severity changed from (\w+) to (\w+)/i) || 
+                       event.notes.match(/Severity updated to (\w+)/i)
+          if (match) {
+            return match[2] ? `Severity Changed from ${match[1]} to ${match[2]}` : `Severity Changed to ${match[1]}`
+          }
+        }
+        return 'Severity Changed'
       case 'PRIORITY_CHANGED':
         return `Priority Changed${event.metadata?.new_priority ? ` to ${event.metadata.new_priority}` : ''}`
       case 'NOTES_ADDED':

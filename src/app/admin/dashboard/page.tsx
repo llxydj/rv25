@@ -18,7 +18,6 @@ import { PushNotificationToggle } from "@/components/push-notification-toggle"
 import { MetricsChart } from "@/components/admin/metrics-chart"
 import { StatWidget } from "@/components/admin/stat-widget"
 import { AdminMetrics } from "@/types/admin-metrics"
-import { BackupMonitor } from "@/components/admin/backup-monitor"
 import { VolunteerInsightsCard } from "@/components/admin/volunteer-insights-card"
 
 export default function AdminDashboard() {
@@ -646,10 +645,6 @@ export default function AdminDashboard() {
               <ResponseTimesCard />
             </div>
 
-            {/* BACKUP MONITOR */}
-            <div className="mt-4 md:mt-6">
-              <BackupMonitor />
-            </div>
           </>
         )}
       </div>

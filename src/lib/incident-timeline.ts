@@ -49,14 +49,26 @@ export async function logIncidentTimelineEvent(event: TimelineEvent): Promise<{ 
           notes = 'Incident reassigned to different volunteer'
           break
         case 'PHOTO_ADDED':
-          notes = 'Photo added to incident'
+          // Photo count should be in metadata, format notes accordingly
+          const photoCount = event.metadata?.photo_count || 0
+          notes = photoCount > 0 
+            ? `${photoCount} photo${photoCount > 1 ? 's' : ''} added`
+            : 'Photo added to incident'
           break
         case 'LOCATION_UPDATED':
           notes = 'Incident location updated'
           break
-        case 'SEVERITY_CHANGED':
-          notes = `Severity changed to ${event.metadata?.severity || 'N/A'}`
-          break
+      case 'SEVERITY_CHANGED':
+        // For severity changes, preserve the current status (don't change it)
+        // The notes will contain the severity change details
+        if (!previousStatus && !newStatus) {
+          // If not provided, we'll use a marker - but since SEVERITY_UPDATE isn't a valid enum,
+          // we'll detect by notes pattern instead
+          previousStatus = event.previousStatus || null
+          newStatus = event.newStatus || null
+        }
+        notes = event.notes || `Severity changed to ${event.metadata?.new_severity || event.metadata?.severity || 'N/A'}`
+        break
         case 'PRIORITY_CHANGED':
           notes = `Priority changed to ${event.metadata?.priority || 'N/A'}`
           break
@@ -215,16 +227,20 @@ export async function logLocationUpdate(
 
 /**
  * Log severity change
+ * Note: We need to pass the current incident status to preserve it in the timeline
  */
 export async function logSeverityChange(
   incidentId: string,
   previousSeverity: string,
   newSeverity: string,
-  updatedBy: string | null
+  updatedBy: string | null,
+  currentIncidentStatus?: string | null
 ): Promise<void> {
   await logIncidentTimelineEvent({
     incidentId,
     eventType: 'SEVERITY_CHANGED',
+    previousStatus: currentIncidentStatus || null,
+    newStatus: currentIncidentStatus || null, // Keep status unchanged, just mark as severity update
     updatedBy,
     notes: `Severity changed from ${previousSeverity} to ${newSeverity}`,
     metadata: {
@@ -311,18 +327,41 @@ export async function getIncidentTimeline(incidentId: string): Promise<{
       let metadata: Record<string, any> = {}
 
       // Detect event type from status changes and notes
-      if (update.previous_status === 'SEVERITY_UPDATE' && update.new_status === 'SEVERITY_UPDATE') {
+      // Primary detection: Check notes for "Severity changed" or "Severity updated" pattern (case-insensitive)
+      const notesLower = update.notes?.toLowerCase() || ''
+      const isSeverityChange = notesLower.includes('severity changed') || 
+                               notesLower.includes('severity updated') ||
+                               (update.previous_status === 'SEVERITY_UPDATE' && update.new_status === 'SEVERITY_UPDATE')
+      
+      if (isSeverityChange) {
         eventType = 'SEVERITY_CHANGED'
         // Try to extract severity from notes
-        const severityMatch = update.notes?.match(/Severity changed (?:from \w+ )?to (\w+)/i)
+        const severityMatch = update.notes?.match(/Severity changed (?:from \w+ )?to (\w+)/i) ||
+                             update.notes?.match(/Severity updated to (\w+)/i)
         if (severityMatch) {
           metadata.new_severity = severityMatch[1]
         }
-      } else if (update.notes?.includes('Photo') || update.notes?.includes('photo')) {
+        // Also extract previous severity if available
+        const prevSeverityMatch = update.notes?.match(/Severity changed from (\w+)/i) ||
+                                  update.notes?.match(/\(was (\w+)\)/i)
+        if (prevSeverityMatch) {
+          metadata.previous_severity = prevSeverityMatch[1]
+        }
+      } else if (update.notes?.toLowerCase().includes('photo')) {
         eventType = 'PHOTO_ADDED'
-        const photoCountMatch = update.notes?.match(/(\d+)\s*photo/i)
+        // Try multiple patterns to extract photo count
+        const photoCountMatch = update.notes?.match(/(\d+)\s*photo/i) ||
+                               update.notes?.match(/photo.*?(\d+)/i) ||
+                               update.notes?.match(/(\d+)\s*added/i)
         if (photoCountMatch) {
-          metadata.photo_count = parseInt(photoCountMatch[1])
+          const count = parseInt(photoCountMatch[1])
+          // Only set metadata if count > 0 (avoid "0 photos" issue)
+          if (count > 0) {
+            metadata.photo_count = count
+          }
+        } else {
+          // If no count found but notes mention photo, assume 1 photo
+          metadata.photo_count = 1
         }
       } else if (update.notes?.includes('Location') || update.notes?.includes('location')) {
         eventType = 'LOCATION_UPDATED'
