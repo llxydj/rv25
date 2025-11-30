@@ -415,15 +415,135 @@ export default function ReportIncidentPage() {
       return Promise.resolve(null)
     }
   
-    // BEST PRACTICE: No client-side compression - upload raw, compress on server
-    // This prevents mobile CPU bottleneck and UI freezing
-    // Server compresses with Sharp (much faster than mobile CPU)
-    const previewUrl = URL.createObjectURL(file)
-    console.log(`📸 [PHOTO] Ready for upload: ${(file.size / 1024).toFixed(1)}KB (server will compress with Sharp)`)
-    
-    return Promise.resolve({ 
-      processed: file, // Upload raw file - server compresses
-      previewUrl 
+    // Add watermark to photo (same as volunteer reporting)
+    return new Promise((resolve, reject) => {
+      const objectUrl = URL.createObjectURL(file)
+      const isMobile = /Mobi|Android/i.test(navigator.userAgent)
+      
+      // Use createImageBitmap for better performance (if available)
+      const loadImage = async () => {
+        try {
+          if (typeof createImageBitmap !== 'undefined') {
+            const imageBitmap = await createImageBitmap(file)
+            return { imageBitmap, width: imageBitmap.width, height: imageBitmap.height }
+          }
+        } catch {
+          // Fallback to Image
+        }
+        
+        return new Promise<{ imageBitmap?: ImageBitmap; img?: HTMLImageElement; width: number; height: number }>((imgResolve, imgReject) => {
+          const img = new Image()
+          img.onload = () => imgResolve({ img, width: img.width, height: img.height })
+          img.onerror = imgReject
+          img.src = objectUrl
+        })
+      }
+      
+      loadImage().then(({ imageBitmap, img, width, height }) => {
+        // Downscale large images - more aggressive for mobile
+        const MAX_DIM = isMobile ? 800 : 1280
+        const JPEG_QUALITY = isMobile ? 0.5 : 0.7
+        
+        let targetW = width
+        let targetH = height
+        if (Math.max(width, height) > MAX_DIM) {
+          const scale = MAX_DIM / Math.max(width, height)
+          targetW = Math.round(width * scale)
+          targetH = Math.round(height * scale)
+        }
+
+        // Create canvas with optimized context
+        const canvas = document.createElement('canvas')
+        canvas.width = targetW
+        canvas.height = targetH
+        const ctx = canvas.getContext('2d', { 
+          willReadFrequently: false,
+          alpha: true,
+          desynchronized: true
+        })
+        
+        if (!ctx) {
+          URL.revokeObjectURL(objectUrl)
+          reject(new Error('Failed to create canvas context'))
+          return
+        }
+        
+        // Draw the (possibly downscaled) image
+        if (imageBitmap) {
+          ctx.drawImage(imageBitmap, 0, 0, targetW, targetH)
+          imageBitmap.close()
+        } else if (img) {
+          ctx.drawImage(img, 0, 0, targetW, targetH)
+        }
+        
+        // Add watermark background
+        const watermarkHeight = Math.max(50, Math.round(canvas.height * 0.1))
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'
+        ctx.fillRect(0, canvas.height - watermarkHeight, canvas.width, watermarkHeight)
+        
+        // Add watermark text
+        const fontSize = Math.max(12, Math.round(watermarkHeight * 0.3))
+        ctx.font = `bold ${fontSize}px Arial`
+        ctx.fillStyle = '#FFFFFF'
+        
+        const date = new Date().toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        })
+        const time = new Date().toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        })
+        
+        // Add location name if available
+        const locationText = formData.barangay 
+          ? `${formData.barangay}, Talisay City`
+          : 'Talisay City'
+        
+        // Draw text with shadow (simplified for mobile)
+        if (!isMobile) {
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.5)'
+          ctx.shadowBlur = 4
+          ctx.shadowOffsetX = 2
+          ctx.shadowOffsetY = 2
+        }
+        
+        const padding = 10
+        ctx.fillText(`📍 ${locationText}`, padding, canvas.height - watermarkHeight / 2 - 5)
+        ctx.fillText(`📅 ${date} ${time}`, padding, canvas.height - padding)
+        
+        if (!isMobile) {
+          ctx.shadowColor = 'transparent'
+        }
+        
+        // Convert canvas to JPEG file
+        const convertToBlob = () => {
+          canvas.toBlob((blob) => {
+            if (blob) {
+              const watermarkedFile = new File([blob], 'incident_photo.jpg', { type: 'image/jpeg' })
+              const previewUrl = canvas.toDataURL('image/jpeg', JPEG_QUALITY)
+              console.log(`📸 [PHOTO] Watermarked: ${(blob.size / 1024).toFixed(1)}KB (server will further compress with Sharp)`)
+              URL.revokeObjectURL(objectUrl)
+              resolve({ processed: watermarkedFile, previewUrl })
+            } else {
+              URL.revokeObjectURL(objectUrl)
+              reject(new Error('Failed to create blob from canvas'))
+            }
+          }, 'image/jpeg', JPEG_QUALITY)
+        }
+        
+        // Use requestIdleCallback on mobile for better responsiveness
+        if (isMobile && typeof requestIdleCallback !== 'undefined') {
+          requestIdleCallback(convertToBlob, { timeout: 100 })
+        } else {
+          setTimeout(convertToBlob, 0)
+        }
+      }).catch((error) => {
+        URL.revokeObjectURL(objectUrl)
+        reject(error)
+      })
     })
   }
   

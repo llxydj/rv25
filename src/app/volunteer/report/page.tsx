@@ -44,6 +44,8 @@ export default function VolunteerReportIncidentPage() {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [submitStage, setSubmitStage] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [barangays, setBarangays] = useState<string[]>([])
   const [gettingLocation, setGettingLocation] = useState(false)
   const [isOffline, setIsOffline] = useState(false)
@@ -476,6 +478,7 @@ export default function VolunteerReportIncidentPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    setIsSubmitting(true)
     setLoading(true)
 
     console.log("🟢 [VOLUNTEER REPORT SUBMIT] ========== STARTING SUBMISSION ==========")
@@ -490,6 +493,7 @@ export default function VolunteerReportIncidentPage() {
         description: errorMsg
       })
       setLoading(false)
+      setIsSubmitting(false)
       return
     }
 
@@ -500,6 +504,7 @@ export default function VolunteerReportIncidentPage() {
         description: error
       })
       setLoading(false)
+      setIsSubmitting(false)
       return
     }
 
@@ -512,6 +517,7 @@ export default function VolunteerReportIncidentPage() {
         description: "Please take a photo of the incident"
       })
       setLoading(false)
+      setIsSubmitting(false)
       return
     }
 
@@ -564,6 +570,7 @@ export default function VolunteerReportIncidentPage() {
         })
       } finally {
         setLoading(false)
+        setIsSubmitting(false)
       }
       return
     }
@@ -571,6 +578,9 @@ export default function VolunteerReportIncidentPage() {
     // Online submission
     try {
       const reportLocation = location || TALISAY_CENTER
+
+      setLoading(true)
+      setSubmitStage(isOffline ? "Saving report for offline delivery…" : "Preparing your report…")
 
       console.log("🟢 [VOLUNTEER REPORT SUBMIT] Getting session for submission...")
       
@@ -676,7 +686,9 @@ export default function VolunteerReportIncidentPage() {
           sessionUserId: session.user.id,
           accessToken: sessionAccessToken || session.access_token || undefined,
           onStageChange: (stage) => {
-            // Optional: show stage messages
+            setTimeout(() => {
+              setSubmitStage(stageMessages[stage] || null)
+            }, 50)
           },
         },
       )
@@ -690,12 +702,24 @@ export default function VolunteerReportIncidentPage() {
       )
 
       console.log("🟢 [VOLUNTEER REPORT SUBMIT] Waiting for createIncident (60s timeout)...");
-      const result = await Promise.race([createIncidentPromise, timeoutPromise])
-      console.log("🟢 [VOLUNTEER REPORT SUBMIT] Result received:", {
-        success: result?.success,
-        hasData: !!(result as any)?.data,
-        message: (result as any)?.message
-      });
+      console.log("🟢 [VOLUNTEER REPORT SUBMIT] Photo files being passed:", photoFile ? 1 : 0);
+      
+      let result: any
+      try {
+        result = await Promise.race([createIncidentPromise, timeoutPromise])
+        console.log("🟢 [VOLUNTEER REPORT SUBMIT] Result received:", {
+          success: result?.success,
+          hasData: !!(result as any)?.data,
+          message: (result as any)?.message
+        });
+      } catch (raceError: any) {
+        console.error("🟢 [VOLUNTEER REPORT SUBMIT] Promise.race error:", {
+          message: raceError?.message,
+          name: raceError?.name,
+          stack: raceError?.stack
+        });
+        throw raceError; // Re-throw to be caught by outer try-catch
+      }
 
       if (!result.success) {
         console.error("🟢 [VOLUNTEER REPORT SUBMIT] createIncident failed:", result);
@@ -753,6 +777,8 @@ export default function VolunteerReportIncidentPage() {
       })
     } finally {
       setLoading(false)
+      setSubmitStage(null)
+      setIsSubmitting(false)
     }
   }
 
@@ -1055,20 +1081,25 @@ export default function VolunteerReportIncidentPage() {
             >
               Cancel
             </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-green-500"
-            >
-              {loading ? (
-                <LoadingSpinner size="sm" color="text-white" />
-              ) : (
-                <>
-                  <Upload className="mr-2 h-5 w-5" />
-                  Submit Report
-                </>
+            <div className="flex items-center justify-between w-full">
+              <button
+                type="submit"
+                disabled={loading || isSubmitting}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? (
+                  <LoadingSpinner size="sm" color="text-white" />
+                ) : (
+                  <>
+                    <Upload className="mr-2 h-5 w-5" />
+                    Submit Report
+                  </>
+                )}
+              </button>
+              {loading && submitStage && (
+                <p className="text-right text-xs text-gray-500">{submitStage}</p>
               )}
-            </button>
+            </div>
           </div>
         </form>
       </div>
