@@ -340,52 +340,58 @@ export const createIncident = async (
 
     const uploadSinglePhoto = async (file: File, photoIndex: number): Promise<string | null> => {
       const fileSizeKB = (file.size / 1024).toFixed(1)
-      console.log(`📤 [PHOTO ${photoIndex + 1}] Starting DIRECT client upload:`, {
-        fileName: file.name,
-        fileSize: `${fileSizeKB}KB`,
-        fileType: file.type
-      })
+      console.log(`📤 [PHOTO ${photoIndex + 1}] Uploading raw file (${fileSizeKB}KB) - server will compress`)
       
       const uploadStartTime = Date.now()
       try {
-        // OPTIMIZED DIRECT CLIENT UPLOAD: Client → Supabase Storage → Smart CDN
-        // Pre-compressed images (~100KB) upload directly to Supabase Storage
-        // Supabase automatically serves via Smart CDN for fast global delivery
-        const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
-        const path = `raw/${reporterId}-${Date.now()}-${photoIndex}.${ext}`
-        
-        // Direct upload to Supabase Storage (leverages Smart CDN automatically)
-        // RLS policies handle security, CDN handles fast delivery
-        const { data, error: uploadError } = await supabase.storage
-          .from('incident-photos')
-          .upload(path, file, {
-            contentType: 'image/jpeg',
-            upsert: true,
-            cacheControl: '3600', // Cache for 1 hour via Smart CDN
-          })
-        
-        const uploadElapsed = Date.now() - uploadStartTime
-        
-        if (uploadError) {
-          console.error(`❌ [PHOTO ${photoIndex + 1}] Direct upload failed (${uploadElapsed}ms):`, uploadError)
-          return null // Return null - don't throw, allow other photos to continue
+        // BEST PRACTICE: Upload raw file to server, server compresses with Sharp
+        // This is MUCH faster than client-side compression on mobile
+        const form = new FormData()
+        form.append('file', file)
+        form.append('reporter_id', reporterId)
+
+        let accessToken = options?.accessToken
+        if (!accessToken) {
+          try {
+            const { data: { session } } = await getSessionWithTimeout(5000)
+            accessToken = session?.access_token || undefined
+          } catch (error: any) {
+            console.error(`❌ [PHOTO ${photoIndex + 1}] Auth timeout:`, error)
+            return null
+          }
         }
         
-        if (!data?.path) {
-          console.error(`❌ [PHOTO ${photoIndex + 1}] No path returned from upload`)
+        const headers: Record<string, string> = {}
+        if (accessToken) {
+          headers['Authorization'] = `Bearer ${accessToken}`
+        }
+
+        // Upload to server endpoint - server compresses with Sharp (fast!)
+        const uploadRes = await fetchWithTimeout('/api/incidents/upload', {
+          method: 'POST',
+          body: form,
+          headers,
+          timeout: 30000 // 30 seconds per photo
+        })
+        
+        const uploadElapsed = Date.now() - uploadStartTime
+        const uploadJson = await uploadRes.json()
+        
+        if (!uploadRes.ok || !uploadJson?.success || !uploadJson?.path) {
+          console.error(`❌ [PHOTO ${photoIndex + 1}] Upload failed (${uploadElapsed}ms):`, uploadJson)
           return null
         }
         
-        console.log(`✅ [PHOTO ${photoIndex + 1}] Direct upload SUCCESS in ${uploadElapsed}ms:`, data.path)
-        return data.path
+        console.log(`✅ [PHOTO ${photoIndex + 1}] Uploaded and compressed on server in ${uploadElapsed}ms:`, uploadJson.path)
+        return uploadJson.path as string
       } catch (error: any) {
         const uploadElapsed = Date.now() - uploadStartTime
-        console.error(`❌ [PHOTO ${photoIndex + 1}] Direct upload error (${uploadElapsed}ms):`, {
+        console.error(`❌ [PHOTO ${photoIndex + 1}] Upload error (${uploadElapsed}ms):`, {
           error: error.message,
           name: error.name,
           fileSize: `${fileSizeKB}KB`
         })
-        return null // Return null for any error - allows other photos to continue
+        return null
       }
     }
 
@@ -550,10 +556,10 @@ export const createIncident = async (
           // Don't even notify stage - just upload silently in background
           const backgroundUploads: Promise<any>[] = []
           
-          // OPTIMIZED: Upload photos in background with aggressive client-side compression
-          // Photos are pre-compressed to ~150KB on mobile before upload
+          // BEST PRACTICE: Upload photos in background - server compresses with Sharp
+          // Client uploads raw files (fast), server compresses (fast server CPU)
           if (filesToUpload.length > 0) {
-            console.log(`📤 [PHOTOS] Starting optimized upload of ${filesToUpload.length} photo(s) (pre-compressed, non-blocking)`)
+            console.log(`📤 [PHOTOS] Starting upload of ${filesToUpload.length} photo(s) (raw files, server compresses, non-blocking)`)
             const photoPromises = filesToUpload.map((file, index) => 
               uploadSinglePhoto(file, index)
             )

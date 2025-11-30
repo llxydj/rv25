@@ -415,145 +415,15 @@ export default function ReportIncidentPage() {
       return Promise.resolve(null)
     }
   
-    return new Promise((resolve) => {
-      const objectUrl = URL.createObjectURL(file)
-      const isMobile = /Mobi|Android/i.test(navigator.userAgent)
-      
-      // Use createImageBitmap for better performance (if available), especially on mobile
-      const loadImage = async () => {
-        try {
-          // Try createImageBitmap first (faster, especially on mobile)
-          if (typeof createImageBitmap !== 'undefined') {
-            const imageBitmap = await createImageBitmap(file)
-            return { imageBitmap, width: imageBitmap.width, height: imageBitmap.height }
-          }
-        } catch {
-          // Fallback to Image if createImageBitmap fails
-        }
-        
-        // Fallback to traditional Image loading
-        return new Promise<{ imageBitmap?: ImageBitmap; img?: HTMLImageElement; width: number; height: number }>((imgResolve, imgReject) => {
-          const img = new Image()
-          img.onload = () => imgResolve({ img, width: img.width, height: img.height })
-          img.onerror = imgReject
-          img.src = objectUrl
-        })
-      }
-  
-      loadImage().then(({ imageBitmap, img, width, height }) => {
-        // OPTIMIZED CLIENT-SIDE COMPRESSION: Pre-compress before upload
-        // Mobile: 400px max, 0.3 quality = ~100KB files (30x smaller!)
-        // Desktop: 1280px, 0.7 quality = good quality
-        // Supabase Smart CDN will handle fast global delivery automatically
-        const MAX_DIM = isMobile ? 400 : 1280  // Aggressive: 400px for mobile
-        const JPEG_QUALITY = isMobile ? 0.3 : 0.7  // Aggressive: 0.3 quality for mobile
-
-        const originalSizeKB = (file.size / 1024).toFixed(1)
-        console.log(`📸 [PHOTO] Original: ${width}x${height}px, ${originalSizeKB}KB`)
-
-        let targetW = width
-        let targetH = height
-        if (Math.max(width, height) > MAX_DIM) {
-          const scale = MAX_DIM / Math.max(width, height)
-          targetW = Math.round(width * scale)
-          targetH = Math.round(height * scale)
-          console.log(`📸 [PHOTO] Resizing to: ${targetW}x${targetH}px (scale: ${(scale * 100).toFixed(0)}%)`)
-        }
-
-        const canvas = document.createElement('canvas')
-        canvas.width = targetW
-        canvas.height = targetH
-        // Optimize canvas context for performance
-        const ctx = canvas.getContext('2d', { 
-          willReadFrequently: false,
-          alpha: true,
-          desynchronized: true // Allow async rendering on mobile
-        })
-        
-        if (!ctx) {
-          URL.revokeObjectURL(objectUrl)
-          resolve(null)
-          return
-        }
-
-        // Draw image (use imageBitmap if available, otherwise img)
-        if (imageBitmap) {
-          ctx.drawImage(imageBitmap, 0, 0, targetW, targetH)
-          imageBitmap.close() // Free memory immediately
-        } else if (img) {
-          ctx.drawImage(img, 0, 0, targetW, targetH)
-        }
-
-        // MOBILE: Skip watermark for instant processing. Desktop: Add watermark
-        if (!isMobile) {
-          // OPTIMIZED WATERMARK: Readable but efficient (desktop only)
-          const watermarkHeight = 60
-          ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
-          ctx.fillRect(0, canvas.height - watermarkHeight, canvas.width, watermarkHeight)
-
-          const fontSize = 15
-          ctx.font = `bold ${fontSize}px Arial`
-          ctx.fillStyle = '#FFFFFF'
-          ctx.textBaseline = 'middle'
-
-          const date = new Date().toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric',
-          })
-          const time = new Date().toLocaleTimeString('en-US', {
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: true,
-          })
-
-          const locationText = formData.barangay || 'Talisay City'
-
-          const padding = 10
-          const lineHeight = fontSize + 4
-          const firstLineY = canvas.height - watermarkHeight + (watermarkHeight / 2) - (lineHeight / 2)
-          const secondLineY = firstLineY + lineHeight
-
-          ctx.fillText(`📍 ${locationText}`, padding, firstLineY)
-          ctx.fillText(`📅 ${date} ${time}`, padding, secondLineY)
-        }
-        // Mobile: No watermark = instant processing
-
-        // Convert to blob with aggressive compression
-        const convertToBlob = () => {
-          canvas.toBlob(
-            (blob) => {
-              if (blob) {
-                const compressedSizeKB = (blob.size / 1024).toFixed(1)
-                const compressionRatio = ((1 - blob.size / file.size) * 100).toFixed(0)
-                console.log(`📸 [PHOTO] Compressed: ${compressedSizeKB}KB (${compressionRatio}% smaller)`)
-                
-                const watermarkedFile = new File([blob], `incident_photo_${Date.now()}.jpg`, {
-                  type: 'image/jpeg',
-                })
-                const previewUrl = URL.createObjectURL(watermarkedFile)
-                resolve({ processed: watermarkedFile, previewUrl })
-              } else {
-                resolve(null)
-              }
-              URL.revokeObjectURL(objectUrl)
-            },
-            'image/jpeg',
-            JPEG_QUALITY,
-          )
-        }
-  
-        // On mobile, use requestIdleCallback to avoid blocking UI
-        if (isMobile && typeof requestIdleCallback !== 'undefined') {
-          requestIdleCallback(convertToBlob, { timeout: 100 })
-        } else {
-          // Use setTimeout to yield to UI thread briefly
-          setTimeout(convertToBlob, 0)
-        }
-      }).catch(() => {
-        URL.revokeObjectURL(objectUrl)
-        resolve(null)
-      })
+    // BEST PRACTICE: No client-side compression - upload raw, compress on server
+    // This prevents mobile CPU bottleneck and UI freezing
+    // Server compresses with Sharp (much faster than mobile CPU)
+    const previewUrl = URL.createObjectURL(file)
+    console.log(`📸 [PHOTO] Ready for upload: ${(file.size / 1024).toFixed(1)}KB (server will compress with Sharp)`)
+    
+    return Promise.resolve({ 
+      processed: file, // Upload raw file - server compresses
+      previewUrl 
     })
   }
   
