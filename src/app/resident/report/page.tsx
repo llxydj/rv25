@@ -754,27 +754,49 @@ export default function ReportIncidentPage() {
 
       console.log("🔴 [REPORT SUBMIT] Getting session for submission...");
       
-      // CRITICAL FIX: Add timeout to prevent hanging on mobile (increased for slow networks)
+      // OPTIMIZATION: Since we already have currentUser from useAuth hook, we can skip session check
+      // and just use the user ID directly. The createIncident function will handle auth internally.
       let session: any = null
+      let sessionAccessToken: string | undefined = undefined
+      
+      // Quick session check with short timeout (3 seconds) - just to get access token
+      // If it fails, we proceed anyway since we have currentUser
       try {
         const { getSessionWithTimeout } = await import('@/lib/supabase-auth-timeout')
-        // Increased timeout to 15 seconds for slow mobile networks
-        const sessionResult = await getSessionWithTimeout(15000)
-        session = sessionResult.data?.session
-        if (sessionResult.error || !session) {
-          console.error("🔴 [REPORT SUBMIT] Session error:", sessionResult.error);
-          throw new Error("Your session has expired. Please log in again.");
+        const sessionResult = await getSessionWithTimeout(3000) // Short timeout - just for token
+        if (sessionResult.data?.session && !sessionResult.error) {
+          session = sessionResult.data.session
+          sessionAccessToken = sessionResult.data.session.access_token
+          console.log("🔴 [REPORT SUBMIT] ✅ Session obtained (with token):", { userId: session.user.id.substring(0, 8) + '...' });
         }
       } catch (sessionErr: any) {
-        console.error("🔴 [REPORT SUBMIT] Session timeout/error:", sessionErr);
-        if (sessionErr.message?.includes('timeout')) {
-          // More helpful error message
-          throw new Error("Network is slow. Please wait a moment and try again, or check your connection.");
-        }
-        throw new Error("Your session has expired. Please log in again.");
+        console.warn("🔴 [REPORT SUBMIT] Session check timeout (non-critical, proceeding with currentUser):", sessionErr.message);
+        // Continue anyway - we have currentUser from hook
+      }
+      
+      // If session check failed, create minimal session from currentUser (we already validated it exists)
+      if (!session && currentUser && currentUser.id) {
+        console.log("🔴 [REPORT SUBMIT] Using currentUser directly (session check skipped):", currentUser.id.substring(0, 8) + '...');
+        session = { user: { id: currentUser.id, email: currentUser.email || '' } }
+        // Try to get token from direct call (non-blocking)
+        supabase.auth.getSession().then(({ data }) => {
+          if (data?.session?.access_token) {
+            sessionAccessToken = data.session.access_token
+            console.log("🔴 [REPORT SUBMIT] ✅ Got access token asynchronously");
+          }
+        }).catch(() => {
+          // Ignore - we'll proceed without token, createIncident can handle it
+        })
+      }
+      
+      if (!session || !session.user) {
+        throw new Error("Unable to verify your session. Please refresh the page and try again.");
       }
 
-      console.log("🔴 [REPORT SUBMIT] Session obtained:", { userId: session.user.id.substring(0, 8) + '...' });
+      console.log("🔴 [REPORT SUBMIT] ✅ Ready for submission:", { 
+        userId: session.user.id.substring(0, 8) + '...',
+        hasToken: !!sessionAccessToken 
+      });
 
       const stageMessages: Record<CreateIncidentStage, string> = {
         "verify-session": "Verifying your session…",
@@ -806,7 +828,7 @@ export default function ReportIncidentPage() {
         voiceBlob || undefined,
         {
           sessionUserId: session.user.id,
-          accessToken: session.access_token || undefined,
+          accessToken: sessionAccessToken || session.access_token || undefined,
           onStageChange: (stage) => {
             setTimeout(() => {
               setSubmitStage(stageMessages[stage] || null)
