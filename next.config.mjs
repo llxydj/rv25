@@ -62,6 +62,24 @@ const nextConfig = {
         ],
       },
 
+      // Prevent caching for login and forgot-password pages (fix 304 errors)
+      {
+        source: '/login',
+        headers: [
+          { key: 'Cache-Control', value: 'no-store, no-cache, must-revalidate, max-age=0' },
+          { key: 'Pragma', value: 'no-cache' },
+          { key: 'Expires', value: '0' },
+        ],
+      },
+      {
+        source: '/forgot-password',
+        headers: [
+          { key: 'Cache-Control', value: 'no-store, no-cache, must-revalidate, max-age=0' },
+          { key: 'Pragma', value: 'no-cache' },
+          { key: 'Expires', value: '0' },
+        ],
+      },
+
       // Security headers
       {
         source: '/(.*)',

@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import bcrypt from 'bcryptjs'
 
 export const dynamic = "force-dynamic"
+export const runtime = 'nodejs' // Explicitly set runtime to prevent 404s
 
 // Service role client for admin operations (bypasses RLS)
 const supabaseAdmin = createClient(

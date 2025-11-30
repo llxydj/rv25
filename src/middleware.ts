@@ -8,7 +8,14 @@ export async function middleware(req: NextRequest) {
     console.log('🍪 ALL COOKIES:', req.cookies.getAll().map(c => c.name))
   }
 
+  // Add cache-control headers to prevent 304s for login/forgot-password
   const res = NextResponse.next()
+  
+  if (req.nextUrl.pathname === '/login' || req.nextUrl.pathname === '/forgot-password') {
+    res.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+    res.headers.set('Pragma', 'no-cache')
+    res.headers.set('Expires', '0')
+  }
 
   // Only run auth logic for pages, not APIs
   try {
@@ -36,18 +43,29 @@ export async function middleware(req: NextRequest) {
 
     // Redirect logged-in users from /login
     if (user && req.nextUrl.pathname === '/login') {
-      switch (role) {
-        case 'admin':
-          return NextResponse.redirect(new URL('/admin/dashboard', req.url))
-        case 'volunteer':
-          return NextResponse.redirect(new URL('/volunteer/dashboard', req.url))
-        case 'barangay':
-          return NextResponse.redirect(new URL('/barangay/dashboard', req.url))
-        case 'resident':
-          return NextResponse.redirect(new URL('/resident/dashboard', req.url))
-        default:
-          return NextResponse.redirect(new URL('/resident/register-google', req.url))
-      }
+      const redirectUrl = (() => {
+        switch (role) {
+          case 'admin':
+            return '/admin/dashboard'
+          case 'volunteer':
+            return '/volunteer/dashboard'
+          case 'barangay':
+            return '/barangay/dashboard'
+          case 'resident':
+            return '/resident/dashboard'
+          default:
+            return '/resident/register-google'
+        }
+      })()
+      
+      // Use 302 (Found) instead of 307 to prevent caching issues
+      // 302 is better for authentication redirects as it's not cached by default
+      const redirect = NextResponse.redirect(new URL(redirectUrl, req.url), 302)
+      // Add cache control headers to prevent any caching of redirect
+      redirect.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+      redirect.headers.set('Pragma', 'no-cache')
+      redirect.headers.set('Expires', '0')
+      return redirect
     }
   } catch (err) {
     console.error('❌ Middleware auth check error:', err)

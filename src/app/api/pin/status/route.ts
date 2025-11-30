@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSupabase } from '@/lib/supabase-server'
 
 export const dynamic = "force-dynamic"
+export const runtime = 'nodejs' // Explicitly set runtime to prevent 404s
 
 export async function GET() {
   try {

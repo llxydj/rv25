@@ -67,7 +67,7 @@ export async function GET(request: Request) {
           first_name,
           last_name,
           phone_number,
-          volunteer_profiles (
+          volunteer_profiles!volunteer_profiles_volunteer_user_id_fkey (
             status,
             is_available
           )

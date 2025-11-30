@@ -43,10 +43,24 @@ export default function RegisterGoogleResidentPage() {
   // Load Google session email and pre-fill name from metadata
   // Also check if user already has a complete profile
   useEffect(() => {
+    let isMounted = true
+    
     const load = async () => {
       try {
         setInitialLoading(true)
+        
+        // Add timeout to prevent infinite loading (10 seconds max)
+        const timeoutId = setTimeout(() => {
+          if (isMounted) {
+            console.error('[Register-Google] Loading timeout - stopping loading state')
+            setInitialLoading(false)
+            setError('Loading took too long. Please refresh the page.')
+          }
+        }, 10000)
+        
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+        
+        clearTimeout(timeoutId)
         
         if (sessionError) {
           console.error('Session error:', sessionError)
@@ -57,6 +71,7 @@ export default function RegisterGoogleResidentPage() {
 
         if (!session?.user) {
           // No session - redirect to login
+          setInitialLoading(false) // Stop loading before redirect
           router.replace('/login')
           return
         }
@@ -82,6 +97,7 @@ export default function RegisterGoogleResidentPage() {
             userProfile.phone_number && 
             userProfile.address && 
             userProfile.barangay) {
+          setInitialLoading(false) // Stop loading before redirect
           router.replace('/resident/dashboard')
           return
         }
@@ -106,12 +122,22 @@ export default function RegisterGoogleResidentPage() {
         }
       } catch (err: any) {
         console.error('Error loading session:', err)
-        setError('Failed to load your information. Please try refreshing the page.')
+        if (isMounted) {
+          setError('Failed to load your information. Please try refreshing the page.')
+          setInitialLoading(false)
+        }
       } finally {
-        setInitialLoading(false)
+        if (isMounted) {
+          setInitialLoading(false)
+        }
       }
     }
+    
     load()
+    
+    return () => {
+      isMounted = false
+    }
   }, [router])
 
   // Fetch barangays
