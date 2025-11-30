@@ -69,6 +69,7 @@ export default function ReportIncidentPage() {
   const [geoMessage, setGeoMessage] = useState<string | null>(null);
   const [locationCaptured, setLocationCaptured] = useState(false);
   const [submitStage, setSubmitStage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Add effect to log locationCaptured changes
   useEffect(() => {
@@ -654,6 +655,7 @@ export default function ReportIncidentPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setIsSubmitting(true); // Disable map volunteer location fetching during submission
 
     // Wait for auth to load if still loading
     if (authLoading) {
@@ -899,10 +901,22 @@ export default function ReportIncidentPage() {
         voiceBlobType: voiceBlob?.type || 'none'
       })
 
-      // Verify user session is still valid
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        throw new Error("Your session has expired. Please log in again.")
+      // CRITICAL FIX: Verify user session with timeout to prevent hanging
+      // This was causing infinite hang on "Preparing your report"
+      let session
+      try {
+        const { getSessionWithTimeout } = await import('@/lib/supabase-auth-timeout')
+        const sessionResult = await getSessionWithTimeout(8000) // 8 second timeout
+        session = sessionResult.data?.session
+        if (!session) {
+          throw new Error("Your session has expired. Please log in again.")
+        }
+      } catch (sessionError: any) {
+        console.error("❌ [REPORT] Session verification failed:", sessionError)
+        if (sessionError.message?.includes('timeout') || sessionError.message?.includes('Connection timeout')) {
+          throw new Error("Connection timeout. Please check your internet connection and try again.")
+        }
+        throw new Error(sessionError.message || "Your session has expired. Please log in again.")
       }
 
       const stageMessages: Record<CreateIncidentStage, string> = {
@@ -1003,6 +1017,7 @@ export default function ReportIncidentPage() {
     } finally {
       setLoading(false)
       setSubmitStage(null)
+      setIsSubmitting(false) // Re-enable map volunteer location fetching
     }
   }
 
@@ -1201,7 +1216,7 @@ export default function ReportIncidentPage() {
                 userLocation={true}
                 showBoundary={true}
                 showGeofence={false}
-                showVolunteerLocations={true}
+                showVolunteerLocations={!isSubmitting} // Disable during submission to prevent interference
                 offlineMode={isOffline}
               />
               {location && (

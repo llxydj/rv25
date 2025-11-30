@@ -303,11 +303,20 @@ export const createIncident = async (
     if (!authUserId) {
       // CRITICAL FIX: Add timeout to prevent infinite hang on mobile
       try {
-        const { data: { user } } = await getUserWithTimeout(5000)
-        console.log("Current auth user:", user?.id)
+        console.log("[createIncident] Verifying user session...")
+        const { data: { user } } = await getUserWithTimeout(8000) // Increased to 8s for slow networks
+        console.log("[createIncident] User verified:", user?.id)
         authUserId = user?.id || undefined
       } catch (error: any) {
-        console.error("Auth getUser timeout or error:", error)
+        console.error("[createIncident] Auth getUser timeout or error:", {
+          message: error.message,
+          name: error.name,
+          cause: error.cause
+        })
+        // Provide more specific error messages
+        if (error.message?.includes('timeout') || error.message?.includes('Connection timeout')) {
+          throw new Error('Connection timeout. Please check your internet connection and try again.')
+        }
         throw new Error(error.message || 'Failed to verify authentication. Please check your connection and try again.')
       }
     }
@@ -454,13 +463,25 @@ export const createIncident = async (
     // photo_urls will be added after background upload completes
     
     // MOBILE FIX: Reduce timeout for mobile networks, add better error handling
+    console.log('[createIncident] Calling /api/incidents API...', {
+      reporterId: reporterId.substring(0, 8) + '...',
+      incidentType,
+      hasPhotos: filesToUpload.length > 0,
+      timestamp: new Date().toISOString()
+    })
+    
     const apiRes = await fetchWithTimeout('/api/incidents', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
-      timeout: 15000 // 15 seconds max for incident creation (increased from 10s for mobile)
+      timeout: 20000 // 20 seconds max for incident creation (increased for slow networks)
     }).catch((error: any) => {
-      console.error('❌ Incident API fetch failed:', error)
+      console.error('❌ [createIncident] Incident API fetch failed:', {
+        error: error.message,
+        name: error.name,
+        cause: error.cause,
+        stack: error.stack
+      })
       // Provide more specific error messages
       if (error.name === 'AbortError' || error.message?.includes('timeout')) {
         throw new Error('Connection timeout. Please check your internet connection and try again. If the problem persists, try submitting without photos.')
@@ -469,6 +490,12 @@ export const createIncident = async (
         throw new Error('Network error. Please check your internet connection and try again.')
       }
       throw error
+    })
+    
+    console.log('[createIncident] API response received:', {
+      ok: apiRes.ok,
+      status: apiRes.status,
+      statusText: apiRes.statusText
     })
     const apiJson = await apiRes.json()
     console.timeEnd('createIncident.api')

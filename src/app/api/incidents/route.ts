@@ -348,8 +348,15 @@ export async function POST(request: Request) {
   const startTime = Date.now()
   const requestId = `inc-${Date.now()}-${Math.random().toString(36).substring(7)}`
   
+  // CRITICAL: Log immediately when request is received
+  console.log(`\n🚀 [SERVER] [${requestId}] POST /api/incidents - Request received at ${new Date().toISOString()}`)
+  console.log(`📥 [SERVER] [${requestId}] Request headers:`, {
+    'content-type': request.headers.get('content-type'),
+    'content-length': request.headers.get('content-length'),
+    'user-agent': request.headers.get('user-agent')?.substring(0, 50)
+  })
+  
   try {
-    console.log(`\n🚀 [SERVER] [${requestId}] POST /api/incidents - Request received at ${new Date().toISOString()}`)
     
     // Use cached service role client to bypass RLS for incident creation
     const supabase = getServiceRoleClient()
