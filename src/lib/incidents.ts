@@ -467,29 +467,58 @@ export const createIncident = async (
       reporterId: reporterId.substring(0, 8) + '...',
       incidentType,
       hasPhotos: filesToUpload.length > 0,
-      timestamp: new Date().toISOString()
+      payloadSize: JSON.stringify(payload).length,
+      timestamp: new Date().toISOString(),
+      url: '/api/incidents',
+      method: 'POST'
     })
     
-    const apiRes = await fetchWithTimeout('/api/incidents', {
+    // CRITICAL: Use absolute URL in production to ensure request reaches server
+    const apiUrl = typeof window !== 'undefined' 
+      ? `${window.location.origin}/api/incidents`
+      : '/api/incidents'
+    
+    console.log('[createIncident] Full API URL:', apiUrl)
+    
+    const requestStartTime = Date.now()
+    const apiRes = await fetchWithTimeout(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
-      timeout: 20000 // 20 seconds max for incident creation (increased for slow networks)
+      timeout: 30000 // Increased to 30 seconds for Vercel cold starts
     }).catch((error: any) => {
+      const elapsed = Date.now() - requestStartTime
       console.error('❌ [createIncident] Incident API fetch failed:', {
         error: error.message,
         name: error.name,
         cause: error.cause,
-        stack: error.stack
+        elapsed: `${elapsed}ms`,
+        url: apiUrl,
+        timestamp: new Date().toISOString()
       })
+      
+      // Check if request was aborted before reaching server
+      if (error.name === 'AbortError') {
+        console.error('❌ [createIncident] Request was aborted (timeout or cancelled)')
+        throw new Error(`Connection timeout after ${Math.round(elapsed / 1000)} seconds. The request may not have reached the server. Please check your internet connection and try again.`)
+      }
+      
       // Provide more specific error messages
-      if (error.name === 'AbortError' || error.message?.includes('timeout')) {
+      if (error.message?.includes('timeout')) {
         throw new Error('Connection timeout. Please check your internet connection and try again. If the problem persists, try submitting without photos.')
       }
       if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
-        throw new Error('Network error. Please check your internet connection and try again.')
+        throw new Error('Network error. The request could not reach the server. Please check your internet connection and try again.')
       }
       throw error
+    })
+    
+    const requestElapsed = Date.now() - requestStartTime
+    console.log('[createIncident] API request completed:', {
+      elapsed: `${requestElapsed}ms`,
+      ok: apiRes.ok,
+      status: apiRes.status,
+      statusText: apiRes.statusText
     })
     
     console.log('[createIncident] API response received:', {
