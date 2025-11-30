@@ -441,10 +441,12 @@ export default function ReportIncidentPage() {
       }
   
       loadImage().then(({ imageBitmap, img, width, height }) => {
-        // ULTRA-AGGRESSIVE MOBILE COMPRESSION: 480px max, 0.35 quality
-        // This reduces 3MB photos to ~150KB (20x smaller!) for instant mobile uploads
-        const MAX_DIM = isMobile ? 480 : 1280  // Ultra-aggressive: 480px for mobile
-        const JPEG_QUALITY = isMobile ? 0.35 : 0.7  // Ultra-aggressive: 0.35 quality for mobile
+        // OPTIMIZED CLIENT-SIDE COMPRESSION: Pre-compress before upload
+        // Mobile: 400px max, 0.3 quality = ~100KB files (30x smaller!)
+        // Desktop: 1280px, 0.7 quality = good quality
+        // Supabase Smart CDN will handle fast global delivery automatically
+        const MAX_DIM = isMobile ? 400 : 1280  // Aggressive: 400px for mobile
+        const JPEG_QUALITY = isMobile ? 0.3 : 0.7  // Aggressive: 0.3 quality for mobile
 
         const originalSizeKB = (file.size / 1024).toFixed(1)
         console.log(`📸 [PHOTO] Original: ${width}x${height}px, ${originalSizeKB}KB`)
@@ -624,7 +626,7 @@ export default function ReportIncidentPage() {
 
   const validateForm = () => {
     // Step 1: Photo is REQUIRED (at least 1 photo)
-    // Mobile: Only require 1 photo (not 3) for faster submission
+    // Photos are crucial - optimized for fast mobile upload
     if (photoFiles.length === 0) {
       setError("Please capture at least one photo of the incident");
       return false;
@@ -1053,7 +1055,9 @@ export default function ReportIncidentPage() {
                   Step 1: Photo Evidence * {photoFiles.length > 0 && "✅"}
                 </h2>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Capture at least one photo of the incident. This is required to help responders understand the situation.
+                  {typeof window !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent)
+                    ? "Capture one photo (required). Optimized for fast mobile upload (~150KB)."
+                    : "Capture at least one photo of the incident. This is required to help responders understand the situation."}
                 </p>
               </div>
               <span className="text-sm text-gray-500">
