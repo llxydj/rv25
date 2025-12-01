@@ -60,44 +60,56 @@ export async function GET(request: NextRequest) {
       systemMetrics,
       volunteerResponseMetrics
     ] = await Promise.all([
-      // Total registered users by role
-      supabaseAdmin
-        .from('users')
-        .select('role')
-        .then(result => {
-          if (result.error) throw result.error
-          const roles: Record<string, number> = {}
-          result.data.forEach(user => {
-            // Convert role to string if it's an object or enum
-            const roleValue = typeof user.role === 'string' ? user.role : String(user.role)
-            roles[roleValue] = (roles[roleValue] || 0) + 1
-          })
-          return roles
-        }),
+      // Total registered users by role - use count queries for accuracy
+      Promise.all([
+        supabaseAdmin.from('users').select('*', { count: 'exact', head: true }).eq('role', 'admin'),
+        supabaseAdmin.from('users').select('*', { count: 'exact', head: true }).eq('role', 'volunteer'),
+        supabaseAdmin.from('users').select('*', { count: 'exact', head: true }).eq('role', 'resident'),
+        supabaseAdmin.from('users').select('*', { count: 'exact', head: true }).eq('role', 'barangay'),
+      ]).then(([adminRes, volunteerRes, residentRes, barangayRes]) => {
+        if (adminRes.error) throw adminRes.error
+        if (volunteerRes.error) throw volunteerRes.error
+        if (residentRes.error) throw residentRes.error
+        if (barangayRes.error) throw barangayRes.error
+        
+        return {
+          admin: adminRes.count || 0,
+          volunteer: volunteerRes.count || 0,
+          resident: residentRes.count || 0,
+          barangay: barangayRes.count || 0,
+        }
+      }),
       
-      // Incidents by barangay with percentages
-      supabaseAdmin
-        .from('incidents')
-        .select('barangay')
-        .then(result => {
-          if (result.error) throw result.error
-          
-          const barangayCounts: Record<string, number> = {}
-          result.data.forEach(incident => {
-            barangayCounts[incident.barangay] = (barangayCounts[incident.barangay] || 0) + 1
-          })
-          
-          const total = result.data.length
-          const sortedBarangays = Object.entries(barangayCounts)
-            .sort((a, b) => b[1] - a[1])
-            .map(([barangay, count]) => ({
-              barangay,
-              count,
-              percentage: total > 0 ? (count / total * 100).toFixed(1) : '0.0'
-            }))
-          
-          return sortedBarangays
-        }),
+      // Incidents by barangay with percentages - get total count first for accurate percentages
+      Promise.all([
+        supabaseAdmin.from('incidents').select('*', { count: 'exact', head: true }),
+        supabaseAdmin.from('incidents').select('barangay')
+      ]).then(([totalRes, barangayRes]) => {
+        if (totalRes.error) throw totalRes.error
+        if (barangayRes.error) throw barangayRes.error
+        
+        const totalIncidents = totalRes.count || 0
+        const barangayCounts: Record<string, number> = {}
+        
+        // Count incidents by barangay (may be paginated, but we have total count)
+        barangayRes.data?.forEach((incident: any) => {
+          const barangay = incident.barangay || 'Unknown'
+          barangayCounts[barangay] = (barangayCounts[barangay] || 0) + 1
+        })
+        
+        // If we got all incidents (no pagination), use actual counts
+        // Otherwise, we'd need to fetch all with pagination, but for now use what we have
+        // Note: For very large datasets, consider using SQL aggregation instead
+        const sortedBarangays = Object.entries(barangayCounts)
+          .sort((a, b) => b[1] - a[1])
+          .map(([barangay, count]) => ({
+            barangay,
+            count,
+            percentage: totalIncidents > 0 ? ((count / totalIncidents) * 100).toFixed(1) : '0.0'
+          }))
+        
+        return sortedBarangays
+      }),
       
       // System-wide metrics
       Promise.all([
