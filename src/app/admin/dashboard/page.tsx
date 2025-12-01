@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback } from "react"
 import Link from "next/link"
-import { AlertTriangle, BellRing, CalendarDays, User, Users, BarChart3, MapPin, Clock, MessageSquare } from "lucide-react"
+import { AlertTriangle, BellRing, CalendarDays, User, Users, BarChart3, MapPin, Clock, MessageSquare, CheckCircle } from "lucide-react"
 import { AdminLayout } from "@/components/layout/admin-layout"
 import { useAuth } from "@/lib/auth"
 import { getAllIncidents, subscribeToIncidents } from "@/lib/incidents"
@@ -106,9 +106,10 @@ export default function AdminDashboard() {
     return () => clearTimeout(t)
   }, [])
 
-  const pendingCount = incidents.filter((i) => i.status === "PENDING").length
-  const assignedCount = incidents.filter((i) => i.status === "ASSIGNED").length
-  const respondingCount = incidents.filter((i) => i.status === "RESPONDING").length
+  // Use summary data from API for accurate counts, fallback to incidents array if summary not available
+  const pendingCount = summary?.pending_count ?? incidents.filter((i) => i.status === "PENDING").length
+  const assignedCount = summary?.assigned_count ?? incidents.filter((i) => i.status === "ASSIGNED").length
+  const respondingCount = summary?.responding_count ?? incidents.filter((i) => i.status === "RESPONDING").length
   const resolvedCount = incidents.filter((i) => i.status === "RESOLVED").length
 
   const activeVolunteers = volunteers.filter(
@@ -307,14 +308,14 @@ export default function AdminDashboard() {
                     icon={<Users className="h-4 w-4" />}
                   />
                   <StatWidget
-                    title="Active Volunteers"
-                    value={adminMetrics.systemMetrics.activeVolunteers}
-                    description="Available for incidents"
-                    icon={<User className="h-4 w-4" />}
+                    title="Resolved Today"
+                    value={summary?.resolved_today_count ?? 0}
+                    description="Incidents resolved today"
+                    icon={<CheckCircle className="h-4 w-4" />}
                   />
                   <StatWidget
                     title="Total Incidents"
-                    value={adminMetrics.systemMetrics.totalIncidents}
+                    value={summary?.total_incidents ?? adminMetrics.systemMetrics.totalIncidents}
                     description="All reported incidents"
                     icon={<BellRing className="h-4 w-4" />}
                   />

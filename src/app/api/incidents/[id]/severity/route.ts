@@ -163,7 +163,8 @@ export async function PATCH(
     // Update incident severity (and keep priority in sync) with conditional check to prevent concurrent updates
     const newPriority = mapSeverityToPriority(severity)
 
-    const { data: updatedIncident, error: updateError }: any = await (supabase as any)
+    // Build update query with proper conditional check for volunteers
+    let updateQuery = (supabase as any)
       .from('incidents')
       .update({ 
         severity,
@@ -171,8 +172,13 @@ export async function PATCH(
         updated_at: new Date().toISOString()
       })
       .eq('id', params.id)
-      // For volunteers, ensure status is still ARRIVED (additional safety check)
-      .eq((user as any).role === 'volunteer' ? 'status' : 'id', (user as any).role === 'volunteer' ? 'ARRIVED' : params.id)
+    
+    // For volunteers, ensure status is still ARRIVED (additional safety check to prevent race conditions)
+    if (user.role === 'volunteer') {
+      updateQuery = updateQuery.eq('status', 'ARRIVED')
+    }
+    
+    const { data: updatedIncident, error: updateError }: any = await updateQuery
       .select()
       .single()
     
