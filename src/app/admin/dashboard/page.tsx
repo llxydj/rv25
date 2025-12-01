@@ -33,6 +33,7 @@ export default function AdminDashboard() {
     pending_count: number
     assigned_count: number
     responding_count: number
+    arrived_count: number
     resolved_today_count: number
   } | null>(null)
   const [statistics, setStatistics] = useState<{
@@ -110,6 +111,7 @@ export default function AdminDashboard() {
   const pendingCount = summary?.pending_count ?? incidents.filter((i) => i.status === "PENDING").length
   const assignedCount = summary?.assigned_count ?? incidents.filter((i) => i.status === "ASSIGNED").length
   const respondingCount = summary?.responding_count ?? incidents.filter((i) => i.status === "RESPONDING").length
+  const arrivedCount = summary?.arrived_count ?? incidents.filter((i) => i.status === "ARRIVED").length
   const resolvedCount = incidents.filter((i) => i.status === "RESOLVED").length
 
   const activeVolunteers = volunteers.filter(
@@ -212,7 +214,7 @@ export default function AdminDashboard() {
                       Active Incidents
                     </p>
                     <p className="text-2xl md:text-3xl font-bold text-blue-600 dark:text-blue-500">
-                      {assignedCount + respondingCount}
+                      {assignedCount + respondingCount + arrivedCount}
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                       In progress
