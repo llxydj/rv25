@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getServerSupabase } from '@/lib/supabase-server';
 import { analyticsCache } from './cache';
+import { cacheManager } from '@/lib/cache-manager';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -227,21 +228,23 @@ export async function GET(request: Request) {
 
       // Normalize fields to match frontend expectations
       const normalized = {
-        volunteer_id: result.data.volunteer_user_id || result.data.volunteer_id,
+        volunteer_id: result.data?.volunteer_user_id || result.data?.volunteer_id || '',
         volunteer_name:
-          result.data.volunteer_name ||
-          `${result.data.first_name || ''} ${result.data.last_name || ''}`.trim(),
-        total_incidents: result.data.total_incidents ?? 0,
-        total_resolved: result.data.total_resolved ?? 0,
-        average_response_time_minutes: result.data.average_response_time_minutes ?? null,
-        incidents_by_type: result.data.incidents_by_type ?? {},
-        incidents_by_severity: result.data.incidents_by_severity ?? {},
-        incidents_by_status: result.data.incidents_by_status ?? {},
-        incidents_by_barangay: result.data.incidents_by_barangay ?? {}
+          result.data?.volunteer_name ||
+          `${result.data?.first_name || ''} ${result.data?.last_name || ''}`.trim(),
+        total_incidents: result.data?.total_incidents ?? 0,
+        total_resolved: result.data?.total_resolved ?? 0,
+        average_response_time_minutes: result.data?.average_response_time_minutes ?? null,
+        incidents_by_type: result.data?.incidents_by_type ?? {},
+        incidents_by_severity: result.data?.incidents_by_severity ?? {},
+        incidents_by_status: result.data?.incidents_by_status ?? {},
+        incidents_by_barangay: result.data?.incidents_by_barangay ?? {}
       };
 
-      // Cache 5 min
+      // Enhanced caching with cache manager
       if (exportFormat !== 'csv') {
+        const cacheKey = `analytics:${volunteerId}:${startDate || 'all'}:${endDate || 'all'}`;
+        cacheManager.set(cacheKey, normalized, { ttl: 5 * 60 * 1000 }); // 5 minutes
         analyticsCache.set(volunteerId, normalized, 5 * 60 * 1000, startDate, endDate);
       }
 

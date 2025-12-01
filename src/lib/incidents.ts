@@ -542,7 +542,7 @@ export const createIncident = async (
     const payload: any = {
       reporter_id: reporterId,
       incident_type: incidentType,
-      description: description && description.trim() ? description.trim() : '', // Database requires NOT NULL, so use empty string instead of null
+      description: description && description.trim() ? description.trim() : '', // Database requires NOT NULL, so use empty string for empty descriptions
       location_lat: locationLat || 10.2465,
       location_lng: locationLng || 122.9735,
       address: address && address.trim() ? address.trim() : null,

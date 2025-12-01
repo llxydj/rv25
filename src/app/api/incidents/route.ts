@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@/types/supabase'
 import { IncidentCreateSchema } from '@/lib/validation'
 import { rateKeyFromRequest, rateLimitAllowed } from '@/lib/rate-limit'
 import { isWithinTalisayCity } from '@/lib/geo-utils'
@@ -82,7 +83,7 @@ async function getKnownBarangaysCached(client: SupabaseClient): Promise<string[]
     if (error) {
       console.warn('Failed to refresh barangay cache:', error)
     }
-  } catch (err) {
+  } catch (err: unknown) {
     console.warn('Barangay cache refresh threw:', err)
   }
 
@@ -231,7 +232,7 @@ export async function PUT(request: Request) {
       .single()
     if (readErr) throw readErr
 
-    const update: any = {}
+    const update: Database['public']['Tables']['incidents']['Update'] = {}
     if (incident_type) update.incident_type = String(incident_type).toUpperCase()
     if (typeof description === 'string') update.description = description.trim()
     if (typeof location_lat === 'number') update.location_lat = location_lat
@@ -257,7 +258,6 @@ export async function PUT(request: Request) {
     if (resolved_at !== undefined) update.resolved_at = resolved_at
     if (resolution_notes !== undefined) update.resolution_notes = resolution_notes
 
-    // @ts-ignore - Type issue with supabase update
     const { data, error } = await supabase
       .from('incidents')
       .update(update)
@@ -345,7 +345,7 @@ export async function PUT(request: Request) {
               new_status: status,
               notes: typeof notes === 'string' ? notes : null
             } as any)
-        } catch (err) {
+        } catch (err: unknown) {
           console.error('Failed to record incident_updates:', err)
         }
       }
@@ -535,7 +535,7 @@ export async function POST(request: Request) {
       ? photo_urls
       : (photo_url ? [photo_url] : [])
 
-    const processedPhotoPaths: string[] = []
+    let processedPhotoPaths: string[] = []
 
     const ensurePhotoPath = async (storedPath: string): Promise<string> => {
       const cleanedPath = storedPath.trim()
@@ -587,7 +587,7 @@ export async function POST(request: Request) {
         }
 
         return processedPath
-      } catch (err) {
+      } catch (err: unknown) {
         // If copy fails, just use original path - don't block incident creation
         console.warn('Photo copy error, using original path:', err)
         return cleanedPath
@@ -613,17 +613,10 @@ export async function POST(request: Request) {
           const photoResults = await Promise.all(photoProcessingPromises)
           const processed = photoResults.filter((path): path is string => path !== null)
           
-          // Update incident with processed photo paths in background
-          if (processed.length > 0 && data?.id) {
-            await supabase
-              .from('incidents')
-              .update({
-                photo_url: processed[0],
-                photo_urls: processed
-              })
-              .eq('id', data.id)
-          }
-        } catch (err) {
+          // Note: Photo update will happen after incident is created (see below)
+          // Store processed paths for later update
+          processedPhotoPaths = processed
+        } catch (err: unknown) {
           console.warn('Background photo processing error (non-critical):', err)
         }
       })()
@@ -666,6 +659,20 @@ export async function POST(request: Request) {
     
     console.log(`✅ [SERVER] [${requestId}] Incident created with ID: ${data.id}`)
     
+    // Update incident with processed photo paths if any were processed
+    if (processedPhotoPaths.length > 0 && data?.id) {
+      await supabase
+        .from('incidents')
+        .update({
+          photo_url: processedPhotoPaths[0],
+          photo_urls: processedPhotoPaths
+        })
+        .eq('id', data.id)
+        .catch((err: unknown) => {
+          console.warn('⚠️ Failed to update incident with processed photos (non-critical):', err)
+        })
+    }
+    
     // CRITICAL: Log incident creation in timeline (was missing!)
     const timelineStart = Date.now()
     try {
@@ -700,7 +707,7 @@ export async function POST(request: Request) {
           .then(() => {
             console.log('✅ Incident address/barangay enriched from geocoding')
           })
-          .catch((err) => {
+          .catch((err: unknown) => {
             console.warn('⚠️ Failed to update incident with geocoding data (non-critical):', err)
           })
       }
@@ -753,7 +760,7 @@ export async function POST(request: Request) {
             if (typeof subscriptionObj === 'string') {
               try {
                 subscriptionObj = JSON.parse(subscriptionObj)
-              } catch (e) {
+              } catch (e: unknown) {
                 console.warn(`[push] Invalid subscription JSON for admin ${sub.user_id}:`, e)
                 return false
               }
@@ -783,7 +790,7 @@ export async function POST(request: Request) {
               if (typeof subscriptionObj === 'string') {
                 try {
                   subscriptionObj = JSON.parse(subscriptionObj)
-                } catch (e) {
+                } catch (e: unknown) {
                   subscriptionObj = null
                 }
               }
@@ -944,7 +951,7 @@ export async function POST(request: Request) {
               if (failureCount > 0) {
                 console.warn(`⚠️ Failed to send ${failureCount} push notification(s)`)
               }
-            }).catch((err) => {
+            }).catch((err: unknown) => {
               console.error('[push] Error in push notification background task:', err)
             })
             
@@ -1026,7 +1033,7 @@ export async function POST(request: Request) {
           console.log('Auto-assignment failed:', assignmentResult.message)
         }
       }
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Auto-assignment error:', err)
       // Don't fail the incident creation if auto-assignment fails
     }
@@ -1217,7 +1224,7 @@ export async function POST(request: Request) {
               }
             }
           }
-        } catch (err) {
+        } catch (err: unknown) {
           console.error('❌ SMS background error:', err)
           // Don't fail the incident creation if SMS fails
         }

@@ -199,7 +199,23 @@ export default function ResidentProfilePage() {
     try {
       setUploadingImage(true)
 
-      // Upload to Supabase Storage
+      // Optimize image before upload
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('user_id', user.id)
+      
+      const optimizeRes = await fetch('/api/images/optimize', {
+        method: 'POST',
+        body: formData
+      })
+      
+      if (!optimizeRes.ok) {
+        throw new Error('Image optimization failed')
+      }
+      
+      const { path: optimizedPath } = await optimizeRes.json()
+
+      // Upload optimized image to Supabase Storage
       const fileName = `${user.id}-${Date.now()}.jpg`
       const { error: uploadError } = await supabase.storage
         .from("profile-images")

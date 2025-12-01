@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth"
-import { Calendar, MapPin, Users, AlertCircle, CheckCircle, User, Clock, Filter, Facebook, ExternalLink, LogIn } from "lucide-react"
+import { Calendar, MapPin, Users, AlertCircle, CheckCircle, User, Clock, Filter, Share2 as Facebook, Link as ExternalLink, LogIn as LogInIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
@@ -213,7 +213,7 @@ export default function AnnouncementsPage() {
                   onClick={() => router.push('/login')}
                   className="w-full sm:w-auto bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white shadow-lg hover:shadow-xl transition-all duration-200 flex items-center gap-2 px-6 py-3 rounded-lg font-semibold"
                 >
-                  <LogIn className="h-5 w-5" />
+                  <LogInIcon className="h-5 w-5" />
                   <span className="hidden sm:inline">Login to Access</span>
                   <span className="sm:hidden">Login</span>
                 </Button>
@@ -276,7 +276,7 @@ export default function AnnouncementsPage() {
                   isCritical 
                     ? 'border-red-300 dark:border-red-700 shadow-red-100/50 dark:shadow-red-900/20' 
                     : 'border-gray-200 dark:border-gray-700'
-                } ${priorityConfig.pulse && isCritical ? 'animate-pulse' : ''}`}
+                } ${(priorityConfig as any).pulse && isCritical ? 'animate-pulse' : ''}`}
               >
                 <CardHeader className="pb-3">
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
@@ -287,7 +287,7 @@ export default function AnnouncementsPage() {
                           {typeConfig.label}
                         </Badge>
                         <Badge className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${priorityConfig.color}`}>
-                          <span className={`h-2 w-2 rounded-full ${priorityConfig.dotColor} ${priorityConfig.pulse ? 'animate-pulse' : ''}`}></span>
+                          <span className={`h-2 w-2 rounded-full ${priorityConfig.dotColor} ${(priorityConfig as any).pulse ? 'animate-pulse' : ''}`}></span>
                           {priorityConfig.label} Priority
                         </Badge>
                       </div>
@@ -451,7 +451,7 @@ export default function AnnouncementsPage() {
                     onClick={() => router.push('/login')}
                     className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white shadow-lg hover:shadow-xl transition-all duration-200 flex items-center gap-2 px-8 py-3 rounded-lg font-semibold mx-auto"
                   >
-                    <LogIn className="h-5 w-5" />
+                    <LogInIcon className="h-5 w-5" />
                     Login Now
                   </Button>
                 </CardContent>

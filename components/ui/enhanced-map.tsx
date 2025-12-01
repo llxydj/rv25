@@ -40,8 +40,19 @@ const EnhancedMapComponent: React.FC<EnhancedMapProps> = ({
   className,
   onMapClick,
 }) => {
-  const handleMapClick = (e: L.LeafletMouseEvent) => {
-    onMapClick?.({ lat: e.latlng.lat, lng: e.latlng.lng })
+  const MapClickHandler = () => {
+    const map = useMap()
+    React.useEffect(() => {
+      if (!onMapClick) return
+      const handleClick = (e: L.LeafletMouseEvent) => {
+        onMapClick({ lat: e.latlng.lat, lng: e.latlng.lng })
+      }
+      map.on('click', handleClick)
+      return () => {
+        map.off('click', handleClick)
+      }
+    }, [map, onMapClick])
+    return null
   }
 
   return (
@@ -65,9 +76,6 @@ const EnhancedMapComponent: React.FC<EnhancedMapProps> = ({
             }
           }, 100)
         }}
-        eventHandlers={{
-          click: handleMapClick,
-        }}
       >
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -75,6 +83,7 @@ const EnhancedMapComponent: React.FC<EnhancedMapProps> = ({
         />
         
         <RecenterMap center={center} />
+        {onMapClick && <MapClickHandler />}
         
         {markers.map((marker, index) => (
           <Marker 

@@ -34,9 +34,9 @@ interface Incident {
   location_lng: number
   address: string | null
   barangay: string
-  status: string
-  priority: number
-  created_at: string
+  status: string | null
+  priority: number | null
+  created_at: string | null
   resolved_at: string | null
 }
 
@@ -93,7 +93,12 @@ export default function UserDetailsPage({ params }: { params: { id: string } }) 
           
           if (incidentsError) throw incidentsError
           
-          setIncidents(incidentsData || [])
+          setIncidents((incidentsData || []).map(incident => ({
+            ...incident,
+            status: incident.status ?? 'PENDING',
+            priority: incident.priority ?? 3,
+            created_at: incident.created_at ?? new Date().toISOString()
+          })))
         } else if (userObj.role === "volunteer") {
           const { data: incidentsData, error: incidentsError } = await supabase
             .from("incidents")
@@ -103,7 +108,12 @@ export default function UserDetailsPage({ params }: { params: { id: string } }) 
           
           if (incidentsError) throw incidentsError
           
-          setIncidents(incidentsData || [])
+          setIncidents((incidentsData || []).map(incident => ({
+            ...incident,
+            status: incident.status ?? 'PENDING',
+            priority: incident.priority ?? 3,
+            created_at: incident.created_at ?? new Date().toISOString()
+          })))
         }
 
         // Fetch statistics

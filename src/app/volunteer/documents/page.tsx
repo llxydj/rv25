@@ -124,7 +124,7 @@ export default function VolunteerDocumentsPage() {
   }
 
   useEffect(() => {
-    const groupNames = GROUPS as GroupName[]
+    const groupNames = [...GROUPS] as GroupName[]
     groupNames.forEach((g) => {
       if (!openGroups[g]) return
       if (prefetchingGroup[g]) return

@@ -24,6 +24,7 @@ import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/components/ui/use-toast"
 import { LocationTrackingToggle } from "@/components/volunteer/location-tracking-toggle"
 import { PushNotificationToggle } from "@/components/push-notification-toggle"
+import { PermissionRequestModal } from "@/components/permission-request-modal"
 
 interface Schedule {
   id: string;
@@ -842,6 +843,9 @@ export default function VolunteerDashboard() {
           </>
         )}
       </div>
+      
+      {/* Permission Request Modal - shows once per user */}
+      <PermissionRequestModal />
     </VolunteerLayout>
   )
 }

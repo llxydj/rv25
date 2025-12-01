@@ -208,7 +208,7 @@ export default function AdminNotificationsPage() {
                       </div>
                       <p className="text-sm text-gray-600 mb-2">{notification.body}</p>
                       <div className="flex items-center gap-4 text-xs text-gray-500">
-                        <span>{new Date(notification.created_at).toLocaleString()}</span>
+                        <span>{notification.created_at ? new Date(notification.created_at).toLocaleString() : 'N/A'}</span>
                         {notification.read_at && (
                           <span className="flex items-center gap-1">
                             <CheckCircle className="h-3 w-3" />

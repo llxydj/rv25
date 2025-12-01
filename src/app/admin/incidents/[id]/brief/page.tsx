@@ -154,12 +154,16 @@ export default function IncidentBriefPage() {
                   <div className="mt-4">
                     <h2 className="font-semibold mb-2">Photo Evidence</h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {photoGallery.map((photo, idx) => (
-                        <img
+                      {photoGallery.map((photo: string, idx: number) => (
+                        <Image
                           key={`${photo}-${idx}`}
                           src={photo}
                           alt={`Incident photo ${idx + 1}`}
+                          width={800}
+                          height={600}
                           className="max-w-full rounded border object-contain"
+                          loading="lazy"
+                          quality={85}
                         />
                       ))}
                     </div>

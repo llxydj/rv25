@@ -20,9 +20,9 @@ import { ChevronLeft, ChevronRight } from "lucide-react"
 interface AuditLog {
   id: string
   action: string
-  details: string
-  user_id: string
-  created_at: string
+  details: string | null
+  user_id: string | null
+  created_at: string | null
   user_email?: string
 }
 
@@ -52,7 +52,7 @@ export default function UserAuditLogPage() {
         if (error) throw error
         
         // Get user emails for display
-        const userIds = Array.from(new Set(data.map(log => log.user_id)))
+        const userIds = Array.from(new Set(data.map(log => log.user_id).filter((id): id is string => id !== null)))
         const { data: usersData, error: usersError } = await supabase
           .from("users")
           .select("id, email")
@@ -69,7 +69,11 @@ export default function UserAuditLogPage() {
           }
         })
         
-        setAuditLogs(logsWithEmails)
+        setAuditLogs(logsWithEmails.map(log => ({
+          ...log,
+          details: log.details ?? '',
+          created_at: log.created_at ?? new Date().toISOString()
+        })))
         setTotalPages(Math.ceil((count || 0) / 20))
       } catch (error) {
         console.error("Error fetching audit logs:", error)

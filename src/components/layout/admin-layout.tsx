@@ -4,7 +4,7 @@ import type React from "react"
 import { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { AlertTriangle, Phone, User, X, Home, FileText, MapPin, Calendar, BarChart3, Settings, Bell, MessageSquare, ChevronDown, Power } from "lucide-react"
+import { AlertTriangle, Phone, User, X, Home, FileText, MapPin, Calendar, BarChart3, Settings, Bell, MessageSquare, ChevronDown, Power, Menu as MenuIcon, LogOut as LogOutIcon, LayoutDashboard as LayoutDashboardIcon } from "lucide-react"
 import { useNotificationsChannel } from '@/lib/use-notifications'
 import { signOut } from "@/lib/auth"
 import { AuthLayout } from "./auth-layout"

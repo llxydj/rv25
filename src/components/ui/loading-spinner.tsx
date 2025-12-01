@@ -1,7 +1,7 @@
 import type React from "react"
 
 interface LoadingSpinnerProps {
-  size?: "sm" | "md" | "lg"
+  size?: "xs" | "sm" | "md" | "lg"
   color?: string
   text?: string
   className?: string
@@ -14,6 +14,7 @@ export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
   className = ""
 }) => {
   const sizeClasses = {
+    xs: "w-3 h-3",
     sm: "w-4 h-4",
     md: "w-8 h-8",
     lg: "w-12 h-12",

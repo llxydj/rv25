@@ -15,6 +15,7 @@ import { MapPin, Navigation, Clock, Radio, Eye, EyeOff, TrendingUp as RouteIcon,
 import { GEOLOCATION_CONFIG } from "@/lib/geolocation-config"
 import Link from "next/link"
 import { createIncidentIcon, getIncidentColor } from "@/lib/map-icons"
+import { MapBoundsRestriction } from "@/components/ui/map-bounds-restriction"
 
 /**
  * Enhanced Volunteer Map with Phase 2 Features:
@@ -590,6 +591,9 @@ export function VolunteerMapEnhanced({
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
+            
+            {/* Restrict map bounds to geofence area - better UI/UX */}
+            <MapBoundsRestriction enabled={true} minZoom={11} maxZoom={18} />
 
             {/* Render markers with or without clustering */}
             {shouldCluster ? (

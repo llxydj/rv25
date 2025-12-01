@@ -50,7 +50,7 @@ export type FeedbackCreate = z.infer<typeof FeedbackCreateSchema>
 export const IncidentCreateSchema = z.object({
   reporter_id: z.string().uuid(),
   incident_type: z.string().min(1),
-  description: z.string().min(1).nullable().optional(), // Optional - can be null/empty
+  description: z.string().default(''), // Optional - allow empty string (DB requires NOT NULL, so empty string is used)
   location_lat: z.coerce.number().min(-90).max(90),
   location_lng: z.coerce.number().min(-180).max(180),
   address: z.string().transform(val => val === '' ? null : val).nullable().optional(),

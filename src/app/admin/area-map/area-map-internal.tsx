@@ -6,6 +6,7 @@ import "leaflet/dist/leaflet.css"
 import { TALISAY_CENTER, TALISAY_BOUNDARIES } from "@/lib/geo-utils"
 import { Badge } from "@/components/ui/badge"
 import { useEffect, useRef } from "react"
+import { MapBoundsRestriction } from "@/components/ui/map-bounds-restriction"
 
 // Fix for default marker icons
 if (typeof window !== 'undefined') {
@@ -208,6 +209,9 @@ export default function AreaMapInternal({ areas }: AreaMapInternalProps) {
         
         {/* City Boundary - using GeoJSON like other maps */}
         <TalisayCityBoundary />
+        
+        {/* Restrict map bounds to geofence area - better UI/UX */}
+        <MapBoundsRestriction enabled={true} minZoom={11} maxZoom={18} />
 
         {/* Area Circles */}
         {areas.map((area, idx) => (

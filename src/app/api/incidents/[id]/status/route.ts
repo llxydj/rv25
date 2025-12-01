@@ -40,7 +40,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     // Get current incident status
     const { data: currentIncident, error: fetchError } = await supabase
       .from('incidents')
-      .select('status, assigned_to, arrived_at')
+      .select('status, assigned_to')
       .eq('id', params.id)
       .single()
     
@@ -69,10 +69,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     // Auto-timestamp on resolution
     if (status === 'RESOLVED') {
       updateData.resolved_at = new Date().toISOString()
-      // If arrived_at is not set, set it now (in case status went directly to RESOLVED)
-      if (!(currentIncident as any)?.arrived_at) {
-        updateData.arrived_at = new Date().toISOString()
-      }
+      // Note: arrived_at column doesn't exist in schema, removed
     }
     
     // Update incident status
@@ -129,9 +126,11 @@ export async function PATCH(request: Request, { params }: { params: { id: string
             .from('volunteer_activity_logs')
             .insert({
               volunteer_id: currentIncident.assigned_to,
-              incident_id: params.id,
-              action: 'incident_resolved',
-              details: {
+              activity_type: 'incident_resolved',
+              title: 'Incident Resolved',
+              description: `Resolved incident ${params.id}`,
+              metadata: {
+                incident_id: params.id,
                 response_time_minutes: responseTimeMinutes
               }
             })

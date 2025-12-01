@@ -41,11 +41,12 @@ export function PinGuard({ children }: PinGuardProps) {
           return
         }
 
-        // Check if PIN is enabled and needs setup
-        if (json.needsSetup) {
+        // Check if PIN is enabled and needs setup (including expired PINs)
+        if (json.needsSetup || json.pinExpired) {
           // Redirect to PIN setup
           const currentPath = pathname + (window.location.search || '')
-          router.push(`/pin/setup?redirect=${encodeURIComponent(currentPath)}`)
+          const expiredParam = json.pinExpired ? '&expired=true' : ''
+          router.push(`/pin/setup?redirect=${encodeURIComponent(currentPath)}${expiredParam}`)
           return
         }
 

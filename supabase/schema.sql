@@ -534,6 +534,7 @@ CREATE TABLE public.users (
   pin_hash text,
   pin_enabled boolean DEFAULT true,
   profile_image text,
+  pin_created_at timestamp with time zone,
   CONSTRAINT users_pkey PRIMARY KEY (id),
   CONSTRAINT users_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
 );

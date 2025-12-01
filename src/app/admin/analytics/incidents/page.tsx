@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { AdminLayout } from "@/components/layout/admin-layout"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
-import { FileText, Download, BarChart3, TrendingUp, Clock, MapPin, AlertCircle, Users } from "lucide-react"
+import { FileText, Download, BarChart3, TrendingUp, Clock, MapPin, AlertCircle, Users, CheckCircle } from "lucide-react"
 import { toast } from "sonner"
 import { CITIES, getBarangays } from "@/lib/locations"
 import {
@@ -271,7 +271,7 @@ export default function IncidentAnalyticsPage() {
             {/* Key Metrics */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <MetricCard title="Total Incidents" value={analytics.summary.total_incidents} icon={<FileText />} color="blue" />
-              <MetricCard title="Resolved" value={analytics.summary.resolved} icon={<CheckCircle />} color="green" />
+              <MetricCard title="Resolved" value={analytics.summary.resolved} icon={<CheckCircle className="h-5 w-5" />} color="green" />
               <MetricCard title="Resolution Rate" value={`${analytics.summary.resolution_rate.toFixed(1)}%`} icon={<TrendingUp />} color="green" />
               <MetricCard title="Avg Response Time" value={`${analytics.summary.response_time.average} min`} icon={<Clock />} color="orange" />
             </div>

@@ -132,7 +132,8 @@ export async function POST(request: NextRequest) {
 // Get feedback for incident
 export async function GET(request: NextRequest) {
   try {
-    const rate = rateLimitAllowed(rateKeyFromRequest(request, 'feedback:get'), 60)
+    // Increased limit for GET requests (read-only, less critical) - 120 requests per minute
+    const rate = rateLimitAllowed(rateKeyFromRequest(request, 'feedback:get'), 120)
     if (!rate.allowed) {
       return NextResponse.json(
         { success: false, message: 'Rate limit exceeded' },

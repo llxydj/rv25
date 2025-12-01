@@ -1,34 +1,35 @@
 "use client"
 
 import { useEffect, useState, useMemo } from "react"
+import dynamic from "next/dynamic"
 import { AdminLayout } from "@/components/layout/admin-layout"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import { useAuth } from "@/lib/auth"
 import { getAllVolunteers } from "@/lib/volunteers"
 import { 
   BarChart3, User, Calendar, CheckCircle, XCircle, TrendingUp, FileText, Award, 
-  Clock, MapPin, AlertTriangle, Activity, Target, Zap, Download, Lightbulb,
-  TrendingDown, AlertCircle, Star, Award as AwardIcon, Brain, ArrowUp, ArrowDown, Minus
+  Clock, MapPin, AlertTriangle, Activity, Crosshair as Target, Zap, Download, Lightbulb as LightbulbIcon,
+  TrendingDown as TrendingDownIcon, AlertCircle, Star, Award as AwardIcon, Brain as BrainIcon, ChevronUp as ArrowUp, ChevronDown as ArrowDown, Minus as MinusIcon
 } from "lucide-react"
+
+// Lazy-load heavy chart components
+const BarChart = dynamic(() => import('recharts').then(mod => mod.BarChart), { ssr: false })
+const LineChart = dynamic(() => import('recharts').then(mod => mod.LineChart), { ssr: false })
+const PieChart = dynamic(() => import('recharts').then(mod => mod.PieChart), { ssr: false })
+const ResponsiveContainer = dynamic(() => import('recharts').then(mod => mod.ResponsiveContainer), { ssr: false })
+const Bar = dynamic(() => import('recharts').then(mod => mod.Bar), { ssr: false })
+const Line = dynamic(() => import('recharts').then(mod => mod.Line), { ssr: false })
+const Pie = dynamic(() => import('recharts').then(mod => mod.Pie), { ssr: false })
+const Cell = dynamic(() => import('recharts').then(mod => mod.Cell), { ssr: false })
+const XAxis = dynamic(() => import('recharts').then(mod => mod.XAxis), { ssr: false })
+const YAxis = dynamic(() => import('recharts').then(mod => mod.YAxis), { ssr: false })
+const CartesianGrid = dynamic(() => import('recharts').then(mod => mod.CartesianGrid), { ssr: false })
+const Tooltip = dynamic(() => import('recharts').then(mod => mod.Tooltip), { ssr: false })
+const Legend = dynamic(() => import('recharts').then(mod => mod.Legend), { ssr: false })
+const AreaChart = dynamic(() => import('recharts').then(mod => mod.AreaChart), { ssr: false })
+const Area = dynamic(() => import('recharts').then(mod => mod.Area), { ssr: false })
 import { toast } from "sonner"
 import { VolunteerInsightsCard } from "@/components/admin/volunteer-insights-card"
-import {
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  AreaChart,
-  Area
-} from "recharts"
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658']
 
@@ -102,12 +103,14 @@ export default function VolunteerAnalyticsPage() {
     ? Object.entries(analytics.incidents.by_severity).map(([name, value]) => ({ name, value }))
     : []
 
-  const incidentsByBarangayData = analytics?.incidents?.by_barangay
-    ? Object.entries(analytics.incidents.by_barangay)
-        .map(([name, value]) => ({ name, value }))
-        .sort((a, b) => b.value - a.value)
-        .slice(0, 10)
-    : []
+  const incidentsByBarangayData = useMemo(() => {
+    return analytics?.incidents?.by_barangay
+      ? Object.entries(analytics.incidents.by_barangay)
+          .map(([name, value]) => ({ name, value }))
+          .sort((a, b) => (b.value as number) - (a.value as number))
+          .slice(0, 10)
+      : []
+  }, [analytics?.incidents?.by_barangay])
 
   const dailyTrendData = analytics?.incidents?.daily_trend || []
   const weeklyTrendData = analytics?.incidents?.weekly_trend || []
@@ -263,7 +266,7 @@ export default function VolunteerAnalyticsPage() {
                   <FileText className="h-8 w-8 opacity-80" />
                   {trendDirection === 'increasing' && <ArrowUp className="h-5 w-5 opacity-80" />}
                   {trendDirection === 'decreasing' && <ArrowDown className="h-5 w-5 opacity-80" />}
-                  {trendDirection === 'stable' && <Minus className="h-5 w-5 opacity-80" />}
+                  {trendDirection === 'stable' && <MinusIcon className="h-5 w-5 opacity-80" />}
                 </div>
                 <div className="text-3xl font-bold mb-1">{analytics.incidents.total}</div>
                 <div className="text-sm opacity-90">Total Incidents</div>
@@ -324,13 +327,13 @@ export default function VolunteerAnalyticsPage() {
                 {analytics.insights && analytics.insights.length > 0 && (
                   <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
-                      <Lightbulb className="h-5 w-5 text-yellow-600" />
+                      <LightbulbIcon className="h-5 w-5 text-yellow-600" />
                       Data Insights & Patterns
                     </h3>
                     <div className="space-y-3">
                       {analytics.insights.map((insight: string, index: number) => (
                         <div key={index} className="flex items-start gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                          <Brain className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+                          <BrainIcon className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
                           <p className="text-sm text-gray-700 dark:text-gray-300">{insight}</p>
                         </div>
                       ))}
@@ -376,7 +379,7 @@ export default function VolunteerAnalyticsPage() {
                       }`}>
                         {trendDirection === 'increasing' && <ArrowUp className="h-4 w-4" />}
                         {trendDirection === 'decreasing' && <ArrowDown className="h-4 w-4" />}
-                        {trendDirection === 'stable' && <Minus className="h-4 w-4" />}
+                        {trendDirection === 'stable' && <MinusIcon className="h-4 w-4" />}
                         {trendDirection.charAt(0).toUpperCase() + trendDirection.slice(1)} Trend
                       </div>
                     )}
@@ -547,7 +550,7 @@ export default function VolunteerAnalyticsPage() {
                     </LineChart>
                   </ResponsiveContainer>
                   {hourlyPatternData.length > 0 && (() => {
-                    const peakHour = hourlyPatternData.reduce((max, item) => 
+                    const peakHour = hourlyPatternData.reduce((max: { hour: number; count: number }, item: { hour: number; count: number }) => 
                       item.count > max.count ? item : max, hourlyPatternData[0]
                     )
                     return (
@@ -656,7 +659,7 @@ export default function VolunteerAnalyticsPage() {
                     {incidentsByBarangayData.slice(0, 5).map((item, index) => (
                       <div key={index} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded">
                         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{item.name}</span>
-                        <span className="text-sm font-bold text-blue-600 dark:text-blue-400">{item.value}</span>
+                        <span className="text-sm font-bold text-blue-600 dark:text-blue-400">{String(item.value)}</span>
                       </div>
                     ))}
                   </div>

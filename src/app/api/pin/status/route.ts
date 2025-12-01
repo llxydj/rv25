@@ -18,7 +18,7 @@ export async function GET() {
     // Fetch user
     const { data: userData, error: userError } = await supabase
       .from('users')
-      .select('role, pin_hash, pin_enabled, status')
+      .select('role, pin_hash, pin_enabled, status, pin_created_at')
       .eq('id', userId)
       .single()
 
@@ -41,6 +41,22 @@ export async function GET() {
 
     const pinEnabled = userData.pin_enabled !== false
     const hasPin = !!userData.pin_hash
+    
+    // Check if PIN has expired (15 days from creation)
+    let pinExpired = false
+    let daysUntilExpiry: number | null = null
+    if (hasPin && userData.pin_created_at) {
+      const pinCreatedDate = new Date(userData.pin_created_at)
+      const now = new Date()
+      const daysSinceCreation = (now.getTime() - pinCreatedDate.getTime()) / (1000 * 60 * 60 * 24)
+      const PIN_VALIDITY_DAYS = 15
+      
+      if (daysSinceCreation >= PIN_VALIDITY_DAYS) {
+        pinExpired = true
+      } else {
+        daysUntilExpiry = Math.floor(PIN_VALIDITY_DAYS - daysSinceCreation)
+      }
+    }
 
     // Check if account is locked
     const { data: attemptData } = await supabase
@@ -57,10 +73,13 @@ export async function GET() {
       success: true,
       enabled: pinEnabled,
       hasPin,
-      needsSetup: pinEnabled && !hasPin,
+      needsSetup: pinEnabled && (!hasPin || pinExpired), // Need setup if no PIN or PIN expired
       isLocked,
       lockedUntil: attemptData?.locked_until || null,
-      failedAttempts: attemptData?.attempt_count || 0
+      failedAttempts: attemptData?.attempt_count || 0,
+      pinExpired,
+      daysUntilExpiry,
+      pinCreatedAt: userData.pin_created_at || null
     })
   } catch (error: any) {
     console.error('PIN status error:', error)

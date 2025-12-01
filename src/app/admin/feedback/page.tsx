@@ -73,30 +73,60 @@ export default function AdminFeedbackPage() {
         const incidents = incidentsResult.data || []
         const allFeedback: FeedbackItem[] = []
 
-        // Fetch feedback for each incident
-        for (const incident of incidents) {
-          try {
-            const feedbackResponse = await fetch(`/api/feedback?incident_id=${incident.id}`)
-            const feedbackResult = await feedbackResponse.json()
-
-            if (feedbackResult.success && feedbackResult.data) {
-              feedbackResult.data.forEach((fb: any) => {
-                allFeedback.push({
-                  ...fb,
-                  incident: {
-                    incident_type: incident.incident_type,
-                    barangay: incident.barangay,
-                    status: incident.status,
-                    assigned_to: incident.assigned_to ? {
-                      first_name: incident.assigned_to.first_name,
-                      last_name: incident.assigned_to.last_name
-                    } : undefined
-                  }
-                })
-              })
+        // Batch fetch feedback to avoid rate limiting
+        // Process in batches of 10 with small delays between batches
+        const BATCH_SIZE = 10
+        for (let i = 0; i < incidents.length; i += BATCH_SIZE) {
+          const batch = incidents.slice(i, i + BATCH_SIZE)
+          
+          // Fetch feedback for batch in parallel
+          const batchPromises = batch.map(async (incident) => {
+            try {
+              const feedbackResponse = await fetch(`/api/feedback?incident_id=${incident.id}`)
+              if (!feedbackResponse.ok) {
+                if (feedbackResponse.status === 429) {
+                  // Rate limited - wait and retry once
+                  await new Promise(resolve => setTimeout(resolve, 2000))
+                  const retryResponse = await fetch(`/api/feedback?incident_id=${incident.id}`)
+                  if (!retryResponse.ok) return null
+                  const retryResult = await retryResponse.json()
+                  return { incident, feedback: retryResult.success ? retryResult.data : [] }
+                }
+                return null
+              }
+              const feedbackResult = await feedbackResponse.json()
+              return { incident, feedback: feedbackResult.success ? feedbackResult.data : [] }
+            } catch (err) {
+              console.error(`Error fetching feedback for incident ${incident.id}:`, err)
+              return null
             }
-          } catch (err) {
-            console.error(`Error fetching feedback for incident ${incident.id}:`, err)
+          })
+          
+          const batchResults = await Promise.all(batchPromises)
+          
+          // Process results
+          batchResults.forEach((result) => {
+            if (!result || !result.feedback) return
+            
+            result.feedback.forEach((fb: any) => {
+              allFeedback.push({
+                ...fb,
+                incident: {
+                  incident_type: result.incident.incident_type,
+                  barangay: result.incident.barangay,
+                  status: result.incident.status,
+                  assigned_to: result.incident.assigned_to ? {
+                    first_name: result.incident.assigned_to.first_name,
+                    last_name: result.incident.assigned_to.last_name
+                  } : undefined
+                }
+              })
+            })
+          })
+          
+          // Small delay between batches to avoid rate limiting
+          if (i + BATCH_SIZE < incidents.length) {
+            await new Promise(resolve => setTimeout(resolve, 500))
           }
         }
 

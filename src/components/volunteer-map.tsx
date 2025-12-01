@@ -5,6 +5,7 @@ import { MapContainer, TileLayer, Marker, Popup, Polygon } from "react-leaflet"
 import L from "leaflet"
 import "leaflet/dist/leaflet.css"
 import { TALISAY_CENTER, pointInPolygon } from "@/lib/geo-utils"
+import { MapBoundsRestriction } from "@/components/ui/map-bounds-restriction"
 import { supabase } from "@/lib/supabase"
 
 // Isolated, additive VolunteerMap feature
@@ -234,6 +235,9 @@ export function VolunteerMap({ height = "420px", limit = 100 }: VolunteerMapProp
         {polygon.length > 3 && (
           <Polygon positions={polygon as any} pathOptions={{ color: "#2563eb", weight: 2, opacity: 0.9, fillOpacity: 0.08 }} />
         )}
+
+        {/* Restrict map bounds to geofence area - better UI/UX */}
+        {polygon.length > 3 && <MapBoundsRestriction enabled={true} minZoom={11} maxZoom={18} />}
 
         {/* Volunteer markers */}
         {volunteers.map((v) => {

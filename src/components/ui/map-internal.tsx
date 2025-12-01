@@ -83,6 +83,7 @@ import { locationTrackingService, LocationData } from "@/lib/location-tracking"
 import { useRealtimeVolunteerLocations } from "@/hooks/use-realtime-volunteer-locations"
 import { createCustomIcon, getIncidentColor, createVolunteerIcon, createUserIcon } from "@/lib/map-icons"
 import { FitBoundsToMarkers } from "./map-fit-bounds"
+import { MapBoundsRestriction } from "./map-bounds-restriction"
 
 // Keep the same props interface
 interface MapComponentProps {
@@ -604,6 +605,9 @@ const MapInternal: React.FC<MapComponentProps> = ({
         {/* Talisay City boundary */}
         {showBoundary && <TalisayCityBoundary />}
         
+        {/* Restrict map bounds to geofence area - better UI/UX */}
+        {showBoundary && <MapBoundsRestriction enabled={true} minZoom={11} maxZoom={18} />}
+        
         {/* Map click handler */}
         <MapClickHandler onMapClick={onMapClick} />
         
@@ -755,4 +759,7 @@ const MapInternal: React.FC<MapComponentProps> = ({
   )
 }
 
-export default memo(MapInternal)
+const MemoizedMapInternal = memo(MapInternal)
+MemoizedMapInternal.displayName = 'MapInternal'
+
+export default MemoizedMapInternal

@@ -471,6 +471,7 @@ export const getVolunteerById = async (volunteerId: string) => {
           updated_at,
           last_status_change,
           last_status_changed_by,
+          last_active_at,
           admin_user_id
         )
       `)
@@ -490,10 +491,10 @@ export const getVolunteerById = async (volunteerId: string) => {
 // Update volunteer activity status
 export const updateVolunteerActivityStatus = async (volunteerId: string, isActive: boolean) => {
   try {
-    // Update last_active in volunteer_profiles table
+    // Update last_active_at in volunteer_profiles table
     const { data, error } = await supabase
       .from('volunteer_profiles')
-      .update({ last_active: new Date().toISOString() })
+      .update({ last_active_at: new Date().toISOString() })
       .eq('volunteer_user_id', volunteerId)
       .select()
       .single()
@@ -512,7 +513,7 @@ export const updateVolunteerLastActive = async (volunteerId: string) => {
   try {
     const { data, error } = await supabase
       .from('volunteer_profiles')
-      .update({ last_active: new Date().toISOString() })
+      .update({ last_active_at: new Date().toISOString() })
       .eq('volunteer_user_id', volunteerId)
       .select()
       .single()

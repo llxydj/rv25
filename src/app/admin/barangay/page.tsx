@@ -12,9 +12,9 @@ interface BarangayUser {
   email: string
   first_name: string
   last_name: string
-  barangay: string
+  barangay: string | null
   phone_number: string | null
-  created_at: string
+  created_at: string | null
 }
 
 export default function BarangayListPage() {
@@ -34,7 +34,11 @@ export default function BarangayListPage() {
 
         if (error) throw error
 
-        setBarangayUsers(data || [])
+        setBarangayUsers((data || []).map(user => ({
+          ...user,
+          barangay: user.barangay ?? '',
+          created_at: user.created_at ?? new Date().toISOString()
+        })))
       } catch (err: any) {
         console.error("Error fetching barangay users:", err)
         setError(err.message)

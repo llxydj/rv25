@@ -18,6 +18,7 @@ export default function PinVerifyPage() {
   const [attemptsRemaining, setAttemptsRemaining] = useState<number | null>(null)
   const [isLocked, setIsLocked] = useState(false)
   const [lockedUntil, setLockedUntil] = useState<Date | null>(null)
+  const [hasError, setHasError] = useState(false)
   
   const inputRefs = useRef<(HTMLInputElement | null)[]>([])
 
@@ -39,6 +40,13 @@ export default function PinVerifyPage() {
         }
         
         const json = await res.json()
+        
+        // Check if PIN is expired
+        if (json.reason === 'pin_expired') {
+          // PIN expired, redirect to setup page
+          router.replace(`/pin/setup?redirect=${encodeURIComponent(redirectTo)}&expired=true`)
+          return
+        }
         
         if (json.verified) {
           // Already verified, redirect immediately
@@ -74,6 +82,12 @@ export default function PinVerifyPage() {
     const newPin = [...pin]
     newPin[index] = value
     setPin(newPin)
+    
+    // Clear error state when user starts typing
+    if (hasError) {
+      setHasError(false)
+      setError(null)
+    }
 
     // Auto-advance to next input
     if (value && index < 3 && inputRefs.current[index + 1]) {
@@ -96,13 +110,23 @@ export default function PinVerifyPage() {
 
   const handleSubmit = async () => {
     setError(null)
+    setHasError(false)
     setLoading(true)
 
     const pinString = pin.join('')
 
-    // Validate
-    if (pinString.length !== 4) {
+    // Validate PIN format
+    if (!pinString || pinString.length !== 4) {
       setError('Please enter a 4-digit PIN')
+      setHasError(true)
+      setLoading(false)
+      return
+    }
+
+    // Validate PIN contains only digits
+    if (!/^\d{4}$/.test(pinString)) {
+      setError('PIN must contain only numbers (0-9)')
+      setHasError(true)
       setLoading(false)
       return
     }
@@ -116,20 +140,74 @@ export default function PinVerifyPage() {
 
       const json = await res.json()
 
-      if (!json.success) {
+      if (!res.ok || !json.success) {
+        // Handle PIN expiration
+        if (json.pinExpired) {
+          setError(json.message || 'Your PIN has expired. Please create a new PIN.')
+          setHasError(true)
+          setPin(['', '', '', ''])
+          setLoading(false)
+          // Redirect to setup page after showing error
+          setTimeout(() => {
+            router.replace(`/pin/setup?redirect=${encodeURIComponent(redirectTo)}&expired=true`)
+          }, 2000)
+          return
+        }
+        
+        // Handle specific error codes
         if (json.locked) {
           setIsLocked(true)
           if (json.lockedUntil) {
             setLockedUntil(new Date(json.lockedUntil))
           }
-          setError(json.message || 'Account locked due to too many failed attempts')
-        } else {
-          setError(json.message || 'Invalid PIN')
+          setError(json.message || 'Account locked due to too many failed attempts. Please try again later.')
+          setHasError(true)
+        } else if (res.status === 400) {
+          setError(json.message || 'Invalid PIN format. Please enter 4 digits.')
+          setHasError(true)
           setAttemptsRemaining(json.attemptsRemaining ?? null)
           setPin(['', '', '', ''])
-          if (inputRefs.current[0]) {
-            inputRefs.current[0].focus()
+          setTimeout(() => {
+            if (inputRefs.current[0]) {
+              inputRefs.current[0].focus()
+            }
+          }, 100)
+        } else if (res.status === 401) {
+          setError(json.message || 'Invalid PIN. Please try again.')
+          setHasError(true)
+          setAttemptsRemaining(json.attemptsRemaining ?? null)
+          setPin(['', '', '', ''])
+          setTimeout(() => {
+            if (inputRefs.current[0]) {
+              inputRefs.current[0].focus()
+            }
+          }, 100)
+        } else if (res.status === 403) {
+          setError(json.message || 'PIN verification not available for your account type.')
+          setHasError(true)
+        } else if (res.status === 404) {
+          setError('User account not found. Please contact support.')
+          setHasError(true)
+        } else if (res.status === 429) {
+          setIsLocked(true)
+          if (json.lockedUntil) {
+            setLockedUntil(new Date(json.lockedUntil))
           }
+          setError(json.message || 'Too many attempts. Please try again later.')
+          setHasError(true)
+        } else if (res.status === 500) {
+          setError('Server error. Please try again in a moment.')
+          setHasError(true)
+        } else {
+          setError(json.message || 'Failed to verify PIN. Please try again.')
+          setHasError(true)
+          setAttemptsRemaining(json.attemptsRemaining ?? null)
+          setPin(['', '', '', ''])
+          setTimeout(() => {
+            if (inputRefs.current[0]) {
+              inputRefs.current[0].focus()
+            }
+          }, 100)
         }
         setLoading(false)
         return
@@ -173,12 +251,16 @@ export default function PinVerifyPage() {
       // Start checking after a small delay
       setTimeout(checkCookie, 150)
     } catch (err: any) {
-      setError(err.message || 'Failed to verify PIN. Please try again.')
+      const errorMessage = err.message || 'Network error. Please check your connection and try again.'
+      setError(errorMessage)
+      setHasError(true)
       setPin(['', '', '', ''])
       setLoading(false)
-      if (inputRefs.current[0]) {
-        inputRefs.current[0].focus()
-      }
+      setTimeout(() => {
+        if (inputRefs.current[0]) {
+          inputRefs.current[0].focus()
+        }
+      }, 100)
     }
   }
 
@@ -251,7 +333,11 @@ export default function PinVerifyPage() {
                     value={digit}
                     onChange={(e) => handlePinChange(index, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(index, e)}
-                    className="w-16 h-16 text-center text-2xl font-bold border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                    className={`w-16 h-16 text-center text-2xl font-bold border-2 rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white ${
+                      hasError 
+                        ? "border-red-500 dark:border-red-500 focus:ring-red-500 focus:border-red-500" 
+                        : "border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500"
+                    }`}
                     disabled={loading || isLocked}
                     autoFocus={index === 0}
                   />

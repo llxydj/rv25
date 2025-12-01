@@ -9,6 +9,7 @@ import { getResidentIncidents } from "@/lib/incidents"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import { MapComponent } from "@/components/ui/map-component"
 import { PushNotificationToggle } from "@/components/push-notification-toggle"
+import { PermissionRequestModal } from "@/components/permission-request-modal"
 
 export default function ResidentDashboard() {
   const { user } = useAuth()
@@ -279,6 +280,9 @@ export default function ResidentDashboard() {
           )}
         </div>
       </div>
+      
+      {/* Permission Request Modal - shows once per user */}
+      <PermissionRequestModal />
     </ResidentLayout>
   )
 }

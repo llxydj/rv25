@@ -19,17 +19,17 @@ import {
 import Link from "next/link"
 
 interface ScheduleStats {
-  scheduled_count: number
-  ongoing_count: number
-  completed_count: number
-  cancelled_count: number
-  accepted_count: number
-  declined_count: number
-  pending_response_count: number
-  upcoming_count: number
-  active_count: number
-  attendance_marked_count: number
-  total_count: number
+  scheduled_count: number | null
+  ongoing_count: number | null
+  completed_count: number | null
+  cancelled_count: number | null
+  accepted_count: number | null
+  declined_count: number | null
+  pending_response_count: number | null
+  upcoming_count: number | null
+  active_count: number | null
+  attendance_marked_count: number | null
+  total_count: number | null
 }
 
 export default function ActivityDashboardPage() {

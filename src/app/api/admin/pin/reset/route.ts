@@ -37,11 +37,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: 'targetUserId is required' }, { status: 400 })
     }
 
-    // Reset PIN for target user (clear hash, keep enabled so they must set new PIN)
+    // Reset PIN for target user (clear hash and creation date, keep enabled so they must set new PIN)
     const { error: updateError } = await supabaseAdmin
       .from('users')
       .update({ 
         pin_hash: null,
+        pin_created_at: null, // Clear creation date when resetting
         pin_enabled: true // Force them to set new PIN
       })
       .eq('id', targetUserId)

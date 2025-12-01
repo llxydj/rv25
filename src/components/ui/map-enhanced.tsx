@@ -9,6 +9,7 @@ import { TALISAY_CENTER, isWithinTalisayCity } from "@/lib/geo-utils"
 import { useRealtimeVolunteerLocations } from "@/hooks/use-realtime-volunteer-locations"
 import { RealtimeStatusIndicator } from "@/components/realtime-status-indicator"
 import { createCustomIcon as createSharedIcon, getIncidentColor as getSharedIncidentColor, createVolunteerIcon, createUserIcon, createTeardropPinIcon } from "@/lib/map-icons"
+import { MapBoundsRestriction } from "./map-bounds-restriction"
 
 // ------------------------------
 // Animated Marker
@@ -67,6 +68,14 @@ function TalisayCityBoundary() {
         // Check if map panes exist and are ready
         const panes = (map as any)._panes
         if (!panes || !panes.mapPane) return false
+        
+        // Check if map pane element exists and has position
+        const mapPane = panes.mapPane
+        if (!mapPane || !(mapPane as any)._leaflet_pos) return false
+        
+        // Check if map is not currently in a transition
+        const isTransitioning = (map as any)._zooming || (map as any)._animatingZoom
+        if (isTransitioning) return false
         
         return true
       } catch {
@@ -284,7 +293,58 @@ function RecenterMap({ center }: { center: [number, number] }) {
   const map = useMap()
 
   useEffect(() => {
-    map.setView(center, map.getZoom())
+    // Guard against accessing map when it's not ready or during transitions
+    if (!map || !map.getContainer || !map.setView) return
+    
+    // Helper to check if map panes are ready
+    const isMapReady = () => {
+      try {
+        const container = map.getContainer()
+        if (!container || !(container as any)._leaflet_id) return false
+        
+        // Check if map panes exist and are ready
+        const panes = (map as any)._panes
+        if (!panes || !panes.mapPane) return false
+        
+        // Check if map pane element exists and has position
+        const mapPane = panes.mapPane
+        if (!mapPane || !(mapPane as any)._leaflet_pos) return false
+        
+        // Check if map is not currently in a transition
+        const isTransitioning = (map as any)._zooming || (map as any)._animatingZoom
+        if (isTransitioning) return false
+        
+        return true
+      } catch {
+        return false
+      }
+    }
+    
+    // Use a small delay to ensure map is fully initialized
+    // This prevents errors during zoom transitions when DOM elements might not be ready
+    let retryTimeout: NodeJS.Timeout | null = null
+    const timeout = setTimeout(() => {
+      try {
+        if (isMapReady()) {
+          map.setView(center, map.getZoom())
+        } else {
+          // Retry once more if not ready
+          retryTimeout = setTimeout(() => {
+            if (isMapReady()) {
+              map.setView(center, map.getZoom())
+            }
+          }, 100)
+        }
+      } catch (err) {
+        // Silently ignore errors during map transitions
+        console.warn('[RecenterMap] Error setting view:', err)
+      }
+    }, 50)
+    
+    return () => {
+      clearTimeout(timeout)
+      if (retryTimeout) clearTimeout(retryTimeout)
+    }
   }, [center, map])
 
   return null
@@ -540,6 +600,9 @@ const MapInternal: React.FC<MapComponentProps> = ({
         {/* City boundary - using GeoJSON like map-internal.tsx */}
         {showBoundary && <TalisayCityBoundary />}
 
+        {/* Restrict map bounds to geofence area - better UI/UX */}
+        {showBoundary && <MapBoundsRestriction enabled={true} minZoom={11} maxZoom={18} />}
+
         {/* Geofence circles */}
         {showGeofence && (
           <>
@@ -630,5 +693,7 @@ const MapInternal: React.FC<MapComponentProps> = ({
     </div>
   )
 }
+
+MapInternal.displayName = 'MapInternal'
 
 export default memo(MapInternal)

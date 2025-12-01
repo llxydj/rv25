@@ -11,7 +11,6 @@ import { useAuth } from "@/lib/auth"
 import { createIncident, type CreateIncidentStage } from "@/lib/incidents"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import { MapComponent } from "@/components/ui/map-component"
-import { LocationTracker } from "@/components/location-tracker"
 import { isWithinTalisayCity, TALISAY_CENTER } from "@/lib/geo-utils"
 import { useToast } from "@/components/ui/use-toast"
 import { supabase } from "@/lib/supabase"
@@ -615,37 +614,25 @@ export default function ReportIncidentPage() {
   }
 
   const validateForm = () => {
-    // Step 1: Photo is REQUIRED (at least 1 photo)
-    // Photos are crucial - optimized for fast mobile upload
-    if (photoFiles.length === 0) {
-      setError("Please capture at least one photo of the incident");
-      return false;
-    }
-
-    // Step 2: Voice message is REQUIRED
-    if (!voiceBlob) {
-      setError("Please record a voice message describing the incident");
-      return false;
-    }
-
-    // Step 3: Location must be captured
+    // Location must be captured (REQUIRED)
     if (!location || !locationCaptured) {
-      setError("Please capture your location by clicking 'Use My Location' or clicking on the map");
+      setError("Please capture your location");
       return false;
     }
 
-    // Step 4: Barangay required
+    // Barangay required
     if (!formData.barangay) {
       setError("Please select a barangay");
       return false;
     }
 
-    // Step 5: Address required
+    // Address required
     if (!formData.address || formData.address.trim().length < 5) {
-      setError("Please provide a valid address (at least 5 characters)");
+      setError("Please provide a valid address");
       return false;
     }
 
+    // Photo and voice are OPTIONAL - no validation needed
     // Description is OPTIONAL - no validation needed
 
     // Clear any previous errors
@@ -1078,119 +1065,151 @@ export default function ReportIncidentPage() {
 
   return (
     <ResidentLayout>
-      <div className="space-y-6">
+      <div className="max-w-4xl mx-auto space-y-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">
-            {isEmergency ? "🚨 EMERGENCY REPORT" : "📋 Non-Emergency Report"}
+          <h1 className="text-xl font-bold text-foreground">
+            {isEmergency ? "🚨 Emergency Report" : "📋 Report Incident"}
           </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
-            {isEmergency
-              ? "Life-threatening situation – focus on the essentials and submit as soon as you can."
-              : "Please provide as much detail as possible to help emergency responders."}
-          </p>
         </div>
 
         {isOffline && (
-          <div className="bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-500 dark:border-yellow-400 p-4">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <AlertTriangle className="h-5 w-5 text-yellow-500 dark:text-yellow-400" />
-              </div>
-              <div className="ml-3">
-                <p className="text-sm text-yellow-700 dark:text-yellow-300">
-                  You are currently offline. Your report will be saved locally and submitted when you're back online.
-                </p>
-              </div>
-            </div>
+          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-500 dark:border-yellow-400 rounded p-2">
+            <p className="text-xs text-yellow-700 dark:text-yellow-300">
+              Offline - Report will be saved and submitted when online
+            </p>
           </div>
         )}
 
-        {pendingReports.length > 0 && (
-          <div className="bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 dark:border-blue-400 p-4">
-            <div className="flex">
-              <div className="ml-3">
-                <p className="text-sm text-blue-700 dark:text-blue-300">
-                  You have {pendingReports.length} pending report(s) that will be submitted when you're online.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
-            <div className="bg-red-50 border-l-4 border-red-500 p-4">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <AlertTriangle className="h-5 w-5 text-red-500" />
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm text-red-700">{error}</p>
-                </div>
-              </div>
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-500 rounded p-2">
+              <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
             </div>
           )}
 
-          {/* STEP 1: Photo Upload (REQUIRED) */}
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-            <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  Step 1: Photo Evidence * {photoFiles.length > 0 && "✅"}
-                </h2>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {typeof window !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent)
-                    ? "Capture one photo (required). Optimized for fast mobile upload (~150KB)."
-                    : "Capture at least one photo of the incident. This is required to help responders understand the situation."}
-                </p>
+          {/* Compact Form Layout */}
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 space-y-4">
+            {/* Location Section - Most Important */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Location * {locationCaptured && "✅"}
+              </label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                <div>
+                  <input
+                    type="text"
+                    id="address"
+                    name="address"
+                    required
+                    className="w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-700 uppercase"
+                    placeholder="Street address"
+                    value={formData.address}
+                    onChange={handleChange}
+                    disabled={loading || (autoGeoLock.address && !isOffline)}
+                    readOnly={autoGeoLock.address && !isOffline}
+                  />
+                </div>
+                <div>
+                  <select
+                    id="barangay"
+                    name="barangay"
+                    required
+                    className="w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-700"
+                    value={formData.barangay}
+                    onChange={handleChange}
+                    disabled={loading || (autoGeoLock.barangay && !isOffline)}
+                  >
+                    <option value="">Select Barangay</option>
+                    {barangays.map((barangay) => (
+                      <option key={barangay} value={barangay}>
+                        {barangay}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              <span className="text-sm text-gray-500">
-                {photoFiles.length}/{MAX_PHOTOS} added
-              </span>
+              <div className="mb-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-gray-600 dark:text-gray-400">Map Location</span>
+                  <button
+                    type="button"
+                    onClick={getCurrentLocation}
+                    className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded text-red-700 bg-red-100 hover:bg-red-200"
+                    disabled={gettingLocation}
+                  >
+                    {gettingLocation ? (
+                      <LoadingSpinner size="sm" color="text-red-600" />
+                    ) : (
+                      <>
+                        <MapPin className="mr-1 h-3 w-3" />
+                        Use My Location
+                      </>
+                    )}
+                  </button>
+                </div>
+                <MapComponent
+                  center={location || undefined}
+                  zoom={15}
+                  markers={
+                    location
+                      ? [
+                          {
+                            id: "incident-location",
+                            position: location,
+                            status: "PENDING",
+                            title: "Incident Location",
+                          },
+                        ]
+                      : []
+                  }
+                  height="200px"
+                  onMapClick={handleMapClick}
+                  userLocation={true}
+                  showBoundary={true}
+                  showGeofence={false}
+                  showVolunteerLocations={false}
+                  offlineMode={isOffline}
+                />
+              </div>
             </div>
 
-            {photoPreviews.length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-                {photoPreviews.map((preview, index) => (
-                  <div key={preview} className="relative rounded-lg overflow-hidden border bg-gray-50">
-                    <img
-                      src={preview}
-                      alt={`Incident photo ${index + 1}`}
-                      className="h-40 w-full object-cover cursor-pointer"
-                      onClick={() => setSelectedPhotoIndex(index)}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removePhoto(index)}
-                      aria-label={`Remove photo ${index + 1}`}
-                      className="absolute top-2 right-2 bg-red-600 text-white p-1 rounded-full hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+            {/* Photo Section - Optional */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Photo (Optional) {photoFiles.length > 0 && `(${photoFiles.length}/${MAX_PHOTOS})`}
+              </label>
 
-            {photoFiles.length < MAX_PHOTOS && (
-              <div className="flex items-center justify-center">
+              {photoPreviews.length > 0 && (
+                <div className="grid grid-cols-3 gap-2 mb-2">
+                  {photoPreviews.map((preview, index) => (
+                    <div key={preview} className="relative rounded overflow-hidden border bg-gray-50">
+                      <img
+                        src={preview}
+                        alt={`Photo ${index + 1}`}
+                        className="h-20 w-full object-cover cursor-pointer"
+                        onClick={() => setSelectedPhotoIndex(index)}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removePhoto(index)}
+                        className="absolute top-1 right-1 bg-red-600 text-white p-0.5 rounded-full hover:bg-red-700"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {photoFiles.length < MAX_PHOTOS && (
                 <label
                   htmlFor="photo-upload"
-                  className="cursor-pointer bg-background py-6 px-4 border-2 border-dashed border-gray-300 rounded-lg text-center hover:bg-accent w-full transition-colors"
+                  className="cursor-pointer flex items-center justify-center py-2 px-3 border border-dashed border-gray-300 dark:border-gray-600 rounded text-sm hover:bg-gray-50 dark:hover:bg-gray-700"
                 >
-                  <div className="space-y-2">
-                    <div className="mx-auto h-12 w-12 text-gray-400">
-                      <Camera className="h-12 w-12 mx-auto" />
-                    </div>
-                    <div className="text-sm text-gray-600">
-                      <span className="font-medium text-red-600 hover:text-red-500">
-                        {photoFiles.length === 0 ? "Capture a photo (Required)" : "Add another photo"}
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500">
-                      JPG only · up to 3MB per photo · best to capture clear evidence
-                    </p>
-                  </div>
+                  <Camera className="h-4 w-4 mr-2 text-gray-500" />
+                  <span className="text-gray-600 dark:text-gray-400">
+                    {photoFiles.length === 0 ? "Add Photo" : "Add Another"}
+                  </span>
                   <input
                     id="photo-upload"
                     name="photo"
@@ -1203,327 +1222,36 @@ export default function ReportIncidentPage() {
                     disabled={loading}
                   />
                 </label>
-              </div>
-            )}
-          </div>
-
-          {/* STEP 2: Voice Message (REQUIRED) */}
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-            <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
-              Step 2: Voice Message * {voiceBlob && "✅"}
-            </h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Record a voice message describing the incident. This is required to provide context to responders.
-            </p>
-            <VoiceRecorder
-              onRecordingComplete={(blob) => {
-                setVoiceBlob(blob)
-              }}
-              onRecordingDelete={() => {
-                setVoiceBlob(null)
-              }}
-              disabled={loading}
-            />
-          </div>
-
-          {/* STEP 3: Location Capture (REQUIRED) */}
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-            <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
-              Step 3: Location Capture * {locationCaptured && "✅"}
-            </h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Your location will be automatically captured via GPS (target accuracy: 5-10 meters). 
-              If GPS accuracy is poor or it doesn't capture automatically, you can:
-              <br />• Click "Use My Location" button below, or
-              <br />• Click directly on the map to manually select your location
-            </p>
-            
-            <div className="mb-6">
-              <LocationTracker
-                onLocationUpdate={(location) => {
-                  console.log("LocationTracker onLocationUpdate called:", location);
-                  
-                  // CRITICAL: Reject very poor accuracy locations (IP-based geolocation)
-                  // Accuracy > 1000m (1km) is likely IP-based, not GPS
-                  if (location.accuracy > 1000) {
-                    const accuracyKm = (location.accuracy / 1000).toFixed(1);
-                    console.warn(`[REPORT] Rejecting poor accuracy location: ${accuracyKm}km (likely IP-based)`);
-                    setError(`GPS accuracy is very poor (${accuracyKm}km). Please click on the map to manually select your location, or move to an open area for better GPS signal.`);
-                    // Don't set location if accuracy is too poor
-                    return;
-                  }
-                  
-                  // Only update if we don't already have a manually selected location
-                  // This prevents LocationTracker from overriding user's map click
-                  if (!locationCaptured) {
-                    // Warn if accuracy is moderate (20-1000m)
-                    if (location.accuracy > 20) {
-                      setError(`Location accuracy is ${Math.round(location.accuracy)}m. For better accuracy, click on the map to manually select your location.`);
-                    } else {
-                      setError(null);
-                    }
-                    
-                    setLocation([location.latitude, location.longitude]);
-                    setLocationCaptured(true);
-                    console.log(`[REPORT] Location captured from GPS:`, { 
-                      lat: location.latitude, 
-                      lng: location.longitude, 
-                      accuracy: `${Math.round(location.accuracy)}m` 
-                    });
-                  } else {
-                    console.log(`[REPORT] Location already captured manually, ignoring GPS update`);
-                  }
-                }}
-                showSettings={true}
-                className="mb-4"
-              />
-              {!locationCaptured && (
-                <div className="mt-2 text-sm text-blue-600 flex items-center">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-                  Detecting your location automatically...
-                </div>
               )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              <div>
-                <label htmlFor="address" className="block text-sm font-medium text-gray-700">
-                  Address * {autoGeoLock.address && "🔒"}
-                </label>
-                <input
-                  type="text"
-                  id="address"
-                  name="address"
-                  required
-                  className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 sm:text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-700 uppercase"
-                  placeholder="Street address"
-                  value={formData.address}
-                  onChange={handleChange}
-                  disabled={loading || (autoGeoLock.address && !isOffline)}
-                  readOnly={autoGeoLock.address && !isOffline}
-                />
-                {geoMessage && (
-                  <p className="mt-1 text-xs text-gray-600">{geoMessage}</p>
-                )}
-              </div>
-
-              <div>
-                <label htmlFor="barangay" className="block text-sm font-medium text-gray-700">
-                  Barangay * {barangays.length > 0 && `(${barangays.length} available)`} {autoGeoLock.barangay && "🔒"}
-                </label>
-                <select
-                  id="barangay"
-                  name="barangay"
-                  required
-                  className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 sm:text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-700"
-                  value={formData.barangay}
-                  onChange={handleChange}
-                  disabled={loading || (autoGeoLock.barangay && !isOffline)}
-                >
-                  <option value="">Select Barangay</option>
-                  {barangays.map((barangay) => (
-                    <option key={barangay} value={barangay}>
-                      {barangay}
-                    </option>
-                  ))}
-                </select>
-                {barangays.length === 0 && (
-                  <div className="mt-1">
-                    <p className="text-sm text-red-600">Loading barangays...</p>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        console.log("Manually fetching barangays...")
-                        try {
-                          const response = await fetch("/api/barangays")
-                          const result = await response.json()
-                          console.log("Manual fetch result:", result)
-                          if (result.data) {
-                            setBarangays(result.data.map((b: any) => b.name))
-                          }
-                        } catch (err) {
-                          console.error("Manual fetch error:", err)
-                        }
-                      }}
-                      className="mt-1 text-xs text-blue-600 hover:text-blue-800 underline"
-                    >
-                      Retry loading barangays
-                    </button>
-                  </div>
-                )}
-                {formData.barangay && (
-                  <p className="mt-1 text-sm text-green-600">Selected: {formData.barangay}</p>
-                )}
-              </div>
-            </div>
-
-            <div className="mb-4">
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium text-gray-700">Pin Location on Map *</label>
-                <button
-                  type="button"
-                  onClick={getCurrentLocation}
-                  className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md text-red-700 bg-red-100 hover:bg-red-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500"
-                  disabled={gettingLocation}
-                >
-                  {gettingLocation ? (
-                    <LoadingSpinner size="sm" color="text-red-600" />
-                  ) : (
-                    <>
-                      <MapPin className="mr-1 h-4 w-4" />
-                      Use My Location
-                    </>
-                  )}
-                </button>
-              </div>
-              <MapComponent
-                center={location || undefined}
-                zoom={15}
-                markers={
-                  location
-                    ? [
-                        {
-                          id: "incident-location",
-                          position: location,
-                          status: "PENDING",
-                          title: "Incident Location",
-                        },
-                      ]
-                    : []
-                }
-                height="300px"
-                onMapClick={handleMapClick}
-                userLocation={true}
-                showBoundary={true}
-                showGeofence={false}
-                showVolunteerLocations={false} // DISABLED: Prevents slow API calls and connection timeouts during reporting
-                offlineMode={isOffline}
-              />
-              {location && (
-                <p className="mt-1 text-sm text-gray-600">
-                  Selected coordinates: {location[0].toFixed(6)}, {location[1].toFixed(6)}
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* STEP 4: Incident Classification */}
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-            <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Step 3: Incident Classification</h2>
-            <div className="space-y-4">
-              <div className="p-4 border border-gray-200 rounded-md bg-gray-50">
-                <p className="text-sm text-gray-600">Current incident type</p>
-                <p className="text-base font-semibold text-gray-900 dark:text-white">{formData.incidentType}</p>
-                <p className="text-xs text-gray-500 mt-1">
-                  Pick the option that matches what is happening. You can switch below if you tapped the wrong entry point.
-                </p>
-              </div>
-
-              <div className="p-4 border border-yellow-200 rounded-md bg-yellow-50">
-                <p className="text-sm font-medium text-gray-800">Who sets the classification?</p>
-                <p className="text-xs text-gray-700 mt-1">
-                  The system uses the button you tapped (Emergency or Non-Emergency) to route responders. If you selected the
-                  wrong path, cancel below and re-open the correct report type so our team receives the proper alert.
-                </p>
-                <div className="mt-3">
-                  <button
-                    type="button"
-                    onClick={() => router.push("/resident/dashboard")}
-                    className="text-sm font-semibold text-red-600 hover:text-red-500 underline"
-                  >
-                    Cancel and choose another option
-                  </button>
-                </div>
-              </div>
-
-              {/* Hidden priority field - auto-assigned based on emergency type */}
-              <input type="hidden" name="priority" value={formData.priority} />
-
-              {isEmergency ? (
-                <div className="bg-red-50 p-3 rounded-md border border-red-200">
-                  <p className="text-sm text-red-800 font-medium">
-                    ⚠️ Emergency Priority: Critical (auto-assigned)
-                  </p>
-                  <p className="text-xs text-red-700 mt-1">
-                    Responders are alerted immediately with highest urgency.
-                  </p>
-                </div>
-              ) : (
-                <div className="bg-green-50 p-3 rounded-md border border-green-200">
-                  <p className="text-sm text-green-800 font-medium">
-                    ℹ️ Non-Emergency Priority: Standard (auto-assigned)
-                  </p>
-                  <p className="text-xs text-green-700 mt-1">
-                    The team reviews and dispatches responders based on availability.
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* STEP 5: Auto-populated fields (user info, timestamp) - shown as read-only */}
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-            <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Step 5: Your Information (Auto-filled)</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Your Name</label>
-                <input
-                  type="text"
-                  value={user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email : (authLoading ? 'Loading...' : 'Not available')}
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-gray-50 text-gray-500 sm:text-sm"
-                  readOnly
-                  disabled
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Contact Number</label>
-                <input
-                  type="text"
-                  value={user?.phone_number || (authLoading ? 'Loading...' : 'Not provided')}
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-gray-50 text-gray-500 sm:text-sm"
-                  readOnly
-                  disabled
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Report Timestamp</label>
-                <input
-                  type="text"
-                  value={new Date().toLocaleString()}
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-gray-50 text-gray-500 sm:text-sm"
-                  readOnly
-                  disabled
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Report Type</label>
-                <input
-                  type="text"
-                  value={isEmergency ? "EMERGENCY" : "NON-EMERGENCY"}
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-gray-50 text-gray-500 sm:text-sm font-semibold"
-                  readOnly
-                  disabled
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* STEP 6: Description (OPTIONAL) */}
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-            <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Step 6: Additional Description (Optional)</h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              You can provide additional written details about the incident. This is optional since you've already provided a voice message.
-            </p>
+            {/* Voice Section - Optional */}
             <div>
-              <label htmlFor="description" className="block text-sm font-medium text-gray-700">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Voice Message (Optional) {voiceBlob && "✅"}
+              </label>
+              <VoiceRecorder
+                onRecordingComplete={(blob) => {
+                  setVoiceBlob(blob)
+                }}
+                onRecordingDelete={() => {
+                  setVoiceBlob(null)
+                }}
+                disabled={loading}
+              />
+            </div>
+
+            {/* Description - Optional */}
+            <div>
+              <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Description (Optional)
               </label>
               <textarea
                 id="description"
                 name="description"
-                rows={3}
-                className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 sm:text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-700 uppercase"
-                placeholder="Add any additional details about the incident (optional)..."
+                rows={2}
+                className="w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-700 uppercase"
+                placeholder="Additional details..."
                 value={formData.description}
                 onChange={handleChange}
                 disabled={loading}
@@ -1532,33 +1260,32 @@ export default function ReportIncidentPage() {
           </div>
 
 
-          <div className="flex justify-end space-x-4">
+          <div className="flex justify-end gap-3 pt-2">
             <button
               type="button"
               onClick={() => router.push("/resident/dashboard")}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-900 dark:text-white bg-white dark:bg-gray-700 hover:bg-accent dark:hover:bg-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-colors"
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"
               disabled={loading}
-              aria-label="Cancel and return to dashboard"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading || authLoading}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center px-6 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading || authLoading ? (
                 <LoadingSpinner size="sm" color="text-white" />
               ) : (
                 <>
-                  <Upload className="mr-2 h-5 w-5" />
-                  Submit Report
+                  <Upload className="mr-2 h-4 w-4" />
+                  Submit
                 </>
               )}
             </button>
           </div>
           {loading && submitStage && (
-            <p className="text-right text-xs text-gray-500">{submitStage}</p>
+            <p className="text-right text-xs text-gray-500 mt-1">{submitStage}</p>
           )}
         </form>
 

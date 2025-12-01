@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { AdminLayout } from "@/components/layout/admin-layout"
-import { Bell, Save, Shield, User, AlertCircle, Camera, LogOut } from "lucide-react"
+import { Bell, Save, Shield, User, AlertCircle, Camera, Power as LogOut } from "lucide-react"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import { PinManagement } from "@/components/pin-management"
 import { useAuth } from "@/lib/auth"

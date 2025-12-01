@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter, usePathname } from "next/navigation"
 import { Lock, X, Loader2 } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 
@@ -8,6 +9,8 @@ const SESSION_UNLOCK_KEY = "pin_unlocked_session"
 
 export function PinSecurityGate({ children }: { children: React.ReactNode }) {
   const { user } = useAuth()
+  const router = useRouter()
+  const pathname = usePathname()
   const [pinEnabled, setPinEnabled] = useState(true)
   const [hasPin, setHasPin] = useState(false)
   const [needsSetup, setNeedsSetup] = useState(false)
@@ -18,8 +21,12 @@ export function PinSecurityGate({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const [hasError, setHasError] = useState(false)
 
   const bypassPin = false // PIN security enabled
+  
+  // Skip PIN check for these routes
+  const skipRoutes = ['/pin/setup', '/pin/verify', '/login', '/auth/callback', '/unauthorized']
 
   // Set mounted flag to prevent hydration mismatch
   useEffect(() => {
@@ -94,7 +101,21 @@ export function PinSecurityGate({ children }: { children: React.ReactNode }) {
         if (statusResult.success) {
           setPinEnabled(statusResult.enabled)
           setHasPin(statusResult.hasPin)
-          setNeedsSetup(statusResult.needsSetup)
+          // Check if PIN is expired - if so, user needs to create a new PIN
+          const needsNewPin = statusResult.pinExpired || statusResult.needsSetup
+          setNeedsSetup(needsNewPin)
+
+          // Check if PIN verification failed due to expiration
+          if (verifyResult.reason === 'pin_expired' || statusResult.pinExpired) {
+            if (mounted) {
+              // Redirect to PIN setup page for expired PIN
+              if (!skipRoutes.some(route => pathname.startsWith(route))) {
+                const currentPath = pathname + (typeof window !== "undefined" ? window.location.search : "")
+                router.replace(`/pin/setup?redirect=${encodeURIComponent(currentPath)}&expired=true`)
+              }
+            }
+            return
+          }
 
           // If PIN is verified via cookie OR PIN is disabled/excluded, unlock
           if (verifyResult.verified || !statusResult.enabled || statusResult.excluded) {
@@ -106,9 +127,14 @@ export function PinSecurityGate({ children }: { children: React.ReactNode }) {
                 sessionStorage.setItem("pin_user_id", user.id)
               }
             }
-          } else if (statusResult.needsSetup) {
+          } else if (needsNewPin) {
             if (mounted) {
-              setShowSettings(true)
+              // Redirect to PIN setup page instead of showing modal
+              // Only redirect if not already on a PIN page
+              if (!skipRoutes.some(route => pathname.startsWith(route))) {
+                const currentPath = pathname + (typeof window !== "undefined" ? window.location.search : "")
+                router.replace(`/pin/setup?redirect=${encodeURIComponent(currentPath)}`)
+              }
             }
           }
         }
@@ -157,9 +183,11 @@ export function PinSecurityGate({ children }: { children: React.ReactNode }) {
   const handlePinSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    setHasError(false)
 
     if (inputPin.length !== 4) {
       setError("PIN must be 4 digits")
+      setHasError(true)
       return
     }
 
@@ -180,13 +208,16 @@ export function PinSecurityGate({ children }: { children: React.ReactNode }) {
         sessionStorage.setItem(SESSION_UNLOCK_KEY, "true")
         setInputPin("")
         setError("")
+        setHasError(false)
       } else {
         setError(result.message || "Incorrect PIN. Please try again.")
         setInputPin("")
+        setHasError(true)
       }
     } catch {
       setError("Failed to verify PIN. Please try again.")
       setInputPin("")
+      setHasError(true)
     }
   }
 
@@ -226,10 +257,12 @@ export function PinSecurityGate({ children }: { children: React.ReactNode }) {
   const handleSetPin = async (newPin: string) => {
     if (!/^\d{4}$/.test(newPin)) {
       setError("PIN must be exactly 4 digits")
+      setHasError(true)
       return
     }
 
     setSaving(true)
+    setHasError(false)
     try {
       const res = await fetch("/api/pin/set", {
         method: "POST",
@@ -249,9 +282,14 @@ export function PinSecurityGate({ children }: { children: React.ReactNode }) {
         setIsUnlocked(true)
         sessionStorage.setItem(SESSION_UNLOCK_KEY, "true")
         setError("")
-      } else setError(result.message || "Failed to set PIN")
+        setHasError(false)
+      } else {
+        setError(result.message || "Failed to set PIN")
+        setHasError(true)
+      }
     } catch {
       setError("Failed to set PIN. Please try again.")
+      setHasError(true)
     } finally {
       setSaving(false)
     }
@@ -274,7 +312,10 @@ export function PinSecurityGate({ children }: { children: React.ReactNode }) {
     )
   }
 
-  if (bypassPin || !pinEnabled || !user || isUnlocked) return <>{children}</>
+  // Skip PIN gate if on PIN pages or if bypassed/unlocked
+  if (bypassPin || !pinEnabled || !user || isUnlocked || skipRoutes.some(route => pathname.startsWith(route))) {
+    return <>{children}</>
+  }
 
   // PIN entry screen
   return (
@@ -313,9 +354,14 @@ export function PinSecurityGate({ children }: { children: React.ReactNode }) {
                   const val = e.target.value.replace(/\D/g, "")
                   setInputPin(val)
                   setError("")
+                  setHasError(false)
                   if (val.length === 4) handleSetPin(val)
                 }}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md text-center text-2xl tracking-widest focus:outline-none focus:ring-2 focus:ring-red-500"
+                className={`w-full px-4 py-2 border rounded-md text-center text-2xl tracking-widest focus:outline-none focus:ring-2 ${
+                  hasError 
+                    ? "border-red-500 focus:ring-red-500 focus:border-red-500" 
+                    : "border-gray-300 focus:ring-red-500"
+                }`}
                 placeholder="0000"
                 autoFocus
                 disabled={saving}
@@ -368,8 +414,16 @@ export function PinSecurityGate({ children }: { children: React.ReactNode }) {
               inputMode="numeric"
               maxLength={4}
               value={inputPin}
-              onChange={(e) => setInputPin(e.target.value.replace(/\D/g, ""))}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md text-center text-3xl tracking-widest focus:outline-none focus:ring-2 focus:ring-red-500"
+              onChange={(e) => {
+                setInputPin(e.target.value.replace(/\D/g, ""))
+                setHasError(false)
+                setError("")
+              }}
+              className={`w-full px-4 py-2 border rounded-md text-center text-3xl tracking-widest focus:outline-none focus:ring-2 ${
+                hasError 
+                  ? "border-red-500 focus:ring-red-500 focus:border-red-500" 
+                  : "border-gray-300 focus:ring-red-500"
+              }`}
               placeholder="0000"
               autoFocus
             />

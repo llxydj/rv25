@@ -15,7 +15,7 @@ async function getClientWithToken(request: Request) {
   const authHeader = request.headers.get('Authorization') || ''
   const token = authHeader.replace('Bearer ', '').trim()
   if (!token) throw new Error('Missing access token')
-  return getServerSupabase({ token })
+  return getServerSupabase()
 }
 
 async function assertAdmin(supabase: ReturnType<typeof createClient<Database>>, userId: string) {
@@ -69,11 +69,11 @@ export async function POST(request: Request) {
       title,
       content,
       type,
-      priority,
+      priority: typeof priority === 'number' ? String(priority) : priority,
       location,
       date,
       time,
-      requirements,
+      requirements: Array.isArray(requirements) ? requirements : typeof requirements === 'string' ? [requirements] : null,
       created_by: userId,
       facebook_post_url: facebook_post_url || null,
       facebook_embed_data: facebookEmbedData,
@@ -165,7 +165,8 @@ export async function DELETE(request: Request) {
     const parsed = AnnouncementDeleteSchema.safeParse(await request.json())
     if (!parsed.success) return NextResponse.json({ success: false, message: 'Invalid payload', issues: parsed.error.flatten() }, { status: 400 })
 
-    const { id } = parsed.data
+    const { id: announcementId } = parsed.data
+    const id = String(announcementId)
 
     const { data: userRes, error: userErr } = await supabase.auth.getUser()
     if (userErr || !userRes?.user?.id) throw new Error('Not authenticated')

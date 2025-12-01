@@ -47,7 +47,7 @@ export const useAuth = () => {
         return {
           id: userId,
           email: user?.email || "",
-          role: userData.role,
+          role: userData.role as UserRole,
           firstName: userData.first_name,
           lastName: userData.last_name,
           phone_number: userData.phone_number || undefined,
@@ -150,7 +150,7 @@ export const useAuth = () => {
                 setUser({
                   id: session.user.id,
                   email: session.user.email || "",
-                  role: userData.role,
+                  role: userData.role as UserRole,
                   firstName: userData.first_name,
                   lastName: userData.last_name,
                   phone_number: userData.phone_number || undefined,
@@ -340,7 +340,7 @@ export const useAuth = () => {
           const userSession = {
             id: session.user.id,
             email: session.user.email || "",
-            role: userData.role,
+            role: userData.role as UserRole,
             firstName: userData.first_name,
             lastName: userData.last_name,
             phone_number: userData.phone_number || undefined,

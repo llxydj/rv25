@@ -6,7 +6,7 @@ import { AdminLayout } from "@/components/layout/admin-layout"
 import { useAuth } from "@/lib/auth"
 import { getVolunteerById, updateVolunteerStatus } from "@/lib/volunteers"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
-import { AlertTriangle, ArrowLeft, CheckCircle, Clock, Mail, Phone, X, Settings, User, FileText, Activity, GraduationCap, BarChart3, MapPin } from "lucide-react"
+import { AlertTriangle, ArrowLeft, CheckCircle, Clock, Mail, Phone, X, Settings, User, FileText, Activity, GraduationCap as GraduationCapIcon, BarChart3, MapPin } from "lucide-react"
 import { ProfileCompletenessIndicator } from "@/components/volunteer/profile-completeness-indicator"
 import { TrainingHistory } from "@/components/volunteer/training-history"
 import { IncidentHistory } from "@/components/volunteer/incident-history"
@@ -261,11 +261,11 @@ export default function VolunteerDetailPage() {
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 whitespace-nowrap">
                         Volunteer
                       </span>
-                      {volunteer.last_active && (
+                      {volunteer.volunteer_profiles?.last_active_at && (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 whitespace-nowrap">
                           <Clock className="h-3 w-3 mr-1 flex-shrink-0" />
                           <span className="hidden sm:inline">Last active: </span>
-                          {formatTimeAgo(new Date(volunteer.last_active))}
+                          {formatTimeAgo(new Date(volunteer.volunteer_profiles.last_active_at))}
                         </span>
                       )}
                     </div>
@@ -419,7 +419,7 @@ export default function VolunteerDetailPage() {
                   <div className="bg-gray-50 dark:bg-gray-700/50 p-3 md:p-4 rounded-md">
                     <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400">Last Activity</p>
                     <p className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white mt-1">
-                      {volunteer.last_active ? formatTimeAgo(new Date(volunteer.last_active)) : "Never"}
+                      {volunteer.volunteer_profiles?.last_active_at ? formatTimeAgo(new Date(volunteer.volunteer_profiles.last_active_at)) : "Never"}
                     </p>
                   </div>
                 </div>
@@ -493,7 +493,7 @@ export default function VolunteerDetailPage() {
                     }`}
                   >
                     <div className="flex items-center gap-2">
-                      <GraduationCap className="w-4 h-4" />
+                      <GraduationCapIcon className="w-4 h-4" />
                       Training
                     </div>
                   </button>

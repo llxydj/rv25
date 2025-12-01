@@ -5,7 +5,8 @@ import { getServerSupabase } from '@/lib/supabase-server'
 export const dynamic = "force-dynamic"
 
 // PIN verification expiration settings
-const PIN_SESSION_DURATION_HOURS = 24 // PIN valid for 24 hours
+const PIN_SESSION_DURATION_HOURS = 24 // PIN session valid for 24 hours
+const PIN_VALIDITY_DAYS = 15 // PIN must be recreated after 15 days
 const PIN_INACTIVITY_TIMEOUT_MINUTES_ADMIN = 5 // Require re-verification after 5 minutes of inactivity for admins
 const PIN_INACTIVITY_TIMEOUT_MINUTES_VOLUNTEER = 120 // Require re-verification after 2 hours of inactivity for volunteers
 const PIN_INACTIVITY_TIMEOUT_MINUTES_OTHER = 30 // Require re-verification after 30 minutes of inactivity for other roles
@@ -27,17 +28,18 @@ export async function GET() {
       })
     }
 
-    // Only query database if PIN is verified (to check user status and role)
+    // Only query database if PIN is verified (to check user status, role, and PIN expiration)
     const supabase = await getServerSupabase()
     const { data: userRes } = await supabase.auth.getUser()
     
     let userRole: string | null = null
+    let pinCreatedAt: string | null = null
     
     if (userRes?.user?.id) {
       // Add timeout to prevent hanging queries
       const userDataPromise = supabase
         .from('users')
-        .select('status, role')
+        .select('status, role, pin_created_at')
         .eq('id', userRes.user.id)
         .maybeSingle()
 
@@ -54,6 +56,7 @@ export async function GET() {
 
         if (userData) {
           userRole = (userData as any).role
+          pinCreatedAt = (userData as any).pin_created_at
           
           if ((userData as any).status === 'inactive') {
             // Clear PIN cookies if user is deactivated
@@ -66,6 +69,27 @@ export async function GET() {
             response.cookies.delete('pin_verified_at')
             response.cookies.delete('pin_last_activity')
             return response
+          }
+          
+          // Check if PIN has expired (15 days from creation)
+          if (pinCreatedAt) {
+            const pinCreatedDate = new Date(pinCreatedAt)
+            const now = new Date()
+            const daysSinceCreation = (now.getTime() - pinCreatedDate.getTime()) / (1000 * 60 * 60 * 24)
+            
+            if (daysSinceCreation >= PIN_VALIDITY_DAYS) {
+              // PIN has expired - clear cookies and require new PIN creation
+              const response = NextResponse.json({ 
+                verified: false,
+                reason: 'pin_expired',
+                message: `Your PIN has expired after ${PIN_VALIDITY_DAYS} days. Please create a new PIN.`,
+                daysExpired: Math.floor(daysSinceCreation)
+              })
+              response.cookies.delete('pin_verified')
+              response.cookies.delete('pin_verified_at')
+              response.cookies.delete('pin_last_activity')
+              return response
+            }
           }
         }
       } catch (dbError: any) {

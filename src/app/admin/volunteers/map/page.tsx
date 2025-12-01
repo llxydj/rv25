@@ -92,7 +92,7 @@ export default function VolunteerMapPage() {
       
       console.log(`[fetchVolunteers] ✅ Transformed ${transformed.length} volunteers with valid coordinates`)
       if (transformed.length > 0) {
-        console.log('[fetchVolunteers] Volunteer data:', transformed.map(v => ({
+        console.log('[fetchVolunteers] Volunteer data:', transformed.map((v: any) => ({
           id: v.user_id,
           name: `${v.first_name} ${v.last_name}`,
           lat: v.latitude,
@@ -375,7 +375,7 @@ export default function VolunteerMapPage() {
                   .map((v) => ({
                     id: `volunteer_${v.id || v.user_id}`,
                     position: [v.latitude, v.longitude] as [number, number],
-                    status: v.status === 'available' ? 'ASSIGNED' : v.status === 'on_task' ? 'RESPONDING' : 'PENDING',
+                    status: (v.status === 'available' ? 'ASSIGNED' : v.status === 'on_task' ? 'RESPONDING' : 'PENDING') as "PENDING" | "ASSIGNED" | "RESPONDING" | "RESOLVED" | "CANCELLED",
                     title: `${v.first_name || ''} ${v.last_name || ''}`.trim() || 'Volunteer',
                     description: `Status: ${getStatusLabel(v.status || 'offline')}${v.phone_number ? ` | Phone: ${v.phone_number}` : ''}${v.last_location_update ? ` | Last seen: ${new Date(v.last_location_update).toLocaleString()}` : ''}`
                   })),

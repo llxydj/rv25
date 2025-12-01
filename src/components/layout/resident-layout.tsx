@@ -4,7 +4,7 @@ import type React from "react"
 import { useState, useCallback, useMemo, useEffect, Suspense } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { AlertTriangle, Phone, User, X, BarChart3 } from "lucide-react"
+import { AlertTriangle, Phone, User, X, BarChart3, Menu as MenuIcon, LogOut as LogOutIcon } from "lucide-react"
 import { useNotificationsChannel } from '@/lib/use-notifications'
 import { signOut } from "@/lib/auth"
 import { AuthLayout } from "./auth-layout"
@@ -14,6 +14,7 @@ import { useAuth } from "@/lib/auth"
 import SubscribeBanner from "@/components/subscribe-banner"
 import EmergencyCallButtonEnhanced from "@/components/emergency-call-button-enhanced"
 import { ResidentNotifications } from "@/components/resident/resident-notifications"
+import { SOSButton } from "@/components/resident/sos-button"
 import { SystemClock } from "@/components/system-clock"
 import { pushNotificationService } from "@/lib/push-notification-service"
 import { SignOutModal } from "@/components/ui/signout-modal"
@@ -250,6 +251,8 @@ export default function ResidentLayout({ children }: ResidentLayoutProps) {
                 {children}
               </div>
             </main>
+            {/* Floating SOS button - prominent emergency feature */}
+            <SOSButton />
             {/* Floating emergency call button, visible across resident pages (except report as handled internally) */}
             <EmergencyCallButtonEnhanced />
           </Suspense>

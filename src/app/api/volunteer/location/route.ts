@@ -41,6 +41,8 @@ async function validateLocationBounds(supabase: any, lat: number, lng: number): 
   return isWithin
 }
 
+import { locationThrottle } from '@/lib/location-throttle'
+
 export async function POST(request: Request) {
   try {
     const supabase = await getServerSupabase()

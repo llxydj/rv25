@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { AlertTriangle, Calendar, Edit3, MapPin, Plus, Trash2, X, ArrowLeft, Facebook, ExternalLink, Star, MessageSquare } from "lucide-react"
+import { AlertTriangle, Calendar, Edit3, MapPin, Plus, Trash2, X, ArrowLeft, Share2 as Facebook, Link as ExternalLink, Star, MessageSquare } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 
 type Announcement = {

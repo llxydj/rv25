@@ -27,10 +27,10 @@ export async function POST(request: Request) {
 
     const userId = userRes.user.id
 
-    // CRITICAL: Check if user is deactivated
+    // CRITICAL: Check if user is deactivated and get current PIN status
     const { data: userData, error: userCheckError } = await supabase
       .from('users')
-      .select('status')
+      .select('status, pin_hash')
       .eq('id', userId)
       .single()
 
@@ -44,6 +44,9 @@ export async function POST(request: Request) {
         message: 'Your account has been deactivated. Please contact an administrator.' 
       }, { status: 403 })
     }
+    
+    // Check if this is a new PIN setup (user didn't have a PIN before)
+    const isNewPinSetup = !userData.pin_hash
 
     const body = await request.json()
     const { pin, confirmPin } = body
@@ -77,11 +80,14 @@ export async function POST(request: Request) {
     console.log('📌 [PIN Set] Updating PIN for user:', userId)
 
     // Update user's PIN using service role client (bypasses RLS)
+    // Set pin_created_at to current timestamp for 15-day validity tracking
+    const now = new Date().toISOString()
     const { error: updateError } = await supabaseAdmin
       .from('users')
       .update({ 
         pin_hash: pinHash,
-        pin_enabled: true
+        pin_enabled: true,
+        pin_created_at: now // Track when PIN was created for 15-day validity
       })
       .eq('id', userId)
 
@@ -100,10 +106,46 @@ export async function POST(request: Request) {
       .then(() => console.log('✅ [PIN Set] Cleared PIN attempts'))
       .catch((err) => console.warn('⚠️ [PIN Set] Could not clear attempts:', err))
 
-    return NextResponse.json({ 
+    // For new PIN setups, automatically set verification cookie so user doesn't need to enter PIN again
+    const response = NextResponse.json({ 
       success: true, 
       message: 'PIN set successfully' 
     })
+    
+    if (isNewPinSetup) {
+      // Set PIN verification cookie (HTTP-only, secure, 24 hours)
+      const expiresAt = new Date()
+      expiresAt.setHours(expiresAt.getHours() + 24) // 24 hours
+      const now = Date.now()
+
+      response.cookies.set('pin_verified', 'true', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        expires: expiresAt,
+        path: '/'
+      })
+
+      response.cookies.set('pin_verified_at', now.toString(), {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        expires: expiresAt,
+        path: '/'
+      })
+
+      response.cookies.set('pin_last_activity', now.toString(), {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        expires: expiresAt,
+        path: '/'
+      })
+      
+      console.log('✅ [PIN Set] Auto-verified new PIN setup')
+    }
+    
+    return response
   } catch (error: any) {
     console.error('PIN set error:', error)
     return NextResponse.json({ success: false, message: 'Internal server error' }, { status: 500 })

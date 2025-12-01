@@ -16,9 +16,9 @@ import {
   Search,
   X,
   Eye,
-  UserCheck,
-  UserX,
-  UserMinus,
+  UserCheck as UserCheckIcon,
+  UserX as UserXIcon,
+  UserMinus as UserMinusIcon,
   ChevronLeft,
   ChevronRight,
   Phone,
@@ -157,6 +157,7 @@ export default function AdminVolunteersPage() {
                           assigned_barangays: [],
                           total_incidents_resolved: 0,
                           notes: null,
+                          bio: null,
                           is_available: false,
                           created_at: new Date().toISOString(),
                           updated_at: new Date().toISOString(),
@@ -439,7 +440,7 @@ export default function AdminVolunteersPage() {
                                 {updatingStatus === volunteer.id ? (
                                   <LoadingSpinner size="sm" color="text-green-600 dark:text-green-400" />
                                 ) : (
-                                  <UserCheck className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                                  <UserCheckIcon className="h-3.5 w-3.5 md:h-4 md:w-4" />
                                 )}
                               </button>
                             )}
@@ -455,7 +456,7 @@ export default function AdminVolunteersPage() {
                                 {updatingStatus === volunteer.id ? (
                                   <LoadingSpinner size="sm" color="text-red-600 dark:text-red-400" />
                                 ) : (
-                                  <UserMinus className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                                  <UserMinusIcon className="h-3.5 w-3.5 md:h-4 md:w-4" />
                                 )}
                               </button>
                             )}
@@ -471,7 +472,7 @@ export default function AdminVolunteersPage() {
                                 {updatingStatus === volunteer.id ? (
                                   <LoadingSpinner size="sm" color="text-blue-600 dark:text-blue-400" />
                                 ) : (
-                                  <UserX className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                                  <UserXIcon className="h-3.5 w-3.5 md:h-4 md:w-4" />
                                 )}
                               </button>
                             )}

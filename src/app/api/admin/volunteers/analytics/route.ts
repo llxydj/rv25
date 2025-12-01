@@ -383,7 +383,7 @@ export async function GET(request: Request) {
       },
       trainings: {
         total: totalTrainings,
-        evaluations: evaluations?.length || 0,
+        evaluation_count: evaluations?.length || 0,
         avg_performance_rating: avgPerformanceRating.toFixed(1),
         enrollments: enrollments || [],
         evaluations: evaluations || []

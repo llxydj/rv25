@@ -19,6 +19,7 @@ import { MetricsChart } from "@/components/admin/metrics-chart"
 import { StatWidget } from "@/components/admin/stat-widget"
 import { AdminMetrics } from "@/types/admin-metrics"
 import { VolunteerInsightsCard } from "@/components/admin/volunteer-insights-card"
+import { PermissionRequestModal } from "@/components/permission-request-modal"
 
 export default function AdminDashboard() {
   const { user } = useAuth()
@@ -648,9 +649,12 @@ export default function AdminDashboard() {
               <ResponseTimesCard />
             </div>
 
-          </>
+          </> 
         )}
       </div>
+      
+      {/* Permission Request Modal - shows once per user */}
+      <PermissionRequestModal />
     </AdminLayout>
   )
 }

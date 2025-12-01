@@ -48,7 +48,7 @@ export async function POST(request: Request) {
     // Get user's PIN hash and status
     const { data: userData, error: userError } = await supabase
       .from('users')
-      .select('pin_hash, pin_enabled, role, status')
+      .select('pin_hash, pin_enabled, role, status, pin_created_at')
       .eq('id', userId)
       .single()
 
@@ -77,6 +77,23 @@ export async function POST(request: Request) {
     // Check if PIN is set
     if (!userData.pin_hash) {
       return NextResponse.json({ success: false, message: 'PIN not set. Please set up your PIN first.' }, { status: 400 })
+    }
+
+    // CRITICAL: Check if PIN has expired (15 days from creation)
+    const PIN_VALIDITY_DAYS = 15
+    if (userData.pin_created_at) {
+      const pinCreatedDate = new Date(userData.pin_created_at)
+      const now = new Date()
+      const daysSinceCreation = (now.getTime() - pinCreatedDate.getTime()) / (1000 * 60 * 60 * 24)
+      
+      if (daysSinceCreation >= PIN_VALIDITY_DAYS) {
+        return NextResponse.json({ 
+          success: false, 
+          message: `Your PIN has expired after ${PIN_VALIDITY_DAYS} days. Please create a new PIN.`,
+          pinExpired: true,
+          daysExpired: Math.floor(daysSinceCreation)
+        }, { status: 400 })
+      }
     }
 
     // Verify PIN
