@@ -34,8 +34,8 @@ export async function GET() {
       }, { status: 403 })
     }
 
-    // Exclude barangay users
-    if (userData.role === 'barangay') {
+    // Exclude barangay and resident users - No PIN required for these roles
+    if (userData.role === 'barangay' || userData.role === 'resident') {
       return NextResponse.json({ success: true, enabled: false, hasPin: false, excluded: true })
     }
 

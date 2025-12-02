@@ -49,6 +49,17 @@ export function PinSecurityGate({ children }: { children: React.ReactNode }) {
       return
     }
 
+    // SKIP PIN CHECK FOR RESIDENTS - No PIN required for resident role
+    if (user.role === 'resident') {
+      setIsUnlocked(true)
+      setLoading(false)
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem(SESSION_UNLOCK_KEY, "true")
+        sessionStorage.setItem("pin_user_id", user.id)
+      }
+      return
+    }
+
     let mounted = true
 
     const checkPinStatus = async () => {
@@ -312,8 +323,8 @@ export function PinSecurityGate({ children }: { children: React.ReactNode }) {
     )
   }
 
-  // Skip PIN gate if on PIN pages or if bypassed/unlocked
-  if (bypassPin || !pinEnabled || !user || isUnlocked || skipRoutes.some(route => pathname.startsWith(route))) {
+  // Skip PIN gate if on PIN pages, if bypassed/unlocked, or if user is a resident
+  if (bypassPin || !pinEnabled || !user || isUnlocked || skipRoutes.some(route => pathname.startsWith(route)) || user?.role === 'resident') {
     return <>{children}</>
   }
 

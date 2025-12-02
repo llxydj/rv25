@@ -133,8 +133,9 @@ export async function GET(request: Request) {
             .eq('id', userId)
             .single()
 
-          // Only check PIN if query succeeded and user is not barangay
-          if (!pinError && pinData && pinData.role !== 'barangay') {
+          // SKIP PIN CHECK FOR RESIDENTS AND BARANGAY - No PIN required
+          // Only check PIN if query succeeded and user is admin or volunteer
+          if (!pinError && pinData && pinData.role !== 'barangay' && pinData.role !== 'resident') {
             const pinEnabled = pinData.pin_enabled !== false
             const hasPin = !!pinData.pin_hash
 
@@ -147,6 +148,7 @@ export async function GET(request: Request) {
             }
             // If disabled, use default redirect
           }
+          // For residents and barangay, always use default redirect (no PIN)
         } catch (pinCheckError) {
           // If PIN check fails, log but don't block OAuth flow
           console.error('[OAuth Callback] PIN check failed, using default redirect:', pinCheckError)

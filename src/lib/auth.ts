@@ -386,22 +386,50 @@ export const useAuth = () => {
               return
             }
 
-            const { getPinRedirectForRole } = await import('@/lib/pin-auth-helper')
-            const redirectUrl = await getPinRedirectForRole(userData.role)
-            
-            // Only redirect if different from current path (prevents loops)
-            if (typeof window !== 'undefined') {
-              const currentPath = window.location.pathname
-              if (redirectUrl !== currentPath && !currentPath.startsWith('/pin/')) {
-                setHasRedirected(true) // Mark that we've redirected
-                router.push(redirectUrl)
-              } else if (redirectUrl === currentPath) {
-                // Already on the correct page, mark as redirected
+            // SKIP PIN CHECK FOR RESIDENTS AND BARANGAY - No PIN required
+            if (userData.role !== 'resident' && userData.role !== 'barangay') {
+              const { getPinRedirectForRole } = await import('@/lib/pin-auth-helper')
+              const redirectUrl = await getPinRedirectForRole(userData.role)
+              
+              // Only redirect if different from current path (prevents loops)
+              if (typeof window !== 'undefined') {
+                const currentPath = window.location.pathname
+                if (redirectUrl !== currentPath && !currentPath.startsWith('/pin/')) {
+                  setHasRedirected(true) // Mark that we've redirected
+                  router.push(redirectUrl)
+                } else if (redirectUrl === currentPath) {
+                  // Already on the correct page, mark as redirected
+                  setHasRedirected(true)
+                }
+              } else {
                 setHasRedirected(true)
+                router.push(redirectUrl)
               }
             } else {
-              setHasRedirected(true)
-              router.push(redirectUrl)
+              // For residents and barangay, use default redirect (no PIN)
+              const defaultRedirects: Record<string, string> = {
+                admin: '/admin/dashboard',
+                volunteer: '/volunteer/dashboard',
+                resident: '/resident/dashboard',
+                barangay: '/barangay/dashboard'
+              }
+              const defaultRedirect = userData.role 
+                ? defaultRedirects[userData.role] || '/resident/dashboard'
+                : '/resident/dashboard'
+              
+              // Only redirect if different from current path
+              if (typeof window !== 'undefined') {
+                const currentPath = window.location.pathname
+                if (defaultRedirect !== currentPath && !currentPath.startsWith('/pin/')) {
+                  setHasRedirected(true)
+                  router.push(defaultRedirect)
+                } else if (defaultRedirect === currentPath) {
+                  setHasRedirected(true)
+                }
+              } else {
+                setHasRedirected(true)
+                router.push(defaultRedirect)
+              }
             }
           } catch (pinError: any) {
             console.error('[Auth] PIN check failed, using default redirect:', pinError)

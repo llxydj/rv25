@@ -109,6 +109,11 @@ export async function getPinRedirectForRole(role: string | null): Promise<string
 
   const defaultRedirect = role ? defaultRedirects[role] || '/resident/dashboard' : '/resident/dashboard'
   
+  // SKIP PIN CHECK FOR RESIDENTS AND BARANGAY - No PIN required
+  if (role === 'resident' || role === 'barangay') {
+    return defaultRedirect
+  }
+  
   const pinStatus = await checkPinStatus()
   
   // If PIN is enabled and set, check if already verified before redirecting

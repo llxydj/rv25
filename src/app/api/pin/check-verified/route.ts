@@ -58,6 +58,15 @@ export async function GET() {
           userRole = (userData as any).role
           pinCreatedAt = (userData as any).pin_created_at
           
+          // Residents and barangay users don't need PIN - always return verified
+          if (userRole === 'resident' || userRole === 'barangay') {
+            return NextResponse.json({ 
+              verified: true,
+              reason: 'excluded_role',
+              message: 'PIN not required for this role.'
+            })
+          }
+          
           if ((userData as any).status === 'inactive') {
             // Clear PIN cookies if user is deactivated
             const response = NextResponse.json({ 

@@ -121,6 +121,7 @@ export function AppClient({ children }: { children: React.ReactNode }) {
     <AuthProvider>
       {/* <ServiceWorkerRegistration /> */}
       <ChunkErrorHandler />
+      {/* PIN Security Gate - automatically skips for residents */}
       <PinSecurityGate>
         <GeoPolygonLoader />
         {children}
