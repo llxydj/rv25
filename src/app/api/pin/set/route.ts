@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     // CRITICAL: Check if user is deactivated and get current PIN status
     const { data: userData, error: userCheckError } = await supabase
       .from('users')
-      .select('status, pin_hash')
+      .select('status, pin_hash, role')
       .eq('id', userId)
       .single()
 
@@ -42,6 +42,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ 
         success: false, 
         message: 'Your account has been deactivated. Please contact an administrator.' 
+      }, { status: 403 })
+    }
+
+    // CRITICAL: Exclude residents and barangay users - PIN not available for these roles
+    if (userData.role === 'resident' || userData.role === 'barangay') {
+      return NextResponse.json({ 
+        success: false, 
+        message: 'PIN setup not available for this account type' 
       }, { status: 403 })
     }
     

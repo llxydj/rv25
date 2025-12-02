@@ -37,13 +37,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const { data, error } = await supabase
         .from("users")
-        .select("role, first_name, last_name, phone_number, address, barangay")
+        .select("role, first_name, last_name, phone_number, address, barangay, status")
         .eq("id", sessionUser.id)
         .maybeSingle()
 
-      // Some Supabase clients may return a benign error for 0 rows; treat missing
-      // profile as non-fatal and do not spam the console with empty error objects
-      if (error) {
+      // CRITICAL: If user row doesn't exist, account was deleted - sign out immediately
+      if (error || !data) {
         const code = (error as any)?.code
         const message = (error as any)?.message
         const details = (error as any)?.details
@@ -52,11 +51,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           message?.toLowerCase?.().includes?.("row") ||
           details?.toLowerCase?.().includes?.("row")
 
+        // If no data and it's a "no rows" error, account was deleted
+        if (!data && isBenignNoRows) {
+          console.warn('[Auth] Account deleted - user row not found, signing out')
+          await supabase.auth.signOut()
+          return null
+        }
+
         if (!isBenignNoRows) {
           console.warn("Role lookup warning:", { code, message, details })
         }
-        // Return the user with no role instead of throwing
+        // Return the user with no role instead of throwing (for new registrations)
         return { ...sessionUser, role: undefined, isProfileComplete: false } as ExtendedUser
+      }
+
+      // CRITICAL: Check if account is inactive/deactivated
+      if ((data as any).status === 'inactive') {
+        console.warn('[Auth] Account deactivated - signing out')
+        await supabase.auth.signOut()
+        return null
       }
 
       // Check if profile is complete for residents

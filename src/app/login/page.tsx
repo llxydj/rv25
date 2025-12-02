@@ -18,11 +18,13 @@ export default function LoginPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  // Check for deactivated account error in URL
+  // Check for deactivated/deleted account error in URL
   useEffect(() => {
     const errorParam = searchParams.get('error')
     if (errorParam === 'account_deactivated') {
       setError('Your account has been deactivated. Please contact an administrator.')
+    } else if (errorParam === 'account_not_found') {
+      setError('Account not found. Please contact an administrator or register a new account.')
     }
   }, [searchParams])
 

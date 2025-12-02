@@ -635,6 +635,34 @@ export const signIn = async (email: string, password: string) => {
       throw new Error("Failed to authenticate user")
     }
 
+    // CRITICAL: Check if account is deleted/inactive BEFORE proceeding
+    // This prevents deleted accounts from logging in
+    const { data: userStatusCheck } = await supabase
+      .from("users")
+      .select("status, id")
+      .eq("id", data.user.id)
+      .maybeSingle()
+
+    // If user row doesn't exist, account was deleted - block login
+    if (!userStatusCheck) {
+      console.warn('[Auth] Login blocked - user account not found in database (deleted)')
+      await supabase.auth.signOut()
+      return {
+        success: false,
+        message: "Account not found. Please contact an administrator or register a new account."
+      }
+    }
+
+    // If account is inactive/deactivated, block login
+    if (userStatusCheck.status === 'inactive') {
+      console.warn('[Auth] Login blocked - account is deactivated:', data.user.id)
+      await supabase.auth.signOut()
+      return {
+        success: false,
+        message: "Your account has been deactivated. Please contact an administrator."
+      }
+    }
+
     // PERMANENT FIX: Cache token immediately after login (prevents recurring token issues)
     if (data.session?.access_token && typeof window !== 'undefined') {
       try {

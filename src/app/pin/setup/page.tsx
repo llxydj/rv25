@@ -6,12 +6,21 @@ import { Lock, ArrowRight, AlertCircle, CheckCircle } from "lucide-react"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useAuth } from "@/hooks/use-auth"
 
 export default function PinSetupPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { user } = useAuth()
   const redirectTo = searchParams.get('redirect') || '/resident/dashboard'
   const isExpired = searchParams.get('expired') === 'true'
+
+  // CRITICAL: Redirect residents away from PIN pages - they don't need PIN
+  useEffect(() => {
+    if (user?.role === 'resident' || user?.role === 'barangay') {
+      router.replace(redirectTo)
+    }
+  }, [user?.role, router, redirectTo])
   
   const [pin, setPin] = useState<string[]>(['', '', '', ''])
   const [confirmPin, setConfirmPin] = useState<string[]>(['', '', '', ''])

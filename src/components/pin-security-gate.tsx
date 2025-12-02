@@ -49,7 +49,9 @@ export function PinSecurityGate({ children }: { children: React.ReactNode }) {
       return
     }
 
-    // SKIP PIN CHECK FOR RESIDENTS - No PIN required for resident role
+    // CRITICAL: SKIP PIN CHECK FOR RESIDENTS - No PIN required for resident role
+    // Check this FIRST before any PIN API calls
+    // Also skip if role is not yet loaded (prevents PIN from showing while role loads)
     if (user.role === 'resident') {
       setIsUnlocked(true)
       setLoading(false)
@@ -58,6 +60,21 @@ export function PinSecurityGate({ children }: { children: React.ReactNode }) {
         sessionStorage.setItem("pin_user_id", user.id)
       }
       return
+    }
+
+    // If user exists but role is not loaded yet, wait briefly for role to load
+    // Don't show PIN while waiting (prevents flash of PIN screen)
+    if (!user.role) {
+      // Wait up to 1 second for role to load
+      const timeoutId = setTimeout(() => {
+        // If role still not loaded after timeout, skip PIN (fail open for UX)
+        setIsUnlocked(true)
+        setLoading(false)
+      }, 1000)
+      
+      // If role loads, this effect will re-run (due to user.role dependency)
+      // and we'll check again
+      return () => clearTimeout(timeoutId)
     }
 
     let mounted = true
@@ -166,7 +183,7 @@ export function PinSecurityGate({ children }: { children: React.ReactNode }) {
     return () => {
       mounted = false
     }
-  }, [user?.id, bypassPin]) // Only re-run if user ID changes
+  }, [user?.id, user?.role, bypassPin]) // Re-run if user ID or role changes
 
   // Clear PIN unlock on logout OR when user changes
   useEffect(() => {
@@ -324,7 +341,8 @@ export function PinSecurityGate({ children }: { children: React.ReactNode }) {
   }
 
   // Skip PIN gate if on PIN pages, if bypassed/unlocked, or if user is a resident
-  if (bypassPin || !pinEnabled || !user || isUnlocked || skipRoutes.some(route => pathname.startsWith(route)) || user?.role === 'resident') {
+  // CRITICAL: Also skip if user has no role yet (prevents PIN from showing while role loads)
+  if (bypassPin || !pinEnabled || !user || isUnlocked || skipRoutes.some(route => pathname.startsWith(route)) || user?.role === 'resident' || !user?.role) {
     return <>{children}</>
   }
 

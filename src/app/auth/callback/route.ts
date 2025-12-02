@@ -64,18 +64,19 @@ export async function GET(request: Request) {
           return NextResponse.redirect(new URL('/login?error=user_check_failed', requestUrl.origin))
         }
 
-        // CRITICAL: Check if user is deactivated
-        if (userRow && (userRow as any).status === 'inactive') {
+        // CRITICAL: Check if user is deactivated or deleted
+        // If userRow doesn't exist, account was deleted - block OAuth
+        if (!userRow) {
+          console.warn('Deleted user attempted OAuth login:', userId)
+          await supabase.auth.signOut()
+          return NextResponse.redirect(new URL('/login?error=account_not_found', requestUrl.origin))
+        }
+
+        if ((userRow as any).status === 'inactive') {
           console.warn('Deactivated user attempted OAuth login:', userId)
           // Sign out the user
           await supabase.auth.signOut()
           return NextResponse.redirect(new URL('/login?error=account_deactivated', requestUrl.origin))
-        }
-
-        // If user doesn't have a profile, redirect to registration to complete profile
-        if (!userRow) {
-          // New Google OAuth user - redirect to registration page to complete profile
-          return NextResponse.redirect(new URL('/resident/register-google', requestUrl.origin))
         }
 
         // Check if profile is complete for residents (all required fields must be present)
