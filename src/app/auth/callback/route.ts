@@ -67,9 +67,17 @@ export async function GET(request: Request) {
         // If userRow doesn't exist, this is a NEW user - redirect to registration
         // (Not a deleted account - deleted accounts would have been removed from Auth too)
         if (!userRow) {
-          console.log('New Google OAuth user - redirecting to registration:', userId)
-          // Allow them to register - redirect to registration page
-          return NextResponse.redirect(new URL('/resident/register-google', requestUrl.origin))
+          console.log('[OAuth Callback] New Google OAuth user detected - redirecting to registration:', {
+            userId,
+            email: userEmail
+          })
+          // CRITICAL: Redirect new Google OAuth users to registration page
+          // Use 302 redirect to prevent caching issues
+          const redirect = NextResponse.redirect(new URL('/resident/register-google', requestUrl.origin), 302)
+          redirect.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+          redirect.headers.set('Pragma', 'no-cache')
+          redirect.headers.set('Expires', '0')
+          return redirect
         }
 
         // CRITICAL: Check if user is deactivated
@@ -89,15 +97,21 @@ export async function GET(request: Request) {
 
         // If profile is incomplete, redirect to registration
         if (!isProfileComplete) {
-          console.log('Profile incomplete, redirecting to registration:', {
+          console.log('[OAuth Callback] Profile incomplete, redirecting to registration:', {
             userId,
+            role: userRow.role,
             hasFirstName: !!userRow.first_name,
             hasLastName: !!userRow.last_name,
             hasPhone: !!userRow.phone_number,
             hasAddress: !!userRow.address,
             hasBarangay: !!userRow.barangay
           })
-          return NextResponse.redirect(new URL('/resident/register-google', requestUrl.origin))
+          // CRITICAL: Redirect to registration page with no-cache headers
+          const redirect = NextResponse.redirect(new URL('/resident/register-google', requestUrl.origin), 302)
+          redirect.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+          redirect.headers.set('Pragma', 'no-cache')
+          redirect.headers.set('Expires', '0')
+          return redirect
         }
 
         // User exists with complete profile - check and assign role if needed
@@ -135,9 +149,9 @@ export async function GET(request: Request) {
             .eq('id', userId)
             .single()
 
-          // SKIP PIN CHECK FOR RESIDENTS AND BARANGAY - No PIN required
-          // Only check PIN if query succeeded and user is admin or volunteer
-          if (!pinError && pinData && pinData.role !== 'barangay' && pinData.role !== 'resident') {
+          // SKIP PIN CHECK FOR RESIDENTS, BARANGAY, AND VOLUNTEERS - No PIN required
+          // Only check PIN if query succeeded and user is admin
+          if (!pinError && pinData && pinData.role !== 'barangay' && pinData.role !== 'resident' && pinData.role !== 'volunteer') {
             const pinEnabled = pinData.pin_enabled !== false
             const hasPin = !!pinData.pin_hash
 
@@ -150,14 +164,20 @@ export async function GET(request: Request) {
             }
             // If disabled, use default redirect
           }
-          // For residents and barangay, always use default redirect (no PIN)
+          // For residents, barangay, and volunteers, always use default redirect (no PIN)
+          // This ensures they never see PIN pages
         } catch (pinCheckError) {
           // If PIN check fails, log but don't block OAuth flow
           console.error('[OAuth Callback] PIN check failed, using default redirect:', pinCheckError)
           // Continue with default redirect to ensure OAuth doesn't fail
         }
 
-        return NextResponse.redirect(new URL(redirectUrl, requestUrl.origin))
+        // Use 302 redirect with no-cache headers to prevent caching issues
+        const redirect = NextResponse.redirect(new URL(redirectUrl, requestUrl.origin), 302)
+        redirect.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+        redirect.headers.set('Pragma', 'no-cache')
+        redirect.headers.set('Expires', '0')
+        return redirect
       } else {
         console.warn('No user after code exchange')
         return NextResponse.redirect(new URL('/login?error=no_session', requestUrl.origin))

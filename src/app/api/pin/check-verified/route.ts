@@ -58,8 +58,8 @@ export async function GET() {
           userRole = (userData as any).role
           pinCreatedAt = (userData as any).pin_created_at
           
-          // Residents and barangay users don't need PIN - always return verified
-          if (userRole === 'resident' || userRole === 'barangay') {
+          // Residents, barangay, and volunteer users don't need PIN - always return verified
+          if (userRole === 'resident' || userRole === 'barangay' || userRole === 'volunteer') {
             return NextResponse.json({ 
               verified: true,
               reason: 'excluded_role',

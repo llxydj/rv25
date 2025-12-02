@@ -15,9 +15,9 @@ export default function PinSetupPage() {
   const redirectTo = searchParams.get('redirect') || '/resident/dashboard'
   const isExpired = searchParams.get('expired') === 'true'
 
-  // CRITICAL: Redirect residents away from PIN pages - they don't need PIN
+  // CRITICAL: Redirect residents, barangay, and volunteers away from PIN pages - they don't need PIN
   useEffect(() => {
-    if (user?.role === 'resident' || user?.role === 'barangay') {
+    if (user?.role === 'resident' || user?.role === 'barangay' || user?.role === 'volunteer') {
       router.replace(redirectTo)
     }
   }, [user?.role, router, redirectTo])

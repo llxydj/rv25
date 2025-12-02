@@ -313,7 +313,7 @@ export const useAuth = () => {
 
           // If user is a resident but profile is incomplete, redirect to registration
           if (userData.role === "resident" && !isProfileComplete) {
-            console.log('Resident profile incomplete, redirecting to registration:', {
+            console.log('[Auth] Resident profile incomplete, redirecting to registration:', {
               userId: session.user.id,
               hasFirstName: !!userData.first_name,
               hasLastName: !!userData.last_name,
@@ -328,7 +328,11 @@ export const useAuth = () => {
               firstName: "",
               lastName: "",
             })
-            router.push("/resident/register-google")
+            // CRITICAL: Only redirect if not already on register-google page
+            // This prevents redirect loops
+            if (typeof window !== 'undefined' && !window.location.pathname.includes('/resident/register-google')) {
+              router.push("/resident/register-google")
+            }
             return
           }
 
@@ -386,15 +390,16 @@ export const useAuth = () => {
               return
             }
 
-            // SKIP PIN CHECK FOR RESIDENTS AND BARANGAY - No PIN required
-            if (userData.role !== 'resident' && userData.role !== 'barangay') {
+            // SKIP PIN CHECK FOR RESIDENTS, BARANGAY, AND VOLUNTEERS - No PIN required
+            if (userData.role !== 'resident' && userData.role !== 'barangay' && userData.role !== 'volunteer') {
               const { getPinRedirectForRole } = await import('@/lib/pin-auth-helper')
               const redirectUrl = await getPinRedirectForRole(userData.role)
               
               // Only redirect if different from current path (prevents loops)
+              // Also skip redirect if on register-google page (OAuth callback handles that)
               if (typeof window !== 'undefined') {
                 const currentPath = window.location.pathname
-                if (redirectUrl !== currentPath && !currentPath.startsWith('/pin/')) {
+                if (redirectUrl !== currentPath && !currentPath.startsWith('/pin/') && !currentPath.includes('/resident/register-google')) {
                   setHasRedirected(true) // Mark that we've redirected
                   router.push(redirectUrl)
                 } else if (redirectUrl === currentPath) {
@@ -406,7 +411,8 @@ export const useAuth = () => {
                 router.push(redirectUrl)
               }
             } else {
-              // For residents and barangay, use default redirect (no PIN)
+              // For residents, barangay, and volunteers, use default redirect (no PIN)
+              // CRITICAL: Don't redirect if on register-google page (let OAuth callback handle it)
               const defaultRedirects: Record<string, string> = {
                 admin: '/admin/dashboard',
                 volunteer: '/volunteer/dashboard',
@@ -417,9 +423,14 @@ export const useAuth = () => {
                 ? defaultRedirects[userData.role] || '/resident/dashboard'
                 : '/resident/dashboard'
               
-              // Only redirect if different from current path
+              // Only redirect if different from current path and not on register-google
               if (typeof window !== 'undefined') {
                 const currentPath = window.location.pathname
+                // Don't redirect if already on register-google (OAuth callback handles that)
+                if (currentPath.includes('/resident/register-google')) {
+                  // Already on registration page, don't redirect
+                  return
+                }
                 if (defaultRedirect !== currentPath && !currentPath.startsWith('/pin/')) {
                   setHasRedirected(true)
                   router.push(defaultRedirect)
@@ -459,7 +470,9 @@ export const useAuth = () => {
             }
           }
         } else {
-          // No profile data found, set basic user info
+          // No profile data found - this is a new Google OAuth user
+          // Set basic user info and redirect to registration
+          console.log('[Auth] No profile data found for new Google OAuth user, redirecting to registration:', session.user.id)
           setUser({
             id: session.user.id,
             email: session.user.email || "",
@@ -467,8 +480,11 @@ export const useAuth = () => {
             firstName: "",
             lastName: "",
           })
-          // Redirect to registration to complete profile
-          router.push("/resident/register-google")
+          // CRITICAL: Only redirect if not already on register-google page
+          // This prevents redirect loops and allows the OAuth callback to handle the redirect
+          if (typeof window !== 'undefined' && !window.location.pathname.includes('/resident/register-google')) {
+            router.push("/resident/register-google")
+          }
         }
       } else if (event === "SIGNED_OUT") {
         setUser(null)

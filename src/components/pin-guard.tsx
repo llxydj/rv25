@@ -35,7 +35,7 @@ export function PinGuard({ children }: PinGuardProps) {
           return
         }
 
-        // Excluded users (barangay) don't need PIN
+        // CRITICAL: Excluded users (resident/barangay) don't need PIN
         if (json.excluded) {
           setChecking(false)
           return

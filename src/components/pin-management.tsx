@@ -4,14 +4,17 @@ import { useState, useEffect } from "react"
 import { Lock, CheckCircle, XCircle, AlertCircle, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
+import { useAuth } from "@/hooks/use-auth"
 
 export function PinManagement() {
+  const { user } = useAuth()
   const [pinStatus, setPinStatus] = useState<{
     enabled: boolean
     hasPin: boolean
     needsSetup: boolean
     isLocked: boolean
     loading: boolean
+    excluded?: boolean
   }>({
     enabled: false,
     hasPin: false,
@@ -23,6 +26,11 @@ export function PinManagement() {
   const [success, setSuccess] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
 
+  // CRITICAL: Hide PIN management for residents, barangay, and volunteers - they don't need PIN
+  if (user?.role === 'resident' || user?.role === 'barangay' || user?.role === 'volunteer') {
+    return null
+  }
+
   useEffect(() => {
     fetchPinStatus()
   }, [])
@@ -33,12 +41,19 @@ export function PinManagement() {
       const json = await res.json()
       
       if (json.success) {
+        // If user is excluded (resident/barangay), don't show PIN management
+        if (json.excluded) {
+          setPinStatus(prev => ({ ...prev, loading: false, excluded: true }))
+          return
+        }
+        
         setPinStatus({
           enabled: json.enabled,
           hasPin: json.hasPin,
           needsSetup: json.needsSetup,
           isLocked: json.isLocked,
-          loading: false
+          loading: false,
+          excluded: false
         })
       } else {
         setError('Failed to load PIN status')
@@ -111,6 +126,11 @@ export function PinManagement() {
   const handleChangePin = () => {
     // Redirect to setup (which will update existing PIN)
     window.location.href = '/pin/setup?redirect=' + encodeURIComponent(window.location.pathname)
+  }
+
+  // Don't render if excluded (resident/barangay)
+  if (pinStatus.excluded) {
+    return null
   }
 
   if (pinStatus.loading) {

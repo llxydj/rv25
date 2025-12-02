@@ -64,8 +64,8 @@ export async function POST(request: Request) {
       }, { status: 403 })
     }
 
-    // CRITICAL: Exclude residents and barangay users - PIN not available for these roles
-    if (userData.role === 'resident' || userData.role === 'barangay') {
+    // CRITICAL: Exclude residents, barangay, and volunteer users - PIN not available for these roles
+    if (userData.role === 'resident' || userData.role === 'barangay' || userData.role === 'volunteer') {
       return NextResponse.json({ 
         success: false, 
         message: 'PIN verification not available for this account type' 

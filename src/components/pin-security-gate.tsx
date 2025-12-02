@@ -49,10 +49,10 @@ export function PinSecurityGate({ children }: { children: React.ReactNode }) {
       return
     }
 
-    // CRITICAL: SKIP PIN CHECK FOR RESIDENTS - No PIN required for resident role
+    // CRITICAL: SKIP PIN CHECK FOR RESIDENTS, BARANGAY, AND VOLUNTEERS - No PIN required
     // Check this FIRST before any PIN API calls
     // Also skip if role is not yet loaded (prevents PIN from showing while role loads)
-    if (user.role === 'resident') {
+    if (user.role === 'resident' || user.role === 'barangay' || user.role === 'volunteer') {
       setIsUnlocked(true)
       setLoading(false)
       if (typeof window !== "undefined") {
@@ -62,15 +62,18 @@ export function PinSecurityGate({ children }: { children: React.ReactNode }) {
       return
     }
 
-    // If user exists but role is not loaded yet, wait briefly for role to load
+    // If user exists but role is not loaded yet, wait for role to load
     // Don't show PIN while waiting (prevents flash of PIN screen)
+    // This is especially important for new Google OAuth users who might not have a role yet
     if (!user.role) {
-      // Wait up to 1 second for role to load
+      // Wait up to 2 seconds for role to load (longer timeout for OAuth users)
       const timeoutId = setTimeout(() => {
         // If role still not loaded after timeout, skip PIN (fail open for UX)
+        // This prevents blocking users who might be in registration flow
+        console.log('[PIN] Role not loaded after timeout, skipping PIN check')
         setIsUnlocked(true)
         setLoading(false)
-      }, 1000)
+      }, 2000)
       
       // If role loads, this effect will re-run (due to user.role dependency)
       // and we'll check again
@@ -340,9 +343,10 @@ export function PinSecurityGate({ children }: { children: React.ReactNode }) {
     )
   }
 
-  // Skip PIN gate if on PIN pages, if bypassed/unlocked, or if user is a resident
+  // Skip PIN gate if on PIN pages, if bypassed/unlocked, or if user is a resident/barangay/volunteer
   // CRITICAL: Also skip if user has no role yet (prevents PIN from showing while role loads)
-  if (bypassPin || !pinEnabled || !user || isUnlocked || skipRoutes.some(route => pathname.startsWith(route)) || user?.role === 'resident' || !user?.role) {
+  // This is important for new Google OAuth users who are in the registration flow
+  if (bypassPin || !pinEnabled || !user || isUnlocked || skipRoutes.some(route => pathname.startsWith(route)) || user?.role === 'resident' || user?.role === 'barangay' || user?.role === 'volunteer' || !user?.role) {
     return <>{children}</>
   }
 
