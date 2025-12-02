@@ -105,22 +105,25 @@ export default function LoginPage() {
                 setLoading(true)
                 setError(null)
                 try {
-                  // Ensure we start with a clean state - sign out any existing session first
+                  // CRITICAL: Always sign out existing session first to ensure clean OAuth flow
+                  // This prevents issues where Google says "signing back in" but user isn't registered
                   const { data: { session } } = await supabase.auth.getSession()
                   if (session) {
+                    console.log('[Login] Clearing existing session before Google OAuth')
                     await supabase.auth.signOut()
-                    // Wait a moment for sign out to complete
-                    await new Promise(resolve => setTimeout(resolve, 100))
+                    // Wait longer for sign out to complete fully
+                    await new Promise(resolve => setTimeout(resolve, 500))
                   }
                   
                   // Now start fresh OAuth flow
+                  // Use 'select_account' prompt to force account selection and prevent auto-login
                   await supabase.auth.signInWithOAuth({
                     provider: 'google' as any,
                     options: { 
                       redirectTo: `${window.location.origin}/auth/callback`,
                       queryParams: {
                         access_type: 'offline',
-                        prompt: 'consent', // Force Google to show account selection
+                        prompt: 'select_account', // Force account selection - prevents "signing back in" issue
                       }
                     }
                   })
