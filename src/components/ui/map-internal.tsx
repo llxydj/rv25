@@ -209,6 +209,14 @@ function TalisayCityBoundary() {
           setTimeout(loadBoundary, 100)
           return
         }
+        
+        // Additional check: ensure map container exists and is in DOM
+        const container = map.getContainer()
+        if (!container || !container.parentElement) {
+          // Container not in DOM yet, retry
+          setTimeout(loadBoundary, 100)
+          return
+        }
       } catch (err) {
         return
       }
@@ -264,10 +272,82 @@ function TalisayCityBoundary() {
         }
 
             // Fit map to boundary bounds once loaded
+            // Use map.whenReady to ensure map is fully initialized before fitting bounds
             try {
               const bounds = geoJsonLayer.getBounds()
-              if (bounds && bounds.isValid() && map.fitBounds) {
-                map.fitBounds(bounds, { padding: [20, 20] })
+              if (bounds && bounds.isValid() && map && typeof map.fitBounds === 'function') {
+                // Use whenReady if available, otherwise use setTimeout with validation
+                if (typeof (map as any).whenReady === 'function') {
+                  (map as any).whenReady(() => {
+                    try {
+                      if (map && map.fitBounds && bounds && bounds.isValid()) {
+                        // Invalidate size first to ensure map is properly sized
+                        if (typeof map.invalidateSize === 'function') {
+                          map.invalidateSize()
+                        }
+                        // Small delay to ensure invalidateSize completes
+                        setTimeout(() => {
+                          try {
+                            if (map && map.fitBounds && bounds && bounds.isValid()) {
+                              map.fitBounds(bounds, { padding: [20, 20] })
+                            }
+                          } catch (fitErr) {
+                            console.warn('Failed to fit bounds in whenReady callback:', fitErr)
+                          }
+                        }, 50)
+                      }
+                    } catch (err) {
+                      console.warn('Error in whenReady callback:', err)
+                    }
+                  })
+                } else {
+                  // Fallback: use setTimeout with multiple validation checks
+                  const attemptFitBounds = (attempt: number = 0) => {
+                    if (attempt > 5) {
+                      console.warn('Max attempts reached for fitBounds, skipping')
+                      return
+                    }
+                    
+                    try {
+                      if (!map || typeof map.getContainer !== 'function') {
+                        setTimeout(() => attemptFitBounds(attempt + 1), 100)
+                        return
+                      }
+                      
+                      const container = map.getContainer()
+                      if (!container || !container.parentElement) {
+                        setTimeout(() => attemptFitBounds(attempt + 1), 100)
+                        return
+                      }
+                      
+                      const panes = (map as any)._panes
+                      if (!panes || !panes.mapPane) {
+                        setTimeout(() => attemptFitBounds(attempt + 1), 100)
+                        return
+                      }
+                      
+                      // Invalidate size first
+                      if (typeof map.invalidateSize === 'function') {
+                        map.invalidateSize()
+                      }
+                      
+                      // Small delay then fit bounds
+                      setTimeout(() => {
+                        try {
+                          if (map && map.fitBounds && bounds && bounds.isValid()) {
+                            map.fitBounds(bounds, { padding: [20, 20] })
+                          }
+                        } catch (fitErr) {
+                          console.warn('Failed to fit bounds:', fitErr)
+                        }
+                      }, 100)
+                    } catch (err) {
+                      console.warn('Error in fitBounds attempt:', err)
+                    }
+                  }
+                  
+                  attemptFitBounds()
+                }
               }
             } catch (err) {
               console.error('Failed to fit bounds to boundary:', err)
