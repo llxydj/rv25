@@ -1,5 +1,7 @@
 "use client"
 
+export const dynamic = 'force-dynamic'
+
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth"
@@ -9,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { AnnouncementRating } from "@/components/announcement-rating"
+import { LocationLinkDisplay } from "@/components/ui/location-link-display"
 
 interface Announcement {
   id: string
@@ -17,6 +20,8 @@ interface Announcement {
   type: 'TRAINING' | 'MEETING' | 'ALERT' | 'GENERAL'
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
   location?: string
+  location_lat?: number | null
+  location_lng?: number | null
   date?: string
   time?: string
   requirements?: string[]
@@ -342,24 +347,21 @@ export default function AnnouncementsPage() {
 
                   {/* Details Grid */}
                   {(announcement.location || announcement.date) && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                      {announcement.location && (
-                        <div className="flex items-start gap-3 text-sm text-gray-700 dark:text-gray-300">
-                          <MapPin className="h-5 w-5 flex-shrink-0 mt-0.5 text-gray-500 dark:text-gray-400" />
-                          <div>
-                            <span className="font-medium text-gray-600 dark:text-gray-400 block mb-1">Location</span>
-                            <span className="break-words">{announcement.location}</span>
-                          </div>
-                        </div>
-                      )}
+                    <div className="space-y-4">
                       {announcement.date && (
-                        <div className="flex items-start gap-3 text-sm text-gray-700 dark:text-gray-300">
+                        <div className="flex items-start gap-3 text-sm text-gray-700 dark:text-gray-300 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                           <Calendar className="h-5 w-5 flex-shrink-0 mt-0.5 text-gray-500 dark:text-gray-400" />
                           <div>
                             <span className="font-medium text-gray-600 dark:text-gray-400 block mb-1">Date & Time</span>
                             <span>{announcement.date} {announcement.time && `• ${announcement.time}`}</span>
                           </div>
                         </div>
+                      )}
+                      {announcement.location && (
+                        <LocationLinkDisplay
+                          location={announcement.location}
+                          className="w-full"
+                        />
                       )}
                     </div>
                   )}

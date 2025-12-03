@@ -18,6 +18,18 @@ const nextConfig = {
   },
 
   webpack(config, { isServer }) {
+    // Handle Leaflet on server-side (prevent SSR errors)
+    if (isServer) {
+      config.externals = [
+        ...(Array.isArray(config.externals) ? config.externals : []),
+        {
+          leaflet: 'commonjs leaflet',
+          'react-leaflet': 'commonjs react-leaflet',
+          '@react-leaflet/core': 'commonjs @react-leaflet/core'
+        }
+      ]
+    }
+    
     // Optimize chunk splitting for map component (non-destructive)
     if (!isServer) {
       // Only customize if optimization exists, otherwise keep Next.js defaults

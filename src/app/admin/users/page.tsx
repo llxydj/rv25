@@ -51,6 +51,8 @@ interface User {
   created_at: string
   status: "active" | "inactive"
   incident_count?: number
+  auth_provider?: string // 'google' | 'email' | etc.
+  last_sign_in_at?: string | null
 }
 
 interface PaginationMeta {
@@ -93,7 +95,15 @@ export default function UserManagementPage() {
       },
       { admin: 0, barangay: 0, resident: 0, volunteer: 0 } as Record<UserRole, number>,
     )
-    return { total, active, inactive, byRole }
+    const byProvider = users.reduce(
+      (acc, u) => {
+        const provider = u.auth_provider || 'email'
+        acc[provider] = (acc[provider] || 0) + 1
+        return acc
+      },
+      { google: 0, email: 0 } as Record<string, number>,
+    )
+    return { total, active, inactive, byRole, byProvider }
   }, [users])
 
   // Debounce search term to avoid too many API calls
@@ -513,6 +523,21 @@ export default function UserManagementPage() {
             </CardHeader>
           </Card>
         </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>By Provider</CardDescription>
+              <div className="flex flex-wrap gap-2 mt-2">
+                <Badge variant="outline">
+                  🔵 Google · {userStats.byProvider.google || 0}
+                </Badge>
+                <Badge variant="outline">
+                  📧 Email · {userStats.byProvider.email || 0}
+                </Badge>
+              </div>
+            </CardHeader>
+          </Card>
+        </div>
         
         <Card>
           <CardHeader>
@@ -616,6 +641,20 @@ export default function UserManagementPage() {
                           <span className="text-gray-900 ml-1">{new Date(user.created_at).toLocaleDateString()}</span>
                         </div>
                         <div>
+                          <span className="text-gray-500">Provider:</span>
+                          <Badge variant="outline" className="ml-1 text-xs">
+                            {user.auth_provider === 'google' ? '🔵 Google' : '📧 Email'}
+                          </Badge>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Last Sign-in:</span>
+                          <span className="text-gray-900 ml-1">
+                            {user.last_sign_in_at 
+                              ? new Date(user.last_sign_in_at).toLocaleDateString() 
+                              : 'Never'}
+                          </span>
+                        </div>
+                        <div>
                           <span className="text-gray-500">Phone:</span>
                           <span className="text-gray-900 ml-1">{user.phone_number || "N/A"}</span>
                         </div>
@@ -681,8 +720,9 @@ export default function UserManagementPage() {
                     <TableRow>
                       <TableHead>Name</TableHead>
                       <TableHead>Email</TableHead>
+                      <TableHead>Provider</TableHead>
+                      <TableHead>Last Sign-in</TableHead>
                       <TableHead>Phone</TableHead>
-                      <TableHead>Address</TableHead>
                       <TableHead>Role</TableHead>
                       <TableHead>Barangay</TableHead>
                       <TableHead>Registration Date</TableHead>
@@ -698,8 +738,17 @@ export default function UserManagementPage() {
                             {user.first_name} {user.last_name}
                           </TableCell>
                           <TableCell>{user.email}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-xs">
+                              {user.auth_provider === 'google' ? '🔵 Google' : '📧 Email'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            {user.last_sign_in_at 
+                              ? new Date(user.last_sign_in_at).toLocaleString() 
+                              : 'Never'}
+                          </TableCell>
                           <TableCell>{user.phone_number || "N/A"}</TableCell>
-                          <TableCell>{user.address || "—"}</TableCell>
                           <TableCell>
                             <Badge variant={
                               user.role === "admin" ? "default" :

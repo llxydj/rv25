@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Calendar, MapPin, Users, Clock, ArrowLeft, Star, MessageSquare, User, CheckCircle, AlertCircle } from "lucide-react"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
+import { LocationLinkDisplay } from "@/components/ui/location-link-display"
 import Link from "next/link"
 
 export default function AdminTrainingDetailPage() {
@@ -241,12 +242,11 @@ export default function AdminTrainingDetailPage() {
                   )}
 
                   {training.location && (
-                    <div className="flex items-center gap-3">
-                      <MapPin className="h-5 w-5 text-gray-400" />
-                      <div>
-                        <p className="text-sm font-medium text-gray-700">Location</p>
-                        <p className="text-sm text-gray-600">{training.location}</p>
-                      </div>
+                    <div className="md:col-span-2">
+                      <LocationLinkDisplay
+                        location={training.location}
+                        className="w-full"
+                      />
                     </div>
                   )}
 

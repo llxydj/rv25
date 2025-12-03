@@ -1,7 +1,20 @@
 import { NextResponse } from 'next/server'
 import { getServerSupabase } from '@/lib/supabase-server'
+import { createClient } from '@supabase/supabase-js'
 
 export const dynamic = 'force-dynamic'
+
+// Admin client to bypass RLS for volunteer location queries
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  }
+)
 
 /**
  * GET /api/admin/volunteers/locations
@@ -72,11 +85,12 @@ export async function GET(request: Request) {
     }
 
     // Try the view first, but also query directly if view is empty or has issues
+    // Use admin client to bypass RLS restrictions
     let locations: any[] = []
     let error: any = null
 
-    // First, try the view
-    const { data: viewData, error: viewError } = await supabase
+    // First, try the view with admin client (bypasses RLS)
+    const { data: viewData, error: viewError } = await supabaseAdmin
       .from('active_volunteers_with_location')
       .select('*')
       .order('last_location_update', { ascending: false })
@@ -88,12 +102,12 @@ export async function GET(request: Request) {
       console.log(`[admin-locations] View returned ${locations.length} volunteers`)
     }
 
-    // If view returns no results, try direct query with longer time window (24 hours)
+    // If view returns no results, try direct query with longer time window (7 days for better coverage)
     if (locations.length === 0) {
       console.log('[admin-locations] View returned no results, trying direct query...')
       
-      // Query locations first
-      const { data: directData, error: directError } = await supabase
+      // Query locations first using admin client to bypass RLS
+      const { data: directData, error: directError } = await supabaseAdmin
         .from('volunteer_locations')
         .select(`
           user_id,
@@ -106,21 +120,28 @@ export async function GET(request: Request) {
             first_name,
             last_name,
             email,
-            phone_number
+            phone_number,
+            role,
+            status
           )
         `)
-        .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // Last 24 hours
+        .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()) // Last 7 days
         .order('created_at', { ascending: false })
 
       if (directError) {
         console.error('[admin-locations] Direct query error:', directError)
         error = directError
       } else if (directData && directData.length > 0) {
-        // Get unique user IDs
-        const userIds = [...new Set(directData.map((loc: any) => loc.user_id))]
+        // Filter for active volunteers only
+        const volunteerLocations = directData.filter((loc: any) => 
+          loc.users?.role === 'volunteer' && loc.users?.status === 'active'
+        )
         
-        // Query volunteer profiles separately to avoid relationship ambiguity
-        const { data: profiles } = await supabase
+        // Get unique user IDs
+        const userIds = [...new Set(volunteerLocations.map((loc: any) => loc.user_id))]
+        
+        // Query volunteer profiles separately using admin client
+        const { data: profiles } = await supabaseAdmin
           .from('volunteer_profiles')
           .select('volunteer_user_id, is_available, skills, assigned_barangays')
           .in('volunteer_user_id', userIds)
@@ -133,7 +154,7 @@ export async function GET(request: Request) {
 
         // Get unique volunteers (most recent location per volunteer)
         const volunteerMap = new Map<string, any>()
-        directData.forEach((loc: any) => {
+        volunteerLocations.forEach((loc: any) => {
           if (!volunteerMap.has(loc.user_id)) {
             const profile = profileMap.get(loc.user_id)
             volunteerMap.set(loc.user_id, {

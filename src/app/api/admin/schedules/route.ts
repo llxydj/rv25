@@ -51,10 +51,14 @@ export async function GET(req: Request) {
     }
 
     const { data, error } = await query
-    if (error) return NextResponse.json({ success: false, message: error.message }, { status: 400 })
+    if (error) {
+      console.error('[admin-schedules] Query error:', error)
+      return NextResponse.json({ success: false, message: error.message, error: error.code }, { status: 400 })
+    }
     return NextResponse.json({ success: true, data: data || [] })
   } catch (e: any) {
-    return NextResponse.json({ success: false, message: e?.message || 'Internal error' }, { status: 500 })
+    console.error('[admin-schedules] Unexpected error:', e)
+    return NextResponse.json({ success: false, message: e?.message || 'Internal error', stack: process.env.NODE_ENV === 'development' ? e?.stack : undefined }, { status: 500 })
   }
 }
 
@@ -151,23 +155,31 @@ export async function POST(req: Request) {
 
     if (error) return NextResponse.json({ success: false, message: error.message }, { status: 400 })
 
-    // Send notifications (push + SMS) to all assigned volunteers
+    // Return response immediately - don't wait for notifications
+    const data = insertedSchedules.length === 1 ? insertedSchedules[0] : insertedSchedules
+    const response = NextResponse.json({ success: true, data, count: insertedSchedules.length })
+
+    // Send notifications in background (fire-and-forget) - don't await
     const url = '/volunteer/schedules'
     const scheduleDetails = `${title}${location ? ` at ${location}` : ''}${barangay ? `, ${barangay}` : ''}`
     const timeRange = `${new Date(start_time).toLocaleString()} - ${new Date(end_time).toLocaleString()}`
 
-    // Fire-and-forget notifications for all volunteers
-    await Promise.allSettled(
+    // Fire-and-forget notifications - run in background without blocking response
+    Promise.allSettled(
       insertedSchedules.map(async (schedule: any) => {
         const volunteer = schedule.volunteer
         if (!volunteer) return
 
-        // Push notification
-        await sendPushToUser(volunteer.id, {
-          title: 'New Scheduled Activity',
-          body: `${scheduleDetails} • ${timeRange}`,
-          url,
-        })
+        try {
+          // Push notification
+          await sendPushToUser(volunteer.id, {
+            title: 'New Scheduled Activity',
+            body: `${scheduleDetails} • ${timeRange}`,
+            url,
+          })
+        } catch (pushErr) {
+          console.error('Failed to send push notification for schedule:', pushErr)
+        }
 
         // SMS notification
         if (volunteer.phone_number) {
@@ -204,15 +216,14 @@ export async function POST(req: Request) {
             )
           } catch (smsErr) {
             console.error('Failed to send SMS for schedule:', smsErr)
-            // Don't fail the request if SMS fails
           }
         }
       })
-    )
+    ).catch(err => {
+      console.error('Error in background notification sending:', err)
+    })
 
-    // Return first schedule for backward compatibility, or all if multiple
-    const data = insertedSchedules.length === 1 ? insertedSchedules[0] : insertedSchedules
-    return NextResponse.json({ success: true, data, count: insertedSchedules.length })
+    return response
   } catch (e: any) {
     return NextResponse.json({ success: false, message: e?.message || 'Internal error' }, { status: 500 })
   }
@@ -251,18 +262,23 @@ export async function PATCH(req: Request) {
 
     if (error) return NextResponse.json({ success: false, message: error.message }, { status: 400 })
 
-    // Notify volunteer about schedule update if volunteer_id present in updates or returned row
+    // Return response immediately
+    const response = NextResponse.json({ success: true, data })
+
+    // Notify volunteer about schedule update in background (fire-and-forget)
     const volunteerId = (updates as ScheduleUpdate)?.volunteer_id || (data as unknown as ScheduleRow)?.volunteer_id
     if (volunteerId) {
       const scheduleData = data as unknown as ScheduleRow
-      await sendPushToUser(volunteerId, {
+      sendPushToUser(volunteerId, {
         title: 'Schedule Updated',
         body: `${scheduleData?.title || 'Activity'} • ${new Date(scheduleData?.start_time).toLocaleString()} - ${new Date(scheduleData?.end_time).toLocaleString()}`,
         url: '/volunteer/schedules',
+      }).catch(err => {
+        console.error('Failed to send push notification for schedule update:', err)
       })
     }
 
-    return NextResponse.json({ success: true, data })
+    return response
   } catch (e: any) {
     return NextResponse.json({ success: false, message: e?.message || 'Internal error' }, { status: 500 })
   }

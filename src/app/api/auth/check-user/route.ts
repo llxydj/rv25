@@ -32,18 +32,40 @@ export async function GET(req: Request) {
     return NextResponse.json({ user: null, role: null })
   }
 
+  // ✅ CRITICAL: Check app_metadata.disabled flag (set by admin for OAuth users)
+  // This blocks users even if they have cached Google sessions
+  if (user.app_metadata?.disabled === true) {
+    console.warn('[check-user] User blocked - app_metadata.disabled = true:', user.id)
+    return NextResponse.json({ 
+      user: null, 
+      role: null,
+      error: 'Account disabled' 
+    })
+  }
+
   const { data: profile } = await supabase
     .from('users')
     .select('role, status')
     .eq('id', user.id)
     .maybeSingle()
 
-  // Check if user is deactivated
+  // ✅ CRITICAL: Check if user is deactivated in database
   if (profile && profile.status === 'inactive') {
+    console.warn('[check-user] User blocked - status = inactive:', user.id)
     return NextResponse.json({ 
       user: null, 
       role: null,
-      error: 'Account deactivated'
+      error: 'Account deactivated' 
+    })
+  }
+
+  // ✅ CRITICAL: If user row doesn't exist, they were deleted - block access
+  if (!profile) {
+    console.warn('[check-user] User blocked - no profile found (deleted):', user.id)
+    return NextResponse.json({ 
+      user: null, 
+      role: null,
+      error: 'Account not found' 
     })
   }
 

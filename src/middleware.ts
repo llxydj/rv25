@@ -5,7 +5,9 @@ export async function middleware(req: NextRequest) {
   // Log only in development
   if (process.env.NODE_ENV === 'development') {
     console.log('🔥 MIDDLEWARE HIT:', req.nextUrl.pathname)
-    console.log('🍪 ALL COOKIES:', req.cookies.getAll().map(c => c.name))
+    const cookieHeader = req.headers.get('cookie') || ''
+    const cookieNames = cookieHeader ? cookieHeader.split(';').map(c => c.trim().split('=')[0]).filter(Boolean) : []
+    console.log('🍪 ALL COOKIES:', cookieNames.length > 0 ? cookieNames : '[] (cookies may be HttpOnly)')
   }
 
   // Add cache-control headers to prevent 304s for login/forgot-password
@@ -33,6 +35,20 @@ export async function middleware(req: NextRequest) {
     const json = await apiRes.json()
     const user = json.user
     const role = json.role
+    const error = json.error // Check for deactivation/disabled errors
+
+    // ✅ CRITICAL: Block deactivated/disabled users at middleware level
+    // This prevents cached Google sessions from bypassing checks
+    if (error && (error === 'Account deactivated' || error === 'Account disabled' || error === 'Account not found')) {
+      console.warn('[middleware] Blocking deactivated/disabled user:', req.nextUrl.pathname)
+      // Clear any cookies and redirect to login
+      const redirect = NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(error)}`, req.url), 302)
+      redirect.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+      // Clear auth cookies
+      redirect.cookies.delete('sb-access-token')
+      redirect.cookies.delete('sb-refresh-token')
+      return redirect
+    }
 
     // Protect /admin/sms pages
     if (req.nextUrl.pathname.startsWith('/admin/sms')) {
@@ -41,8 +57,9 @@ export async function middleware(req: NextRequest) {
       }
     }
 
-    // Redirect logged-in users from /login
-    if (user && req.nextUrl.pathname === '/login') {
+    // ✅ CRITICAL: Don't redirect logged-in users from /login if they're deactivated
+    // The error check above will handle that case
+    if (user && !error && req.nextUrl.pathname === '/login') {
       const redirectUrl = (() => {
         switch (role) {
           case 'admin':

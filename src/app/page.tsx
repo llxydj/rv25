@@ -2,6 +2,8 @@
 
 "use client"
 
+export const dynamic = 'force-dynamic'
+
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth"
@@ -15,6 +17,7 @@ import {
   Phone, 
   Calendar
 } from "lucide-react"
+import { LocationLinkDisplay } from "@/components/ui/location-link-display"
 
 export default function Home() {
   const { user, loading } = useAuth()
@@ -179,11 +182,19 @@ export default function Home() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {announcements.slice(0,4).map((a) => (
                 <Card key={a.id} className="p-4">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between mb-2">
                     <h3 className="font-medium text-gray-900">{a.title || 'Announcement'}</h3>
                     <span className="text-xs text-gray-500">{new Date(a.created_at).toLocaleDateString()}</span>
                   </div>
-                  <p className="text-sm text-gray-700 mt-2">{a.body || a.content}</p>
+                  <p className="text-sm text-gray-700 mb-3 line-clamp-2">{a.body || a.content}</p>
+                  {a.location && (
+                    <div className="mt-3">
+                      <LocationLinkDisplay
+                        location={a.location}
+                        className="w-full"
+                      />
+                    </div>
+                  )}
                 </Card>
               ))}
             </div>

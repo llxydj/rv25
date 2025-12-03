@@ -32,6 +32,8 @@ const TrainingCreateSchema = z.object({
   description: z.string().nullable().optional(),
   end_at: z.string().datetime('Invalid datetime format').nullable().optional(),
   location: z.string().nullable().optional(),
+  location_lat: z.number().nullable().optional(),
+  location_lng: z.number().nullable().optional(),
   capacity: z.number().int().positive().nullable().optional(),
   status: z.enum(['SCHEDULED', 'ONGOING', 'COMPLETED', 'CANCELLED']).default('SCHEDULED').optional(),
   created_by: z.string().nullable().optional()
@@ -141,7 +143,7 @@ export async function POST(request: Request) {
       has_created_by: !!created_by
     })
 
-    const { capacity, status } = body
+    const { capacity, status, location_lat, location_lng } = body
 
     const insertData = {
       title: title.trim(),
@@ -149,6 +151,8 @@ export async function POST(request: Request) {
       start_at: start_at,
       end_at: end_at || null,
       location: location || null,
+      location_lat: location_lat || null,
+      location_lng: location_lng || null,
       capacity: capacity ? parseInt(capacity) : null,
       status: status || 'SCHEDULED',
       created_by: created_by || null

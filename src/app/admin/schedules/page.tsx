@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { AdminLayout } from "@/components/layout/admin-layout"
-import { AlertTriangle, Calendar, CheckCircle, Clock, Pencil, MapPin, Plus, Trash2, User, Users } from "lucide-react"
+import { AlertTriangle, Calendar, CheckCircle, Clock, Pencil, MapPin, Plus, Trash2, User, Users, X } from "lucide-react"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import { useAuth } from "@/lib/auth"
 import { ACTIVITY_TYPES, createSchedule, deleteSchedule, getSchedules, updateSchedule } from "@/lib/schedules"
@@ -12,6 +12,7 @@ import { CITIES, getBarangays } from "@/lib/locations"
 import { ScheduleExportButton } from "@/components/admin/schedule-export-button"
 import { BulkScheduleModal } from "@/components/admin/bulk-schedule-modal"
 import { AttendanceMarkingModal } from "@/components/admin/attendance-marking-modal"
+import { ExternalLink } from "lucide-react"
 
 export default function ActivitySchedulesPage() {
   const { user } = useAuth()
@@ -224,6 +225,8 @@ export default function ActivitySchedulesPage() {
       barangay: barangay,
       street: street
     })
+    
+    // Location coordinates are no longer used - location is stored as text/Google Maps link
     setEditingSchedule(schedule)
     setShowForm(true)
   }
@@ -511,17 +514,36 @@ export default function ActivitySchedulesPage() {
 
                       <div>
                         <label htmlFor="street" className="block text-sm font-medium text-gray-700">
-                          Street Address *
+                          Street Address or Google Maps Link *
                         </label>
-                        <input
-                          type="text"
-                          id="street"
-                          name="street"
-                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 sm:text-sm text-gray-900 uppercase"
-                          value={formData.street}
-                          onChange={(e) => setFormData({ ...formData, street: e.target.value.toUpperCase() })}
-                          placeholder="Enter street address"
-                        />
+                        <div className="relative">
+                          <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 z-10" />
+                          <input
+                            type="text"
+                            id="street"
+                            name="street"
+                            className="mt-1 block w-full pl-10 pr-20 rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 sm:text-sm text-gray-900 uppercase"
+                            value={formData.street}
+                            onChange={(e) => setFormData({ ...formData, street: e.target.value })}
+                            placeholder="Enter address or paste Google Maps link"
+                          />
+                          <a
+                            href={formData.city 
+                              ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(formData.city + (formData.barangay ? `, ${formData.barangay}` : '') + ', Negros Occidental, Philippines')}`
+                              : 'https://www.google.com/maps'
+                            }
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-blue-600 hover:text-blue-800 flex items-center gap-1 text-xs"
+                            title={formData.city ? `Open Google Maps for ${formData.city}` : "Open Google Maps to find location"}
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            <span>Maps</span>
+                          </a>
+                        </div>
+                        <p className="mt-1 text-xs text-gray-500">
+                          Enter the address or paste a Google Maps link. Click "Maps" to open Google Maps in a new tab.
+                        </p>
                         {formErrors.street && (
                           <p className="mt-1 text-sm text-red-600">{formErrors.street}</p>
                         )}
@@ -776,6 +798,7 @@ export default function ActivitySchedulesPage() {
           setSelectedScheduleForCompletion(null)
         }}
       />
+
     </AdminLayout>
   )
 } 

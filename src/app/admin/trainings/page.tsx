@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar, MapPin, Users, Clock, Edit, X, CheckCircle, AlertCircle } from "lucide-react"
 import Link from "next/link"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
+import { ExternalLink } from "lucide-react"
 
 export default function AdminTrainingsPage() {
   // Trainings feature is enabled by default
@@ -65,6 +66,8 @@ export default function AdminTrainingsPage() {
         start_at: startDate.toISOString(),
         description: description.trim() || null,
         location: location.trim() || null,
+        location_lat: null,
+        location_lng: null,
         capacity: capacity ? parseInt(capacity) : null,
         status: status
       }
@@ -91,6 +94,8 @@ export default function AdminTrainingsPage() {
         setTitle("")
         setDescription("")
         setLocation("")
+        setLocationLat(null)
+        setLocationLng(null)
         setStartAt("")
         setEndAt("")
         setCapacity("")
@@ -204,17 +209,28 @@ export default function AdminTrainingsPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Location/Venue</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Location/Venue or Google Maps Link</label>
                   <div className="relative">
-                    <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 z-10" />
                     <Input
-                      placeholder="Training venue address"
+                      placeholder="Enter address or paste Google Maps link"
                       value={location}
                       onChange={(e) => setLocation(e.target.value)}
                       disabled={loading}
-                      className="pl-10"
+                      className="pl-10 pr-20"
                     />
+                    <a
+                      href="https://www.google.com/maps"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-blue-600 hover:text-blue-800 flex items-center gap-1 text-xs"
+                      title="Open Google Maps to find location"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      <span>Maps</span>
+                    </a>
                   </div>
+                  <p className="text-xs text-gray-500 mt-1">Enter the address or paste a Google Maps link. Click "Maps" to open Google Maps in a new tab.</p>
                 </div>
 
                 <div>
@@ -454,6 +470,8 @@ export default function AdminTrainingsPage() {
           </Card>
         </div>
       )}
+
+      {/* Location Picker Modal */}
     </AdminLayout>
   )
 }

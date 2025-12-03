@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Calendar, Clock, MapPin, CheckCircle, XCircle, AlertCircle } from "lucide-react"
 import { respondToSchedule } from "@/lib/schedules"
+import { LocationLinkDisplay } from "@/components/ui/location-link-display"
 import { toast } from "sonner"
 
 interface ScheduleCardProps {
@@ -92,14 +93,11 @@ export function ScheduleCard({ schedule, onResponse }: ScheduleCardProps) {
           </div>
 
           {schedule.location && (
-            <div className="flex items-start text-sm text-gray-700">
-              <MapPin className="h-4 w-4 mr-2 text-gray-500 mt-0.5" />
-              <div>
-                <div>{schedule.location}</div>
-                {schedule.barangay && (
-                  <div className="text-gray-500">{schedule.barangay}</div>
-                )}
-              </div>
+            <div className="mt-3">
+              <LocationLinkDisplay
+                location={schedule.location}
+                className="w-full"
+              />
             </div>
           )}
 

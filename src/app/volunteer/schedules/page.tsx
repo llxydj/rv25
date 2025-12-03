@@ -1,5 +1,7 @@
 "use client"
 
+export const dynamic = 'force-dynamic'
+
 import { useEffect, useState } from "react"
 import { VolunteerLayout } from "@/components/layout/volunteer-layout"
 import { useAuth } from "@/lib/auth"

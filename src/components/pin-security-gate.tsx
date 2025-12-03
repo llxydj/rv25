@@ -149,7 +149,12 @@ export function PinSecurityGate({ children }: { children: React.ReactNode }) {
           }
 
           // If PIN is verified via cookie OR PIN is disabled/excluded, unlock
-          if (verifyResult.verified || !statusResult.enabled || statusResult.excluded) {
+          // Also unlock if inactivity timeout hasn't been reached (user is still active)
+          // This prevents PIN popup on page refresh when user is within activity window
+          const isVerified = verifyResult.verified || !statusResult.enabled || statusResult.excluded
+          const isInactivityTimeout = verifyResult.reason === 'inactivity_timeout'
+          
+          if (isVerified && !isInactivityTimeout) {
             if (mounted) {
               setIsUnlocked(true)
               // Update session storage to persist across refreshes

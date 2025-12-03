@@ -515,8 +515,30 @@ export default function AdminAnnouncementsPage() {
                       <Input type="time" value={form.time} onChange={e => setForm({ ...form, time: e.target.value })} />
                     </div>
                     <div className="sm:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-                      <Input placeholder="Venue or address" value={form.location} onChange={e => setForm({ ...form, location: e.target.value.toUpperCase() })} className="uppercase" />
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Location or Google Maps Link</label>
+                      <div className="relative">
+                        <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 z-10" />
+                        <Input 
+                          placeholder="Enter address or paste Google Maps link" 
+                          value={form.location} 
+                          onChange={(e) => setForm({ ...form, location: e.target.value })}
+                          className="pl-10 pr-20 uppercase" 
+                        />
+                        <a
+                          href={form.location && form.location.trim()
+                            ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(form.location.trim() + ', Negros Occidental, Philippines')}`
+                            : 'https://www.google.com/maps'
+                          }
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-blue-600 hover:text-blue-800 flex items-center gap-1 text-xs"
+                          title={form.location ? `Open Google Maps for ${form.location}` : "Open Google Maps to find location"}
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          <span>Maps</span>
+                        </a>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">Enter the address or paste a Google Maps link. Click "Maps" to open Google Maps in a new tab.</p>
                     </div>
                   </div>
                   <div>
@@ -741,6 +763,7 @@ export default function AdminAnnouncementsPage() {
           </div>
         )}
       </div>
+      {/* Location Picker Modal */}
     </AdminLayout>
   )
 }

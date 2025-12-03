@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Calendar, MapPin, Users, Clock, ArrowLeft, CheckCircle, X, AlertCircle, Star } from "lucide-react"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import { StarRating } from "@/components/ui/star-rating"
+import { LocationLinkDisplay } from "@/components/ui/location-link-display"
 import { useAuth } from "@/lib/auth"
 
 export default function VolunteerTrainingDetailPage() {
@@ -261,12 +262,11 @@ export default function VolunteerTrainingDetailPage() {
                   )}
 
                   {training.location && (
-                    <div className="flex items-center gap-3">
-                      <MapPin className="h-5 w-5 text-gray-400" />
-                      <div>
-                        <p className="text-sm font-medium text-gray-700">Location</p>
-                        <p className="text-sm text-gray-600">{training.location}</p>
-                      </div>
+                    <div className="md:col-span-2">
+                      <LocationLinkDisplay
+                        location={training.location}
+                        className="w-full"
+                      />
                     </div>
                   )}
 

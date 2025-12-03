@@ -1,8 +1,11 @@
 "use client"
 
+export const dynamic = 'force-dynamic'
+
 import { useState } from "react"
 import { AdminLayout } from "@/components/layout/admin-layout"
 import { ScheduleCalendar } from "@/components/admin/schedule-calendar"
+import { LocationLinkDisplay } from "@/components/ui/location-link-display"
 import { ArrowLeft, Calendar } from "lucide-react"
 import Link from "next/link"
 
@@ -131,9 +134,11 @@ export default function ScheduleCalendarPage() {
                   )}
 
                   {selectedSchedule.location && (
-                    <div className="flex items-start text-sm">
-                      <span className="font-medium text-gray-700 w-32">Location:</span>
-                      <span className="text-gray-900">{selectedSchedule.location}</span>
+                    <div className="mt-4">
+                      <LocationLinkDisplay
+                        location={selectedSchedule.location}
+                        className="w-full"
+                      />
                     </div>
                   )}
 

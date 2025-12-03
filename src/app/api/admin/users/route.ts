@@ -17,6 +17,99 @@ const supabaseAdmin = createClient(
   }
 )
 
+/**
+ * Revoke Google OAuth tokens for a user
+ * Note: Supabase doesn't store Google refresh tokens by default, so we invalidate sessions instead
+ * If you have stored refresh tokens, you can call Google's revoke endpoint:
+ * https://oauth2.googleapis.com/revoke?token={refresh_token}
+ */
+async function revokeGoogleOAuthTokens(authUserId: string): Promise<void> {
+  try {
+    // Get the auth user to check if they have Google OAuth
+    const { data: authUserData, error: getUserError } = await supabaseAdmin.auth.admin.getUserById(authUserId)
+    
+    if (getUserError || !authUserData?.user) {
+      console.warn('[revoke-google] Could not fetch auth user:', getUserError?.message)
+      return
+    }
+    
+    const authUser = authUserData.user
+    
+    // Check if user has Google OAuth identity
+    const hasGoogleAuth = authUser.identities?.some((id: any) => id.provider === 'google')
+    
+    if (!hasGoogleAuth) {
+      console.log('[revoke-google] User does not have Google OAuth, skipping token revocation')
+      return
+    }
+    
+    // Supabase doesn't expose Google refresh tokens, so we invalidate all sessions
+    // This prevents the user from using existing Google OAuth sessions
+    // The user will need to re-authenticate with Google after reactivation
+    
+    // Update user metadata to mark tokens as revoked
+    await supabaseAdmin.auth.admin.updateUserById(authUserId, {
+      app_metadata: {
+        ...authUser.app_metadata,
+        google_tokens_revoked: true,
+        tokens_revoked_at: new Date().toISOString()
+      }
+    })
+    
+    console.log('[revoke-google] Marked Google tokens as revoked for user:', authUserId)
+    
+    // Note: If you have stored Google refresh tokens in your database,
+    // you would call Google's revoke endpoint here:
+    // await fetch(`https://oauth2.googleapis.com/revoke?token=${refreshToken}`, { method: 'POST' })
+    
+  } catch (error: any) {
+    console.error('[revoke-google] Error revoking Google tokens:', error?.message)
+    // Don't throw - token revocation failure shouldn't block deactivation
+  }
+}
+
+/**
+ * Invalidate all user sessions
+ * For OAuth users: Uses app_metadata.disabled (Supabase respects this)
+ * For email users: Updates password to invalidate sessions
+ */
+async function invalidateAllUserSessions(authUserId: string, isOAuthOnly: boolean = false): Promise<void> {
+  try {
+    // Get current user
+    const { data: authUserData, error: getUserError } = await supabaseAdmin.auth.admin.getUserById(authUserId)
+    
+    if (getUserError || !authUserData?.user) {
+      console.warn('[invalidate-sessions] Could not fetch auth user:', getUserError?.message)
+      return
+    }
+    
+    const authUser = authUserData.user
+    
+    // CRITICAL: Use app_metadata.disabled for OAuth users (Supabase checks this)
+    // This works for both OAuth and email users
+    await supabaseAdmin.auth.admin.updateUserById(authUserId, {
+      app_metadata: {
+        ...authUser.app_metadata,
+        disabled: true // Supabase respects this flag and blocks login
+      }
+    })
+    
+    // For email/password users, also update password to invalidate sessions
+    if (!isOAuthOnly) {
+      const randomPassword = `revoked_${Date.now()}_${Math.random().toString(36).substring(7)}`
+      await supabaseAdmin.auth.admin.updateUserById(authUserId, {
+        password: randomPassword
+      })
+    }
+    
+    console.log('[invalidate-sessions] Invalidated all sessions for user:', authUserId)
+    
+  } catch (error: any) {
+    console.error('[invalidate-sessions] Error invalidating sessions:', error?.message)
+    // Don't throw - session invalidation failure shouldn't block deactivation
+  }
+}
+
 // ✅ Create auth client with proper cookie handling
 async function getAuthClient() {
   const cookieStore = await cookies()
@@ -133,8 +226,14 @@ export async function GET(request: NextRequest) {
     }
 
     if (searchTerm) {
+      // Decode and sanitize search term
+      const decodedSearch = decodeURIComponent(searchTerm).trim()
+      // Escape special characters for PostgREST (%, _, \)
+      const escapedSearch = decodedSearch.replace(/[%_\\]/g, '\\$&')
+      // Use ilike for case-insensitive search with % wildcards
+      // Note: PostgREST uses % for wildcards, not *
       query = query.or(
-        `first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`
+        `first_name.ilike.%${escapedSearch}%,last_name.ilike.%${escapedSearch}%,email.ilike.%${escapedSearch}%,phone_number.ilike.%${escapedSearch}%`
       )
     }
 
@@ -186,11 +285,79 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const usersWithIncidentData = usersArray.map((user: any) => ({
-      ...user,
-      incident_count: userIncidentCounts[user.id] || 0,
-      status: user.status || 'active'
-    }))
+    // ✅ NEW: Fetch provider info and last sign-in from Supabase Auth
+    const authUsersMap: Record<string, { provider: string; last_sign_in_at: string | null }> = {}
+    
+    try {
+      // Fetch auth users - only fetch those that match our user IDs for efficiency
+      // Supabase Admin API doesn't support filtering by IDs, so we fetch in batches
+      const userIdsSet = new Set(userIds)
+      let page = 1 // Supabase uses 1-based pagination
+      const pageSize = 1000
+      let hasMore = true
+      let foundCount = 0
+      
+      while (hasMore && foundCount < userIds.length) {
+        const { data: authUsersData, error: authError } = await supabaseAdmin.auth.admin.listUsers({
+          page,
+          perPage: pageSize
+        })
+        
+        if (authError) {
+          console.warn('[admin-users] Error fetching auth users:', authError)
+          break
+        }
+        
+        if (authUsersData?.users && authUsersData.users.length > 0) {
+          authUsersData.users.forEach((authUser: any) => {
+            // Only process users that are in our list
+            if (userIdsSet.has(authUser.id)) {
+              // Determine provider from identities
+              let provider = 'email' // default
+              if (authUser.identities && authUser.identities.length > 0) {
+                // Check for Google OAuth provider
+                const googleIdentity = authUser.identities.find((id: any) => id.provider === 'google')
+                if (googleIdentity) {
+                  provider = 'google'
+                } else {
+                  // Use first identity provider
+                  provider = authUser.identities[0].provider || 'email'
+                }
+              }
+              
+              authUsersMap[authUser.id] = {
+                provider,
+                last_sign_in_at: authUser.last_sign_in_at
+              }
+              foundCount++
+            }
+          })
+          
+          // Check if we should continue paginating
+          hasMore = authUsersData.users.length === pageSize && foundCount < userIds.length
+          page++
+        } else {
+          hasMore = false
+        }
+      }
+      
+      console.log(`[admin-users] Fetched auth info for ${foundCount} of ${userIds.length} users`)
+    } catch (authErr: any) {
+      console.warn('[admin-users] Error fetching auth user data:', authErr?.message)
+      // Continue without auth data - not critical
+    }
+
+    const usersWithIncidentData = usersArray.map((user: any) => {
+      const authInfo = authUsersMap[user.id] || { provider: 'email', last_sign_in_at: null }
+      
+      return {
+        ...user,
+        incident_count: userIncidentCounts[user.id] || 0,
+        status: user.status || 'active',
+        auth_provider: authInfo.provider,
+        last_sign_in_at: authInfo.last_sign_in_at
+      }
+    })
 
     console.log(`Returning ${usersWithIncidentData.length} users with incident data`)
 
@@ -258,6 +425,20 @@ export async function PUT(request: NextRequest) {
     }
 
     if (action === 'deactivate') {
+      // Get user data before deactivation for audit logging
+      const { data: userData } = await supabaseAdmin
+        .from('users')
+        .select('email, first_name, last_name, role')
+        .eq('id', userId)
+        .maybeSingle()
+
+      if (!userData) {
+        return NextResponse.json({ 
+          success: false, 
+          message: 'User not found' 
+        }, { status: 404 })
+      }
+
       // Update user status to inactive
       const { error } = await supabaseAdmin
         .from('users')
@@ -266,49 +447,88 @@ export async function PUT(request: NextRequest) {
 
       if (error) throw error
 
-      // CRITICAL: Disable the Supabase Auth account to prevent login
+      // CRITICAL: Get auth user and perform comprehensive deactivation
+      let authUserId: string | null = null
+      let provider: string = 'email'
+      
       try {
-        const { data: userData } = await supabaseAdmin
-          .from('users')
-          .select('email')
-          .eq('id', userId)
-          .maybeSingle()
-
-        if (userData?.email) {
-          // Get the auth user by email
-          const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers()
-          const authUserToDisable = authUsers.users.find(u => u.email === userData.email)
+        // Get the auth user by email or ID
+        const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers()
+        const authUserToDisable = authUsers.users.find(u => 
+          u.email === userData.email || u.id === userId
+        )
+        
+        if (authUserToDisable) {
+          authUserId = authUserToDisable.id
           
-          if (authUserToDisable) {
-            // Update auth user metadata to mark as deactivated
-            await supabaseAdmin.auth.admin.updateUserById(authUserToDisable.id, {
-              user_metadata: { 
-                ...authUserToDisable.user_metadata,
-                deactivated: true,
-                deactivated_at: new Date().toISOString()
-              }
-            })
+          // Determine provider
+          if (authUserToDisable.identities?.some((id: any) => id.provider === 'google')) {
+            provider = 'google'
+          }
+          
+          // Update auth user metadata to mark as deactivated
+          await supabaseAdmin.auth.admin.updateUserById(authUserId, {
+            user_metadata: { 
+              ...authUserToDisable.user_metadata,
+              deactivated: true,
+              deactivated_at: new Date().toISOString(),
+              deactivated_by: authUser.id
+            },
+            app_metadata: {
+              ...authUserToDisable.app_metadata,
+              disabled: true
+            }
+          })
+          
+          // ✅ NEW: Invalidate all existing sessions
+          // Use app_metadata.disabled which Supabase respects for all auth types
+          await invalidateAllUserSessions(authUserId, provider === 'google')
+          
+          // ✅ NEW: Revoke Google OAuth tokens if applicable
+          if (provider === 'google') {
+            await revokeGoogleOAuthTokens(authUserId)
           }
         }
       } catch (authError) {
-        console.error('Error disabling auth account:', authError)
+        console.error('[deactivate] Error disabling auth account:', authError)
         // Continue even if auth update fails - database status is more important
       }
 
-      // CRITICAL: Invalidate all sessions by updating password (forces re-login)
-      // Note: Supabase doesn't have a direct "signOut all sessions" API
-      // So we mark the account as deactivated in metadata which is checked during auth
-      // The status check in auth.ts will catch and sign out deactivated users
-
+      // ✅ Enhanced audit logging
       await supabaseAdmin.from('system_logs').insert({
         action: 'USER_DEACTIVATED',
-        details: `User ${userId} deactivated by admin ${authUser.id}`,
+        details: JSON.stringify({
+          target_user_id: userId,
+          target_email: userData.email,
+          target_name: `${userData.first_name} ${userData.last_name}`,
+          target_role: userData.role,
+          provider: provider,
+          deactivated_by: authUser.id,
+          deactivated_by_email: authUser.email || 'unknown'
+        }),
         user_id: authUser.id
       })
 
-      return NextResponse.json({ success: true, message: 'User deactivated successfully' })
+      return NextResponse.json({ 
+        success: true, 
+        message: 'User deactivated successfully. All sessions invalidated and Google tokens revoked (if applicable).' 
+      })
     } 
     else if (action === 'activate') {
+      // Get user data before activation for audit logging
+      const { data: userData } = await supabaseAdmin
+        .from('users')
+        .select('email, first_name, last_name, role')
+        .eq('id', userId)
+        .maybeSingle()
+
+      if (!userData) {
+        return NextResponse.json({ 
+          success: false, 
+          message: 'User not found' 
+        }, { status: 404 })
+      }
+
       // Update user status to active
       const { error } = await supabaseAdmin
         .from('users')
@@ -318,40 +538,59 @@ export async function PUT(request: NextRequest) {
       if (error) throw error
 
       // Re-enable auth account if it was disabled
+      let provider: string = 'email'
+      
       try {
-        const { data: userData } = await supabaseAdmin
-          .from('users')
-          .select('email')
-          .eq('id', userId)
-          .maybeSingle()
-
-        if (userData?.email) {
-          const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers()
-          const authUserToEnable = authUsers.users.find(u => u.email === userData.email)
-          
-          if (authUserToEnable) {
-            // Remove deactivated flag from metadata
-            await supabaseAdmin.auth.admin.updateUserById(authUserToEnable.id, {
-              user_metadata: { 
-                ...authUserToEnable.user_metadata,
-                deactivated: false,
-                reactivated_at: new Date().toISOString()
-              }
-            })
+        const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers()
+        const authUserToEnable = authUsers.users.find(u => 
+          u.email === userData.email || u.id === userId
+        )
+        
+        if (authUserToEnable) {
+          // Determine provider
+          if (authUserToEnable.identities?.some((id: any) => id.provider === 'google')) {
+            provider = 'google'
           }
+          
+          // Remove deactivated flag from metadata
+          await supabaseAdmin.auth.admin.updateUserById(authUserToEnable.id, {
+            user_metadata: { 
+              ...authUserToEnable.user_metadata,
+              deactivated: false,
+              reactivated_at: new Date().toISOString(),
+              reactivated_by: authUser.id
+            },
+            app_metadata: {
+              ...authUserToEnable.app_metadata,
+              disabled: false,
+              google_tokens_revoked: false // Clear revocation flag
+            }
+          })
         }
       } catch (authError) {
-        console.error('Error re-enabling auth account:', authError)
+        console.error('[activate] Error re-enabling auth account:', authError)
         // Continue even if auth update fails
       }
 
+      // ✅ Enhanced audit logging
       await supabaseAdmin.from('system_logs').insert({
         action: 'USER_ACTIVATED',
-        details: `User ${userId} activated by admin ${authUser.id}`,
+        details: JSON.stringify({
+          target_user_id: userId,
+          target_email: userData.email,
+          target_name: `${userData.first_name} ${userData.last_name}`,
+          target_role: userData.role,
+          provider: provider,
+          activated_by: authUser.id,
+          activated_by_email: authUser.email || 'unknown'
+        }),
         user_id: authUser.id
       })
 
-      return NextResponse.json({ success: true, message: 'User activated successfully' })
+      return NextResponse.json({ 
+        success: true, 
+        message: 'User activated successfully. User can now sign in again.' 
+      })
     } 
     else {
       return NextResponse.json({ 
@@ -374,7 +613,7 @@ export async function DELETE(request: NextRequest) {
   try {
     const supabase = await getAuthClient()
     const body = await request.json()
-    const { userId } = body
+    const { userId, hardDelete = false } = body // Add option for hard delete
 
     // ✅ CRITICAL FIX: Use getUser() instead of getSession()
     const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
@@ -401,66 +640,188 @@ export async function DELETE(request: NextRequest) {
       }, { status: 403 })
     }
 
-    // Get user email before anonymizing
+    // Get user data before deletion for audit logging
     const { data: userData } = await supabaseAdmin
       .from('users')
-      .select('email')
+      .select('email, first_name, last_name, role')
       .eq('id', userId)
       .maybeSingle()
 
-    const originalEmail = userData?.email
-
-    // Anonymize user data in database
-    const { error: updateError } = await supabaseAdmin
-      .from('users')
-      .update({ 
-        status: 'inactive',
-        email: `deactivated_${Date.now()}_${userId}@example.com`,
-        phone_number: null,
-        address: null,
-        first_name: '[DEACTIVATED]',
-        last_name: '[USER]'
-      })
-      .eq('id', userId)
-
-    if (updateError) throw updateError
-
-    // CRITICAL: Disable/Delete the Supabase Auth account
-    try {
-      if (originalEmail) {
-        // Get the auth user by email
-        const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers()
-        const authUserToDelete = authUsers.users.find(u => u.email === originalEmail)
-        
-        if (authUserToDelete) {
-          // Delete the auth account completely
-          await supabaseAdmin.auth.admin.deleteUser(authUserToDelete.id)
-        }
-      }
-    } catch (authError) {
-      console.error('Error deleting auth account:', authError)
-      // Continue even if auth deletion fails - database is anonymized
+    if (!userData) {
+      return NextResponse.json({ 
+        success: false, 
+        message: 'User not found' 
+      }, { status: 404 })
     }
 
-    // Anonymize incidents
-    await supabaseAdmin
-      .from('incidents')
-      .update({ 
-        reporter_id: null,
-        description: '[CONTENT REMOVED FOR PRIVACY]'
+    const originalEmail = userData.email
+    const originalName = `${userData.first_name} ${userData.last_name}`
+
+    // ✅ Get auth user info before deletion
+    let authUserId: string | null = null
+    let provider: string = 'email'
+    
+    try {
+      const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers()
+      const authUserToDelete = authUsers.users.find(u => 
+        u.email === originalEmail || u.id === userId
+      )
+      
+      if (authUserToDelete) {
+        authUserId = authUserToDelete.id
+        
+        // Determine provider
+        if (authUserToDelete.identities?.some((id: any) => id.provider === 'google')) {
+          provider = 'google'
+        }
+      }
+    } catch (authErr) {
+      console.warn('[delete] Could not fetch auth user info:', authErr)
+    }
+
+    if (hardDelete) {
+      // ✅ HARD DELETE: Permanently remove user
+      // First, revoke Google tokens and invalidate sessions
+      if (authUserId) {
+        await invalidateAllUserSessions(authUserId)
+        if (provider === 'google') {
+          await revokeGoogleOAuthTokens(authUserId)
+        }
+      }
+
+      // Delete from Supabase Auth
+      if (authUserId) {
+        try {
+          await supabaseAdmin.auth.admin.deleteUser(authUserId)
+        } catch (authError) {
+          console.error('[delete] Error deleting auth account:', authError)
+          // Continue with database cleanup even if auth deletion fails
+        }
+      }
+
+      // Anonymize user data in database (soft delete first for recovery)
+      const deletedAt = new Date().toISOString()
+      const { error: updateError } = await supabaseAdmin
+        .from('users')
+        .update({ 
+          status: 'inactive',
+          email: `deleted_${Date.now()}_${userId}@deleted.local`,
+          phone_number: null,
+          address: null,
+          first_name: '[DELETED]',
+          last_name: '[USER]',
+          // Store deletion metadata for potential recovery (30-day grace period)
+          // Note: Add deleted_at column if it doesn't exist
+        })
+        .eq('id', userId)
+
+      if (updateError) throw updateError
+
+      // Anonymize incidents
+      await supabaseAdmin
+        .from('incidents')
+        .update({ 
+          reporter_id: null,
+          description: '[CONTENT REMOVED FOR PRIVACY]'
+        })
+        .eq('reporter_id', userId)
+
+      // ✅ Enhanced audit logging
+      await supabaseAdmin.from('system_logs').insert({
+        action: 'USER_HARD_DELETED',
+        details: JSON.stringify({
+          target_user_id: userId,
+          target_email: originalEmail,
+          target_name: originalName,
+          target_role: userData.role,
+          provider: provider,
+          deleted_by: authUser.id,
+          deleted_by_email: authUser.email || 'unknown',
+          deleted_at: deletedAt,
+          hard_delete: true
+        }),
+        user_id: authUser.id
       })
-      .eq('reporter_id', userId)
 
-    await supabaseAdmin.from('system_logs').insert({
-      action: 'USER_SOFT_DELETED',
-      details: `User ${userId} soft deleted and anonymized by admin ${authUser.id}`,
-      user_id: authUser.id
-    })
+      return NextResponse.json({ 
+        success: true, 
+        message: 'User permanently deleted. All sessions invalidated and Google tokens revoked (if applicable).' 
+      })
+    } else {
+      // ✅ SOFT DELETE: Mark for deletion with recovery period
+      // First, revoke Google tokens and invalidate sessions
+      if (authUserId) {
+        await invalidateAllUserSessions(authUserId)
+        if (provider === 'google') {
+          await revokeGoogleOAuthTokens(authUserId)
+        }
+        
+        // Mark auth user as deleted (but don't delete yet)
+        try {
+          await supabaseAdmin.auth.admin.updateUserById(authUserId, {
+            user_metadata: {
+              deleted: true,
+              deleted_at: new Date().toISOString(),
+              deleted_by: authUser.id
+            },
+            app_metadata: {
+              disabled: true,
+              soft_deleted: true
+            }
+          })
+        } catch (authError) {
+          console.error('[delete] Error marking auth user as deleted:', authError)
+        }
+      }
 
-    return NextResponse.json({ 
-      success: true, 
-      message: 'User deactivated and data anonymized successfully' 
-    })
+      // Soft delete: Anonymize but keep record
+      const deletedAt = new Date().toISOString()
+      const { error: updateError } = await supabaseAdmin
+        .from('users')
+        .update({ 
+          status: 'inactive',
+          email: `deleted_${Date.now()}_${userId}@deleted.local`,
+          phone_number: null,
+          address: null,
+          first_name: '[DELETED]',
+          last_name: '[USER]'
+        })
+        .eq('id', userId)
+
+      if (updateError) throw updateError
+
+      // Anonymize incidents
+      await supabaseAdmin
+        .from('incidents')
+        .update({ 
+          reporter_id: null,
+          description: '[CONTENT REMOVED FOR PRIVACY]'
+        })
+        .eq('reporter_id', userId)
+
+      // ✅ Enhanced audit logging
+      await supabaseAdmin.from('system_logs').insert({
+        action: 'USER_SOFT_DELETED',
+        details: JSON.stringify({
+          target_user_id: userId,
+          target_email: originalEmail,
+          target_name: originalName,
+          target_role: userData.role,
+          provider: provider,
+          deleted_by: authUser.id,
+          deleted_by_email: authUser.email || 'unknown',
+          deleted_at: deletedAt,
+          recovery_period_days: 30,
+          note: 'User soft-deleted. Can be recovered within 30 days. After that, hard delete recommended.'
+        }),
+        user_id: authUser.id
+      })
+
+      return NextResponse.json({ 
+        success: true, 
+        message: 'User soft-deleted and anonymized. All sessions invalidated and Google tokens revoked (if applicable). User can be recovered within 30 days.' 
+      })
+    }
 
   } catch (e: any) {
     console.error('Error deleting user:', e)

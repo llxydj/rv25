@@ -5,7 +5,7 @@ export const AnnouncementCreateSchema = z.object({
   content: z.string().min(1),
   type: z.string().optional(),
   priority: z.union([z.string(), z.number()]).optional(),
-  location: z.string().nullable().optional(),
+  location: z.string().max(500).nullable().optional(),
   date: z.string().nullable().optional(),
   time: z.string().nullable().optional(),
   requirements: z.union([z.string(), z.array(z.string())]).optional(),
@@ -20,7 +20,7 @@ export const AnnouncementUpdateSchema = z.object({
   content: z.string().min(1),
   type: z.string().optional(),
   priority: z.union([z.string(), z.number()]).optional(),
-  location: z.string().nullable().optional(),
+  location: z.string().max(500).nullable().optional(),
   date: z.string().nullable().optional(),
   time: z.string().nullable().optional(),
   requirements: z.union([z.string(), z.array(z.string())]).optional(),
@@ -377,7 +377,7 @@ export const ScheduleCreateSchema = z.object({
   description: z.string().max(1000).nullable().optional(),
   start_time: z.string().datetime("Invalid start time format"),
   end_time: z.string().datetime("Invalid end time format"),
-  location: z.string().max(200).nullable().optional(),
+  location: z.string().max(500).nullable().optional(),
   barangay: z.string().max(100).nullable().optional(),
 }).refine((data) => {
   // At least one volunteer must be selected

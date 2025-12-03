@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic"
 // PIN verification expiration settings
 const PIN_SESSION_DURATION_HOURS = 24 // PIN session valid for 24 hours
 const PIN_VALIDITY_DAYS = 15 // PIN must be recreated after 15 days
-const PIN_INACTIVITY_TIMEOUT_MINUTES_ADMIN = 5 // Require re-verification after 5 minutes of inactivity for admins
+const PIN_INACTIVITY_TIMEOUT_MINUTES_ADMIN = 30 // Require re-verification after 30 minutes of inactivity for admins
 const PIN_INACTIVITY_TIMEOUT_MINUTES_VOLUNTEER = 120 // Require re-verification after 2 hours of inactivity for volunteers
 const PIN_INACTIVITY_TIMEOUT_MINUTES_OTHER = 30 // Require re-verification after 30 minutes of inactivity for other roles
 
@@ -123,7 +123,7 @@ export async function GET() {
       })
     }
 
-    // Check inactivity timeout (5 minutes for admins, 2 hours for volunteers, 30 minutes for others)
+    // Check inactivity timeout (30 minutes for admins, 2 hours for volunteers, 30 minutes for others)
     const inactivityTimeout = userRole === 'admin' 
       ? PIN_INACTIVITY_TIMEOUT_MINUTES_ADMIN 
       : userRole === 'volunteer'
@@ -131,21 +131,30 @@ export async function GET() {
       : PIN_INACTIVITY_TIMEOUT_MINUTES_OTHER
       
     // Check inactivity timeout - if no activity timestamp exists, treat as just verified (set it now)
+    // This prevents PIN popup on refresh when user is still active
     let lastActivity = now
     if (lastActivityAt?.value) {
       lastActivity = parseInt(lastActivityAt.value)
       const minutesSinceActivity = (now - lastActivity) / (1000 * 60)
       
+      // Only require PIN if inactivity exceeds the timeout (30 minutes for admin)
+      // If user is still within the activity window, don't show PIN popup
       if (minutesSinceActivity >= inactivityTimeout) {
-        return NextResponse.json({ 
+        // Clear activity cookie since session expired
+        const expiredResponse = NextResponse.json({ 
           verified: false,
           reason: 'inactivity_timeout',
-          message: 'PIN verification required due to inactivity.'
+          message: `PIN verification required after ${inactivityTimeout} minutes of inactivity.`
         })
+        expiredResponse.cookies.delete('pin_last_activity')
+        return expiredResponse
       }
+      // User is still active (within timeout window) - continue and update activity timestamp
+    } else {
+      // No activity timestamp exists - this is a fresh verification or first check after PIN was verified
+      // Set activity to now to start tracking - don't show PIN popup on refresh
+      lastActivity = now
     }
-    // If no activity timestamp exists but PIN is verified, this is a fresh verification
-    // We'll set the activity timestamp now to start tracking
 
     // Update last activity timestamp (this extends the session on every check/refresh)
     const response = NextResponse.json({ 
