@@ -534,6 +534,7 @@ CREATE TABLE public.users (
   pin_hash text,
   pin_enabled boolean DEFAULT true,
   profile_image text,
+  pin_created_at timestamp with time zone,
   CONSTRAINT users_pkey PRIMARY KEY (id),
   CONSTRAINT users_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
 );
@@ -602,6 +603,7 @@ CREATE TABLE public.volunteer_profiles (
   last_status_change timestamp with time zone,
   last_status_changed_by uuid,
   is_available boolean DEFAULT false,
+  bio text CHECK (bio IS NULL OR length(bio) <= 1000),
   CONSTRAINT volunteer_profiles_pkey PRIMARY KEY (volunteer_user_id),
   CONSTRAINT volunteer_profiles_volunteer_user_id_fkey FOREIGN KEY (volunteer_user_id) REFERENCES public.users(id),
   CONSTRAINT volunteer_profiles_admin_user_id_fkey FOREIGN KEY (admin_user_id) REFERENCES public.users(id),

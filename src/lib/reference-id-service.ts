@@ -95,18 +95,40 @@ export class ReferenceIdService {
         }
       } while (true)
 
-      // Insert the mapping
-      const { error } = await (serverSupabase as SupabaseClient)
+      // Insert the mapping with conflict handling
+      // Handle race condition where trigger might have created it between check and insert
+      const { data: insertedData, error } = await (serverSupabase as SupabaseClient)
         .from('incident_reference_ids')
         .insert({
           incident_id: incidentId,
           reference_id: referenceId,
           created_at: new Date().toISOString()
         })
+        .select('reference_id')
+        .single()
 
-      if (error) throw error
+      // If duplicate key error (23505), it means trigger already created it
+      // Fetch the existing one instead
+      if (error) {
+        if (error.code === '23505' || error.message?.includes('duplicate key') || error.message?.includes('unique constraint')) {
+          // Reference ID was already created (likely by trigger), fetch it
+          const { data: existingData, error: fetchError } = await (serverSupabase as SupabaseClient)
+            .from('incident_reference_ids')
+            .select('reference_id')
+            .eq('incident_id', incidentId)
+            .single()
+          
+          if (fetchError) {
+            // If we still can't fetch it, something is wrong
+            console.warn('Failed to fetch existing reference ID after duplicate key error:', fetchError)
+            throw fetchError
+          }
+          return { success: true, referenceId: (existingData as any).reference_id }
+        }
+        throw error
+      }
 
-      return { success: true, referenceId }
+      return { success: true, referenceId: insertedData ? (insertedData as any).reference_id : referenceId }
     } catch (error: any) {
       console.error('Error creating reference ID:', error)
       return { success: false, error: error.message }
