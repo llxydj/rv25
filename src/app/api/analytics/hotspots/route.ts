@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-const supabase = createClient(
+// Use service role key for admin dashboard to bypass RLS and get accurate data
+const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  }
 )
 
 export async function GET(request: NextRequest) {
@@ -13,14 +20,29 @@ export async function GET(request: NextRequest) {
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
 
     // Fetch coordinates AND barangay for incidents in the window
-    const { data, error } = await supabase
-      .from('incidents')
-      .select('location_lat, location_lng, barangay')
-      .gte('created_at', since)
-    if (error) throw error
+    // Use admin client to bypass RLS for accurate admin dashboard data
+    // Handle pagination to ensure we get all incidents
+    let allPoints: Array<{ location_lat: number | null; location_lng: number | null; barangay: string | null }> = []
+    let page = 0
+    const pageSize = 1000
+    
+    while (true) {
+      const { data, error } = await supabaseAdmin
+        .from('incidents')
+        .select('location_lat, location_lng, barangay')
+        .gte('created_at', since)
+        .range(page * pageSize, (page + 1) * pageSize - 1)
+      
+      if (error) throw error
+      if (!data || data.length === 0) break
+      
+      allPoints = allPoints.concat(data)
+      if (data.length < pageSize) break
+      page++
+    }
 
     // Guard empty
-    const points = (data as Array<{ location_lat: number | null; location_lng: number | null; barangay: string | null }> | null) || []
+    const points = allPoints
 
     // Group by a small coordinate grid to reduce duplicates and produce counts
     const gridSize = 0.001 // ~100m depending on latitude; adjust if needed

@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-const supabase = createClient(
+// Use service role key for admin dashboard to bypass RLS and get accurate data
+const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  }
 )
 
 type IncidentRow = {
@@ -26,24 +33,53 @@ export async function GET(request: NextRequest) {
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
 
     // Load incidents in window
-    const { data: incidents, error: incErr } = await supabase
-      .from('incidents')
-      .select('id, created_at, assigned_at, resolved_at')
-      .gte('created_at', since)
+    // Use admin client to bypass RLS for accurate admin dashboard data
+    // Handle pagination to ensure we get all incidents
+    let allIncidents: IncidentRow[] = []
+    let page = 0
+    const pageSize = 1000
+    
+    while (true) {
+      const { data, error: incErr } = await supabaseAdmin
+        .from('incidents')
+        .select('id, created_at, assigned_at, resolved_at')
+        .gte('created_at', since)
+        .range(page * pageSize, (page + 1) * pageSize - 1)
 
-    if (incErr) throw incErr
+      if (incErr) throw incErr
+      if (!data || data.length === 0) break
+      
+      allIncidents = allIncidents.concat(data as IncidentRow[])
+      if (data.length < pageSize) break
+      page++
+    }
 
     // Load updates for ASSIGNED/RESPONDING in window
-    const { data: updates, error: updErr } = await supabase
-      .from('incident_updates')
-      .select('incident_id, new_status, created_at')
-      .in('new_status', ['ASSIGNED', 'RESPONDING'] as any)
-      .gte('created_at', since)
+    // Handle pagination for updates as well
+    let allUpdates: UpdateRow[] = []
+    page = 0
+    
+    while (true) {
+      const { data, error: updErr } = await supabaseAdmin
+        .from('incident_updates')
+        .select('incident_id, new_status, created_at')
+        .in('new_status', ['ASSIGNED', 'RESPONDING'] as any)
+        .gte('created_at', since)
+        .range(page * pageSize, (page + 1) * pageSize - 1)
 
-    if (updErr) throw updErr
+      if (updErr) throw updErr
+      if (!data || data.length === 0) break
+      
+      allUpdates = allUpdates.concat(data as UpdateRow[])
+      if (data.length < pageSize) break
+      page++
+    }
+    
+    const incidents = allIncidents
+    const updates = allUpdates
 
     const byIncident: Record<string, { firstAssigned?: string; firstResponding?: string }> = {}
-    ;(updates as UpdateRow[] | null || []).forEach(u => {
+    updates.forEach(u => {
       const b = byIncident[u.incident_id] || (byIncident[u.incident_id] = {})
       if (u.new_status === 'ASSIGNED' && !b.firstAssigned) b.firstAssigned = u.created_at
       if (u.new_status === 'RESPONDING' && !b.firstResponding) b.firstResponding = u.created_at
@@ -53,7 +89,7 @@ export async function GET(request: NextRequest) {
     const respondDurations: number[] = []
     const resolveDurations: number[] = []
 
-    ;(incidents as IncidentRow[] | null || []).forEach(inc => {
+    incidents.forEach(inc => {
       const base = new Date(inc.created_at).getTime()
       const b = byIncident[inc.id]
       const assignedAt = b?.firstAssigned || inc.assigned_at || null

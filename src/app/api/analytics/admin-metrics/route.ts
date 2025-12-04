@@ -5,11 +5,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
-
+// Use service role key for admin dashboard to bypass RLS and get accurate data
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -80,26 +76,40 @@ export async function GET(request: NextRequest) {
         }
       }),
       
-      // Incidents by barangay with percentages - get total count first for accurate percentages
-      Promise.all([
-        supabaseAdmin.from('incidents').select('*', { count: 'exact', head: true }),
-        supabaseAdmin.from('incidents').select('barangay')
-      ]).then(([totalRes, barangayRes]) => {
+      // Incidents by barangay with percentages - fetch all with pagination for accuracy
+      (async () => {
+        // Get total count first
+        const totalRes = await supabaseAdmin.from('incidents').select('*', { count: 'exact', head: true })
         if (totalRes.error) throw totalRes.error
-        if (barangayRes.error) throw barangayRes.error
         
         const totalIncidents = totalRes.count || 0
         const barangayCounts: Record<string, number> = {}
         
-        // Count incidents by barangay (may be paginated, but we have total count)
-        barangayRes.data?.forEach((incident: any) => {
-          const barangay = incident.barangay || 'Unknown'
-          barangayCounts[barangay] = (barangayCounts[barangay] || 0) + 1
-        })
+        // Fetch all incidents with pagination to ensure we get accurate counts
+        let page = 0
+        const pageSize = 1000
         
-        // If we got all incidents (no pagination), use actual counts
-        // Otherwise, we'd need to fetch all with pagination, but for now use what we have
-        // Note: For very large datasets, consider using SQL aggregation instead
+        while (true) {
+          const { data, error } = await supabaseAdmin
+            .from('incidents')
+            .select('barangay')
+            .range(page * pageSize, (page + 1) * pageSize - 1)
+          
+          if (error) throw error
+          if (!data || data.length === 0) break
+          
+          // Count incidents by barangay
+          data.forEach((incident: any) => {
+            const barangay = incident.barangay || 'Unknown'
+            barangayCounts[barangay] = (barangayCounts[barangay] || 0) + 1
+          })
+          
+          // If we got fewer results than page size, we've reached the end
+          if (data.length < pageSize) break
+          page++
+        }
+        
+        // Sort and format results
         const sortedBarangays = Object.entries(barangayCounts)
           .sort((a, b) => b[1] - a[1])
           .map(([barangay, count]) => ({
@@ -109,7 +119,7 @@ export async function GET(request: NextRequest) {
           }))
         
         return sortedBarangays
-      }),
+      })(),
       
       // System-wide metrics
       Promise.all([
@@ -160,7 +170,9 @@ export async function GET(request: NextRequest) {
           let assignmentCount = 0
           let resolutionCount = 0
           
-          result.data.forEach(incident => {
+          // Handle null/undefined data safely
+          const incidents = result.data || []
+          incidents.forEach(incident => {
             if (incident.assigned_at) {
               const created = new Date(incident.created_at)
               const assigned = new Date(incident.assigned_at)
