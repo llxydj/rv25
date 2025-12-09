@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { AlertTriangle, Calendar, Edit3, MapPin, Plus, Trash2, X, ArrowLeft, Share2 as Facebook, Link as ExternalLink, Star, MessageSquare } from "lucide-react"
 import { supabase } from "@/lib/supabase"
+import DOMPurify from 'isomorphic-dompurify'
 
 type Announcement = {
   id: string
@@ -586,7 +587,10 @@ export default function AdminAnnouncementsPage() {
                         </div>
                         <div 
                           className="text-sm text-gray-700"
-                          dangerouslySetInnerHTML={{ __html: facebookPreview.html || '' }}
+                          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(facebookPreview.html || '', { 
+                            ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'a', 'ul', 'ol', 'li', 'span', 'div'],
+                            ALLOWED_ATTR: ['href', 'target', 'rel', 'class']
+                          }) }}
                         />
                         {facebookPreview.url && (
                           <a 

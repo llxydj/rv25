@@ -692,27 +692,8 @@ export const createIncident = async (
         const backgroundIncidentId = incidentId
         let backgroundAccessToken = options?.accessToken
         
-        // PERMANENT FIX: Try to get token from localStorage cache (set when user logs in)
-        if (!backgroundAccessToken && typeof window !== 'undefined') {
-          try {
-            const cachedToken = localStorage.getItem('supabase.auth.token')
-            if (cachedToken) {
-              try {
-                const parsed = JSON.parse(cachedToken)
-                backgroundAccessToken = parsed?.access_token || parsed
-                if (backgroundAccessToken) {
-                  console.log('✅ [BACKGROUND] Using cached token from localStorage')
-                }
-              } catch {
-                // If not JSON, use as-is
-                backgroundAccessToken = cachedToken
-                console.log('✅ [BACKGROUND] Using cached token (raw) from localStorage')
-              }
-            }
-          } catch (e) {
-            // localStorage might not be available
-          }
-        }
+        // SECURITY FIX: Removed localStorage token retrieval - rely on Supabase session or cookie fallback
+        // The upload API has cookie-based authentication fallback, so we don't need localStorage
         
         const backgroundFiles = [...filesToUpload]
         const backgroundVoice = voiceBlob
@@ -730,80 +711,33 @@ export const createIncident = async (
           try {
             console.log(`📤 [BACKGROUND] Starting background upload for ${backgroundFiles.length} photo(s)`)
             
-            // PERMANENT FIX: Multi-layer token retrieval with caching to break the cycle
+            // SECURITY FIX: Simplified token retrieval - removed localStorage caching
+            // Layer 1: Use provided token if available
             let accessToken = backgroundAccessToken
             
+            // Layer 2: Quick Supabase session call with timeout
             if (!accessToken) {
-              // Layer 1: localStorage cache (instant, no network, prevents recurring issues)
-              if (typeof window !== 'undefined') {
-                try {
-                  const cached = localStorage.getItem('supabase.auth.token')
-                  if (cached) {
-                    try {
-                      const parsed = JSON.parse(cached)
-                      // Check if cache is recent (within 1 hour)
-                      const cacheAge = Date.now() - (parsed.cached_at || 0)
-                      if (cacheAge < 3600000) { // 1 hour
-                        accessToken = parsed.access_token || parsed
-                        console.log('✅ [BACKGROUND] Using cached token (Layer 1: localStorage)')
-                      } else {
-                        console.log('⚠️ [BACKGROUND] Cached token expired, refreshing...')
-                        localStorage.removeItem('supabase.auth.token')
-                      }
-                    } catch {
-                      accessToken = cached
-                      console.log('✅ [BACKGROUND] Using cached token (raw format)')
-                    }
-                  }
-                } catch (e) {
-                  // localStorage unavailable
+              try {
+                const sessionPromise = supabase.auth.getSession()
+                const timeoutPromise = new Promise<{ data: { session: null }, error: { message: string } }>((_, reject) =>
+                  setTimeout(() => reject(new Error('Timeout')), 2000) // 2s max
+                )
+                
+                const result = await Promise.race([sessionPromise, timeoutPromise]) as any
+                if (result?.data?.session?.access_token && !result.error) {
+                  accessToken = result.data.session.access_token
+                  console.log('✅ [BACKGROUND] Got token from Supabase session')
+                }
+              } catch (err: any) {
+                if (!err?.message?.includes('Timeout')) {
+                  console.warn('⚠️ [BACKGROUND] Session call failed:', err?.message || 'Unknown')
                 }
               }
-              
-              // Layer 2: Quick Supabase call with timeout (if cache missed)
-              if (!accessToken) {
-                try {
-                  const sessionPromise = supabase.auth.getSession()
-                  const timeoutPromise = new Promise<{ data: { session: null }, error: { message: string } }>((_, reject) =>
-                    setTimeout(() => reject(new Error('Timeout')), 2000) // 2s max
-                  )
-                  
-                  const result = await Promise.race([sessionPromise, timeoutPromise]) as any
-                  if (result?.data?.session?.access_token && !result.error) {
-                    accessToken = result.data.session.access_token
-                    // Cache for future (breaks the cycle)
-                    if (typeof window !== 'undefined') {
-                      try {
-                        localStorage.setItem('supabase.auth.token', JSON.stringify({ 
-                          access_token: accessToken,
-                          cached_at: Date.now()
-                        }))
-                      } catch (e) {}
-                    }
-                    console.log('✅ [BACKGROUND] Got token (Layer 2: Supabase, cached)')
-                  }
-                } catch (err: any) {
-                  if (!err?.message?.includes('Timeout')) {
-                    console.warn('⚠️ [BACKGROUND] Layer 2 failed:', err?.message || 'Unknown')
-                  }
-                }
-              }
-              
-              // Layer 3: Upload without token (API uses cookie fallback)
-              if (!accessToken) {
-                console.log('⚠️ [BACKGROUND] No token - using Layer 3: Cookie auth (API fallback)')
-              }
-            } else {
-              // Cache provided token for future use
-              if (typeof window !== 'undefined' && accessToken) {
-                try {
-                  localStorage.setItem('supabase.auth.token', JSON.stringify({ 
-                    access_token: accessToken,
-                    cached_at: Date.now()
-                  }))
-                } catch (e) {}
-              }
-              console.log('✅ [BACKGROUND] Using provided token (cached)')
+            }
+            
+            // Layer 3: Upload without token (API uses cookie-based authentication fallback)
+            if (!accessToken) {
+              console.log('⚠️ [BACKGROUND] No token - API will use cookie-based authentication fallback')
             }
             
             const uploadedPhotoPaths: string[] = []

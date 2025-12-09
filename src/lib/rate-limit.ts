@@ -3,6 +3,10 @@ type RateKey = string
 const windowMs = 60_000
 const defaultLimit = 60
 
+// SECURITY NOTE: In-memory rate limiting resets on server restart
+// For production with multiple instances, consider using Supabase database
+// or Redis for persistent, distributed rate limiting
+// Current implementation is suitable for single-instance deployments
 const hitCounts = new Map<RateKey, { count: number; expiresAt: number }>()
 
 export function rateLimitAllowed(key: RateKey, limit: number = defaultLimit) {

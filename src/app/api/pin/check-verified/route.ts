@@ -167,10 +167,11 @@ export async function GET() {
     const expiresAt = new Date()
     expiresAt.setHours(expiresAt.getHours() + PIN_SESSION_DURATION_HOURS)
     
+    // SECURITY FIX: Changed SameSite to 'strict' to prevent CSRF attacks
     response.cookies.set('pin_last_activity', now.toString(), {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: 'strict', // Changed from 'lax' to prevent CSRF
       expires: expiresAt,
       path: '/'
     })

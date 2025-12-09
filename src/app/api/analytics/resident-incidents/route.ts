@@ -48,9 +48,15 @@ export async function GET(request: NextRequest) {
     const { data: allIncidents, error } = await query.order('created_at', { ascending: false })
 
     if (error) {
+      // SECURITY FIX: Sanitize error messages in production
+      const isProduction = process.env.NODE_ENV === 'production'
       console.error('Error fetching incidents:', error)
       return NextResponse.json(
-        { success: false, message: 'Failed to fetch incidents', error: error.message },
+        { 
+          success: false, 
+          message: 'Failed to fetch incidents', 
+          error: isProduction ? undefined : error.message 
+        },
         { status: 500 }
       )
     }
@@ -263,9 +269,15 @@ export async function GET(request: NextRequest) {
       }
     })
   } catch (error: any) {
+    // SECURITY FIX: Sanitize error messages in production
+    const isProduction = process.env.NODE_ENV === 'production'
     console.error('Error in resident incidents analytics:', error)
     return NextResponse.json(
-      { success: false, message: 'Failed to generate analytics', error: error.message },
+      { 
+        success: false, 
+        message: 'Failed to generate analytics', 
+        error: isProduction ? undefined : error.message 
+      },
       { status: 500 }
     )
   }

@@ -95,9 +95,15 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error: any) {
+    // SECURITY FIX: Sanitize error messages in production
+    const isProduction = process.env.NODE_ENV === 'production'
     console.error('PDF generation error:', error)
     return NextResponse.json(
-      { success: false, message: 'Failed to generate PDF report', error: error.message },
+      { 
+        success: false, 
+        message: 'Failed to generate PDF report', 
+        error: isProduction ? undefined : error.message 
+      },
       { status: 500 }
     )
   }

@@ -9,6 +9,7 @@ import { normalizeBarangay } from '@/lib/barangay-mapping'
 import { getServerSupabase } from '@/lib/supabase-server'
 import { analyticsCache } from '@/app/api/volunteers/analytics/cache'
 import webpush from 'web-push'
+import { validateCSRF } from '@/lib/csrf-protection'
 
 export const dynamic = 'force-dynamic'
 
@@ -363,6 +364,16 @@ export async function PUT(request: Request) {
 }
 
 export async function POST(request: Request) {
+  // SECURITY FIX: CSRF protection - validate origin/referer headers
+  const csrfCheck = validateCSRF(request)
+  if (!csrfCheck.valid) {
+    console.warn(`[SECURITY] CSRF validation failed: ${csrfCheck.error}`)
+    return NextResponse.json(
+      { success: false, message: 'Invalid request origin' },
+      { status: 403 }
+    )
+  }
+
   const startTime = Date.now()
   const requestId = `inc-${Date.now()}-${Math.random().toString(36).substring(7)}`
   

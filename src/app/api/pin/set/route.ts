@@ -126,10 +126,11 @@ export async function POST(request: Request) {
       expiresAt.setHours(expiresAt.getHours() + 24) // 24 hours
       const now = Date.now()
 
+      // SECURITY FIX: Changed SameSite to 'strict' to prevent CSRF attacks
       response.cookies.set('pin_verified', 'true', {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        sameSite: 'strict', // Changed from 'lax' to prevent CSRF
         expires: expiresAt,
         path: '/'
       })
@@ -137,7 +138,7 @@ export async function POST(request: Request) {
       response.cookies.set('pin_verified_at', now.toString(), {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        sameSite: 'strict', // Changed from 'lax' to prevent CSRF
         expires: expiresAt,
         path: '/'
       })
@@ -145,7 +146,7 @@ export async function POST(request: Request) {
       response.cookies.set('pin_last_activity', now.toString(), {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        sameSite: 'strict', // Changed from 'lax' to prevent CSRF
         expires: expiresAt,
         path: '/'
       })

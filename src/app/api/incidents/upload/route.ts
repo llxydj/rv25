@@ -105,6 +105,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, code: 'VALIDATION_ERROR', message: 'reporter_id is required' }, { status: 400 })
     }
 
+    // SECURITY FIX: Validate reporterId is a valid UUID format to prevent path traversal
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(reporterId)) {
+      console.error(`❌ [${requestId}] Invalid reporter ID format (potential path traversal attempt):`, reporterId)
+      return NextResponse.json({ success: false, code: 'VALIDATION_ERROR', message: 'Invalid reporter ID format' }, { status: 400 })
+    }
+
     // Allow common image types - Sharp will convert to JPEG
     if (!ALLOWED.has(file.type) && !file.type.startsWith('image/')) {
       return NextResponse.json({ success: false, code: 'UNSUPPORTED_TYPE', message: 'Only image files are allowed (JPEG, PNG, WebP)' }, { status: 415 })
@@ -113,7 +120,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, code: 'PAYLOAD_TOO_LARGE', message: 'Image exceeds 3MB limit' }, { status: 413 })
     }
 
-    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+    // SECURITY FIX: Sanitize file extension to prevent path traversal
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg'
     
     // BEST PRACTICE: Compress on server using Sharp (fast server CPU)
     // This is much faster than client-side compression on mobile
@@ -126,6 +134,20 @@ export async function POST(request: Request) {
       const originalSize = arrayBuf.byteLength
       
       console.log(`🖼️ [SERVER] [${requestId}] Compressing image: ${(originalSize / 1024).toFixed(1)}KB`)
+      
+      // SECURITY FIX: Validate file is actually an image using Sharp (magic byte validation)
+      // This prevents MIME type spoofing attacks
+      let imageMetadata
+      try {
+        imageMetadata = await sharp(Buffer.from(arrayBuf)).metadata()
+        if (!imageMetadata.format || !['jpeg', 'png', 'webp', 'gif'].includes(imageMetadata.format)) {
+          console.error(`❌ [${requestId}] Invalid image format detected:`, imageMetadata.format)
+          return NextResponse.json({ success: false, code: 'UNSUPPORTED_TYPE', message: 'Invalid image file format' }, { status: 415 })
+        }
+      } catch (metadataError: any) {
+        console.error(`❌ [${requestId}] File is not a valid image (magic byte validation failed):`, metadataError.message)
+        return NextResponse.json({ success: false, code: 'UNSUPPORTED_TYPE', message: 'File is not a valid image' }, { status: 415 })
+      }
       
       // Optimized compression for mobile: 800px max, 70% quality = ~40-60KB (good quality, fast upload)
       // Desktop gets better quality: 1280px max, 85% quality
@@ -151,11 +173,9 @@ export async function POST(request: Request) {
       
       finalPath = `raw/${reporterId}-${Date.now()}.${ext}`
     } catch (sharpError: any) {
-      // Fallback: If Sharp fails, upload original (shouldn't happen)
-      console.warn(`⚠️ [SERVER] [${requestId}] Sharp compression failed, uploading original:`, sharpError.message)
-      const arrayBuf = await file.arrayBuffer()
-      compressedBuffer = Buffer.from(arrayBuf)
-      finalPath = `raw/${reporterId}-${Date.now()}.${ext}`
+      // SECURITY FIX: If Sharp fails, reject the upload (don't allow potentially malicious files)
+      console.error(`❌ [SERVER] [${requestId}] Image processing failed:`, sharpError.message)
+      return NextResponse.json({ success: false, code: 'UNSUPPORTED_TYPE', message: 'Failed to process image file' }, { status: 415 })
     }
 
     // Upload compressed image to Supabase Storage (Smart CDN)
@@ -170,8 +190,14 @@ export async function POST(request: Request) {
 
     const uploadTime = Date.now() - startTime
     if (upErr) {
+      // SECURITY FIX: Sanitize error messages in production
+      const isProduction = process.env.NODE_ENV === 'production'
       console.error(`❌ [SERVER] [${requestId}] Upload failed after ${uploadTime}ms:`, upErr)
-      return NextResponse.json({ success: false, code: 'UPLOAD_FAILED', message: upErr.message }, { status: 500 })
+      return NextResponse.json({ 
+        success: false, 
+        code: 'UPLOAD_FAILED', 
+        message: isProduction ? 'Failed to upload image' : upErr.message 
+      }, { status: 500 })
     }
 
     console.log(`✅ [SERVER] [${requestId}] POST /api/incidents/upload - SUCCESS - Total time: ${uploadTime}ms`)
@@ -182,11 +208,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, path: finalPath })
   } catch (e: any) {
     const totalTime = Date.now() - startTime
+    // SECURITY FIX: Sanitize error messages in production
+    const isProduction = process.env.NODE_ENV === 'production'
     console.error(`❌ [SERVER] [${requestId}] POST /api/incidents/upload - ERROR after ${totalTime}ms:`, {
       error: e.message,
-      stack: e.stack
+      stack: isProduction ? undefined : e.stack // Don't log stack in production
     })
     console.log(`\n`)
-    return NextResponse.json({ success: false, code: 'INTERNAL_ERROR', message: e?.message || 'Failed to upload image' }, { status: 500 })
+    return NextResponse.json({ 
+      success: false, 
+      code: 'INTERNAL_ERROR', 
+      message: isProduction ? 'Failed to upload image' : (e?.message || 'Failed to upload image')
+    }, { status: 500 })
   }
 }

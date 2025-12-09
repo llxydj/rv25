@@ -89,17 +89,9 @@ export const useAuth = () => {
           data: { session },
         } = await supabase.auth.getSession()
 
-        // PERMANENT FIX: Cache token when we get initial session
-        if (session?.access_token && typeof window !== 'undefined') {
-          try {
-            localStorage.setItem('supabase.auth.token', JSON.stringify({ 
-              access_token: session.access_token,
-              cached_at: Date.now()
-            }))
-          } catch (e) {
-            // Ignore localStorage errors
-          }
-        }
+        // SECURITY FIX: Removed localStorage token caching - Supabase uses httpOnly cookies
+        // Tokens are now only stored in secure, httpOnly cookies managed by Supabase
+        // This prevents XSS attacks from stealing authentication tokens
 
         if (session) {
           try {
@@ -189,18 +181,11 @@ export const useAuth = () => {
 
     getInitialSession()
 
-    // PERMANENT FIX: Cache token helper function
+    // SECURITY FIX: Removed token caching - Supabase uses httpOnly cookies
+    // No need to cache tokens in localStorage as they're stored securely in cookies
     const cacheToken = (token: string | undefined) => {
-      if (token && typeof window !== 'undefined') {
-        try {
-          localStorage.setItem('supabase.auth.token', JSON.stringify({ 
-            access_token: token,
-            cached_at: Date.now()
-          }))
-        } catch (e) {
-          // Ignore localStorage errors
-        }
-      }
+      // Token caching removed for security - Supabase handles token storage in httpOnly cookies
+      // This prevents XSS attacks from stealing authentication tokens
     }
 
     // Listen for auth changes
@@ -679,18 +664,9 @@ export const signIn = async (email: string, password: string) => {
       }
     }
 
-    // PERMANENT FIX: Cache token immediately after login (prevents recurring token issues)
-    if (data.session?.access_token && typeof window !== 'undefined') {
-      try {
-        localStorage.setItem('supabase.auth.token', JSON.stringify({ 
-          access_token: data.session.access_token,
-          cached_at: Date.now()
-        }))
-        console.log('[Auth] ✅ Token cached after login (prevents future retrieval issues)')
-      } catch (e) {
-        // Ignore localStorage errors (private mode, etc.)
-      }
-    }
+    // SECURITY FIX: Removed localStorage token caching - Supabase uses httpOnly cookies
+    // Tokens are automatically stored in secure, httpOnly cookies by Supabase
+    // This prevents XSS attacks from stealing authentication tokens
 
     // Double-check: Verify the session user exists
     const { data: { user: verifiedUser } } = await supabase.auth.getUser()

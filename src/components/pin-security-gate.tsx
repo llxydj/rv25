@@ -57,6 +57,9 @@ export function PinSecurityGate({ children }: { children: React.ReactNode }) {
     if (user.role === 'resident' || user.role === 'barangay' || user.role === 'volunteer') {
       setIsUnlocked(true)
       setLoading(false)
+      // SECURITY NOTE: sessionStorage used only for non-sensitive UI state (avoiding PIN screen flash)
+      // Actual authentication is handled by httpOnly cookies set by the server
+      // This is acceptable as it's not used for security decisions, only UX optimization
       if (typeof window !== "undefined") {
         sessionStorage.setItem(SESSION_UNLOCK_KEY, "true")
         sessionStorage.setItem("pin_user_id", user.id)

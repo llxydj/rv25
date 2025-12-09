@@ -17,6 +17,13 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
 
+  // SECURITY FIX: Request size limits to prevent DoS attacks
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '3mb', // Match file upload limit
+    },
+  },
+
   webpack(config, { isServer }) {
     // Handle Leaflet on server-side (prevent SSR errors)
     if (isServer) {
@@ -100,6 +107,16 @@ const nextConfig = {
           { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'X-XSS-Protection', value: '1; mode=block' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          // SECURITY FIX: Content Security Policy - prevents XSS attacks
+          { 
+            key: 'Content-Security-Policy', 
+            value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.supabase.co; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https: blob:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-src 'self' https://*.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self';" 
+          },
+          // SECURITY FIX: HSTS - enforces HTTPS connections
+          { 
+            key: 'Strict-Transport-Security', 
+            value: 'max-age=31536000; includeSubDomains; preload' 
+          },
         ],
       },
     ];
