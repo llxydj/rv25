@@ -91,21 +91,58 @@ export async function GET(request: NextRequest) {
 
     incidents.forEach(inc => {
       const base = new Date(inc.created_at).getTime()
+      const baseDate = new Date(inc.created_at)
+      
+      // Validate base date
+      if (isNaN(base)) return
+      
       const b = byIncident[inc.id]
       const assignedAt = b?.firstAssigned || inc.assigned_at || null
-      if (assignedAt) assignDurations.push((new Date(assignedAt).getTime() - base) / 60000)
+      if (assignedAt) {
+        const assignedDate = new Date(assignedAt)
+        // Validate: assigned date should be after creation date
+        if (!isNaN(assignedDate.getTime()) && assignedDate >= baseDate) {
+          assignDurations.push((assignedDate.getTime() - base) / 60000)
+        }
+      }
+      
       const respondingAt = b?.firstResponding || null
-      if (respondingAt) respondDurations.push((new Date(respondingAt).getTime() - base) / 60000)
-      if (inc.resolved_at) resolveDurations.push((new Date(inc.resolved_at).getTime() - base) / 60000)
+      if (respondingAt) {
+        const respondingDate = new Date(respondingAt)
+        // Validate: responding date should be after creation date
+        if (!isNaN(respondingDate.getTime()) && respondingDate >= baseDate) {
+          respondDurations.push((respondingDate.getTime() - base) / 60000)
+        }
+      }
+      
+      if (inc.resolved_at) {
+        const resolvedDate = new Date(inc.resolved_at)
+        // Validate: resolved date should be after creation date
+        if (!isNaN(resolvedDate.getTime()) && resolvedDate >= baseDate) {
+          resolveDurations.push((resolvedDate.getTime() - base) / 60000)
+        }
+      }
     })
 
-    const avg = (arr: number[]) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null)
+    // Calculate averages with proper rounding
+    const avg = (arr: number[]) => {
+      if (arr.length === 0) return null
+      const sum = arr.reduce((a, b) => a + b, 0)
+      const average = sum / arr.length
+      // Round to 2 decimal places for display
+      return Math.round(average * 100) / 100
+    }
+    
     const result = {
       days,
       count: incidents?.length || 0,
       avg_minutes_to_assign: avg(assignDurations),
       avg_minutes_to_respond: avg(respondDurations),
       avg_minutes_to_resolve: avg(resolveDurations),
+      // Add counts for transparency
+      assignment_count: assignDurations.length,
+      responding_count: respondDurations.length,
+      resolution_count: resolveDurations.length,
     }
 
     return NextResponse.json({ success: true, data: result })

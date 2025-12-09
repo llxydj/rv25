@@ -157,43 +157,62 @@ export async function GET(request: NextRequest) {
         activeVolunteers
       })),
       
-      // Volunteer response averages
-      supabaseAdmin
-        .from('incidents')
-        .select('created_at, assigned_at, resolved_at')
-        .not('assigned_at', 'is', null)
-        .then(result => {
-          if (result.error) throw result.error
+      // Volunteer response averages - FIXED: Added pagination to ensure all incidents are included
+      (async () => {
+        let allIncidents: Array<{ created_at: string; assigned_at: string | null; resolved_at: string | null }> = []
+        let page = 0
+        const pageSize = 1000
+        
+        // Fetch all incidents with pagination
+        while (true) {
+          const { data, error } = await supabaseAdmin
+            .from('incidents')
+            .select('created_at, assigned_at, resolved_at')
+            .not('assigned_at', 'is', null)
+            .range(page * pageSize, (page + 1) * pageSize - 1)
           
-          let totalAssignmentTime = 0
-          let totalResolutionTime = 0
-          let assignmentCount = 0
-          let resolutionCount = 0
+          if (error) throw error
+          if (!data || data.length === 0) break
           
-          // Handle null/undefined data safely
-          const incidents = result.data || []
-          incidents.forEach(incident => {
-            if (incident.assigned_at) {
-              const created = new Date(incident.created_at)
-              const assigned = new Date(incident.assigned_at)
+          allIncidents = allIncidents.concat(data)
+          if (data.length < pageSize) break
+          page++
+        }
+        
+        let totalAssignmentTime = 0
+        let totalResolutionTime = 0
+        let assignmentCount = 0
+        let resolutionCount = 0
+        
+        // Calculate averages from all incidents
+        allIncidents.forEach(incident => {
+          if (incident.assigned_at) {
+            const created = new Date(incident.created_at)
+            const assigned = new Date(incident.assigned_at)
+            // Validate dates before calculation
+            if (!isNaN(created.getTime()) && !isNaN(assigned.getTime()) && assigned >= created) {
               totalAssignmentTime += (assigned.getTime() - created.getTime()) / (1000 * 60) // minutes
               assignmentCount++
             }
-            
-            if (incident.resolved_at) {
-              const created = new Date(incident.created_at)
-              const resolved = new Date(incident.resolved_at)
+          }
+          
+          if (incident.resolved_at) {
+            const created = new Date(incident.created_at)
+            const resolved = new Date(incident.resolved_at)
+            // Validate dates before calculation
+            if (!isNaN(created.getTime()) && !isNaN(resolved.getTime()) && resolved >= created) {
               totalResolutionTime += (resolved.getTime() - created.getTime()) / (1000 * 60) // minutes
               resolutionCount++
             }
-          })
-          
-          return {
-            avgAssignmentTime: assignmentCount > 0 ? totalAssignmentTime / assignmentCount : 0,
-            avgResolutionTime: resolutionCount > 0 ? totalResolutionTime / resolutionCount : 0,
-            totalResolved: resolutionCount
           }
         })
+        
+        return {
+          avgAssignmentTime: assignmentCount > 0 ? Math.round((totalAssignmentTime / assignmentCount) * 100) / 100 : 0, // Round to 2 decimal places
+          avgResolutionTime: resolutionCount > 0 ? Math.round((totalResolutionTime / resolutionCount) * 100) / 100 : 0, // Round to 2 decimal places
+          totalResolved: resolutionCount
+        }
+      })()
     ])
 
     const data = {
