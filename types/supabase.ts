@@ -62,16 +62,71 @@ export type Database = {
           },
         ]
       }
+      announcement_feedback: {
+        Row: {
+          announcement_id: string
+          comment: string | null
+          created_at: string | null
+          id: string
+          rating: number
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          announcement_id: string
+          comment?: string | null
+          created_at?: string | null
+          id?: string
+          rating: number
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          announcement_id?: string
+          comment?: string | null
+          created_at?: string | null
+          id?: string
+          rating?: number
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "announcement_feedback_announcement_id_fkey"
+            columns: ["announcement_id"]
+            isOneToOne: false
+            referencedRelation: "announcements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "announcement_feedback_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "active_volunteers_with_location"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "announcement_feedback_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       announcements: {
         Row: {
           content: string
           created_at: string | null
           created_by: string | null
           date: string | null
+          facebook_embed_data: Json | null
+          facebook_post_url: string | null
           id: string
           location: string | null
           priority: string
           requirements: string[] | null
+          source_type: string | null
           time: string | null
           title: string
           type: string
@@ -81,10 +136,13 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           date?: string | null
+          facebook_embed_data?: Json | null
+          facebook_post_url?: string | null
           id?: string
           location?: string | null
           priority?: string
           requirements?: string[] | null
+          source_type?: string | null
           time?: string | null
           title: string
           type?: string
@@ -94,10 +152,13 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           date?: string | null
+          facebook_embed_data?: Json | null
+          facebook_post_url?: string | null
           id?: string
           location?: string | null
           priority?: string
           requirements?: string[] | null
+          source_type?: string | null
           time?: string | null
           title?: string
           type?: string
@@ -604,6 +665,7 @@ export type Database = {
           status: Database["public"]["Enums"]["incident_status"] | null
           updated_at: string | null
           user_id: string | null
+          voice_url: string | null
         }
         Insert: {
           address?: string | null
@@ -629,6 +691,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["incident_status"] | null
           updated_at?: string | null
           user_id?: string | null
+          voice_url?: string | null
         }
         Update: {
           address?: string | null
@@ -654,6 +717,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["incident_status"] | null
           updated_at?: string | null
           user_id?: string | null
+          voice_url?: string | null
         }
         Relationships: [
           {
@@ -901,6 +965,118 @@ export type Database = {
           },
         ]
       }
+      pdf_report_history: {
+        Row: {
+          created_by: string
+          download_count: number | null
+          expires_at: string | null
+          file_name: string
+          file_size: number | null
+          file_url: string
+          filters: Json
+          generated_at: string | null
+          id: string
+          report_type: string
+          scheduled_report_id: string | null
+          title: string
+        }
+        Insert: {
+          created_by: string
+          download_count?: number | null
+          expires_at?: string | null
+          file_name: string
+          file_size?: number | null
+          file_url: string
+          filters: Json
+          generated_at?: string | null
+          id?: string
+          report_type: string
+          scheduled_report_id?: string | null
+          title: string
+        }
+        Update: {
+          created_by?: string
+          download_count?: number | null
+          expires_at?: string | null
+          file_name?: string
+          file_size?: number | null
+          file_url?: string
+          filters?: Json
+          generated_at?: string | null
+          id?: string
+          report_type?: string
+          scheduled_report_id?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pdf_report_history_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "active_volunteers_with_location"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pdf_report_history_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pdf_report_history_scheduled_report_id_fkey"
+            columns: ["scheduled_report_id"]
+            isOneToOne: false
+            referencedRelation: "scheduled_pdf_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pin_attempts: {
+        Row: {
+          attempt_count: number
+          created_at: string | null
+          id: string
+          last_attempt_at: string | null
+          locked_until: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          attempt_count?: number
+          created_at?: string | null
+          id?: string
+          last_attempt_at?: string | null
+          locked_until?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          attempt_count?: number
+          created_at?: string | null
+          id?: string
+          last_attempt_at?: string | null
+          locked_until?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pin_attempts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "active_volunteers_with_location"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pin_attempts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       push_subscriptions: {
         Row: {
           auth: string | null
@@ -1036,6 +1212,69 @@ export type Database = {
           {
             foreignKeyName: "reports_reviewed_by_fkey"
             columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scheduled_pdf_reports: {
+        Row: {
+          created_at: string | null
+          created_by: string
+          enabled: boolean | null
+          filters: Json
+          id: string
+          last_run_at: string | null
+          next_run_at: string | null
+          recipients: string[] | null
+          report_type: string
+          schedule_config: Json
+          schedule_type: string
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by: string
+          enabled?: boolean | null
+          filters: Json
+          id?: string
+          last_run_at?: string | null
+          next_run_at?: string | null
+          recipients?: string[] | null
+          report_type: string
+          schedule_config: Json
+          schedule_type: string
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string
+          enabled?: boolean | null
+          filters?: Json
+          id?: string
+          last_run_at?: string | null
+          next_run_at?: string | null
+          recipients?: string[] | null
+          report_type?: string
+          schedule_config?: Json
+          schedule_type?: string
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_pdf_reports_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "active_volunteers_with_location"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_pdf_reports_created_by_fkey"
+            columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
@@ -1686,6 +1925,7 @@ export type Database = {
           last_active: string | null
           last_name: string
           phone_number: string | null
+          pin_created_at: string | null
           pin_enabled: boolean | null
           pin_hash: string | null
           profile_image: string | null
@@ -1711,6 +1951,7 @@ export type Database = {
           last_active?: string | null
           last_name: string
           phone_number?: string | null
+          pin_created_at?: string | null
           pin_enabled?: boolean | null
           pin_hash?: string | null
           profile_image?: string | null
@@ -1736,6 +1977,7 @@ export type Database = {
           last_active?: string | null
           last_name?: string
           phone_number?: string | null
+          pin_created_at?: string | null
           pin_enabled?: boolean | null
           pin_hash?: string | null
           profile_image?: string | null
@@ -1812,6 +2054,7 @@ export type Database = {
       volunteer_documents: {
         Row: {
           created_at: string | null
+          display_name: string | null
           file_name: string
           id: string
           mime_type: string | null
@@ -1821,6 +2064,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          display_name?: string | null
           file_name: string
           id?: string
           mime_type?: string | null
@@ -1830,6 +2074,7 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          display_name?: string | null
           file_name?: string
           id?: string
           mime_type?: string | null
@@ -1958,6 +2203,7 @@ export type Database = {
           admin_user_id: string | null
           assigned_barangays: string[] | null
           availability: string[] | null
+          bio: string | null
           created_at: string | null
           is_available: boolean | null
           last_active_at: string | null
@@ -1974,6 +2220,7 @@ export type Database = {
           admin_user_id?: string | null
           assigned_barangays?: string[] | null
           availability?: string[] | null
+          bio?: string | null
           created_at?: string | null
           is_available?: boolean | null
           last_active_at?: string | null
@@ -1990,6 +2237,7 @@ export type Database = {
           admin_user_id?: string | null
           assigned_barangays?: string[] | null
           availability?: string[] | null
+          bio?: string | null
           created_at?: string | null
           is_available?: boolean | null
           last_active_at?: string | null
@@ -2207,6 +2455,7 @@ export type Database = {
       rvois_index_health: {
         Row: {
           index_name: unknown
+          last_vacuumed: string | null
           scans: number | null
           schemaname: unknown
           size: string | null
@@ -2630,6 +2879,14 @@ export type Database = {
       }
       postgis_version: { Args: never; Returns: string }
       postgis_wagyu_version: { Args: never; Returns: string }
+      random_date_between: {
+        Args: { end_date: string; start_date: string }
+        Returns: string
+      }
+      random_timestamp_between: {
+        Args: { end_ts: string; start_ts: string }
+        Returns: string
+      }
       rvois_check_index_usage: {
         Args: never
         Returns: {

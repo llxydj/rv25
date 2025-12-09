@@ -199,32 +199,35 @@ export default function SMSManagementPage() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-900">SMS Management</h1>
-        <div className="flex space-x-2">
-          <Button
-            variant={activeTab === 'monitoring' ? 'primary' : 'outline'}
-            size="sm"
-            onClick={() => setActiveTab('monitoring')}
-          >
-            Monitoring
-          </Button>
-          <Button
-            variant={activeTab === 'templates' ? 'primary' : 'outline'}
-            size="sm"
-            onClick={() => setActiveTab('templates')}
-          >
-            Templates
-          </Button>
-          <Button
-            variant={activeTab === 'config' ? 'primary' : 'outline'}
-            size="sm"
-            onClick={() => setActiveTab('config')}
-          >
-            Configuration
-          </Button>
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900">SMS Management</h1>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant={activeTab === 'monitoring' ? 'primary' : 'outline'}
+              size="sm"
+              onClick={() => setActiveTab('monitoring')}
+              className="touch-manipulation min-h-[2.5rem] text-xs sm:text-sm"
+            >
+              Monitoring
+            </Button>
+            <Button
+              variant={activeTab === 'templates' ? 'primary' : 'outline'}
+              size="sm"
+              onClick={() => setActiveTab('templates')}
+              className="touch-manipulation min-h-[2.5rem] text-xs sm:text-sm"
+            >
+              Templates
+            </Button>
+            <Button
+              variant={activeTab === 'config' ? 'primary' : 'outline'}
+              size="sm"
+              onClick={() => setActiveTab('config')}
+              className="touch-manipulation min-h-[2.5rem] text-xs sm:text-sm"
+            >
+              Config
+            </Button>
+          </div>
         </div>
-      </div>
 
       {activeTab === 'monitoring' && <SMSMonitoringDashboard />}
 

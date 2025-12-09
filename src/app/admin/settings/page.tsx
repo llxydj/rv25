@@ -398,38 +398,40 @@ export default function AdminSettings() {
         )}
 
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
-          <div className="flex border-b">
+          <div className="flex border-b overflow-x-auto scrollbar-hide">
             <button
-              className={`px-4 py-4 text-sm font-medium flex items-center ${
+              className={`px-3 md:px-4 py-3 md:py-4 text-xs md:text-sm font-medium flex items-center whitespace-nowrap flex-shrink-0 touch-manipulation ${
                 activeTab === "account"
                   ? "text-blue-600 border-b-2 border-blue-500"
                   : "text-gray-500 hover:text-blue-600 hover:border-blue-300"
               }`}
               onClick={() => setActiveTab("account")}
             >
-              <User className="mr-2 h-5 w-5" />
-              Account Settings
+              <User className="mr-1.5 md:mr-2 h-4 w-4 md:h-5 md:w-5" />
+              <span className="hidden sm:inline">Account Settings</span>
+              <span className="sm:hidden">Account</span>
             </button>
             <button
-              className={`px-4 py-4 text-sm font-medium flex items-center ${
+              className={`px-3 md:px-4 py-3 md:py-4 text-xs md:text-sm font-medium flex items-center whitespace-nowrap flex-shrink-0 touch-manipulation ${
                 activeTab === "notifications"
                   ? "text-blue-600 border-b-2 border-blue-500"
                   : "text-gray-500 hover:text-blue-600 hover:border-blue-300"
               }`}
               onClick={() => setActiveTab("notifications")}
             >
-              <Bell className="mr-2 h-5 w-5" />
-              Notification Preferences
+              <Bell className="mr-1.5 md:mr-2 h-4 w-4 md:h-5 md:w-5" />
+              <span className="hidden sm:inline">Notifications</span>
+              <span className="sm:hidden">Notify</span>
             </button>
             <button
-              className={`px-4 py-4 text-sm font-medium flex items-center ${
+              className={`px-3 md:px-4 py-3 md:py-4 text-xs md:text-sm font-medium flex items-center whitespace-nowrap flex-shrink-0 touch-manipulation ${
                 activeTab === "security"
                   ? "text-blue-600 border-b-2 border-blue-500"
                   : "text-gray-500 hover:text-blue-600 hover:border-blue-300"
               }`}
               onClick={() => setActiveTab("security")}
             >
-              <Shield className="mr-2 h-5 w-5" />
+              <Shield className="mr-1.5 md:mr-2 h-4 w-4 md:h-5 md:w-5" />
               Security
             </button>
           </div>

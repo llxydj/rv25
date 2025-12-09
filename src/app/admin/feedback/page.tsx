@@ -322,19 +322,19 @@ export default function AdminFeedbackPage() {
     <AdminLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Feedback Management</h1>
-            <p className="text-sm text-gray-600 mt-1">View and analyze resident feedback on incidents</p>
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900">Feedback Management</h1>
+            <p className="text-xs md:text-sm text-gray-600 mt-1">View and analyze resident feedback on incidents</p>
           </div>
-          <Button onClick={exportCSV} variant="outline">
+          <Button onClick={exportCSV} variant="outline" className="w-full sm:w-auto touch-manipulation">
             <Download className="h-4 w-4 mr-2" />
             Export CSV
           </Button>
         </div>
 
         {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium text-gray-600">Total Feedback</CardTitle>
@@ -463,11 +463,11 @@ export default function AdminFeedbackPage() {
             <CardTitle>Filters</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Date Range</label>
+                <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1.5 md:mb-2">Date Range</label>
                 <Select value={dateFilter} onValueChange={(value: any) => setDateFilter(value)}>
-                  <SelectTrigger>
+                  <SelectTrigger className="touch-manipulation min-h-[2.5rem]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -480,28 +480,29 @@ export default function AdminFeedbackPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Rating</label>
+                <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1.5 md:mb-2">Rating</label>
                 <Select value={ratingFilter} onValueChange={(value: any) => setRatingFilter(value)}>
-                  <SelectTrigger>
+                  <SelectTrigger className="touch-manipulation min-h-[2.5rem]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Ratings</SelectItem>
-                    <SelectItem value="5">5 Stars (Excellent)</SelectItem>
-                    <SelectItem value="4">4 Stars (Very Good)</SelectItem>
-                    <SelectItem value="3">3 Stars (Good)</SelectItem>
-                    <SelectItem value="2">2 Stars (Fair)</SelectItem>
-                    <SelectItem value="1">1 Star (Poor)</SelectItem>
+                    <SelectItem value="5">5 Stars</SelectItem>
+                    <SelectItem value="4">4 Stars</SelectItem>
+                    <SelectItem value="3">3 Stars</SelectItem>
+                    <SelectItem value="2">2 Stars</SelectItem>
+                    <SelectItem value="1">1 Star</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
+              <div className="sm:col-span-2">
+                <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1.5 md:mb-2">Search</label>
                 <Input
-                  placeholder="Search by comment, incident type, barangay, or resident name..."
+                  placeholder="Search feedback..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
+                  className="touch-manipulation min-h-[2.5rem]"
                 />
               </div>
             </div>
@@ -522,17 +523,17 @@ export default function AdminFeedbackPage() {
                 <p className="text-sm text-gray-400 mt-1">Try adjusting your filters</p>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-3 md:space-y-4">
                 {filteredFeedback.map((item) => (
-                  <div key={item.id} className="border rounded-lg p-4 space-y-3">
+                  <div key={item.id} className="border rounded-lg p-3 md:p-4 space-y-2 md:space-y-3">
                     {/* Header */}
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="flex gap-1">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                      <div className="flex items-center gap-2 md:gap-3 flex-wrap">
+                        <div className="flex gap-0.5 md:gap-1">
                           {[1, 2, 3, 4, 5].map((star) => (
                             <Star
                               key={star}
-                              className={`h-5 w-5 ${
+                              className={`h-4 w-4 md:h-5 md:w-5 ${
                                 star <= item.rating
                                   ? 'text-yellow-400 fill-current'
                                   : 'text-gray-300'
@@ -545,16 +546,16 @@ export default function AdminFeedbackPage() {
                         </Badge>
                       </div>
                       <div className="text-xs text-gray-500 flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
-                        {formatDate(item.created_at)}
+                        <Calendar className="h-3 w-3 flex-shrink-0" />
+                        <span className="truncate">{formatDate(item.created_at)}</span>
                       </div>
                     </div>
 
                     {/* User Info */}
                     {item.users && (
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Users className="h-4 w-4" />
-                        <span>
+                      <div className="flex items-center gap-2 text-xs md:text-sm text-gray-600">
+                        <Users className="h-3.5 w-3.5 md:h-4 md:w-4 flex-shrink-0" />
+                        <span className="truncate">
                           {item.users.first_name} {item.users.last_name}
                           {item.users.role && (
                             <span className="text-gray-400 ml-1">({item.users.role})</span>
@@ -565,16 +566,16 @@ export default function AdminFeedbackPage() {
 
                     {/* Incident Info */}
                     {item.incident && (
-                      <div className="flex items-center gap-4 text-sm">
+                      <div className="flex flex-wrap items-center gap-2 md:gap-4 text-xs md:text-sm">
                         <Link
                           href={`/admin/incidents/${item.incident_id}`}
-                          className="text-blue-600 hover:underline"
+                          className="text-blue-600 hover:underline touch-manipulation"
                         >
-                          <Badge variant="outline">{item.incident.incident_type}</Badge>
+                          <Badge variant="outline" className="text-xs">{item.incident.incident_type}</Badge>
                         </Link>
-                        <span className="text-gray-500">{item.incident.barangay}</span>
+                        <span className="text-gray-500 truncate">{item.incident.barangay}</span>
                         {item.incident.assigned_to && (
-                          <span className="text-gray-500">
+                          <span className="text-gray-500 truncate hidden sm:inline">
                             Volunteer: {item.incident.assigned_to.first_name} {item.incident.assigned_to.last_name}
                           </span>
                         )}
@@ -583,8 +584,8 @@ export default function AdminFeedbackPage() {
 
                     {/* Comment */}
                     {item.comment && (
-                      <div className="text-sm text-gray-700 bg-gray-50 p-3 rounded border-l-4 border-blue-500">
-                        <p className="whitespace-pre-wrap">{item.comment}</p>
+                      <div className="text-xs md:text-sm text-gray-700 bg-gray-50 p-2 md:p-3 rounded border-l-4 border-blue-500">
+                        <p className="whitespace-pre-wrap break-words">{item.comment}</p>
                       </div>
                     )}
 

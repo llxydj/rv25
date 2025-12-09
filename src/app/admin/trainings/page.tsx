@@ -154,10 +154,10 @@ export default function AdminTrainingsPage() {
       ) : (
         <div className="p-6 space-y-6">
           {/* Header */}
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-black">Trainings Management</h1>
-              <p className="text-sm text-gray-600 mt-1">Schedule and manage volunteer training sessions</p>
+              <h1 className="text-xl md:text-2xl font-bold text-black">Trainings Management</h1>
+              <p className="text-xs md:text-sm text-gray-600 mt-1">Schedule and manage volunteer training sessions</p>
             </div>
             <div className="text-sm text-gray-500">
               Total: <span className="font-semibold">{items.length}</span>
@@ -375,27 +375,26 @@ export default function AdminTrainingsPage() {
                     const badge = getStatusBadge(t.status || 'SCHEDULED')
                     
                     return (
-                      <div key={t.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2">
-                              <Link href={`/admin/trainings/${t.id}`} className="hover:underline">
-                                <h3 className="font-semibold text-gray-900 text-lg">{t.title}</h3>
+                      <div key={t.id} className="border rounded-lg p-3 md:p-4 hover:bg-gray-50 transition-colors">
+                        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-start gap-2 md:gap-3 mb-2">
+                              <Link href={`/admin/trainings/${t.id}`} className="hover:underline flex-1 min-w-0">
+                                <h3 className="font-semibold text-gray-900 text-sm md:text-lg truncate">{t.title}</h3>
                               </Link>
-                              <Badge variant={badge.variant}>{badge.label}</Badge>
+                              <Badge variant={badge.variant} className="text-xs flex-shrink-0">{badge.label}</Badge>
                             </div>
                             
                             {t.description && (
-                              <p className="text-sm text-gray-600 mb-3">{t.description}</p>
+                              <p className="text-xs md:text-sm text-gray-600 mb-3 line-clamp-2">{t.description}</p>
                             )}
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-600">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs md:text-sm text-gray-600">
                               <div className="flex items-center gap-2">
-                                <Calendar className="h-4 w-4" />
-                                <span>
+                                <Calendar className="h-3.5 w-3.5 md:h-4 md:w-4 flex-shrink-0" />
+                                <span className="truncate">
                                   {startDate.toLocaleDateString("en-US", {
                                     weekday: "short",
-                                    year: "numeric",
                                     month: "short",
                                     day: "numeric",
                                   })} at {startDate.toLocaleTimeString("en-US", {
@@ -408,8 +407,8 @@ export default function AdminTrainingsPage() {
                               
                               {endDate && (
                                 <div className="flex items-center gap-2">
-                                  <Clock className="h-4 w-4" />
-                                  <span>
+                                  <Clock className="h-3.5 w-3.5 md:h-4 md:w-4 flex-shrink-0" />
+                                  <span className="truncate">
                                     Ends: {endDate.toLocaleDateString("en-US", {
                                       month: "short",
                                       day: "numeric",
@@ -424,26 +423,26 @@ export default function AdminTrainingsPage() {
 
                               {t.location && (
                                 <div className="flex items-center gap-2">
-                                  <MapPin className="h-4 w-4" />
-                                  <span>{t.location}</span>
+                                  <MapPin className="h-3.5 w-3.5 md:h-4 md:w-4 flex-shrink-0" />
+                                  <span className="truncate">{t.location}</span>
                                 </div>
                               )}
 
                               {t.capacity && (
                                 <div className="flex items-center gap-2">
-                                  <Users className="h-4 w-4" />
-                                  <span>Capacity: {t.capacity} participants</span>
+                                  <Users className="h-3.5 w-3.5 md:h-4 md:w-4 flex-shrink-0" />
+                                  <span>Capacity: {t.capacity}</span>
                                 </div>
                               )}
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-2 ml-4">
+                          <div className="flex flex-wrap items-center gap-2 pt-3 lg:pt-0 border-t lg:border-t-0 border-gray-200 lg:ml-4">
                             <Select
                               value={t.status || 'SCHEDULED'}
                               onValueChange={(value) => updateTrainingStatus(t.id, value)}
                             >
-                              <SelectTrigger className="w-[140px]">
+                              <SelectTrigger className="w-full sm:w-[130px] touch-manipulation min-h-[2.5rem] text-xs md:text-sm">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -453,10 +452,11 @@ export default function AdminTrainingsPage() {
                                 <SelectItem value="CANCELLED">Cancelled</SelectItem>
                               </SelectContent>
                             </Select>
-                            <Link href={`/admin/trainings/${t.id}`}>
-                              <Button variant="outline" size="sm">
-                                <Edit className="h-4 w-4 mr-2" />
-                                View Details
+                            <Link href={`/admin/trainings/${t.id}`} className="flex-1 sm:flex-none">
+                              <Button variant="outline" size="sm" className="w-full sm:w-auto touch-manipulation min-h-[2.5rem] text-xs md:text-sm">
+                                <Edit className="h-3.5 w-3.5 md:h-4 md:w-4 mr-1.5 md:mr-2" />
+                                <span className="hidden sm:inline">View Details</span>
+                                <span className="sm:hidden">View</span>
                               </Button>
                             </Link>
                           </div>

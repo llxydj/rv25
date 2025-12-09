@@ -43,7 +43,29 @@ export default function VolunteerLguDirectoryPage() {
         {error && (
           <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 p-3 text-sm text-red-700 dark:text-red-400">{error}</div>
         )}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-x-auto">
+        {/* Mobile Card View */}
+        <div className="md:hidden space-y-3">
+          {contacts.map(c => (
+            <div key={c.id} className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 space-y-2">
+              <div className="font-medium text-gray-900 dark:text-white">{c.agency_name}</div>
+              {c.contact_person && (
+                <div className="text-sm text-gray-600 dark:text-gray-400">Contact: {c.contact_person}</div>
+              )}
+              <div className="flex items-center justify-between pt-2">
+                <a href={`tel:${c.contact_number}`} className="text-blue-600 dark:text-blue-400 hover:underline font-medium">{c.contact_number}</a>
+                <a href={`tel:${c.contact_number}`} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded transition-colors text-sm font-medium touch-manipulation">Call Now</a>
+              </div>
+            </div>
+          ))}
+          {!contacts.length && (
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 text-center text-gray-500 dark:text-gray-400 text-sm">
+              {loading ? 'Loading...' : 'No contacts available'}
+            </div>
+          )}
+        </div>
+
+        {/* Desktop Table View */}
+        <div className="hidden md:block bg-white dark:bg-gray-800 rounded-lg shadow overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>

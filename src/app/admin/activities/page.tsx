@@ -93,14 +93,14 @@ export default function ScheduledActivitiesPage() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
           <div>
-            <h1 className="text-2xl font-bold">Scheduled Activities</h1>
-            <p className="text-gray-600 mt-1">Manage volunteer activities and assignments</p>
+            <h1 className="text-xl sm:text-2xl font-bold">Scheduled Activities</h1>
+            <p className="text-sm sm:text-base text-gray-600 mt-1">Manage volunteer activities and assignments</p>
           </div>
           <button
             onClick={() => setShowForm(true)}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700"
+            className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 w-full sm:w-auto touch-manipulation"
           >
             <Plus className="h-5 w-5 mr-2" />
             Schedule Activity
@@ -118,8 +118,8 @@ export default function ScheduledActivitiesPage() {
         )}
 
         {showForm && (
-          <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg shadow-xl max-w-lg w-full p-6">
+          <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center p-4 z-50 overflow-y-auto">
+            <div className="bg-white rounded-lg shadow-xl max-w-lg w-full p-4 sm:p-6 my-4 max-h-[90vh] overflow-y-auto">
               <div className="flex justify-between items-start mb-4">
                 <h2 className="text-lg font-semibold">Schedule New Activity</h2>
                 <button
@@ -179,7 +179,7 @@ export default function ScheduledActivitiesPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label htmlFor="date" className="block text-sm font-medium text-gray-700">
                       Date
@@ -187,7 +187,7 @@ export default function ScheduledActivitiesPage() {
                     <input
                       type="date"
                       id="date"
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 sm:text-sm"
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 text-sm"
                       value={formData.date}
                       onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                       required
@@ -201,7 +201,7 @@ export default function ScheduledActivitiesPage() {
                     <input
                       type="time"
                       id="time"
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 sm:text-sm"
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 text-sm"
                       value={formData.time}
                       onChange={(e) => setFormData({ ...formData, time: e.target.value })}
                     />

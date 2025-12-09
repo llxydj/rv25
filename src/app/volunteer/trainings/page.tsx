@@ -164,11 +164,11 @@ export default function VolunteerTrainingsPage() {
                   
                   return (
                     <div key={t.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                      <div className="flex items-start justify-between">
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                         <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
+                          <div className="flex flex-wrap items-center gap-2 mb-2">
                             <Link href={`/volunteer/trainings/${t.id}`} className="hover:underline">
-                              <h3 className="font-semibold text-gray-900 text-lg">{t.title}</h3>
+                              <h3 className="font-semibold text-gray-900 text-base sm:text-lg">{t.title}</h3>
                             </Link>
                             {isEnrolled && (
                               <Badge variant="outline" className="bg-green-50 text-green-700">
@@ -182,9 +182,9 @@ export default function VolunteerTrainingsPage() {
                             <p className="text-sm text-gray-600 mb-3">{t.description}</p>
                           )}
 
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-600">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs sm:text-sm text-gray-600">
                             <div className="flex items-center gap-2">
-                              <Calendar className="h-4 w-4" />
+                              <Calendar className="h-4 w-4 flex-shrink-0" />
                               <span>
                                 {startDate.toLocaleDateString("en-US", {
                                   weekday: "short",
@@ -201,7 +201,7 @@ export default function VolunteerTrainingsPage() {
 
                             {endDate && (
                               <div className="flex items-center gap-2">
-                                <Clock className="h-4 w-4" />
+                                <Clock className="h-4 w-4 flex-shrink-0" />
                                 <span>
                                   Ends: {endDate.toLocaleDateString("en-US", {
                                     month: "short",
@@ -217,26 +217,27 @@ export default function VolunteerTrainingsPage() {
 
                             {t.location && (
                               <div className="flex items-center gap-2">
-                                <MapPin className="h-4 w-4" />
+                                <MapPin className="h-4 w-4 flex-shrink-0" />
                                 <span>{t.location}</span>
                               </div>
                             )}
 
                             {t.capacity && (
                               <div className="flex items-center gap-2">
-                                <Users className="h-4 w-4" />
+                                <Users className="h-4 w-4 flex-shrink-0" />
                                 <span>Capacity: {t.capacity} participants</span>
                               </div>
                             )}
                           </div>
                         </div>
 
-                        <div className="ml-4">
+                        <div className="sm:ml-4 flex-shrink-0">
                           {isEnrolled ? (
                             <Button
                               variant="outline"
                               onClick={() => handleUnenroll(t.id)}
                               disabled={enrolling === t.id}
+                              className="w-full sm:w-auto"
                             >
                               {enrolling === t.id ? (
                                 <LoadingSpinner size="sm" className="mr-2" />
@@ -249,6 +250,7 @@ export default function VolunteerTrainingsPage() {
                             <Button
                               onClick={() => handleEnroll(t.id)}
                               disabled={enrolling === t.id}
+                              className="w-full sm:w-auto"
                             >
                               {enrolling === t.id ? (
                                 <LoadingSpinner size="sm" className="mr-2" />

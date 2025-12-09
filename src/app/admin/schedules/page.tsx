@@ -277,25 +277,27 @@ export default function ActivitySchedulesPage() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-col gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-black">Activity Schedules</h1>
-            <p className="text-gray-600 mt-1">Manage and schedule activities for volunteers</p>
+            <h1 className="text-xl md:text-2xl font-bold text-black">Activity Schedules</h1>
+            <p className="text-sm md:text-base text-gray-600 mt-1">Manage and schedule activities for volunteers</p>
           </div>
-          <div className="mt-4 md:mt-0 flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 md:gap-3">
             <button
               onClick={() => setShowBulkModal(true)}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+              className="inline-flex items-center px-3 py-2 md:px-4 border border-gray-300 rounded-md shadow-sm text-xs md:text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors touch-manipulation active:scale-[0.98]"
             >
-              <Users className="mr-2 h-4 w-4" />
-              Bulk Assign
+              <Users className="mr-1.5 md:mr-2 h-3.5 w-3.5 md:h-4 md:w-4" />
+              <span className="hidden sm:inline">Bulk Assign</span>
+              <span className="sm:hidden">Bulk</span>
             </button>
             <Link
               href="/admin/schedules/calendar"
-              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+              className="inline-flex items-center px-3 py-2 md:px-4 border border-gray-300 rounded-md shadow-sm text-xs md:text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors touch-manipulation active:scale-[0.98]"
             >
-              <Calendar className="mr-2 h-4 w-4" />
-              Calendar View
+              <Calendar className="mr-1.5 md:mr-2 h-3.5 w-3.5 md:h-4 md:w-4" />
+              <span className="hidden sm:inline">Calendar View</span>
+              <span className="sm:hidden">Calendar</span>
             </Link>
             <ScheduleExportButton />
             <button
@@ -314,14 +316,15 @@ export default function ActivitySchedulesPage() {
                   street: ""
                 })
               }}
-              className="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+              className="inline-flex items-center px-3 py-2 md:px-4 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 text-xs md:text-sm font-medium touch-manipulation active:scale-[0.98]"
             >
               {showForm ? (
                 <>Cancel</>
               ) : (
                 <>
-                  <Plus className="mr-2 h-5 w-5" />
-                  New Activity
+                  <Plus className="mr-1.5 md:mr-2 h-4 w-4 md:h-5 md:w-5" />
+                  <span className="hidden sm:inline">New Activity</span>
+                  <span className="sm:hidden">New</span>
                 </>
               )}
             </button>
@@ -605,77 +608,180 @@ export default function ActivitySchedulesPage() {
                 </div>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <>
+              {/* Mobile Card View */}
+              <div className="md:hidden space-y-3 p-3">
+                {schedules.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize).map((schedule) => (
+                  <div key={schedule.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-sm font-semibold text-gray-900 truncate">{schedule.title}</h3>
+                        {schedule.description && (
+                          <p className="text-xs text-gray-500 line-clamp-2 mt-1">{schedule.description}</p>
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-1 flex-shrink-0">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                          schedule.status === 'COMPLETED' 
+                            ? 'bg-green-100 text-green-800'
+                            : schedule.status === 'ONGOING'
+                            ? 'bg-orange-100 text-orange-800'
+                            : schedule.status === 'CANCELLED'
+                            ? 'bg-gray-100 text-gray-800'
+                            : 'bg-blue-100 text-blue-800'
+                        }`}>
+                          {schedule.status || 'SCHEDULED'}
+                        </span>
+                        {schedule.is_accepted !== null && (
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                            schedule.is_accepted 
+                              ? 'bg-green-50 text-green-700 border border-green-200'
+                              : 'bg-red-50 text-red-700 border border-red-200'
+                          }`}>
+                            {schedule.is_accepted ? '✓ Accepted' : '✗ Declined'}
+                          </span>
+                        )}
+                        {schedule.is_accepted === null && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-50 text-yellow-700 border border-yellow-200">
+                            ⏳ Pending
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2 text-xs">
+                      <div className="flex items-center gap-2">
+                        <User className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
+                        <span className="text-gray-900 truncate">
+                          {(schedule.volunteer?.first_name || schedule.volunteer?.last_name)
+                            ? `${schedule.volunteer?.first_name ?? ''} ${schedule.volunteer?.last_name ?? ''}`.trim()
+                            : (volunteers.find(v => v.id === schedule.volunteer_id)?.email || 'Unknown Volunteer')}
+                        </span>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
+                        <span className="text-gray-700">
+                          {new Date(schedule.start_time).toLocaleDateString()}
+                        </span>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
+                        <span className="text-gray-700">
+                          {new Date(schedule.start_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {new Date(schedule.end_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        </span>
+                      </div>
+                      
+                      <div className="flex items-start gap-2">
+                        <MapPin className="h-3.5 w-3.5 text-gray-400 flex-shrink-0 mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-gray-700 truncate">{schedule.location}</p>
+                          {schedule.barangay && <p className="text-gray-500 truncate">{schedule.barangay}</p>}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100">
+                      {canMarkComplete(schedule) && (
+                        <button
+                          onClick={() => handleMarkComplete(schedule)}
+                          className="flex-1 inline-flex items-center justify-center px-3 py-2 text-xs font-medium text-green-700 bg-green-50 rounded-md hover:bg-green-100 transition-colors touch-manipulation active:scale-[0.98]"
+                        >
+                          <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
+                          Complete
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleEdit(schedule)}
+                        className="flex-1 inline-flex items-center justify-center px-3 py-2 text-xs font-medium text-blue-700 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors touch-manipulation active:scale-[0.98]"
+                      >
+                        <Pencil className="h-3.5 w-3.5 mr-1.5" />
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(schedule.id)}
+                        className="flex-1 inline-flex items-center justify-center px-3 py-2 text-xs font-medium text-red-700 bg-red-50 rounded-md hover:bg-red-100 transition-colors touch-manipulation active:scale-[0.98]"
+                      >
+                        <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop Table View */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th scope="col" className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Activity
                       </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th scope="col" className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Volunteer
-                    </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Date & Time
-                    </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Location
-                    </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                      <th scope="col" className="relative px-6 py-3">
+                      </th>
+                      <th scope="col" className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Date & Time
+                      </th>
+                      <th scope="col" className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Location
+                      </th>
+                      <th scope="col" className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th scope="col" className="relative px-4 lg:px-6 py-3">
                         <span className="sr-only">Actions</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
                     {schedules.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize).map((schedule) => (
-                      <tr key={schedule.id}>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                      <tr key={schedule.id} className="hover:bg-gray-50">
+                        <td className="px-4 lg:px-6 py-4">
                           <div className="text-sm font-medium text-gray-900">{schedule.title}</div>
                           {schedule.description && (
-                            <div className="text-sm text-gray-500">{schedule.description}</div>
+                            <div className="text-sm text-gray-500 line-clamp-1">{schedule.description}</div>
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-4 lg:px-6 py-4">
                           <div className="flex items-center">
                             <div className="flex-shrink-0 h-8 w-8 rounded-full bg-red-100 flex items-center justify-center">
                               <User className="h-5 w-5 text-red-600" />
                             </div>
-                            <div className="ml-4">
-                              <div className="text-sm font-medium text-gray-900">
+                            <div className="ml-3">
+                              <div className="text-sm font-medium text-gray-900 truncate max-w-[150px]">
                                 {(schedule.volunteer?.first_name || schedule.volunteer?.last_name)
                                   ? `${schedule.volunteer?.first_name ?? ''} ${schedule.volunteer?.last_name ?? ''}`.trim()
                                   : (volunteers.find(v => v.id === schedule.volunteer_id)?.email || 'Unknown Volunteer')}
                               </div>
-                              <div className="text-sm text-gray-500">
+                              <div className="text-sm text-gray-500 truncate max-w-[150px]">
                                 {schedule.volunteer?.email || volunteers.find(v => v.id === schedule.volunteer_id)?.email || ''}
                               </div>
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center text-sm text-gray-900">
                             <Calendar className="mr-1.5 h-4 w-4 text-gray-500" />
                             {new Date(schedule.start_time).toLocaleDateString()}
                           </div>
                           <div className="flex items-center text-sm text-gray-500">
                             <Clock className="mr-1.5 h-4 w-4" />
-                            {new Date(schedule.start_time).toLocaleTimeString()} -{" "}
-                            {new Date(schedule.end_time).toLocaleTimeString()}
+                            {new Date(schedule.start_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {new Date(schedule.end_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                            <MapPin className="mr-1.5 h-4 w-4 text-gray-500" />
-                            <div>
-                              <div className="text-sm text-gray-900">{schedule.location}</div>
-                              <div className="text-sm text-gray-500">{schedule.barangay}</div>
+                        <td className="px-4 lg:px-6 py-4">
+                          <div className="flex items-start">
+                            <MapPin className="mr-1.5 h-4 w-4 text-gray-500 flex-shrink-0 mt-0.5" />
+                            <div className="min-w-0">
+                              <div className="text-sm text-gray-900 truncate max-w-[150px]">{schedule.location}</div>
+                              <div className="text-sm text-gray-500 truncate max-w-[150px]">{schedule.barangay}</div>
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
                           <div className="flex flex-col gap-1">
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                               schedule.status === 'COMPLETED' 
@@ -704,39 +810,43 @@ export default function ActivitySchedulesPage() {
                             )}
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          {canMarkComplete(schedule) && (
+                        <td className="px-4 lg:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <div className="flex items-center justify-end gap-2">
+                            {canMarkComplete(schedule) && (
+                              <button
+                                onClick={() => handleMarkComplete(schedule)}
+                                className="p-2 text-green-600 hover:text-green-900 hover:bg-green-50 rounded-md transition-colors"
+                                title="Mark as Completed"
+                              >
+                                <CheckCircle className="h-4 w-4" />
+                                <span className="sr-only">Mark Complete</span>
+                              </button>
+                            )}
                             <button
-                              onClick={() => handleMarkComplete(schedule)}
-                              className="text-green-600 hover:text-green-900 mr-4"
-                              title="Mark as Completed"
+                              onClick={() => handleEdit(schedule)}
+                              className="p-2 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-md transition-colors"
                             >
-                              <CheckCircle className="h-4 w-4" />
-                              <span className="sr-only">Mark Complete</span>
+                              <Pencil className="h-4 w-4" />
+                              <span className="sr-only">Edit</span>
                             </button>
-                          )}
-                          <button
-                            onClick={() => handleEdit(schedule)}
-                            className="text-blue-600 hover:text-blue-900 mr-4"
-                          >
-                            <Pencil className="h-4 w-4" />
-                            <span className="sr-only">Edit</span>
-                          </button>
-                          <button
-                            onClick={() => handleDelete(schedule.id)}
-                            className="text-red-600 hover:text-red-900"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            <span className="sr-only">Delete</span>
-                          </button>
+                            <button
+                              onClick={() => handleDelete(schedule.id)}
+                              className="p-2 text-red-600 hover:text-red-900 hover:bg-red-50 rounded-md transition-colors"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              <span className="sr-only">Delete</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
-                </tbody>
-              </table>
+                  </tbody>
+                </table>
+              </div>
+              
               {/* Pagination controls */}
-              <div className="flex items-center justify-between p-4 border-t border-gray-200">
-                <div className="text-sm text-gray-600">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t border-gray-200">
+                <div className="text-xs sm:text-sm text-gray-600 text-center sm:text-left">
                   {(() => {
                     const total = schedules.length
                     const start = total === 0 ? 0 : (page - 1) * pageSize + 1
@@ -748,23 +858,23 @@ export default function ActivitySchedulesPage() {
                   <button
                     disabled={page <= 1}
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    className="px-3 py-1.5 rounded-md border text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-3 py-2 rounded-md border text-xs sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation min-h-[2.5rem] min-w-[5rem]"
                   >
                     Previous
                   </button>
-                  <span className="text-sm text-gray-700">
+                  <span className="text-xs sm:text-sm text-gray-700 px-2">
                     Page {page} of {Math.max(1, Math.ceil(schedules.length / pageSize))}
                   </span>
                   <button
                     disabled={page >= Math.max(1, Math.ceil(schedules.length / pageSize))}
                     onClick={() => setPage((p) => Math.min(Math.max(1, Math.ceil(schedules.length / pageSize)), p + 1))}
-                    className="px-3 py-1.5 rounded-md border text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-3 py-2 rounded-md border text-xs sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation min-h-[2.5rem] min-w-[5rem]"
                   >
                     Next
                   </button>
                 </div>
               </div>
-            </div>
+            </>
           )}
           </div>
         </div>

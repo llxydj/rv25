@@ -449,70 +449,114 @@ export default function VolunteerReportsPage() {
               )}
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Report
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Type
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Date Submitted
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th scope="col" className="relative px-6 py-3">
-                      <span className="sr-only">Actions</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredReports.map((report) => (
-                    <tr key={report.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
+            <>
+              {/* Mobile Card View */}
+              <div className="md:hidden space-y-4">
+                {filteredReports.map((report) => (
+                  <div key={report.id} className="border border-gray-200 rounded-lg p-4 space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium text-gray-900">{report.title}</div>
-                        <div className="text-xs text-gray-500">
+                        <div className="text-xs text-gray-500 mt-1">
                           {report.incident ? (
                             <>Related to: {report.incident.incident_type} in {report.incident.barangay}</>
                           ) : (
                             "No related incident"
                           )}
                         </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      </div>
+                      {getReportStatusBadge(report.status)}
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex flex-wrap items-center gap-2">
                         {getReportTypeBadge(report.report_type)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center text-sm text-gray-500">
-                          <Calendar className="mr-1 h-4 w-4" />
+                        <div className="flex items-center text-xs text-gray-500">
+                          <Calendar className="mr-1 h-3 w-3" />
                           {formatDate(report.created_at)}
                         </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {getReportStatusBadge(report.status)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      </div>
+                      <div className="flex items-center gap-2">
                         <Link
                           href={`/volunteer/report/${report.id}`}
-                          className="text-green-600 hover:text-green-900 mr-3"
+                          className="text-green-600 hover:text-green-900 text-sm font-medium"
                         >
                           View
                         </Link>
-                        <button
-                          className="text-gray-600 hover:text-gray-900"
-                        >
+                        <button className="text-gray-600 hover:text-gray-900 p-1">
                           <Download className="h-4 w-4" />
                         </button>
-                      </td>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop Table View */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Report
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Type
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Date Submitted
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th scope="col" className="relative px-6 py-3">
+                        <span className="sr-only">Actions</span>
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredReports.map((report) => (
+                      <tr key={report.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">{report.title}</div>
+                          <div className="text-xs text-gray-500">
+                            {report.incident ? (
+                              <>Related to: {report.incident.incident_type} in {report.incident.barangay}</>
+                            ) : (
+                              "No related incident"
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {getReportTypeBadge(report.report_type)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center text-sm text-gray-500">
+                            <Calendar className="mr-1 h-4 w-4" />
+                            {formatDate(report.created_at)}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {getReportStatusBadge(report.status)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <Link
+                            href={`/volunteer/report/${report.id}`}
+                            className="text-green-600 hover:text-green-900 mr-3"
+                          >
+                            View
+                          </Link>
+                          <button
+                            className="text-gray-600 hover:text-gray-900"
+                          >
+                            <Download className="h-4 w-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       </div>

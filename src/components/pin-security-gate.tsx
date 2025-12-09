@@ -1,11 +1,13 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { Lock, X, Loader2 } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 
 const SESSION_UNLOCK_KEY = "pin_unlocked_session"
+const ACTIVITY_UPDATE_INTERVAL_MS = 5 * 60 * 1000 // Update activity every 5 minutes
+const ACTIVITY_DEBOUNCE_MS = 30 * 1000 // Don't update more than once per 30 seconds
 
 export function PinSecurityGate({ children }: { children: React.ReactNode }) {
   const { user } = useAuth()
@@ -215,6 +217,89 @@ export function PinSecurityGate({ children }: { children: React.ReactNode }) {
       }
     }
   }, [user])
+
+  // ============================================================================
+  // ACTIVITY TRACKING - Keeps PIN session alive during active use
+  // This prevents the 30-minute inactivity timeout from triggering while user
+  // is actively using the app
+  // ============================================================================
+  const lastActivityUpdateRef = useRef<number>(0)
+  const activityIntervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  const updateServerActivity = useCallback(async () => {
+    // Only update if unlocked and user is admin (admins have stricter timeout)
+    if (!isUnlocked || !user || user.role !== 'admin') return
+    
+    const now = Date.now()
+    // Debounce: Don't update more than once per 30 seconds
+    if (now - lastActivityUpdateRef.current < ACTIVITY_DEBOUNCE_MS) return
+    
+    lastActivityUpdateRef.current = now
+    
+    try {
+      // This call updates the pin_last_activity cookie on the server
+      await fetch('/api/pin/check-verified', {
+        credentials: 'include',
+        cache: 'no-store'
+      })
+    } catch {
+      // Silently fail - this is just activity tracking
+    }
+  }, [isUnlocked, user])
+
+  // Periodic activity update (every 5 minutes)
+  useEffect(() => {
+    if (!isUnlocked || !user || user.role !== 'admin') {
+      // Clear interval if not needed
+      if (activityIntervalRef.current) {
+        clearInterval(activityIntervalRef.current)
+        activityIntervalRef.current = null
+      }
+      return
+    }
+
+    // Update activity immediately when unlocked
+    updateServerActivity()
+
+    // Set up periodic updates
+    activityIntervalRef.current = setInterval(() => {
+      updateServerActivity()
+    }, ACTIVITY_UPDATE_INTERVAL_MS)
+
+    return () => {
+      if (activityIntervalRef.current) {
+        clearInterval(activityIntervalRef.current)
+        activityIntervalRef.current = null
+      }
+    }
+  }, [isUnlocked, user, updateServerActivity])
+
+  // Update activity on user interactions (click, keypress, touch)
+  useEffect(() => {
+    if (!isUnlocked || !user || user.role !== 'admin') return
+
+    const handleUserActivity = () => {
+      updateServerActivity()
+    }
+
+    // Listen for user activity
+    window.addEventListener('click', handleUserActivity, { passive: true })
+    window.addEventListener('keydown', handleUserActivity, { passive: true })
+    window.addEventListener('touchstart', handleUserActivity, { passive: true })
+
+    return () => {
+      window.removeEventListener('click', handleUserActivity)
+      window.removeEventListener('keydown', handleUserActivity)
+      window.removeEventListener('touchstart', handleUserActivity)
+    }
+  }, [isUnlocked, user, updateServerActivity])
+
+  // Update activity on route changes
+  useEffect(() => {
+    if (isUnlocked && user?.role === 'admin') {
+      updateServerActivity()
+    }
+  }, [pathname, isUnlocked, user, updateServerActivity])
 
   const handlePinSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

@@ -130,11 +130,11 @@ export default function AdminTrainingEvaluationsPage() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-6">
+      <div className="p-4 md:p-6 space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Training Evaluations</h1>
-          <p className="text-gray-600">Monitor and analyze training feedback from volunteers and residents</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">Training Evaluations</h1>
+          <p className="text-sm md:text-base text-gray-600">Monitor and analyze training feedback from volunteers and residents</p>
         </div>
 
         {/* Error Display */}
@@ -160,7 +160,7 @@ export default function AdminTrainingEvaluationsPage() {
           <>
             {/* Analytics Dashboard */}
             {analytics && (
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6">
                 {/* Total Evaluations */}
                 <Card className="p-6">
                   <div className="flex items-center justify-between">
@@ -248,9 +248,56 @@ export default function AdminTrainingEvaluationsPage() {
             )}
 
             {/* Evaluations Table */}
-            <Card className="p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">All Evaluations</h2>
-              <div className="overflow-x-auto">
+            <Card className="p-4 md:p-6">
+              <h2 className="text-lg md:text-xl font-semibold text-gray-900 mb-4">All Evaluations</h2>
+              
+              {/* Mobile Card View */}
+              <div className="md:hidden space-y-4">
+                {items.map((e) => (
+                  <div key={e.id} className="border border-gray-200 rounded-lg p-4 space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                          <UsersIcon className="h-4 w-4 text-blue-600" />
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">
+                            {e.user ? `${e.user.first_name} ${e.user.last_name}` : 'User'}
+                          </div>
+                          {e.user?.email && (
+                            <div className="text-xs text-gray-500 truncate max-w-[180px]">{e.user.email}</div>
+                          )}
+                        </div>
+                      </div>
+                      <StarRating rating={e.rating} readonly size="sm" showLabel={false} />
+                    </div>
+                    <div>
+                      <div className="text-xs font-medium text-gray-500 mb-1">Training</div>
+                      <div className="text-sm font-medium text-gray-900">
+                        {e.training?.title || `Training #${e.training_id.substring(0, 8)}`}
+                      </div>
+                    </div>
+                    {e.comments && (
+                      <div>
+                        <div className="text-xs font-medium text-gray-500 mb-1">Comments</div>
+                        <p className="text-sm text-gray-700">{e.comments}</p>
+                      </div>
+                    )}
+                    <div className="text-xs text-gray-500 pt-2 border-t border-gray-100">
+                      {new Date(e.created_at).toLocaleDateString()} at {new Date(e.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  </div>
+                ))}
+                {items.length === 0 && (
+                  <div className="py-8 text-center text-gray-500">
+                    <MessageSquare className="h-12 w-12 text-gray-300 mx-auto mb-2" />
+                    <p>No evaluations yet</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Desktop Table View */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left">
                   <thead>
                     <tr className="border-b">
