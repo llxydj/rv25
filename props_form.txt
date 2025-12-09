@@ -1,0 +1,1203 @@
+# RV25 System Enhancement Request - Reports & UI/UX Overhaul
+
+## 📋 Request Overview
+
+**Priority**: High  
+**Type**: Feature Enhancement + UI/UX Overhaul  
+**Affected Systems**: Admin Reports, Incident Management, System-wide GUI  
+**Target Date**: TBD (Pending team review)  
+**Requested By**: [Your Name/Department]  
+**Date**: December 9, 2024
+
+---
+
+## 🎯 Executive Summary
+
+We need to enhance the RV25 system with improved incident categorization, professional-grade report generation, and a modernized GUI that reduces scrolling and improves usability. All changes must comply with Philippine Data Privacy Act (DPA) of 2012 and maintain system stability.
+
+---
+
+## 📊 PART 1: Incident Reporting & Categorization Enhancement
+
+### Current Issues:
+- Incident reports are too vague and generalized
+- No proper categorization of emergency types
+- Cannot distinguish between trauma, medical, fire, disaster, etc.
+- Difficult to generate statistics by emergency category
+- No standardized incident classification system
+
+### Required Enhancements:
+
+#### 1.1 Emergency Categorization System
+```
+PRIMARY CATEGORIES (Level 1):
+├── Medical Emergency
+│   ├── Trauma (Physical Injury)
+│   ├── Medical Condition (Non-trauma)
+│   ├── Poisoning/Overdose
+│   ├── Cardiac Emergency
+│   ├── Respiratory Emergency
+│   ├── Obstetric/Gynecological
+│   └── Pediatric Emergency
+│
+├── Fire Emergency
+│   ├── Structural Fire
+│   ├── Vehicle Fire
+│   ├── Forest/Grass Fire
+│   ├── Electrical Fire
+│   └── Chemical Fire
+│
+├── Disaster Response
+│   ├── Natural Disaster (Flood, Earthquake, Typhoon)
+│   ├── Man-made Disaster
+│   ├── Mass Casualty Incident
+│   └── Hazardous Material Incident
+│
+├── Rescue Operations
+│   ├── Water Rescue
+│   ├── High-angle Rescue
+│   ├── Confined Space Rescue
+│   ├── Vehicle Extrication
+│   └── Search and Rescue
+│
+├── Public Safety
+│   ├── Traffic Incident
+│   ├── Security Concern
+│   ├── Public Disturbance
+│   └── Environmental Hazard
+│
+└── Other/Miscellaneous
+```
+
+#### 1.2 Severity Level Classification
+```
+SEVERITY LEVELS:
+- Level 1 (Critical): Life-threatening, immediate response required
+- Level 2 (Urgent): Serious but stable, prompt response needed
+- Level 3 (Standard): Non-critical, routine response
+- Level 4 (Low Priority): Minor incidents, scheduled response acceptable
+```
+
+#### 1.3 Required Medical Details (When Applicable)
+```
+Medical-Specific Fields:
+☑ Chief Complaint
+☑ Number of Patients
+☑ Patient Age Range
+☑ Vital Signs Status (if known)
+☑ Consciousness Level
+☑ Mechanism of Injury (for trauma)
+☑ Special Considerations (pediatric, geriatric, pregnancy)
+☑ Transport Required (Yes/No/Unknown)
+☑ Equipment Needed (AED, Stretcher, Oxygen, etc.)
+```
+
+#### 1.4 Database Schema Changes Required
+
+**New Tables:**
+```sql
+-- Emergency category master table
+CREATE TABLE emergency_categories (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  category_code VARCHAR(50) UNIQUE NOT NULL,
+  category_name VARCHAR(200) NOT NULL,
+  parent_category_id UUID REFERENCES emergency_categories(id),
+  severity_weight INTEGER, -- For sorting/prioritization
+  response_protocol TEXT,
+  required_equipment JSONB,
+  typical_response_time INTEGER, -- in minutes
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Incident categorization (many-to-many relationship)
+CREATE TABLE incident_categories (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  incident_id UUID REFERENCES incidents(id) ON DELETE CASCADE,
+  category_id UUID REFERENCES emergency_categories(id),
+  is_primary BOOLEAN DEFAULT false,
+  notes TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Medical-specific incident details
+CREATE TABLE incident_medical_details (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  incident_id UUID REFERENCES incidents(id) ON DELETE CASCADE,
+  chief_complaint TEXT,
+  patient_count INTEGER DEFAULT 1,
+  patient_age_range VARCHAR(50),
+  consciousness_level VARCHAR(50),
+  vital_signs_status VARCHAR(50),
+  mechanism_of_injury TEXT,
+  transport_required BOOLEAN,
+  equipment_needed JSONB,
+  special_considerations TEXT,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+**Modified Tables:**
+```sql
+-- Add to existing incidents table
+ALTER TABLE incidents 
+ADD COLUMN primary_category_id UUID REFERENCES emergency_categories(id),
+ADD COLUMN severity_level INTEGER CHECK (severity_level BETWEEN 1 AND 4),
+ADD COLUMN is_medical BOOLEAN DEFAULT false,
+ADD COLUMN requires_transport BOOLEAN DEFAULT false,
+ADD COLUMN equipment_checklist JSONB;
+
+-- Create indexes for performance
+CREATE INDEX idx_incidents_primary_category ON incidents(primary_category_id);
+CREATE INDEX idx_incidents_severity ON incidents(severity_level);
+CREATE INDEX idx_incident_categories_incident ON incident_categories(incident_id);
+CREATE INDEX idx_incident_categories_category ON incident_categories(category_id);
+```
+
+#### 1.5 UI/UX Changes for Incident Reporting
+
+**Incident Report Form Redesign:**
+```
+┌─────────────────────────────────────────────────┐
+│  NEW INCIDENT REPORT                             │
+├─────────────────────────────────────────────────┤
+│                                                  │
+│  Step 1: Emergency Classification (Required)     │
+│  ┌───────────────────────────────────────────┐  │
+│  │ Primary Emergency Type: [Dropdown ▼]      │  │
+│  │ > Medical Emergency                       │  │
+│  │   Fire Emergency                          │  │
+│  │   Disaster Response                       │  │
+│  │   Rescue Operations                       │  │
+│  └───────────────────────────────────────────┘  │
+│                                                  │
+│  Subcategory: [Dropdown ▼] (Auto-populated)     │
+│  Severity: ○ Critical ○ Urgent ○ Standard ○ Low │
+│                                                  │
+│  ─────────────────────────────────────────────  │
+│                                                  │
+│  Step 2: Location Details                       │
+│  [Map Interface] + Address Input                │
+│                                                  │
+│  ─────────────────────────────────────────────  │
+│                                                  │
+│  Step 3: Incident Details                       │
+│  [Conditional form based on emergency type]     │
+│                                                  │
+│  ☑ IF MEDICAL:                                  │
+│    • Chief Complaint: [Text]                    │
+│    • Patient Count: [Number]                    │
+│    • Consciousness: [Dropdown]                  │
+│    • Transport Needed: [Yes/No]                 │
+│                                                  │
+│  ─────────────────────────────────────────────  │
+│                                                  │
+│  [Cancel] [Save Draft] [Submit Report →]        │
+└─────────────────────────────────────────────────┘
+```
+
+---
+
+## 📈 PART 2: Professional Report Generation System
+
+### Current Issues:
+- Reports lack professional formatting
+- No industry-standard report templates
+- Inconsistent report structure
+- Limited export options
+- No report branding or headers/footers
+
+### Required Enhancements:
+
+#### 2.1 Report Template Library
+
+**Standard Report Types to Implement:**
+
+1. **Incident Response Report (Post-Incident)**
+   - Executive summary
+   - Incident timeline
+   - Response actions taken
+   - Resources deployed
+   - Outcome and resolution
+   - Lessons learned
+   - Photos/evidence attachments
+
+2. **Daily Operations Report**
+   - Date range and shift details
+   - Incidents handled (categorized)
+   - Response time statistics
+   - Volunteer deployment summary
+   - Equipment usage log
+   - Notable events
+
+3. **Monthly Statistical Report**
+   - Incident breakdown by category
+   - Response time analytics
+   - Geographic distribution
+   - Trend analysis (vs. previous month)
+   - Volunteer performance metrics
+   - Resource utilization
+
+4. **Emergency Category Analysis Report**
+   - Detailed breakdown by emergency type
+   - Peak time analysis per category
+   - Resource requirements per category
+   - Response effectiveness metrics
+   - Recommendations for improvement
+
+5. **Compliance & Audit Report**
+   - Data privacy compliance checklist
+   - Response protocol adherence
+   - Training certification status
+   - Equipment inspection logs
+   - Regulatory compliance summary
+
+#### 2.2 Report Formatting Standards
+
+**Professional Report Structure:**
+```
+┌────────────────────────────────────────────────┐
+│ [ORGANIZATION LOGO]                            │
+│                                                │
+│ INCIDENT RESPONSE REPORT                       │
+│ Report ID: RPT-2024-12-001                     │
+│ Generated: December 9, 2024, 10:30 AM          │
+│ Period Covered: December 1-7, 2024             │
+│ Prepared By: Admin User                        │
+│                                                │
+├────────────────────────────────────────────────┤
+│                                                │
+│ EXECUTIVE SUMMARY                              │
+│ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  │
+│ [2-3 paragraph overview]                       │
+│                                                │
+│ KEY METRICS                                    │
+│ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  │
+│ ┌─────────────┬─────────────┬─────────────┐   │
+│ │ Total Inc   │ Avg Response│ Resolution  │   │
+│ │    145      │   8.5 min   │    98.5%    │   │
+│ └─────────────┴─────────────┴─────────────┘   │
+│                                                │
+│ DETAILED ANALYSIS                              │
+│ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  │
+│                                                │
+│ 1. INCIDENT BREAKDOWN BY CATEGORY              │
+│    [Chart: Pie Chart]                          │
+│    [Table: Category | Count | %]               │
+│                                                │
+│ 2. RESPONSE TIME ANALYSIS                      │
+│    [Chart: Line Graph]                         │
+│    [Statistical Summary]                       │
+│                                                │
+│ 3. GEOGRAPHIC DISTRIBUTION                     │
+│    [Map: Heat Map]                             │
+│    [Table: Barangay | Incidents]               │
+│                                                │
+│ RECOMMENDATIONS                                │
+│ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  │
+│ [Bulleted recommendations]                     │
+│                                                │
+├────────────────────────────────────────────────┤
+│ Footer: Page 1 of 5 | Confidential            │
+│ Report Classification: INTERNAL USE ONLY       │
+└────────────────────────────────────────────────┘
+```
+
+#### 2.3 Report Generation Features
+
+**Required Functionality:**
+
+```typescript
+// Report Generation API Endpoints
+
+POST /api/reports/generate
+Body: {
+  reportType: "incident_response" | "daily_ops" | "monthly_stats" | "category_analysis" | "compliance",
+  dateRange: { start: Date, end: Date },
+  filters: {
+    categories?: string[],
+    severity?: number[],
+    barangays?: string[],
+    volunteers?: string[]
+  },
+  format: "pdf" | "excel" | "csv" | "docx",
+  includeCharts: boolean,
+  includeMaps: boolean,
+  classification: "public" | "internal" | "confidential",
+  watermark?: string
+}
+
+GET /api/reports/templates
+Response: [
+  {
+    id: string,
+    name: string,
+    description: string,
+    requiredFields: string[],
+    previewImage: string
+  }
+]
+
+POST /api/reports/schedule
+Body: {
+  templateId: string,
+  schedule: "daily" | "weekly" | "monthly" | "custom",
+  cronExpression?: string,
+  recipients: string[],
+  deliveryMethod: "email" | "download" | "api"
+}
+
+GET /api/reports/history
+Response: [
+  {
+    id: string,
+    reportType: string,
+    generatedAt: Date,
+    generatedBy: string,
+    fileUrl: string,
+    parameters: object
+  }
+]
+```
+
+#### 2.4 Export Format Specifications
+
+**PDF Reports:**
+- A4 size (210mm x 297mm)
+- Professional header/footer on every page
+- Table of contents for multi-page reports
+- Page numbers
+- Embedded charts as high-resolution images
+- Searchable text
+- Hyperlinked table of contents
+
+**Excel Reports:**
+- Multiple sheets for different data sections
+- Formatted headers with organization branding
+- Data validation for editable fields
+- Conditional formatting for metrics
+- Embedded charts
+- Summary dashboard sheet
+- Print-ready layouts
+
+**CSV Reports:**
+- UTF-8 encoding
+- Proper escaping of special characters
+- Headers row included
+- Normalized data structure
+- Separate file for each data type
+
+#### 2.5 Data Privacy Compliance (Philippine DPA 2012)
+
+**Required Privacy Elements:**
+
+```
+PRIVACY DECLARATION TEMPLATE:
+
+┌────────────────────────────────────────────────┐
+│ DATA PRIVACY NOTICE                            │
+│                                                │
+│ This report contains personal and sensitive    │
+│ information protected under Republic Act       │
+│ No. 10173 (Data Privacy Act of 2012).          │
+│                                                │
+│ CLASSIFICATION: [Internal/Confidential]        │
+│ ACCESS LEVEL: [Admin/Manager/Authorized Only]  │
+│                                                │
+│ COLLECTED DATA INCLUDES:                       │
+│ ☑ Personal Information (Names, Contact Info)  │
+│ ☑ Location Data                                │
+│ ☑ Medical Information (when applicable)        │
+│ ☑ Response Activity Logs                       │
+│                                                │
+│ PURPOSE OF COLLECTION:                         │
+│ Emergency response coordination, statistical   │
+│ analysis, and operational improvement.         │
+│                                                │
+│ DATA RETENTION:                                │
+│ Records retained for [X] years per NPC         │
+│ Advisory No. 2016-04.                          │
+│                                                │
+│ UNAUTHORIZED DISCLOSURE PROHIBITED             │
+│ Violations subject to penalties under RA 10173 │
+│                                                │
+│ For data subject rights inquiries:             │
+│ Data Protection Officer: [Contact Info]        │
+└────────────────────────────────────────────────┘
+```
+
+**Implementation Requirements:**
+
+1. **Data Anonymization Options:**
+   - Toggle to anonymize personal data in reports
+   - Replace names with identifiers (e.g., "Responder 001")
+   - Aggregate data by default for statistical reports
+   - Blur faces in photos if included
+
+2. **Access Control:**
+   ```sql
+   CREATE TABLE report_access_logs (
+     id UUID PRIMARY KEY,
+     report_id UUID,
+     user_id UUID,
+     accessed_at TIMESTAMP,
+     action VARCHAR(50), -- viewed, downloaded, shared
+     ip_address INET,
+     classification_level VARCHAR(50)
+   );
+   ```
+
+3. **Consent Tracking:**
+   - Track consent for data inclusion in reports
+   - Option to exclude specific incidents from reports
+   - Consent withdrawal mechanism
+
+4. **Data Minimization:**
+   - Include only necessary fields per report type
+   - Separate sensitive data into secure annexes
+   - Automatic redaction of highly sensitive info
+
+---
+
+## 🎨 PART 3: System-wide GUI/UX Overhaul
+
+### Current Issues:
+- Excessive scrolling required
+- Cluttered interfaces
+- Poor information hierarchy
+- Not responsive/mobile-optimized
+- Outdated visual design
+- Inconsistent UI patterns
+
+### Required Enhancements:
+
+#### 3.1 Design System Implementation
+
+**Establish Comprehensive Design System:**
+
+```
+DESIGN TOKENS:
+├── Colors
+│   ├── Primary: #2563EB (Blue)
+│   ├── Secondary: #7C3AED (Purple)
+│   ├── Success: #10B981 (Green)
+│   ├── Warning: #F59E0B (Orange)
+│   ├── Danger: #EF4444 (Red)
+│   ├── Neutral: Gray scale (100-900)
+│   └── Emergency Severity Colors:
+│       ├── Critical: #DC2626
+│       ├── Urgent: #F97316
+│       ├── Standard: #3B82F6
+│       └── Low: #6B7280
+│
+├── Typography
+│   ├── Font Family: Inter / Roboto
+│   ├── Heading Scale: 
+│   │   ├── H1: 2.5rem (40px) - Bold
+│   │   ├── H2: 2rem (32px) - SemiBold
+│   │   ├── H3: 1.5rem (24px) - SemiBold
+│   │   └── H4: 1.25rem (20px) - Medium
+│   └── Body: 1rem (16px) - Regular
+│
+├── Spacing
+│   └── Scale: 4, 8, 12, 16, 24, 32, 48, 64px
+│
+├── Shadows
+│   ├── sm: 0 1px 2px rgba(0,0,0,0.05)
+│   ├── md: 0 4px 6px rgba(0,0,0,0.1)
+│   └── lg: 0 10px 15px rgba(0,0,0,0.1)
+│
+└── Border Radius
+    ├── sm: 4px
+    ├── md: 8px
+    └── lg: 12px
+```
+
+#### 3.2 Layout Optimization Strategy
+
+**Reduce Scrolling - Implement Card-Based Layouts:**
+
+```
+BEFORE (Current):
+┌─────────────────────────────────┐
+│ Header                          │
+├─────────────────────────────────┤
+│                                 │
+│ Long Form Field 1               │
+│ Long Form Field 2               │
+│ Long Form Field 3               │
+│ [... 20 more fields ...]        │
+│ [Requires extensive scrolling]  │
+│                                 │
+│                                 │
+│                                 │ ← Scroll
+│                                 │ ← Scroll
+│                                 │ ← Scroll
+│ Submit Button (way down here)   │
+└─────────────────────────────────┘
+
+
+AFTER (Optimized):
+┌─────────────────────────────────────────────────┐
+│ Header with Progress: ●●○○ (Step 2 of 4)        │
+├─────────────────────────────────────────────────┤
+│ ┌─────────────────┬─────────────────────────┐   │
+│ │  Section Nav    │  Active Section Content │   │
+│ │                 │                         │   │
+│ │ ✓ Basic Info    │  [Form fields for       │   │
+│ │ ● Emergency     │   current section only] │   │
+│ │   Details       │                         │   │
+│ │ ○ Location      │  [Visible without       │   │
+│ │ ○ Resources     │   scrolling]            │   │
+│ │                 │                         │   │
+│ │                 │  [Previous] [Next →]    │   │
+│ └─────────────────┴─────────────────────────┘   │
+└─────────────────────────────────────────────────┘
+```
+
+**Key Layout Patterns to Implement:**
+
+1. **Multi-Step Forms (Wizard Pattern)**
+   - Break long forms into logical sections
+   - Show progress indicator
+   - Auto-save drafts at each step
+   - Allow jumping between completed sections
+
+2. **Tabbed Interfaces**
+   - Group related content into tabs
+   - Maintain state when switching tabs
+   - Show validation badges on tabs
+
+3. **Collapsible Sections (Accordion)**
+   - Expand only relevant sections
+   - Remember user's expanded state
+   - Smooth animations
+
+4. **Sticky Headers & Action Buttons**
+   - Keep navigation visible while scrolling
+   - Pin action buttons at top
+   - Sticky breadcrumbs for context
+
+5. **Infinite Scroll with Pagination Controls**
+   - Load more data as needed
+   - Provide "Jump to page" option
+   - Show "Back to top" button
+
+6. **Dashboard Card Grid**
+   - Information density without clutter
+   - Responsive grid layout
+   - Collapsible/expandable cards
+
+#### 3.3 Component Library to Build
+
+**Standardized Components:**
+
+```typescript
+// Priority UI Components
+
+1. Navigation
+   - TopNavBar (sticky)
+   - SideNav (collapsible)
+   - Breadcrumbs
+   - Pagination
+
+2. Data Display
+   - DataTable (sortable, filterable, paginated)
+   - StatsCard (with trend indicators)
+   - ProgressBar / ProgressRing
+   - Timeline
+   - KPI Dashboard Cards
+   - EmergencyBadge (with color coding)
+
+3. Forms
+   - MultiStepForm
+   - SmartSelect (with search & multi-select)
+   - DateRangePicker
+   - LocationPicker (map + address)
+   - FileUpload (drag-drop)
+   - FormValidation (real-time)
+
+4. Feedback
+   - Toast Notifications
+   - Modal Dialogs
+   - ConfirmDialog
+   - LoadingSpinner / Skeleton
+   - EmptyState
+   - ErrorState
+
+5. Specialized
+   - IncidentCard (summary view)
+   - VolunteerCard
+   - MapComponent (Leaflet)
+   - ChartComponents (Recharts)
+   - ReportPreview
+   - CategorySelector
+```
+
+#### 3.4 Responsive Design Requirements
+
+**Breakpoints:**
+```css
+/* Mobile First Approach */
+--mobile: 320px - 767px
+--tablet: 768px - 1023px
+--desktop: 1024px - 1439px
+--wide: 1440px+
+
+/* Touch Targets */
+--min-touch-size: 44px × 44px (Apple HIG standard)
+
+/* Viewport Adaptations */
+Mobile: Single column, stacked cards
+Tablet: Two columns, simplified tables
+Desktop: Multi-column, full features
+```
+
+**Mobile-Specific Enhancements:**
+- Bottom navigation bar for key actions
+- Swipeable cards
+- Pull-to-refresh
+- Thumb-zone optimized buttons
+- Collapsible filters in drawer
+- Optimized map interactions
+
+#### 3.5 Performance Optimization
+
+**Implementation Requirements:**
+
+1. **Code Splitting**
+   ```javascript
+   // Lazy load heavy components
+   const ReportGenerator = lazy(() => import('./ReportGenerator'));
+   const MapView = lazy(() => import('./MapView'));
+   const AnalyticsDashboard = lazy(() => import('./Analytics'));
+   ```
+
+2. **Virtual Scrolling**
+   - For lists with 100+ items
+   - Use react-window or react-virtualized
+   - Render only visible items
+
+3. **Image Optimization**
+   - Next.js Image component
+   - Lazy loading for below-fold images
+   - WebP format with fallbacks
+   - Responsive images (srcset)
+
+4. **Caching Strategy**
+   ```javascript
+   // API response caching
+   GET /api/incidents
+   Cache-Control: max-age=60, stale-while-revalidate=300
+   
+   // Static assets
+   Cache-Control: public, max-age=31536000, immutable
+   ```
+
+5. **Database Query Optimization**
+   - Add indexes on frequently queried fields
+   - Implement pagination
+   - Use materialized views for complex reports
+   - Cache expensive queries
+
+#### 3.6 Accessibility (WCAG 2.1 AA Compliance)
+
+**Requirements:**
+- Keyboard navigation support
+- Screen reader compatibility
+- Sufficient color contrast ratios (4.5:1 minimum)
+- Focus indicators on all interactive elements
+- ARIA labels for complex components
+- Skip navigation links
+- Form field labels and error messages
+- Alt text for all images
+
+---
+
+## 🛠️ PART 4: Implementation Plan
+
+### Phase 1: Planning & Design (Weeks 1-2)
+
+**Week 1:**
+- [ ] Requirements workshop with stakeholders
+- [ ] Design system creation (colors, typography, components)
+- [ ] Wireframe all major screens
+- [ ] Database schema review and updates
+- [ ] Technical architecture document
+
+**Week 2:**
+- [ ] High-fidelity mockups for key screens
+- [ ] Component library specification
+- [ ] API endpoint documentation
+- [ ] Data privacy compliance review
+- [ ] Performance benchmarking (baseline metrics)
+
+### Phase 2: Backend Development (Weeks 3-5)
+
+**Week 3:**
+- [ ] Database schema implementation
+  - Create new tables (emergency_categories, incident_categories, etc.)
+  - Alter existing tables (add new columns)
+  - Create indexes and constraints
+  - Write migration scripts
+- [ ] Seed emergency category data
+- [ ] Create database backup and rollback procedures
+
+**Week 4:**
+- [ ] Report generation API development
+  - Template engine setup (Handlebars/Pug)
+  - PDF generation (Puppeteer/jsPDF)
+  - Excel generation (ExcelJS)
+  - Report scheduling system
+- [ ] Category management APIs
+- [ ] Enhanced incident APIs (with categorization)
+
+**Week 5:**
+- [ ] Report access control and logging
+- [ ] Data privacy features (anonymization, redaction)
+- [ ] API testing and optimization
+- [ ] Performance testing (load testing reports)
+
+### Phase 3: Frontend Development (Weeks 6-9)
+
+**Week 6:**
+- [ ] Component library development
+  - Navigation components
+  - Form components
+  - Data display components
+  - Build Storybook documentation
+- [ ] Design system implementation in Tailwind config
+
+**Week 7:**
+- [ ] New incident reporting form
+  - Multi-step wizard
+  - Category selector
+  - Conditional fields (medical details)
+  - Location picker enhancement
+- [ ] Incident list view redesign (card-based)
+
+**Week 8:**
+- [ ] Report generation interface
+  - Report template selector
+  - Filter configuration UI
+  - Report preview
+  - Export options
+  - Schedule report setup
+- [ ] Report history and management
+
+**Week 9:**
+- [ ] Admin dashboard redesign
+  - KPI cards
+  - Category breakdown charts
+  - Real-time statistics
+  - Quick actions
+- [ ] Responsive design implementation
+- [ ] Accessibility testing and fixes
+
+### Phase 4: Testing & QA (Week 10)
+
+- [ ] Unit testing (Jest)
+  - Component tests
+  - API endpoint tests
+  - Database query tests
+- [ ] Integration testing
+  - End-to-end workflows (Playwright/Cypress)
+  - Report generation testing
+  - Category assignment testing
+- [ ] User acceptance testing (UAT)
+  - Test with actual users
+  - Gather feedback
+  - Document issues
+- [ ] Performance testing
+  - Load testing (Artillery/K6)
+  - Report generation performance
+  - Database query performance
+- [ ] Security testing
+  - Data privacy compliance verification
+  - Access control testing
+  - SQL injection prevention
+- [ ] Accessibility audit (WAVE, axe DevTools)
+
+### Phase 5: Deployment (Week 11)
+
+**Pre-deployment:**
+- [ ] Production database migration testing
+- [ ] Backup current production database
+- [ ] Staging environment testing
+- [ ] User training materials preparation
+- [ ] Deployment runbook creation
+
+**Deployment Day:**
+- [ ] Database migration execution
+- [ ] Application deployment (zero-downtime strategy)
+- [ ] Smoke testing
+- [ ] Monitor error logs and performance
+- [ ] Rollback plan ready
+
+**Post-deployment:**
+- [ ] User training sessions
+- [ ] Monitor system health for 48 hours
+- [ ] Gather initial user feedback
+- [ ] Address critical bugs immediately
+
+### Phase 6: Monitoring & Iteration (Week 12+)
+
+- [ ] Monitor report generation performance
+- [ ] Track user adoption of new features
+- [ ] Collect feedback on UI/UX improvements
+- [ ] Performance optimization based on metrics
+- [ ] Bug fixes and minor enhancements
+- [ ] Documentation updates
+
+---
+
+## 🔄 Migration Strategy (Zero System Disruption)
+
+### Critical Requirements:
+- **No downtime during deployment**
+- **Backward compatibility maintained**
+- **Data integrity preserved**
+- **Graceful degradation if issues occur**
+
+### Migration Approach:
+
+#### Step 1: Parallel Tables (Weeks 3-5)
+```sql
+-- Create new tables alongside existing ones
+-- No modifications to existing tables yet
+CREATE TABLE emergency_categories (...);
+CREATE TABLE incident_categories (...);
+CREATE TABLE incident_medical_details (...);
+
+-- Copy relevant data from old schema to new
+-- Use background jobs to avoid blocking
+```
+
+#### Step 2: Dual-Write Period (Weeks 6-8)
+```typescript
+// Write to both old and new schema
+async function createIncident(data) {
+  const transaction = await db.startTransaction();
+  
+  try {
+    // Write to old schema (existing functionality)
+    const incident = await db.incidents.create(data);
+    
+    // Write to new schema (new functionality)
+    if (data.categoryId) {
+      await db.incident_categories.create({
+        incidentId: incident.id,
+        categoryId: data.categoryId,
+        isPrimary: true
+      });
+    }
+    
+    await transaction.commit();
+  } catch (error) {
+    await transaction.rollback();
+    throw error;
+  }
+}
+```
+
+#### Step 3: Gradual Cutover (Weeks 9-10)
+```typescript
+// Feature flag approach
+const USE_NEW_CATEGORIZATION = process.env.ENABLE_NEW_CATEGORIES === 'true';
+
+function getIncidents() {
+  if (USE_NEW_CATEGORIZATION) {
+    return getIncidentsWithCategories(); // New API
+  } else {
+    return getLegacyIncidents(); // Old API
+  }
+}
+```
+
+#### Step 4: Data Verification (Week 10)
+```sql
+-- Verify data consistency between old and new schemas
+SELECT 
+  COUNT(*) as old_count,
+  (SELECT COUNT(*) FROM incident_categories) as new_count,
+  COUNT(*) - (SELECT COUNT(*) FROM incident_categories) as difference
+FROM incidents;
+
+-- Alert if difference > threshold
+```
+
+#### Step 5: Final Switch (Week 11)
+```typescript
+// Enable new system for all users
+// Monitor closely for 24-48 hours
+// Keep old tables for 30 days as backup
+
+const USE_NEW_CATEGORIZATION = true; // Hard switch
+```
+
+#### Step 6: Cleanup (Week 12+)
+```sql
+-- After 30 days of successful operation
+-- Archive old data
+-- Drop deprecated columns (but keep tables for audit)
+
+-- DO NOT DROP OLD TABLES IMMEDIATELY
+-- Keep for 6-12 months for historical reference
+```
+
+---
+
+## 📊 Success Metrics & KPIs
+
+### Report Quality Metrics:
+- [ ] Report generation time < 5 seconds (for standard reports)
+- [ ] Report accuracy rate > 99.9%
+- [ ] Zero data privacy violations
+- [ ] 100% of reports include proper classification headers
+- [ ] Export success rate > 99%
+
+### UI/UX Improvement Metrics:
+- [ ] Reduce average scrolling distance by 70%
+- [ ] Page load time < 2 seconds (desktop), < 3 seconds (mobile)
+- [ ] Time to complete incident report reduced by 40%
+- [ ] User satisfaction score > 4.5/5
+- [ ] Accessibility score (Lighthouse) > 95
+- [ ] Mobile usability score > 90
+
+### System Performance Metrics:
+- [ ] Zero system crashes during migration
+- [ ] API response time < 200ms (95th percentile)
+- [ ] Database query time < 100ms (average)
+- [ ] System uptime > 99.9%
+- [ ] Concurrent user capacity: 500+ users
+
+### Adoption Metrics:
+- [ ] 80% of users adopt new category system within 2 weeks
+- [ ] Report generation usage increases by 50%
+- [ ] User-reported bugs decrease by 60%
+- [ ] Support tickets related to reports decrease by 70%
+
+---
+
+## ⚠️ Risk Management
+
+### Identified Risks & Mitigation:
+
+| Risk | Impact | Probability | Mitigation Strategy |
+|------|--------|-------------|---------------------|
+| **Database migration failure** | Critical | Low | - Comprehensive backup before migration<br>- Test on staging environment<br>- Rollback script prepared<br>- Migration during low-traffic hours |
+| **User resistance to change** | High | Medium | - Gradual rollout with training<br>- Keep old interface accessible temporarily<br>- Gather feedback early and often<br>- Create detailed user guides |
+| **Performance degradation** | High | Medium | - Load testing before deployment<br>- Database query optimization<br>- Implement caching<br>- Monitor performance metrics closely |
+| **Data privacy compliance issues** | Critical | Low | - Legal review of privacy implementation<br>- Penetration testing<br>- Compliance checklist<br>- Regular audits |
+| **Report generation delays** | Medium | Medium | - Asynchronous report generation<br>- Queue system for large reports<br>- Progress indicators<br>- Email delivery option |
+| **Integration bugs** | Medium | High | - Comprehensive testing<br>- Feature flags for gradual rollout<br>- Hotfix deployment process<br>- 24/7 monitoring during launch |
+| **Scope creep** | Medium | High | - Strict change control process<br>- Prioritize must-have features<br>- Park nice-to-have features for Phase 2<br>- Regular stakeholder alignment |
+
+---
+
+## 💰 Resource Requirements
+
+### Development Team:
+- **Backend Developer(s)**: 2 developers × 11 weeks
+- **Frontend Developer(s)**: 2 developers × 11 weeks  
+- **UI/UX Designer**: 1 designer × 4 weeks (Phases 1-2)
+- **QA Engineer**: 1 engineer × 3 weeks (Phase 4)
+- **DevOps Engineer**: 0.5 FTE throughout project
+- **Project Manager**: 0.5 FTE throughout project
+- **Data Privacy Officer**: Consultation during Phases 1, 4, 5
+
+### Infrastructure:
+- Staging environment (clone of production)
+- Additional database storage for new tables
+- Report file storage (cloud storage bucket)
+- Performance monitoring tools (New Relic, Datadog, or similar)
+- Testing tools licenses (if not already available)
+
+### External Dependencies:
+- PDF generation service/library
+- Chart rendering library (already have recharts)
+- Mapping service (Leaflet - already in use)
+- Email service for report delivery (if not already configured)
+
+---
+
+## 📚 Deliverables
+
+### Documentation:
+1. **Technical Documentation**
+   - [ ] Database schema documentation
+   - [ ] API documentation (Swagger/OpenAPI)
+   - [ ] Component library documentation (Storybook)
+   - [ ] Deployment runbook
+   - [ ] Troubleshooting guide
+
+2. **User Documentation**
+   - [ ] Admin user guide (report generation)
+   - [ ] Volunteer user guide (new incident form)
+   - [ ] Report template guide
+   - [ ] FAQ document
+
+3. **Compliance Documentation**
+   - [ ] Data privacy impact assessment
+   - [ ] Security audit report
+   - [ ] Compliance checklist (DPA 2012)
+   - [ ] Data retention policy
+
+4. **Training Materials**
+   - [ ] Video tutorials (5-10 minutes each)
+   - [ ] Quick reference guides (1-2 pages)
+   - [ ] Slide deck for training sessions
+   - [ ] Sandbox environment for practice
+
+### Code Deliverables:
+- [ ] Categorization system (backend + frontend)
+- [ ] Report generation system
+- [ ] UI/UX component library
+- [ ] Migration scripts
+- [ ] Test suites (unit, integration, E2E)
+- [ ] Performance monitoring setup
+
+---
+
+## 🎓 Training Plan
+
+### Admin Training (4 hours):
+**Session 1: New Features Overview (1.5 hours)**
+- System navigation changes
+- New incident categorization
+- Report generation walkthrough
+- Privacy compliance features
+
+**Session 2: Hands-on Practice (2 hours)**
+- Create and categorize incidents
+- Generate various report types
+- Schedule automated reports
+- Export data in multiple formats
+
+**Session 3: Q&A and Troubleshooting (0.5 hours)**
+- Common issues and solutions
+- Best practices
+- Feedback collection
+
+### Volunteer Training (1.5 hours):
+**Session 1: Incident Reporting (1 hour)**
+- New incident form walkthrough
+- Category selection guide
+- Medical emergency reporting specifics
+- Location and details entry
+
+**Session 2: Practice Session (0.5 hours)**
+- Hands-on practice with test accounts
+- Q&A
+
+### Training Schedule:
+- Week 10: Train pilot group (5-10 users)
+- Week 11: Train all admins (2 sessions)
+- Week 12: Train all volunteers (4-6 sessions)
+- Ongoing: Recorded video tutorials available
+
+---
+
+## 🔐 Security & Compliance Checklist
+
+### Pre-Deployment Security Review:
+- [ ] SQL injection prevention verified
+- [ ] XSS (Cross-Site Scripting) protection implemented
+- [ ] CSRF tokens implemented
+- [ ] Authentication & authorization tested
+- [ ] Rate limiting on API endpoints
+- [ ] Input validation on all forms
+- [ ] Output encoding for user-generated content
+- [ ] Secure file upload validation
+- [ ] HTTPS enforced for all connections
+- [ ] Sensitive data encrypted at rest
+- [ ] Secure session management
+- [ ] Password hashing (bcrypt/Argon2)
+
+### Data Privacy Compliance (RA 10173):
+- [ ] Privacy notice displayed on all forms
+- [ ] Consent mechanism implemented
+- [ ] Data subject rights supported (access, rectification, deletion)
+- [ ] Data retention policy defined and implemented
+- [ ] Data breach notification procedure documented
+- [ ] Data processing agreements reviewed
+- [ ] Personal data inventory updated
+- [ ] Privacy impact assessment completed
+- [ ] Data Protection Officer consulted
+- [ ] Audit trail for data access implemented
+
+### Report Security:
+- [ ] Role-based access control for reports
+- [ ] Report classification system implemented
+- [ ] Watermarking for confidential reports
+- [ ] Download audit logging
+- [ ] Automatic redaction of sensitive data
+- [ ] Secure report storage with encryption
+- [ ] Expiration/purging of old reports
+- [ ] Secure sharing mechanism (if needed)
+
+---
+
+## 📞 Communication Plan
+
+### Stakeholder Updates:
+- **Weekly**: Progress report to project sponsor
+- **Bi-weekly**: Demo to stakeholders
+- **Daily**: Stand-up with development team
+- **As needed**: Risk escalation to management
+
+### User Communication:
+- **Week 8**: Announcement of upcoming changes
+- **Week 10**: Feature preview and training invitation
+- **Week 11**: Launch announcement with guide links
+- **Week 12**: Follow-up survey for feedback
+- **Ongoing**: Release notes for updates
+
+### Communication Channels:
+- Email for formal updates
+- Slack/Teams for team coordination
+- In-app notifications for user alerts
+- Knowledge base for documentation
+
+---
+
+## ✅ Acceptance Criteria
+
+### System Must:
+1. ✓ Support all defined emergency categories
+2. ✓ Generate reports in PDF, Excel, and CSV formats
+3. ✓ Include Philippine DPA 2012 privacy notices in all reports
+4. ✓ Complete report generation in < 5 seconds for standard reports
+5. ✓ Display properly on mobile, tablet, and desktop devices
+6. ✓ Maintain 99.9% uptime during and after deployment
+7. ✓ Preserve all existing data without loss
+8. ✓ Allow backward compatibility for 30 days post-deployment
+9. ✓ Pass all accessibility requirements (WCAG 2.1 AA)
+10. ✓ Support at least 500 concurrent users
+
+### Reports Must:
+1. ✓ Include organization branding
+2. ✓ Show proper classification headers
+3. ✓ Display data accurately without discrepancies
+4. ✓ Include charts and visualizations where specified
+5. ✓ Be printer-friendly (PDF)
+6. ✓ Support multiple languages (English + Filipino)
+7. ✓ Allow scheduled generation and delivery
+8. ✓ Include audit trail information
+
+### UI Must:
+1. ✓ Reduce scrolling by minimum 60% on key pages
+2. ✓ Load in < 2 seconds on standard broadband
+3. ✓ Display touch-friendly elements (44px minimum)
+4. ✓ Maintain consistent design language throughout
+5. ✓ Provide clear feedback for all user actions
+6. ✓ Support keyboard navigation
+7. ✓ Show loading states for async operations
+8. ✓ Handle errors gracefully with clear messages
+
+---
+
+
+**END OF DOCUMENT**

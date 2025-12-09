@@ -127,14 +127,20 @@ export async function GET(request: NextRequest) {
     // Calculate response times per barangay
     Object.keys(barangayStats).forEach(brgy => {
       const brgyIncidents = residentIncidents.filter((i: any) => (i.barangay || 'UNKNOWN') === brgy)
+      // FIXED: Calculate response times with proper date validation to prevent negative times
       const responseTimes = brgyIncidents
         .filter((i: any) => i.assigned_at && i.resolved_at)
         .map((i: any) => {
-          const assigned = new Date(i.assigned_at).getTime()
-          const resolved = new Date(i.resolved_at).getTime()
-          return (resolved - assigned) / (1000 * 60) // minutes
+          const assigned = new Date(i.assigned_at)
+          const resolved = new Date(i.resolved_at)
+          // Validate dates and ensure resolved >= assigned
+          if (!isNaN(assigned.getTime()) && !isNaN(resolved.getTime()) && resolved >= assigned) {
+            const timeDiff = (resolved.getTime() - assigned.getTime()) / (1000 * 60) // minutes
+            return timeDiff >= 0 ? timeDiff : null
+          }
+          return null
         })
-        .filter((t: number) => !isNaN(t) && t > 0)
+        .filter((t: number | null): t is number => t !== null && !isNaN(t) && t > 0)
 
       if (responseTimes.length > 0) {
         barangayStats[brgy].avgResponseTime = Math.round(
@@ -185,14 +191,20 @@ export async function GET(request: NextRequest) {
       totalAssigned: residentIncidents.filter((i: any) => i.status === 'ASSIGNED').length,
       totalResponding: residentIncidents.filter((i: any) => i.status === 'RESPONDING').length,
       avgResponseTime: (() => {
+        // FIXED: Calculate with proper date validation to prevent negative times
         const times = residentIncidents
           .filter((i: any) => i.assigned_at && i.resolved_at)
           .map((i: any) => {
-            const assigned = new Date(i.assigned_at).getTime()
-            const resolved = new Date(i.resolved_at).getTime()
-            return (resolved - assigned) / (1000 * 60)
+            const assigned = new Date(i.assigned_at)
+            const resolved = new Date(i.resolved_at)
+            // Validate dates and ensure resolved >= assigned
+            if (!isNaN(assigned.getTime()) && !isNaN(resolved.getTime()) && resolved >= assigned) {
+              const timeDiff = (resolved.getTime() - assigned.getTime()) / (1000 * 60)
+              return timeDiff >= 0 ? timeDiff : null
+            }
+            return null
           })
-          .filter((t: number) => !isNaN(t) && t > 0)
+          .filter((t: number | null): t is number => t !== null && !isNaN(t) && t > 0)
         return times.length > 0
           ? Math.round(times.reduce((a: number, b: number) => a + b, 0) / times.length)
           : null

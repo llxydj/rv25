@@ -320,20 +320,44 @@ export const exportIncidentsToCSV = async (startDate?: string, endDate?: string)
         u.previous_status === 'SEVERITY_UPDATE' && u.new_status === 'SEVERITY_UPDATE'
       ).length;
 
-      // Calculate response time (time from creation to assignment)
-      const responseTimeMinutes = incident.assigned_at && incident.created_at
-        ? Math.round((new Date(incident.assigned_at).getTime() - new Date(incident.created_at).getTime()) / (1000 * 60))
-        : null;
+      // FIXED: Calculate response time (time from creation to assignment) with validation
+      let responseTimeMinutes: number | null = null
+      if (incident.assigned_at && incident.created_at) {
+        const created = new Date(incident.created_at)
+        const assigned = new Date(incident.assigned_at)
+        if (!isNaN(created.getTime()) && !isNaN(assigned.getTime()) && assigned >= created) {
+          const timeDiff = (assigned.getTime() - created.getTime()) / (1000 * 60)
+          if (timeDiff >= 0) {
+            responseTimeMinutes = Math.round(timeDiff)
+          }
+        }
+      }
 
-      // Calculate resolution time (time from creation to resolution)
-      const resolutionTimeMinutes = incident.resolved_at && incident.created_at
-        ? Math.round((new Date(incident.resolved_at).getTime() - new Date(incident.created_at).getTime()) / (1000 * 60))
-        : null;
+      // FIXED: Calculate resolution time (time from creation to resolution) with validation
+      let resolutionTimeMinutes: number | null = null
+      if (incident.resolved_at && incident.created_at) {
+        const created = new Date(incident.created_at)
+        const resolved = new Date(incident.resolved_at)
+        if (!isNaN(created.getTime()) && !isNaN(resolved.getTime()) && resolved >= created) {
+          const timeDiff = (resolved.getTime() - created.getTime()) / (1000 * 60)
+          if (timeDiff >= 0) {
+            resolutionTimeMinutes = Math.round(timeDiff)
+          }
+        }
+      }
 
-      // Calculate assignment to resolution time
-      const assignmentToResolutionMinutes = incident.resolved_at && incident.assigned_at
-        ? Math.round((new Date(incident.resolved_at).getTime() - new Date(incident.assigned_at).getTime()) / (1000 * 60))
-        : null;
+      // FIXED: Calculate assignment to resolution time with validation
+      let assignmentToResolutionMinutes: number | null = null
+      if (incident.resolved_at && incident.assigned_at) {
+        const assigned = new Date(incident.assigned_at)
+        const resolved = new Date(incident.resolved_at)
+        if (!isNaN(assigned.getTime()) && !isNaN(resolved.getTime()) && resolved >= assigned) {
+          const timeDiff = (resolved.getTime() - assigned.getTime()) / (1000 * 60)
+          if (timeDiff >= 0) {
+            assignmentToResolutionMinutes = Math.round(timeDiff)
+          }
+        }
+      }
 
       // Format time durations
       const formatDuration = (minutes: number | null) => {

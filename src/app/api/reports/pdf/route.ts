@@ -111,7 +111,7 @@ async function generateIncidentReport(filters: ReportFilters): Promise<Buffer> {
     { auth: { persistSession: false } }
   )
 
-  // Build query - include all necessary fields
+  // ENHANCED: Build query - include ALL necessary fields for detailed reports
   let query = supabaseAdmin
     .from('incidents')
     .select(`
@@ -153,7 +153,7 @@ async function generateIncidentReport(filters: ReportFilters): Promise<Buffer> {
 
   // Try Puppeteer first (better quality), fallback to jsPDF if it fails
   try {
-    // Calculate statistics
+    // ENHANCED: Calculate comprehensive statistics
     const statusCounts = incidents?.reduce((acc: any, incident: any) => {
       acc[incident.status] = (acc[incident.status] || 0) + 1
       return acc
@@ -164,41 +164,111 @@ async function generateIncidentReport(filters: ReportFilters): Promise<Buffer> {
       return acc
     }, {}) || {}
 
-    // Format incidents for template
+    const typeCounts = incidents?.reduce((acc: any, incident: any) => {
+      const type = incident.incident_type || 'Unspecified'
+      acc[type] = (acc[type] || 0) + 1
+      return acc
+    }, {}) || {}
+
+    const barangayCounts = incidents?.reduce((acc: any, incident: any) => {
+      const brgy = incident.barangay || 'Unknown'
+      acc[brgy] = (acc[brgy] || 0) + 1
+      return acc
+    }, {}) || {}
+
+    // ENHANCED: Format incidents with ALL detailed information
     const formattedIncidents = (incidents || []).map((incident: any) => {
-      const reporter = incident.users 
-        ? `${(incident.users as any).first_name || ''} ${(incident.users as any).last_name || ''}`.trim()
+      // Extract reporter information
+      const reporterData = Array.isArray(incident.users) ? incident.users[0] : incident.users
+      const reporter = reporterData
+        ? `${reporterData.first_name || ''} ${reporterData.last_name || ''}`.trim()
         : 'Anonymous'
-      const reporterPhone = incident.users ? (incident.users as any).phone_number : undefined
-      const location = incident.address || `${incident.location_lat?.toFixed(6)}, ${incident.location_lng?.toFixed(6)}` || 'N/A'
-      const assignedTo = incident.volunteer_profiles
-        ? `${(incident.volunteer_profiles as any).first_name || ''} ${(incident.volunteer_profiles as any).last_name || ''}`.trim()
+      const reporterPhone = reporterData?.phone_number
+      const reporterEmail = reporterData?.email
+
+      // Extract assigned volunteer information
+      const volunteerData = Array.isArray(incident.volunteer_profiles) 
+        ? incident.volunteer_profiles[0] 
+        : incident.volunteer_profiles
+      const assignedTo = volunteerData
+        ? `${volunteerData.first_name || ''} ${volunteerData.last_name || ''}`.trim()
         : undefined
+      const assignedToPhone = volunteerData?.phone_number
+
+      // Location information
+      const location = incident.address || 
+        (incident.location_lat && incident.location_lng 
+          ? `${incident.location_lat.toFixed(6)}, ${incident.location_lng.toFixed(6)}` 
+          : 'N/A')
+
+      // Calculate response times
+      let responseTimeMinutes: number | undefined
+      let resolutionTimeMinutes: number | undefined
+      
+      if (incident.assigned_at && incident.created_at) {
+        const created = new Date(incident.created_at)
+        const assigned = new Date(incident.assigned_at)
+        if (!isNaN(created.getTime()) && !isNaN(assigned.getTime()) && assigned >= created) {
+          responseTimeMinutes = (assigned.getTime() - created.getTime()) / (1000 * 60)
+          if (responseTimeMinutes < 0) responseTimeMinutes = undefined
+        }
+      }
+
+      if (incident.resolved_at && incident.created_at) {
+        const created = new Date(incident.created_at)
+        const resolved = new Date(incident.resolved_at)
+        if (!isNaN(created.getTime()) && !isNaN(resolved.getTime()) && resolved >= created) {
+          resolutionTimeMinutes = (resolved.getTime() - created.getTime()) / (1000 * 60)
+          if (resolutionTimeMinutes < 0) resolutionTimeMinutes = undefined
+        }
+      }
+
+      // Count photos
+      const photoCount = Array.isArray(incident.photo_urls) 
+        ? incident.photo_urls.length 
+        : (incident.photo_url ? 1 : 0)
 
       return {
         id: incident.id,
-        type: incident.incident_type,
+        type: incident.incident_type || 'Unspecified',
         status: incident.status,
-        severity: incident.severity,
+        severity: incident.severity || 3,
+        priority: incident.priority,
         location: location,
+        address: incident.address,
         barangay: incident.barangay || 'N/A',
+        city: incident.city,
+        province: incident.province,
         created_at: incident.created_at,
+        updated_at: incident.updated_at,
+        assigned_at: incident.assigned_at,
+        resolved_at: incident.resolved_at,
         reporter: reporter || undefined,
         reporterPhone: reporterPhone,
+        reporterEmail: reporterEmail,
         description: incident.description,
+        fullDescription: incident.description, // Use description as full description
         assignedTo: assignedTo,
-        resolved_at: incident.resolved_at
+        assignedToPhone: assignedToPhone,
+        resolutionNotes: incident.resolution_notes,
+        photoCount: photoCount > 0 ? photoCount : undefined,
+        responseTimeMinutes: responseTimeMinutes ? Math.round(responseTimeMinutes * 100) / 100 : undefined,
+        resolutionTimeMinutes: resolutionTimeMinutes ? Math.round(resolutionTimeMinutes * 100) / 100 : undefined
       }
     })
 
-    // Prepare data for template
+    // ENHANCED: Prepare comprehensive data for template
     const reportData: IncidentReportData = {
       total: incidents?.length || 0,
       startDate: filters.startDate,
       endDate: filters.endDate,
       statusCounts,
       severityCounts,
-      incidents: formattedIncidents
+      typeCounts,
+      barangayCounts,
+      incidents: formattedIncidents,
+      reportClassification: 'INTERNAL', // Default classification
+      generatedBy: 'System Administrator' // Can be enhanced to get from auth
     }
 
     // Load logo as base64

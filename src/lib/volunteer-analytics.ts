@@ -101,7 +101,14 @@ export async function getVolunteerIncidentLogs(
       if (incident.assigned_at && incident.resolved_at) {
         const assigned = new Date(incident.assigned_at)
         const resolved = new Date(incident.resolved_at)
-        responseTimeMinutes = Math.round((resolved.getTime() - assigned.getTime()) / (1000 * 60))
+        // FIXED: Validate dates and ensure resolved >= assigned to prevent negative times
+        if (!isNaN(assigned.getTime()) && !isNaN(resolved.getTime()) && resolved >= assigned) {
+          const timeDiff = (resolved.getTime() - assigned.getTime()) / (1000 * 60) // minutes
+          // Only set if positive (should always be if validation passes, but double-check)
+          if (timeDiff >= 0) {
+            responseTimeMinutes = Math.round(timeDiff)
+          }
+        }
       }
 
       return {

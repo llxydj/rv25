@@ -110,9 +110,14 @@ export function IncidentHistory({ volunteerId, compact = false }: IncidentHistor
 
   const calculateResponseTime = (incident: Incident): number | null => {
     if (!incident.assigned_at || !incident.resolved_at) return null
-    const assigned = new Date(incident.assigned_at).getTime()
-    const resolved = new Date(incident.resolved_at).getTime()
-    return Math.round((resolved - assigned) / (1000 * 60)) // in minutes
+    const assigned = new Date(incident.assigned_at)
+    const resolved = new Date(incident.resolved_at)
+    // FIXED: Validate dates and ensure resolved >= assigned to prevent negative times
+    if (!isNaN(assigned.getTime()) && !isNaN(resolved.getTime()) && resolved >= assigned) {
+      const timeDiff = (resolved.getTime() - assigned.getTime()) / (1000 * 60) // minutes
+      return timeDiff >= 0 ? Math.round(timeDiff) : null
+    }
+    return null
   }
 
   if (loading) {

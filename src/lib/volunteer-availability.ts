@@ -259,11 +259,16 @@ export class VolunteerAvailabilityService {
       return estimatedTime.toISOString()
     }
 
-    // Calculate average resolution time
+    // FIXED: Calculate average resolution time with validation to prevent negative times
     const totalMinutes = resolvedIncidents.reduce((sum: number, incident: any) => {
       const created = new Date(incident.created_at)
       const resolved = new Date(incident.resolved_at)
-      return sum + (resolved.getTime() - created.getTime()) / (1000 * 60)
+      // Validate dates and ensure resolved >= created
+      if (!isNaN(created.getTime()) && !isNaN(resolved.getTime()) && resolved >= created) {
+        const timeDiff = (resolved.getTime() - created.getTime()) / (1000 * 60)
+        return sum + (timeDiff >= 0 ? timeDiff : 0)
+      }
+      return sum
     }, 0)
 
     const averageMinutes = totalMinutes / resolvedIncidents.length

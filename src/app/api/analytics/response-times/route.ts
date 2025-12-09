@@ -98,28 +98,52 @@ export async function GET(request: NextRequest) {
       
       const b = byIncident[inc.id]
       const assignedAt = b?.firstAssigned || inc.assigned_at || null
+      const respondingAt = b?.firstResponding || null
+      const resolvedAt = inc.resolved_at || null
+      
+      // FIXED: Calculate assignment time with full validation
       if (assignedAt) {
         const assignedDate = new Date(assignedAt)
         // Validate: assigned date should be after creation date
         if (!isNaN(assignedDate.getTime()) && assignedDate >= baseDate) {
-          assignDurations.push((assignedDate.getTime() - base) / 60000)
+          const timeDiff = (assignedDate.getTime() - base) / 60000 // minutes
+          if (timeDiff >= 0) {
+            assignDurations.push(timeDiff)
+          }
         }
       }
       
-      const respondingAt = b?.firstResponding || null
+      // FIXED: Calculate responding time with full validation
+      // Responding should be after creation, and ideally after assignment
       if (respondingAt) {
         const respondingDate = new Date(respondingAt)
         // Validate: responding date should be after creation date
-        if (!isNaN(respondingDate.getTime()) && respondingDate >= baseDate) {
-          respondDurations.push((respondingDate.getTime() - base) / 60000)
+        // Also validate against assigned date if it exists
+        const isValid = !isNaN(respondingDate.getTime()) && 
+                       respondingDate >= baseDate &&
+                       (!assignedAt || respondingDate >= new Date(assignedAt))
+        if (isValid) {
+          const timeDiff = (respondingDate.getTime() - base) / 60000 // minutes
+          if (timeDiff >= 0) {
+            respondDurations.push(timeDiff)
+          }
         }
       }
       
-      if (inc.resolved_at) {
-        const resolvedDate = new Date(inc.resolved_at)
+      // FIXED: Calculate resolution time with full validation
+      // Resolved should be after creation, and ideally after assignment
+      if (resolvedAt) {
+        const resolvedDate = new Date(resolvedAt)
         // Validate: resolved date should be after creation date
-        if (!isNaN(resolvedDate.getTime()) && resolvedDate >= baseDate) {
-          resolveDurations.push((resolvedDate.getTime() - base) / 60000)
+        // Also validate against assigned date if it exists (resolved should be after assigned)
+        const isValid = !isNaN(resolvedDate.getTime()) && 
+                       resolvedDate >= baseDate &&
+                       (!assignedAt || resolvedDate >= new Date(assignedAt))
+        if (isValid) {
+          const timeDiff = (resolvedDate.getTime() - base) / 60000 // minutes
+          if (timeDiff >= 0) {
+            resolveDurations.push(timeDiff)
+          }
         }
       }
     })
