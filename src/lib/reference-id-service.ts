@@ -232,18 +232,51 @@ export class ReferenceIdService {
         console.warn('Reference ID service unavailable - Supabase client initialization failed:', supabaseError?.message)
         return { success: false, error: 'Reference ID service unavailable' }
       }
-      const { data, error } = await (serverSupabase as SupabaseClient)
-        .from('incident_reference_ids')
+      // FIX: Query from incidents table and join reference_ids to avoid ambiguous column reference
+      // This prevents "column reference 'reference_id' is ambiguous" error
+      const { data: incidentsData, error: incidentsError } = await (serverSupabase as SupabaseClient)
+        .from('incidents')
         .select(`
-          incident_id,
-          reference_id,
-          created_at,
-          incidents!inner (
-            reporter_id,
-            assigned_to
+          id,
+          reporter_id,
+          assigned_to,
+          incident_reference_ids!inner (
+            reference_id,
+            created_at
           )
         `)
-        .or(`incidents.reporter_id.eq.${userId},incidents.assigned_to.eq.${userId}`)
+        .or(`reporter_id.eq.${userId},assigned_to.eq.${userId}`)
+      
+      if (incidentsError) {
+        // If table doesn't exist, return gracefully
+        if (incidentsError.code === '42P01' || incidentsError.message.includes('does not exist')) {
+          console.warn('Reference ID table not available:', incidentsError.message)
+          return { success: false, error: 'Reference ID service unavailable' }
+        }
+        throw incidentsError
+      }
+      
+      // Transform the data to match the expected ReferenceIdMapping format
+      // Filter out items without reference_id and ensure all required fields are strings
+      const data: ReferenceIdMapping[] = (incidentsData || [])
+        .map((incident: any) => {
+          const refData = Array.isArray(incident.incident_reference_ids) 
+            ? incident.incident_reference_ids[0] 
+            : incident.incident_reference_ids
+          
+          if (!refData?.reference_id) {
+            return null
+          }
+          
+          return {
+            incident_id: incident.id,
+            reference_id: refData.reference_id,
+            created_at: refData.created_at || new Date().toISOString() // Fallback to current time if missing
+          }
+        })
+        .filter((item): item is ReferenceIdMapping => item !== null)
+      
+      const error = null
 
       // If table doesn't exist, return gracefully
       if (error) {

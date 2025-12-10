@@ -414,34 +414,77 @@ export default function ReportIncidentPage() {
       return Promise.resolve(null)
     }
   
-    // Add watermark to photo (same as volunteer reporting)
+    // MEMORY FIX: Optimize photo processing for mobile devices
     return new Promise((resolve, reject) => {
       const objectUrl = URL.createObjectURL(file)
       const isMobile = /Mobi|Android/i.test(navigator.userAgent)
+      let imageBitmap: ImageBitmap | null = null
+      let img: HTMLImageElement | null = null
+      let canvas: HTMLCanvasElement | null = null
+      
+      // Cleanup function to ensure memory is freed
+      const cleanup = () => {
+        try {
+          if (imageBitmap) {
+            imageBitmap.close()
+            imageBitmap = null
+          }
+          if (img) {
+            img.src = ''
+            img = null
+          }
+          if (canvas) {
+            const ctx = canvas.getContext('2d')
+            if (ctx) {
+              ctx.clearRect(0, 0, canvas.width, canvas.height)
+            }
+            canvas.width = 0
+            canvas.height = 0
+            canvas = null
+          }
+          URL.revokeObjectURL(objectUrl)
+        } catch (err) {
+          console.warn('Cleanup error (non-critical):', err)
+        }
+      }
       
       // Use createImageBitmap for better performance (if available)
       const loadImage = async () => {
         try {
-          if (typeof createImageBitmap !== 'undefined') {
-            const imageBitmap = await createImageBitmap(file)
-            return { imageBitmap, width: imageBitmap.width, height: imageBitmap.height }
+          // MEMORY FIX: On mobile, prefer Image over createImageBitmap to reduce memory pressure
+          if (typeof createImageBitmap !== 'undefined' && !isMobile) {
+            try {
+              const bitmap = await createImageBitmap(file)
+              return { imageBitmap: bitmap, width: bitmap.width, height: bitmap.height }
+            } catch (bitmapError) {
+              console.warn('createImageBitmap failed, falling back to Image:', bitmapError)
+              // Fall through to Image fallback
+            }
           }
         } catch {
           // Fallback to Image
         }
         
         return new Promise<{ imageBitmap?: ImageBitmap; img?: HTMLImageElement; width: number; height: number }>((imgResolve, imgReject) => {
-          const img = new Image()
-          img.onload = () => imgResolve({ img, width: img.width, height: img.height })
-          img.onerror = imgReject
-          img.src = objectUrl
+          const imageElement = new Image()
+          imageElement.onload = () => {
+            img = imageElement
+            imgResolve({ img: imageElement, width: imageElement.width, height: imageElement.height })
+          }
+          imageElement.onerror = (err) => {
+            img = null
+            imgReject(err)
+          }
+          imageElement.src = objectUrl
         })
       }
       
-      loadImage().then(({ imageBitmap, img, width, height }) => {
-        // Downscale large images - more aggressive for mobile
-        const MAX_DIM = isMobile ? 800 : 1280
-        const JPEG_QUALITY = isMobile ? 0.5 : 0.7
+      loadImage().then(({ imageBitmap: loadedBitmap, img: loadedImg, width, height }) => {
+        imageBitmap = loadedBitmap || null
+        img = loadedImg || null
+        // MEMORY FIX: More aggressive downscaling for mobile to prevent memory issues
+        const MAX_DIM = isMobile ? 600 : 1280  // Reduced from 800 to 600 for mobile
+        const JPEG_QUALITY = isMobile ? 0.4 : 0.7  // Lower quality for mobile to reduce memory
         
         let targetW = width
         let targetH = height
@@ -452,27 +495,38 @@ export default function ReportIncidentPage() {
         }
 
         // Create canvas with optimized context
-        const canvas = document.createElement('canvas')
+        canvas = document.createElement('canvas')
         canvas.width = targetW
         canvas.height = targetH
         const ctx = canvas.getContext('2d', { 
           willReadFrequently: false,
           alpha: true,
-          desynchronized: true
+          desynchronized: isMobile ? false : true  // Disable desynchronized on mobile for stability
         })
         
         if (!ctx) {
-          URL.revokeObjectURL(objectUrl)
+          cleanup()
           reject(new Error('Failed to create canvas context'))
           return
         }
         
         // Draw the (possibly downscaled) image
-        if (imageBitmap) {
-          ctx.drawImage(imageBitmap, 0, 0, targetW, targetH)
-          imageBitmap.close()
-        } else if (img) {
-          ctx.drawImage(img, 0, 0, targetW, targetH)
+        try {
+          if (imageBitmap) {
+            ctx.drawImage(imageBitmap, 0, 0, targetW, targetH)
+            // Close immediately after drawing to free memory
+            imageBitmap.close()
+            imageBitmap = null
+          } else if (img) {
+            ctx.drawImage(img, 0, 0, targetW, targetH)
+            // Clear image source to help GC
+            img.src = ''
+            img = null
+          }
+        } catch (drawError) {
+          cleanup()
+          reject(new Error('Failed to draw image: ' + (drawError as Error).message))
+          return
         }
         
         // Add watermark background
@@ -519,28 +573,51 @@ export default function ReportIncidentPage() {
         
         // Convert canvas to JPEG file
         const convertToBlob = () => {
+          if (!canvas) {
+            cleanup()
+            reject(new Error('Canvas not available'))
+            return
+          }
+          
           canvas.toBlob((blob) => {
-            if (blob) {
-              const watermarkedFile = new File([blob], 'incident_photo.jpg', { type: 'image/jpeg' })
-              const previewUrl = canvas.toDataURL('image/jpeg', JPEG_QUALITY)
-              console.log(`📸 [PHOTO] Watermarked: ${(blob.size / 1024).toFixed(1)}KB (server will further compress with Sharp)`)
-              URL.revokeObjectURL(objectUrl)
-              resolve({ processed: watermarkedFile, previewUrl })
-            } else {
-              URL.revokeObjectURL(objectUrl)
-              reject(new Error('Failed to create blob from canvas'))
+            try {
+              if (blob) {
+                const watermarkedFile = new File([blob], 'incident_photo.jpg', { type: 'image/jpeg' })
+                // MEMORY FIX: Create preview URL with lower quality to save memory
+                const previewUrl = canvas.toDataURL('image/jpeg', isMobile ? 0.3 : JPEG_QUALITY)
+                console.log(`📸 [PHOTO] Watermarked: ${(blob.size / 1024).toFixed(1)}KB (server will further compress with Sharp)`)
+                cleanup()
+                resolve({ processed: watermarkedFile, previewUrl })
+              } else {
+                cleanup()
+                reject(new Error('Failed to create blob from canvas'))
+              }
+            } catch (convertError) {
+              cleanup()
+              reject(new Error('Failed to convert canvas: ' + (convertError as Error).message))
             }
           }, 'image/jpeg', JPEG_QUALITY)
         }
         
-        // Use requestIdleCallback on mobile for better responsiveness
-        if (isMobile && typeof requestIdleCallback !== 'undefined') {
+        // MEMORY FIX: On mobile, process immediately but with small delay to allow GC
+        if (isMobile) {
+          // Small delay to allow garbage collection of previous image
+          setTimeout(() => {
+            convertToBlob()
+            // Force garbage collection hint (if available)
+            if ('gc' in window && typeof (window as any).gc === 'function') {
+              try {
+                (window as any).gc()
+              } catch {}
+            }
+          }, 50)
+        } else if (typeof requestIdleCallback !== 'undefined') {
           requestIdleCallback(convertToBlob, { timeout: 100 })
         } else {
           setTimeout(convertToBlob, 0)
         }
       }).catch((error) => {
-        URL.revokeObjectURL(objectUrl)
+        cleanup()
         reject(error)
       })
     })
