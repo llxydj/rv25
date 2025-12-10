@@ -114,7 +114,6 @@ export async function POST(request: NextRequest) {
         address,
         barangay,
         role: 'volunteer',
-        pin_enabled: false, // PIN disabled for volunteers - no PIN required
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })

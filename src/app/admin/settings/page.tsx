@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from "react"
 import { AdminLayout } from "@/components/layout/admin-layout"
 import { Bell, Save, Shield, User, AlertCircle, Camera, Power as LogOut } from "lucide-react"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
-import { PinManagement } from "@/components/pin-management"
 import { useAuth } from "@/lib/auth"
 import { supabase } from "@/lib/supabase"
 import { pushNotificationService } from "@/lib/push-notification-service"
@@ -134,28 +133,6 @@ export default function AdminSettings() {
     try {
       setPasswordLoading(true)
 
-      // SECURITY: Check PIN verification before allowing password change
-      const pinCheckRes = await fetch('/api/pin/check-verified', {
-        credentials: 'include',
-        cache: 'no-store'
-      })
-      
-      if (pinCheckRes.ok) {
-        const pinCheckJson = await pinCheckRes.json()
-        if (!pinCheckJson.verified) {
-          // PIN not verified - require re-verification
-          setPasswordError('PIN verification required for security. Please verify your PIN first.')
-          // Redirect to PIN verify page
-          window.location.href = `/pin/verify?redirect=${encodeURIComponent('/admin/settings')}`
-          return
-        }
-      } else {
-        // If PIN check fails, require verification for security
-        setPasswordError('PIN verification required for security. Please verify your PIN first.')
-        window.location.href = `/pin/verify?redirect=${encodeURIComponent('/admin/settings')}`
-        return
-      }
-
       // Verify current password
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: profileData.email,
@@ -184,14 +161,6 @@ export default function AdminSettings() {
       })
       setPasswordSuccess(true)
       setTimeout(() => setPasswordSuccess(false), 3000)
-      
-      // Require PIN re-verification after password change for security
-      await fetch('/api/pin/require-reverify', {
-        method: 'POST',
-        credentials: 'include'
-      }).catch(() => {
-        // Ignore errors - this is a security enhancement
-      })
     } catch (err: any) {
       setPasswordError(err.message || 'Failed to change password')
     } finally {
@@ -757,10 +726,6 @@ export default function AdminSettings() {
                       <p className="text-gray-500">Add an extra layer of security to your account by requiring both your password and authentication code.</p>
                     </div>
                   </div>
-                </div>
-
-                <div className="border-t border-gray-200 pt-6">
-                  <PinManagement />
                 </div>
 
                 <div className="border-t border-gray-200 pt-6">

@@ -7,8 +7,6 @@ import { Toaster } from "@/components/ui/toaster"
 import GeoPolygonLoader from "@/components/geo-polygon-loader"
 import { PWAInstallPromptEnhanced } from "@/components/pwa-install-prompt-enhanced"
 import EmergencyCallButtonEnhanced from "@/components/emergency-call-button-enhanced"
-import { PinSecurityGate } from "@/components/pin-security-gate"
-
 // Global chunk loading error handler
 function ChunkErrorHandler() {
   useEffect(() => {
@@ -121,14 +119,11 @@ export function AppClient({ children }: { children: React.ReactNode }) {
     <AuthProvider>
       {/* <ServiceWorkerRegistration /> */}
       <ChunkErrorHandler />
-      {/* PIN Security Gate - automatically skips for residents */}
-      <PinSecurityGate>
-        <GeoPolygonLoader />
-        {children}
-        <PWAInstallPromptEnhanced />
-        <EmergencyCallButtonEnhanced />
-        <Toaster />
-      </PinSecurityGate>
+      <GeoPolygonLoader />
+      {children}
+      <PWAInstallPromptEnhanced />
+      <EmergencyCallButtonEnhanced />
+      <Toaster />
     </AuthProvider>
   )
 }

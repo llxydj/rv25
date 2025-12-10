@@ -83,7 +83,6 @@ export async function POST(request: Request) {
     }
 
     // Insert profile
-    // Note: Barangay users are excluded from PIN requirement in pin-security-gate
     const { error: profileError } = await supabaseAdmin.from("users").insert({
       id: authData.user.id,
       email,
@@ -94,7 +93,6 @@ export async function POST(request: Request) {
       barangay: barangay.toUpperCase(),
       city: "TALISAY CITY",
       province: "NEGROS OCCIDENTAL",
-      pin_enabled: false, // Barangay users are excluded from PIN
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     })

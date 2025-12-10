@@ -339,120 +339,40 @@ export const useAuth = () => {
 
           setUser(userSession)
 
-          // Check PIN status and redirect accordingly
-          // Wrap in try-catch to prevent blocking login if PIN check fails
-          try {
-            // Skip PIN check if already on PIN pages or dashboard (prevents loops)
-            if (typeof window !== 'undefined') {
-              const currentPath = window.location.pathname
-              // If already on PIN pages, don't redirect (let PIN page handle it)
-              if (currentPath.startsWith('/pin/')) {
-                return
-              }
-              // If already on dashboard, check if PIN is verified before redirecting
-              if (currentPath.includes('/dashboard') || currentPath.includes('/admin/') || currentPath.includes('/volunteer/') || currentPath.includes('/resident/')) {
-                // Check if PIN is verified - if yes, stay on current page
-                try {
-                  const verifyRes = await fetch('/api/pin/check-verified', {
-                    credentials: 'include',
-                    cache: 'no-store'
-                  })
-                  if (verifyRes.ok) {
-                    const verifyJson = await verifyRes.json()
-                    if (verifyJson.verified) {
-                      // PIN is verified, stay on current page
-                      return
-                    }
-                  }
-                } catch {
-                  // If check fails, continue with PIN redirect logic
-                }
-              }
-            }
+          // Redirect to role-based dashboard
+          // Skip if we've already redirected in this session (prevents multiple redirects)
+          if (hasRedirected) {
+            return
+          }
 
-            // Skip if we've already redirected in this session (prevents multiple redirects)
-            if (hasRedirected) {
+          // Use default role-based redirect (PIN system removed)
+          const defaultRedirects: Record<string, string> = {
+            admin: '/admin/dashboard',
+            volunteer: '/volunteer/dashboard',
+            resident: '/resident/dashboard',
+            barangay: '/barangay/dashboard'
+          }
+          const defaultRedirect = userData.role 
+            ? defaultRedirects[userData.role] || '/resident/dashboard'
+            : '/resident/dashboard'
+          
+          // Only redirect if different from current path and not on register-google
+          if (typeof window !== 'undefined') {
+            const currentPath = window.location.pathname
+            // Don't redirect if already on register-google (OAuth callback handles that)
+            if (currentPath.includes('/resident/register-google')) {
+              // Already on registration page, don't redirect
               return
             }
-
-            // SKIP PIN CHECK FOR RESIDENTS, BARANGAY, AND VOLUNTEERS - No PIN required
-            if (userData.role !== 'resident' && userData.role !== 'barangay' && userData.role !== 'volunteer') {
-              const { getPinRedirectForRole } = await import('@/lib/pin-auth-helper')
-              const redirectUrl = await getPinRedirectForRole(userData.role)
-              
-              // Only redirect if different from current path (prevents loops)
-              // Also skip redirect if on register-google page (OAuth callback handles that)
-              if (typeof window !== 'undefined') {
-                const currentPath = window.location.pathname
-                if (redirectUrl !== currentPath && !currentPath.startsWith('/pin/') && !currentPath.includes('/resident/register-google')) {
-                  setHasRedirected(true) // Mark that we've redirected
-                  router.push(redirectUrl)
-                } else if (redirectUrl === currentPath) {
-                  // Already on the correct page, mark as redirected
-                  setHasRedirected(true)
-                }
-              } else {
-                setHasRedirected(true)
-                router.push(redirectUrl)
-              }
-            } else {
-              // For residents, barangay, and volunteers, use default redirect (no PIN)
-              // CRITICAL: Don't redirect if on register-google page (let OAuth callback handle it)
-              const defaultRedirects: Record<string, string> = {
-                admin: '/admin/dashboard',
-                volunteer: '/volunteer/dashboard',
-                resident: '/resident/dashboard',
-                barangay: '/barangay/dashboard'
-              }
-              const defaultRedirect = userData.role 
-                ? defaultRedirects[userData.role] || '/resident/dashboard'
-                : '/resident/dashboard'
-              
-              // Only redirect if different from current path and not on register-google
-              if (typeof window !== 'undefined') {
-                const currentPath = window.location.pathname
-                // Don't redirect if already on register-google (OAuth callback handles that)
-                if (currentPath.includes('/resident/register-google')) {
-                  // Already on registration page, don't redirect
-                  return
-                }
-                if (defaultRedirect !== currentPath && !currentPath.startsWith('/pin/')) {
-                  setHasRedirected(true)
-                  router.push(defaultRedirect)
-                } else if (defaultRedirect === currentPath) {
-                  setHasRedirected(true)
-                }
-              } else {
-                setHasRedirected(true)
-                router.push(defaultRedirect)
-              }
-            }
-          } catch (pinError: any) {
-            console.error('[Auth] PIN check failed, using default redirect:', pinError)
-            // If PIN check fails, use default role-based redirect
-            const defaultRedirects: Record<string, string> = {
-              admin: '/admin/dashboard',
-              volunteer: '/volunteer/dashboard',
-              resident: '/resident/dashboard',
-              barangay: '/barangay/dashboard'
-            }
-            const defaultRedirect = userData.role 
-              ? defaultRedirects[userData.role] || '/resident/dashboard'
-              : '/resident/dashboard'
-            
-            // Only redirect if different from current path
-            if (typeof window !== 'undefined') {
-              const currentPath = window.location.pathname
-              if (defaultRedirect !== currentPath && !currentPath.startsWith('/pin/')) {
-                setHasRedirected(true)
-                router.push(defaultRedirect)
-              } else if (defaultRedirect === currentPath) {
-                setHasRedirected(true)
-              }
-            } else {
+            if (defaultRedirect !== currentPath) {
               setHasRedirected(true)
               router.push(defaultRedirect)
+            } else if (defaultRedirect === currentPath) {
+              setHasRedirected(true)
             }
+          } else {
+            setHasRedirected(true)
+            router.push(defaultRedirect)
           }
         } else {
           // No profile data found - this is a new Google OAuth user
@@ -742,20 +662,7 @@ export const signOut = async () => {
 
     // Clear any local storage and session storage
     if (typeof window !== 'undefined') {
-      // Clear PIN session
-      sessionStorage.removeItem('pin_unlocked_session')
-      
-      // Clear PIN verification cookies (via API call since they're HTTP-only)
-      try {
-        await fetch('/api/pin/clear-session', {
-          method: 'POST',
-          credentials: 'include'
-        }).catch(() => {
-          // Ignore errors - cookies will expire anyway
-        })
-      } catch {
-        // Ignore errors
-      }
+      // Session storage cleanup (if needed for other features)
 
       // Clear Supabase auth tokens
       localStorage.removeItem('supabase.auth.token')
