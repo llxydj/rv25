@@ -81,13 +81,8 @@ export async function logIncidentTimelineEvent(event: TimelineEvent): Promise<{ 
       }
     }
 
-    // Add metadata to notes if available
-    if (event.metadata && Object.keys(event.metadata).length > 0) {
-      const metadataStr = Object.entries(event.metadata)
-        .map(([key, value]) => `${key}: ${value}`)
-        .join(', ')
-      notes = notes ? `${notes} (${metadataStr})` : metadataStr
-    }
+    // FIX: Don't append metadata to notes - keep notes clean for display
+    // Metadata is stored separately and can be used programmatically if needed
 
     const { error } = await supabaseAdmin
       .from('incident_updates')
@@ -379,12 +374,26 @@ export async function getIncidentTimeline(incidentId: string): Promise<{
         eventType = 'REASSIGNED'
       }
 
+      // FIX: Clean up notes by removing metadata that was previously appended
+      // Remove patterns like "(volunteer_id: xxx, previous_volunteer_id: null)" or "(photo_count: 1)"
+      let cleanNotes = update.notes
+      if (cleanNotes) {
+        // Remove metadata patterns that look like "(key: value, key: value)" at the end
+        // This pattern matches metadata that was appended to notes
+        cleanNotes = cleanNotes.replace(/\s*\([^)]*(?:volunteer_id|previous_volunteer_id|photo_count|previous_severity|new_severity|previous_priority|new_priority)[^)]*\)\s*$/i, '')
+        // Also handle cases where metadata might be in the middle: "text (key: value) more text"
+        // But only if it contains known metadata keys
+        cleanNotes = cleanNotes.replace(/\s*\([^)]*(?:volunteer_id|previous_volunteer_id|photo_count)[^)]*\)/gi, '')
+        // Clean up any double spaces or trailing whitespace
+        cleanNotes = cleanNotes.replace(/\s+/g, ' ').trim()
+      }
+
       return {
         id: update.id,
         eventType: eventType as any,
         previousStatus: update.previous_status,
         newStatus: update.new_status,
-        notes: update.notes,
+        notes: cleanNotes || update.notes, // Use cleaned notes, fallback to original if cleaning removed everything
         created_at: update.created_at,
         updated_by: update.users ? {
           first_name: update.users.first_name,

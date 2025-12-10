@@ -196,14 +196,25 @@ export const getIncidentById = async (incidentId: string) => {
     // Cast to any to avoid typing issues temporarily
     const incidentWithReporter: any = incidentData;
 
-    // Debug log
+    // Debug log - Enhanced to help diagnose reporter name issues
+    const reporterData = Array.isArray(incidentWithReporter.reporter) 
+      ? incidentWithReporter.reporter[0] 
+      : incidentWithReporter.reporter;
+    
     console.log("Fetched incident data:", {
       id: incidentWithReporter.id,
       type: incidentWithReporter.incident_type,
       status: incidentWithReporter.status,
       hasReporter: !!incidentWithReporter.reporter,
-      reporterData: incidentWithReporter.reporter,
-      reporterName: incidentWithReporter.reporter ? `${incidentWithReporter.reporter.first_name} ${incidentWithReporter.reporter.last_name}` : null,
+      reporterId: incidentWithReporter.reporter_id,
+      reporterIsArray: Array.isArray(incidentWithReporter.reporter),
+      reporterData: reporterData,
+      reporterFirstName: reporterData?.first_name || null,
+      reporterLastName: reporterData?.last_name || null,
+      reporterEmail: reporterData?.email || null,
+      reporterName: reporterData 
+        ? [reporterData.first_name, reporterData.last_name].filter(Boolean).join(' ').trim() || reporterData.email || "No name"
+        : null,
       hasAssignee: !!incidentWithReporter.assignee,
       hasPhotoUrl: !!incidentWithReporter.photo_url
     });
@@ -245,8 +256,21 @@ export const getIncidentById = async (incidentId: string) => {
       incidentWithReporter.photo_urls = signedGallery.filter((url: any): url is string => url !== null)
     }
 
+    // Normalize reporter and assignee data (handle array case from Supabase joins)
+    if (incidentWithReporter.reporter && Array.isArray(incidentWithReporter.reporter)) {
+      incidentWithReporter.reporter = incidentWithReporter.reporter[0] || null;
+    }
+    if (incidentWithReporter.assignee && Array.isArray(incidentWithReporter.assignee)) {
+      incidentWithReporter.assignee = incidentWithReporter.assignee[0] || null;
+    }
+
     // Return the incident data
-    console.log("Successfully returning incident data");
+    console.log("Successfully returning incident data with normalized reporter:", {
+      hasReporter: !!incidentWithReporter.reporter,
+      reporterName: incidentWithReporter.reporter 
+        ? [incidentWithReporter.reporter.first_name, incidentWithReporter.reporter.last_name].filter(Boolean).join(' ').trim() || incidentWithReporter.reporter.email || "No name"
+        : "No reporter data"
+    });
     return {
       success: true,
       data: incidentWithReporter

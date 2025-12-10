@@ -417,9 +417,31 @@ export default function VolunteerIncidentDetailPage() {
     return date.toLocaleString()
   }
 
+  // Helper function to get reporter display name
+  const getReporterDisplayName = (reporter: any): string => {
+    if (!reporter) return "Anonymous Reporter";
+    
+    // Handle array case (Supabase sometimes returns arrays for joins)
+    const reporterData = Array.isArray(reporter) ? reporter[0] : reporter;
+    
+    if (!reporterData) return "Anonymous Reporter";
+    
+    // Build name with proper fallbacks
+    const firstName = reporterData.first_name || '';
+    const lastName = reporterData.last_name || '';
+    const fullName = [firstName, lastName].filter(Boolean).join(' ').trim();
+    
+    // Return full name, or email, or fallback
+    return fullName || reporterData.email || "Anonymous Reporter";
+  }
+
   const handleCallReporter = () => {
-    if (incident?.reporter?.phone_number) {
-      window.location.href = `tel:${incident.reporter.phone_number}`
+    const reporterData = Array.isArray(incident?.reporter) 
+      ? incident.reporter[0] 
+      : incident?.reporter;
+    
+    if (reporterData?.phone_number) {
+      window.location.href = `tel:${reporterData.phone_number}`
     }
   }
 
@@ -551,11 +573,7 @@ export default function VolunteerIncidentDetailPage() {
                     <div className="mt-1 flex items-center">
                       <User className="h-4 w-4 text-gray-500 mr-1" />
                       <p className="text-gray-900 dark:text-white">
-                        {incident.reporter.first_name && incident.reporter.last_name
-                          ? `${incident.reporter.first_name} ${incident.reporter.last_name}`
-                          : incident.reporter.first_name || incident.reporter.last_name
-                          ? (incident.reporter.first_name || incident.reporter.last_name)
-                          : incident.reporter.email || "Anonymous Reporter"}
+                        {getReporterDisplayName(incident.reporter)}
                       </p>
                     </div>
                   ) : (

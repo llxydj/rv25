@@ -51,6 +51,7 @@ function MapErrorFallback({ onRetry }: { onRetry: () => void }) {
 }
 
 // Define the dynamic import with error handling
+// Using a simple, reliable pattern
 const MapWithNoSSR = dynamic(
   () => import('./map-internal'),
   { 
