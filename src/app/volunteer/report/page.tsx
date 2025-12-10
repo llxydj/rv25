@@ -13,6 +13,15 @@ import { LocationTracker } from "@/components/location-tracker"
 import { isWithinTalisayCity, TALISAY_CENTER } from "@/lib/geo-utils"
 import { useToast } from "@/components/ui/use-toast"
 import { supabase } from "@/lib/supabase"
+import { 
+  IncidentCategorySelector, 
+  TraumaSubcategorySelector, 
+  SeverityLevelSelector,
+  type IncidentCategory,
+  type TraumaSubcategory,
+  type SeverityLevel
+} from "@/components/incident"
+import { validateIncidentCategorization } from "@/lib/incident-categorization"
 
 const INCIDENT_TYPES = [
   "FIRE",
@@ -37,8 +46,17 @@ export default function VolunteerReportIncidentPage() {
     description: "",
     address: "",
     barangay: "",
-    priority: "3",
+    priority: "3", // Keep for backward compatibility
+    // New categorization fields
+    incident_category: "" as IncidentCategory | "",
+    trauma_subcategory: "" as TraumaSubcategory | "",
+    severity_level: "" as SeverityLevel | "",
   })
+  const [categorizationErrors, setCategorizationErrors] = useState<{
+    incident_category?: string
+    trauma_subcategory?: string
+    severity_level?: string
+  }>({})
   const [location, setLocation] = useState<[number, number] | null>(null)
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
@@ -581,6 +599,63 @@ export default function VolunteerReportIncidentPage() {
       return
     }
 
+    // Validate categorization fields
+    const categorizationValidation = validateIncidentCategorization({
+      incident_category: formData.incident_category || null,
+      trauma_subcategory: formData.trauma_subcategory || null,
+      severity_level: formData.severity_level || null
+    })
+
+    if (!categorizationValidation.valid) {
+      const errors: typeof categorizationErrors = {}
+      categorizationValidation.errors.forEach(err => {
+        if (err.includes('incident category')) {
+          errors.incident_category = err
+        } else if (err.includes('Trauma sub-category')) {
+          errors.trauma_subcategory = err
+        } else if (err.includes('severity')) {
+          errors.severity_level = err
+        }
+      })
+      setCategorizationErrors(errors)
+      setError(categorizationValidation.errors.join(', '))
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: categorizationValidation.errors.join(', ')
+      })
+      setLoading(false)
+      setIsSubmitting(false)
+      return
+    }
+
+    // Validate required categorization fields
+    if (!formData.incident_category) {
+      setCategorizationErrors({ incident_category: 'Incident category is required' })
+      setError('Please select an incident category')
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: 'Please select an incident category'
+      })
+      setLoading(false)
+      setIsSubmitting(false)
+      return
+    }
+
+    if (!formData.severity_level) {
+      setCategorizationErrors({ severity_level: 'Severity level is required' })
+      setError('Please select a severity level')
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: 'Please select a severity level'
+      })
+      setLoading(false)
+      setIsSubmitting(false)
+      return
+    }
+
     if (!validateForm()) {
       toast({
         variant: "destructive",
@@ -619,6 +694,10 @@ export default function VolunteerReportIncidentPage() {
           createdAtLocal: submissionTimestamp,
           createdAt: submissionTimestamp,
           originRole: "volunteer",
+          // New categorization fields
+          incident_category: formData.incident_category || undefined,
+          trauma_subcategory: formData.trauma_subcategory || undefined,
+          severity_level: formData.severity_level || undefined,
         }
 
         const updatedPendingReports = [...pendingReports, newReport]
@@ -638,7 +717,11 @@ export default function VolunteerReportIncidentPage() {
           address: "",
           barangay: "",
           priority: "3",
+          incident_category: "" as IncidentCategory | "",
+          trauma_subcategory: "" as TraumaSubcategory | "",
+          severity_level: "" as SeverityLevel | "",
         })
+        setCategorizationErrors({})
         setLocation(null)
         setPhotoFile(null)
         setPhotoPreview(null)
@@ -765,6 +848,10 @@ export default function VolunteerReportIncidentPage() {
               setSubmitStage(stageMessages[stage] || null)
             }, 50)
           },
+          // New categorization fields
+          incident_category: formData.incident_category || undefined,
+          trauma_subcategory: formData.trauma_subcategory || undefined,
+          severity_level: formData.severity_level || undefined,
         },
       )
       
@@ -817,7 +904,11 @@ export default function VolunteerReportIncidentPage() {
         address: "",
         barangay: "",
         priority: "3",
+        incident_category: "" as IncidentCategory | "",
+        trauma_subcategory: "" as TraumaSubcategory | "",
+        severity_level: "" as SeverityLevel | "",
       })
+      setCategorizationErrors({})
       setLocation(null)
       setPhotoFile(null)
       setPhotoPreview(null)
@@ -932,29 +1023,54 @@ export default function VolunteerReportIncidentPage() {
                 </select>
               </div>
 
+              {/* Incident Category */}
               <div>
-                <label htmlFor="priority" className="block text-sm font-medium text-gray-700">
-                  Severity Level *
-                </label>
-                <select
-                  id="priority"
-                  name="priority"
+                <IncidentCategorySelector
+                  value={formData.incident_category}
+                  onChange={(value) => {
+                    setFormData(prev => ({
+                      ...prev,
+                      incident_category: value,
+                      // Clear trauma_subcategory if category changes away from MEDICAL_TRAUMA
+                      trauma_subcategory: value === 'MEDICAL_TRAUMA' ? prev.trauma_subcategory : '' as TraumaSubcategory | ''
+                    }))
+                    setCategorizationErrors(prev => ({ ...prev, incident_category: undefined }))
+                  }}
                   required
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 sm:text-sm text-gray-900 bg-white"
-                  value={formData.priority}
-                  onChange={handleChange}
                   disabled={loading}
-                >
-                  <option value="">Select Severity</option>
-                  <option value="1">🔴 Critical - Life-threatening emergency</option>
-                  <option value="2">🟠 High - Urgent assistance needed</option>
-                  <option value="3">🟡 Medium - Standard response required</option>
-                  <option value="4">🟢 Low - Non-urgent situation</option>
-                  <option value="5">ℹ️ Information - Report only</option>
-                </select>
-                <p className="mt-1 text-xs text-gray-600">
-                  Higher severity levels trigger faster response times and notifications
-                </p>
+                  error={categorizationErrors.incident_category}
+                />
+              </div>
+
+              {/* Trauma Subcategory - Conditional */}
+              {formData.incident_category === 'MEDICAL_TRAUMA' && (
+                <div>
+                  <TraumaSubcategorySelector
+                    value={formData.trauma_subcategory}
+                    onChange={(value) => {
+                      setFormData(prev => ({ ...prev, trauma_subcategory: value }))
+                      setCategorizationErrors(prev => ({ ...prev, trauma_subcategory: undefined }))
+                    }}
+                    required
+                    disabled={loading}
+                    error={categorizationErrors.trauma_subcategory}
+                  />
+                </div>
+              )}
+
+              {/* Enhanced Severity Level */}
+              <div className={formData.incident_category === 'MEDICAL_TRAUMA' ? 'md:col-span-2' : ''}>
+                <SeverityLevelSelector
+                  value={formData.severity_level}
+                  onChange={(value) => {
+                    setFormData(prev => ({ ...prev, severity_level: value }))
+                    setCategorizationErrors(prev => ({ ...prev, severity_level: undefined }))
+                  }}
+                  required
+                  disabled={loading}
+                  error={categorizationErrors.severity_level}
+                  variant="radio"
+                />
               </div>
 
               <div className="md:col-span-2">

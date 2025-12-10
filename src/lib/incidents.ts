@@ -271,6 +271,10 @@ type CreateIncidentOptions = {
   sessionUserId?: string
   accessToken?: string
   onStageChange?: (stage: CreateIncidentStage) => void
+  // New categorization fields
+  incident_category?: string
+  trauma_subcategory?: string
+  severity_level?: string
 }
 
 export type { CreateIncidentStage }
@@ -553,6 +557,10 @@ export const createIncident = async (
       voice_url: null, // Will be added in background
       is_offline: !!isOffline,
       created_at_local: submissionTimestamp,
+      // New categorization fields (from options)
+      incident_category: options?.incident_category || undefined,
+      trauma_subcategory: options?.trauma_subcategory || undefined,
+      severity_level: options?.severity_level || undefined,
     }
 
     const apiUrl = typeof window !== 'undefined' 

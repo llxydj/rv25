@@ -31,6 +31,10 @@ export async function GET(request: Request) {
     const barangay = searchParams.get('barangay')
     const severity = searchParams.get('severity')
     const volunteerId = searchParams.get('volunteer_id')
+    // New categorization filters
+    const incidentCategory = searchParams.get('incident_category')
+    const traumaSubcategory = searchParams.get('trauma_subcategory')
+    const severityLevel = searchParams.get('severity_level')
 
     if (!startDate || !endDate) {
       return NextResponse.json({ success: false, message: 'Start date and end date are required' }, { status: 400 })
@@ -60,6 +64,10 @@ export async function GET(request: Request) {
     if (barangay) incidentsQuery = incidentsQuery.eq('barangay', barangay)
     if (severity) incidentsQuery = incidentsQuery.eq('severity', severity)
     if (volunteerId) incidentsQuery = incidentsQuery.eq('assigned_to', volunteerId)
+    // New categorization filters
+    if (incidentCategory) incidentsQuery = incidentsQuery.eq('incident_category', incidentCategory)
+    if (traumaSubcategory) incidentsQuery = incidentsQuery.eq('trauma_subcategory', traumaSubcategory)
+    if (severityLevel) incidentsQuery = incidentsQuery.eq('severity_level', severityLevel)
 
     const { data: incidents, error } = await incidentsQuery
 
@@ -136,7 +144,7 @@ export async function GET(request: Request) {
       byBarangay[brgy].incidents.push(incident.id)
     })
 
-    // Group by severity
+    // Group by severity (existing enum)
     const bySeverity: Record<string, any> = {}
     incidents?.forEach((incident: any) => {
       const sev = incident.severity || 'MODERATE'
@@ -146,6 +154,46 @@ export async function GET(request: Request) {
       bySeverity[sev].count++
       if (incident.status === 'RESOLVED') bySeverity[sev].resolved++
       if (incident.status === 'PENDING') bySeverity[sev].pending++
+    })
+
+    // Group by incident category (new categorization)
+    const byCategory: Record<string, any> = {}
+    incidents?.forEach((incident: any) => {
+      const category = incident.incident_category || 'UNCATEGORIZED'
+      if (!byCategory[category]) {
+        byCategory[category] = { count: 0, resolved: 0, pending: 0, avg_response_time: 0, incidents: [] }
+      }
+      byCategory[category].count++
+      if (incident.status === 'RESOLVED') byCategory[category].resolved++
+      if (incident.status === 'PENDING') byCategory[category].pending++
+      byCategory[category].incidents.push(incident.id)
+    })
+
+    // Group by trauma subcategory (for medical trauma incidents)
+    const byTraumaSubcategory: Record<string, any> = {}
+    incidents?.forEach((incident: any) => {
+      if (incident.incident_category === 'MEDICAL_TRAUMA' && incident.trauma_subcategory) {
+        const subcat = incident.trauma_subcategory
+        if (!byTraumaSubcategory[subcat]) {
+          byTraumaSubcategory[subcat] = { count: 0, resolved: 0, pending: 0, incidents: [] }
+        }
+        byTraumaSubcategory[subcat].count++
+        if (incident.status === 'RESOLVED') byTraumaSubcategory[subcat].resolved++
+        if (incident.status === 'PENDING') byTraumaSubcategory[subcat].pending++
+        byTraumaSubcategory[subcat].incidents.push(incident.id)
+      }
+    })
+
+    // Group by severity level (new enhanced severity)
+    const bySeverityLevel: Record<string, any> = {}
+    incidents?.forEach((incident: any) => {
+      const sevLevel = incident.severity_level || 'UNKNOWN'
+      if (!bySeverityLevel[sevLevel]) {
+        bySeverityLevel[sevLevel] = { count: 0, resolved: 0, pending: 0, avg_response_time: 0 }
+      }
+      bySeverityLevel[sevLevel].count++
+      if (incident.status === 'RESOLVED') bySeverityLevel[sevLevel].resolved++
+      if (incident.status === 'PENDING') bySeverityLevel[sevLevel].pending++
     })
 
     // Group by volunteer
@@ -220,7 +268,16 @@ export async function GET(request: Request) {
       success: true,
       data: {
         period: { start_date: startDate, end_date: endDate },
-        filters: { incident_type: incidentType, status, barangay, severity, volunteer_id: volunteerId },
+        filters: { 
+          incident_type: incidentType, 
+          status, 
+          barangay, 
+          severity, 
+          volunteer_id: volunteerId,
+          incident_category: incidentCategory,
+          trauma_subcategory: traumaSubcategory,
+          severity_level: severityLevel
+        },
         summary: {
           total_incidents: totalIncidents,
           resolved: resolvedIncidents,
@@ -241,6 +298,10 @@ export async function GET(request: Request) {
         by_barangay: byBarangay,
         by_severity: bySeverity,
         by_volunteer: byVolunteer,
+        // New categorization groupings
+        by_category: byCategory,
+        by_trauma_subcategory: byTraumaSubcategory,
+        by_severity_level: bySeverityLevel,
         time_patterns: {
           by_hour: byHour,
           by_day_of_week: byDayOfWeek,

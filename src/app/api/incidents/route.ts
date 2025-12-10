@@ -5,6 +5,7 @@ import { IncidentCreateSchema } from '@/lib/validation'
 import { rateKeyFromRequest, rateLimitAllowed } from '@/lib/rate-limit'
 import { isWithinTalisayCity } from '@/lib/geo-utils'
 import { mapPriorityToSeverity } from '@/lib/incident-utils'
+import { mapSeverityLevelToEnum } from '@/lib/incident-categorization'
 import { normalizeBarangay } from '@/lib/barangay-mapping'
 import { getServerSupabase } from '@/lib/supabase-server'
 import { analyticsCache } from '@/app/api/volunteers/analytics/cache'
@@ -214,6 +215,10 @@ export async function PUT(request: Request) {
       resolution_notes,
       updated_by,
       notes,
+      // New categorization fields
+      incident_category,
+      trauma_subcategory,
+      severity_level,
     } = body || {}
 
     if (!id) return NextResponse.json({ success: false, code: 'VALIDATION_ERROR', message: 'id required' }, { status: 400 })
@@ -244,7 +249,24 @@ export async function PUT(request: Request) {
     if (typeof priority === 'number' || typeof priority === 'string') {
       const priorityNum = Number(priority)
       update.priority = priorityNum
-      update.severity = mapPriorityToSeverity(String(priorityNum))
+      // Only update severity if severity_level is not provided
+      if (!severity_level) {
+        update.severity = mapPriorityToSeverity(String(priorityNum))
+      }
+    }
+    // New categorization fields
+    if (incident_category !== undefined) {
+      update.incident_category = incident_category || null
+    }
+    if (trauma_subcategory !== undefined) {
+      update.trauma_subcategory = trauma_subcategory || null
+    }
+    if (severity_level !== undefined) {
+      update.severity_level = severity_level || null
+      // Map severity_level to severity enum for backward compatibility
+      if (severity_level) {
+        update.severity = mapSeverityLevelToEnum(severity_level)
+      }
     }
     if (typeof photo_url === 'string' || photo_url === null) update.photo_url = photo_url ?? null
     if (Array.isArray(photo_urls)) {
@@ -418,7 +440,11 @@ export async function POST(request: Request) {
       photo_urls,
       voice_url,
       is_offline,
-      created_at_local
+      created_at_local,
+      // New categorization fields
+      incident_category,
+      trauma_subcategory,
+      severity_level
     } = parsed.data
     
     console.log(`📋 [SERVER] [${requestId}] Incident data:`, {
@@ -430,7 +456,10 @@ export async function POST(request: Request) {
       has_photo_urls: !!photo_urls,
       has_voice_url: !!voice_url,
       is_offline,
-      description_length: description?.length || 0
+      description_length: description?.length || 0,
+      incident_category: incident_category || 'none',
+      trauma_subcategory: trauma_subcategory || 'none',
+      severity_level: severity_level || 'none'
     })
     
     const normalizedIncidentType = incident_type.trim().toUpperCase()
@@ -635,6 +664,12 @@ export async function POST(request: Request) {
 
     const primaryPhotoPath = processedPhotoPaths[0] ?? null
 
+    // Map severity_level to severity enum for backward compatibility
+    // If severity_level is provided, use it; otherwise fall back to priority mapping
+    const mappedSeverity = severity_level 
+      ? mapSeverityLevelToEnum(severity_level)
+      : mapPriorityToSeverity(String(normalizedPriority))
+
     const payload = {
       reporter_id,
       incident_type: normalizedIncidentType,
@@ -647,10 +682,14 @@ export async function POST(request: Request) {
       province: 'NEGROS OCCIDENTAL',
       status: 'PENDING',
       priority: normalizedPriority,
-      severity: mapPriorityToSeverity(String(normalizedPriority)),
+      severity: mappedSeverity,
       photo_url: primaryPhotoPath,
       photo_urls: processedPhotoPaths.length ? processedPhotoPaths : (photo_urls || []), // REQUIRED - must be array (empty initially, updated in background)
       voice_url: voice_url || null,
+      // New categorization fields (nullable for backward compatibility)
+      incident_category: incident_category || null,
+      trauma_subcategory: trauma_subcategory || null,
+      severity_level: severity_level || null,
     }
 
     if (normalizedLocalTimestamp) {

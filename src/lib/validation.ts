@@ -61,6 +61,52 @@ export const IncidentCreateSchema = z.object({
   voice_url: z.string().nullable().optional(),
   is_offline: z.coerce.boolean().optional(),
   created_at_local: z.string().optional(),
+  // New categorization fields (optional for backward compatibility)
+  incident_category: z.enum([
+    'MEDICAL_TRAUMA',
+    'MEDICAL_NON_TRAUMA',
+    'NON_MEDICAL_SAFETY',
+    'NON_MEDICAL_SECURITY',
+    'NON_MEDICAL_ENVIRONMENTAL',
+    'NON_MEDICAL_BEHAVIORAL',
+    'OTHER'
+  ]).nullable().optional(),
+  trauma_subcategory: z.enum([
+    'FALL_RELATED',
+    'BLUNT_FORCE',
+    'PENETRATING',
+    'BURN',
+    'FRACTURE_DISLOCATION',
+    'HEAD_INJURY',
+    'SPINAL_INJURY',
+    'MULTI_SYSTEM',
+    'OTHER_TRAUMA'
+  ]).nullable().optional(),
+  severity_level: z.enum([
+    'CRITICAL',
+    'HIGH',
+    'MODERATE',
+    'LOW',
+    'INFORMATIONAL'
+  ]).nullable().optional(),
+}).refine((data) => {
+  // If incident_category is MEDICAL_TRAUMA, trauma_subcategory is required
+  if (data.incident_category === 'MEDICAL_TRAUMA' && !data.trauma_subcategory) {
+    return false
+  }
+  return true
+}, {
+  message: "Trauma sub-category is required when incident category is Medical - Trauma",
+  path: ["trauma_subcategory"]
+}).refine((data) => {
+  // If trauma_subcategory is provided, incident_category must be MEDICAL_TRAUMA
+  if (data.trauma_subcategory && data.incident_category !== 'MEDICAL_TRAUMA') {
+    return false
+  }
+  return true
+}, {
+  message: "Trauma sub-category can only be set when incident category is Medical - Trauma",
+  path: ["trauma_subcategory"]
 })
 
 export type IncidentCreate = z.infer<typeof IncidentCreateSchema>

@@ -1,571 +1,629 @@
--- ===================================================================
--- RVOIS COMPLETE DATABASE MIGRATION
--- ===================================================================
--- This file consolidates all database fixes and improvements
--- Run this in Supabase SQL Editor to apply all changes at once
--- ===================================================================
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
 
--- ===================================================================
--- PART 1: BASIC REALTIME SETUP (from supabase-realtime-fixes.sql)
--- ===================================================================
-
--- 1. Enable Realtime Replication for location_tracking
-ALTER TABLE location_tracking REPLICA IDENTITY FULL;
-
--- 2. Grant realtime access
-GRANT SELECT ON location_tracking TO authenticated;
-
--- 3. Enable realtime on location_preferences
-ALTER TABLE location_preferences REPLICA IDENTITY FULL;
-GRANT SELECT ON location_preferences TO authenticated;
-
--- 4. Add missing RLS policies for location_tracking
--- Drop existing policies first to avoid conflicts
-DROP POLICY IF EXISTS "Users can view their own location data" ON location_tracking;
-DROP POLICY IF EXISTS "Users can insert their own location data" ON location_tracking;
-DROP POLICY IF EXISTS "Admins can view all location data" ON location_tracking;
-
--- Create comprehensive RLS policies
--- Volunteers can insert their own location
-CREATE POLICY "volunteers_insert_own_location"
-ON location_tracking FOR INSERT 
-TO authenticated
-WITH CHECK (
-  user_id = auth.uid() AND
-  EXISTS (
-    SELECT 1 FROM users 
-    WHERE id = auth.uid() 
-    AND role = 'volunteer'
-  )
+CREATE TABLE public.admin_documents (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid,
+  path text NOT NULL,
+  file_name text NOT NULL,
+  mime_type text,
+  size_bytes bigint NOT NULL,
+  folder_id uuid,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT admin_documents_pkey PRIMARY KEY (id),
+  CONSTRAINT admin_documents_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
-
--- Admins can read all locations
-CREATE POLICY "admins_read_all_locations"
-ON location_tracking FOR SELECT 
-TO authenticated
-USING (
-  EXISTS (
-    SELECT 1 FROM users 
-    WHERE id = auth.uid() 
-    AND role = 'admin'
-  )
+CREATE TABLE public.announcement_feedback (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  announcement_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  rating integer NOT NULL CHECK (rating >= 1 AND rating <= 5),
+  comment text,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT announcement_feedback_pkey PRIMARY KEY (id),
+  CONSTRAINT announcement_feedback_announcement_id_fkey FOREIGN KEY (announcement_id) REFERENCES public.announcements(id),
+  CONSTRAINT announcement_feedback_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
-
--- Volunteers can read their own location history
-CREATE POLICY "volunteers_read_own_location"
-ON location_tracking FOR SELECT 
-TO authenticated
-USING (user_id = auth.uid());
-
--- 5. Fix location_preferences RLS policies
-DROP POLICY IF EXISTS "Users can manage their own location preferences" ON location_preferences;
-
-CREATE POLICY "users_manage_own_preferences"
-ON location_preferences FOR ALL
-TO authenticated
-USING (user_id = auth.uid())
-WITH CHECK (user_id = auth.uid());
-
--- 6. Create materialized view for active volunteers (last 5 minutes)
-CREATE MATERIALIZED VIEW IF NOT EXISTS active_volunteers_last_5min AS
-SELECT DISTINCT ON (user_id)
-  user_id,
-  latitude,
-  longitude,
-  timestamp,
-  accuracy,
-  heading,
-  speed
-FROM location_tracking
-WHERE timestamp > NOW() - INTERVAL '5 minutes'
-ORDER BY user_id, timestamp DESC;
-
--- Create index on materialized view
-CREATE INDEX IF NOT EXISTS idx_active_volunteers_user_id ON active_volunteers_last_5min(user_id);
-CREATE INDEX IF NOT EXISTS idx_active_volunteers_timestamp ON active_volunteers_last_5min(timestamp);
-
--- 7. Create RPC function for getting volunteers within radius
-CREATE OR REPLACE FUNCTION get_volunteers_within_radius(
-  center_lat DOUBLE PRECISION,
-  center_lng DOUBLE PRECISION,
-  radius_km DOUBLE PRECISION DEFAULT 10
-)
-RETURNS TABLE (
-  user_id UUID,
-  first_name TEXT,
-  last_name TEXT,
-  phone_number TEXT,
-  latitude DOUBLE PRECISION,
-  longitude DOUBLE PRECISION,
-  distance_km DOUBLE PRECISION,
-  last_seen TIMESTAMP WITH TIME ZONE,
-  accuracy DOUBLE PRECISION,
-  heading DOUBLE PRECISION,
-  speed DOUBLE PRECISION
-) AS $$
-BEGIN
-  RETURN QUERY
-  SELECT DISTINCT ON (lt.user_id)
-    lt.user_id,
-    u.first_name,
-    u.last_name,
-    u.phone_number,
-    lt.latitude,
-    lt.longitude,
-    -- Calculate distance using Haversine formula
-    (6371 * acos(
-      cos(radians(center_lat)) * 
-      cos(radians(lt.latitude)) * 
-      cos(radians(lt.longitude) - radians(center_lng)) + 
-      sin(radians(center_lat)) * 
-      sin(radians(lt.latitude))
-    )) AS distance_km,
-    lt.timestamp AS last_seen,
-    lt.accuracy,
-    lt.heading,
-    lt.speed
-  FROM location_tracking lt
-  JOIN users u ON lt.user_id = u.id
-  WHERE u.role = 'volunteer'
-    AND lt.timestamp > NOW() - INTERVAL '5 minutes'
-    AND (
-      6371 * acos(
-        cos(radians(center_lat)) * 
-        cos(radians(lt.latitude)) * 
-        cos(radians(lt.longitude) - radians(center_lng)) + 
-        sin(radians(center_lat)) * 
-        sin(radians(lt.latitude))
-      )
-    ) <= radius_km
-  ORDER BY lt.user_id, lt.timestamp DESC;
-END;
-$$ LANGUAGE plpgsql;
-
--- Grant execute permission on RPC function
-GRANT EXECUTE ON FUNCTION get_volunteers_within_radius TO authenticated;
-
--- 8. Create system_logs table for audit trail
-CREATE TABLE IF NOT EXISTS system_logs (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  action TEXT NOT NULL,
-  details TEXT,
-  user_id UUID REFERENCES users(id),
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  error_message TEXT
+CREATE TABLE public.announcements (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  title text NOT NULL,
+  content text NOT NULL,
+  type text NOT NULL DEFAULT 'GENERAL'::text CHECK (type = ANY (ARRAY['TRAINING'::text, 'MEETING'::text, 'ALERT'::text, 'GENERAL'::text])),
+  priority text NOT NULL DEFAULT 'LOW'::text CHECK (priority = ANY (ARRAY['LOW'::text, 'MEDIUM'::text, 'HIGH'::text, 'CRITICAL'::text])),
+  location text,
+  date date,
+  time text,
+  requirements ARRAY,
+  created_by uuid,
+  created_at timestamp with time zone DEFAULT now(),
+  facebook_post_url text,
+  facebook_embed_data jsonb,
+  source_type text DEFAULT 'MANUAL'::text CHECK (source_type = ANY (ARRAY['MANUAL'::text, 'FACEBOOK'::text])),
+  CONSTRAINT announcements_pkey PRIMARY KEY (id),
+  CONSTRAINT announcements_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
 );
-
--- Enable RLS on system_logs
-ALTER TABLE system_logs ENABLE ROW LEVEL SECURITY;
-
--- Only admins can read system logs
-CREATE POLICY "admins_read_system_logs"
-ON system_logs FOR SELECT
-TO authenticated
-USING (
-  EXISTS (
-    SELECT 1 FROM users 
-    WHERE id = auth.uid() 
-    AND role = 'admin'
-  )
+CREATE TABLE public.auto_archive_schedule (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  enabled boolean DEFAULT false,
+  schedule_frequency text DEFAULT 'daily'::text,
+  schedule_time time without time zone DEFAULT '02:00:00'::time without time zone,
+  last_run timestamp with time zone,
+  next_run timestamp with time zone,
+  years_old integer DEFAULT 2,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT auto_archive_schedule_pkey PRIMARY KEY (id)
 );
-
--- ===================================================================
--- PART 2: CRITICAL SECURITY FIXES
--- ===================================================================
-
--- Fix 1: Create barangay_boundaries table for proper geographic filtering
-CREATE TABLE IF NOT EXISTS public.barangay_boundaries (
-  id SERIAL PRIMARY KEY,
-  barangay_name VARCHAR(100) NOT NULL,
-  geometry GEOMETRY(POLYGON, 4326) NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+CREATE TABLE public.barangays (
+  id integer GENERATED ALWAYS AS IDENTITY NOT NULL,
+  name text NOT NULL UNIQUE,
+  boundaries jsonb,
+  CONSTRAINT barangays_pkey PRIMARY KEY (id)
 );
-
--- Add spatial index for performance
-CREATE INDEX IF NOT EXISTS idx_barangay_boundaries_geometry 
-ON public.barangay_boundaries USING GIST (geometry);
-
--- Add RLS for barangay_boundaries
-ALTER TABLE public.barangay_boundaries ENABLE ROW LEVEL SECURITY;
-
--- Policy: Only admins can manage boundaries
-CREATE POLICY "admins_manage_barangay_boundaries"
-ON public.barangay_boundaries FOR ALL
-TO authenticated
-USING (
-  EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin')
-)
-WITH CHECK (
-  EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin')
+CREATE TABLE public.call_logs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  contact_id text NOT NULL,
+  contact_name text NOT NULL,
+  contact_number text NOT NULL,
+  call_type text NOT NULL CHECK (call_type = ANY (ARRAY['emergency'::text, 'incident'::text, 'volunteer'::text, 'reporter'::text, 'admin'::text])),
+  incident_id uuid,
+  duration integer,
+  status text NOT NULL DEFAULT 'initiated'::text CHECK (status = ANY (ARRAY['initiated'::text, 'connected'::text, 'missed'::text, 'failed'::text, 'completed'::text])),
+  notes text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT call_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT call_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT call_logs_incident_id_fkey FOREIGN KEY (incident_id) REFERENCES public.incidents(id)
 );
-
--- Fix 2: Update barangay RLS policy to check actual assigned areas
-DROP POLICY IF EXISTS "barangay_read_local_locations" ON public.location_tracking;
-
-CREATE POLICY "barangay_read_local_locations"
-ON public.location_tracking FOR SELECT
-TO authenticated
-USING (
-  EXISTS (
-    SELECT 1 FROM public.users u
-    JOIN public.volunteer_profiles vp ON u.id = vp.volunteer_user_id
-    WHERE u.id = auth.uid() 
-    AND u.role = 'barangay'
-    AND (
-      -- Check if user's assigned barangays intersect with incident barangay
-      vp.assigned_barangays && ARRAY[
-        (SELECT barangay FROM public.incidents 
-         WHERE location_lat = location_tracking.latitude 
-         AND location_lng = location_tracking.longitude
-         LIMIT 1)
-      ]
-      OR
-      -- Fallback: check if location is within user's barangay boundaries
-      EXISTS (
-        SELECT 1 FROM public.barangay_boundaries bb
-        WHERE bb.barangay_name = ANY(vp.assigned_barangays)
-        AND ST_Contains(bb.geometry, ST_Point(location_tracking.longitude, location_tracking.latitude))
-      )
-    )
-  )
+CREATE TABLE public.call_preferences (
+  user_id uuid NOT NULL,
+  favorite_contacts ARRAY NOT NULL DEFAULT '{}'::text[],
+  auto_log_calls boolean NOT NULL DEFAULT true,
+  call_reminders boolean NOT NULL DEFAULT true,
+  emergency_shortcut text NOT NULL DEFAULT '911'::text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT call_preferences_pkey PRIMARY KEY (user_id),
+  CONSTRAINT call_preferences_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
-
--- Fix 3: Add function to validate barangay access
-CREATE OR REPLACE FUNCTION validate_barangay_access(
-  user_id UUID,
-  target_barangay VARCHAR(100),
-  target_lat DECIMAL,
-  target_lng DECIMAL
-) RETURNS BOOLEAN AS $$
-DECLARE
-  user_role VARCHAR(20);
-  assigned_areas TEXT[];
-BEGIN
-  -- Get user role and assigned areas
-  SELECT u.role, vp.assigned_barangays
-  INTO user_role, assigned_areas
-  FROM public.users u
-  LEFT JOIN public.volunteer_profiles vp ON u.id = vp.volunteer_user_id
-  WHERE u.id = user_id;
-  
-  -- Admin and volunteer roles have broader access
-  IF user_role IN ('admin', 'volunteer') THEN
-    RETURN TRUE;
-  END IF;
-  
-  -- Barangay users can only access their assigned areas
-  IF user_role = 'barangay' THEN
-    -- Check if target barangay is in assigned areas
-    IF target_barangay = ANY(assigned_areas) THEN
-      RETURN TRUE;
-    END IF;
-    
-    -- Check if location is within assigned barangay boundaries
-    IF EXISTS (
-      SELECT 1 FROM public.barangay_boundaries bb
-      WHERE bb.barangay_name = ANY(assigned_areas)
-      AND ST_Contains(bb.geometry, ST_Point(target_lng, target_lat))
-    ) THEN
-      RETURN TRUE;
-    END IF;
-  END IF;
-  
-  RETURN FALSE;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Fix 4: Add audit logging for barangay access attempts
-CREATE TABLE IF NOT EXISTS public.barangay_access_logs (
-  id SERIAL PRIMARY KEY,
-  user_id UUID NOT NULL,
-  target_barangay VARCHAR(100),
-  target_lat DECIMAL,
-  target_lng DECIMAL,
-  access_granted BOOLEAN NOT NULL,
-  access_reason TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+CREATE TABLE public.emergency_contacts (
+  id text NOT NULL,
+  name text NOT NULL,
+  number text NOT NULL,
+  type text NOT NULL CHECK (type = ANY (ARRAY['emergency'::text, 'fire'::text, 'police'::text, 'medical'::text, 'disaster'::text, 'admin'::text, 'utility'::text])),
+  priority integer NOT NULL DEFAULT 1,
+  description text,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT emergency_contacts_pkey PRIMARY KEY (id)
 );
-
--- Add RLS for access logs
-ALTER TABLE public.barangay_access_logs ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "admins_read_access_logs"
-ON public.barangay_access_logs FOR SELECT
-TO authenticated
-USING (
-  EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin')
+CREATE TABLE public.feedback (
+  id bigint NOT NULL DEFAULT nextval('feedback_id_seq'::regclass),
+  incident_id uuid NOT NULL,
+  rating integer NOT NULL CHECK (rating >= 1 AND rating <= 5),
+  thumbs_up boolean,
+  comment text,
+  created_by uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT feedback_pkey PRIMARY KEY (id),
+  CONSTRAINT feedback_incident_id_fkey FOREIGN KEY (incident_id) REFERENCES public.incidents(id)
 );
-
--- ===================================================================
--- PART 3: MATERIALIZED VIEW REFRESH FIXES
--- ===================================================================
-
--- Fix 1: Create proper refresh function for materialized view
-CREATE OR REPLACE FUNCTION refresh_active_volunteers_view()
-RETURNS VOID AS $$
-BEGIN
-  -- Refresh the materialized view
-  REFRESH MATERIALIZED VIEW CONCURRENTLY active_volunteers_last_5min;
-  
-  -- Log the refresh
-  INSERT INTO public.system_logs (action, details, created_by)
-  VALUES ('refresh_active_volunteers_view', 'Materialized view refreshed', 'system');
-  
-EXCEPTION
-  WHEN OTHERS THEN
-    -- Log error but don't fail the operation
-    INSERT INTO public.system_logs (action, details, created_by, error_message)
-    VALUES ('refresh_active_volunteers_view', 'Failed to refresh materialized view', 'system', SQLERRM);
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Fix 2: Create trigger function to refresh view on location_tracking changes
-CREATE OR REPLACE FUNCTION trigger_refresh_active_volunteers()
-RETURNS TRIGGER AS $$
-BEGIN
-  -- Use pg_notify to signal refresh (non-blocking)
-  PERFORM pg_notify('refresh_active_volunteers', 'refresh_needed');
-  
-  -- Also refresh immediately for critical updates
-  IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
-    -- Only refresh if the change affects active volunteers
-    IF EXISTS (
-      SELECT 1 FROM public.users u
-      JOIN public.volunteer_profiles vp ON u.id = vp.volunteer_user_id
-      WHERE u.id = COALESCE(NEW.user_id, OLD.user_id)
-      AND vp.status = 'ACTIVE'
-    ) THEN
-      PERFORM refresh_active_volunteers_view();
-    END IF;
-  END IF;
-  
-  RETURN COALESCE(NEW, OLD);
-END;
-$$ LANGUAGE plpgsql;
-
--- Fix 3: Create trigger on location_tracking table
-DROP TRIGGER IF EXISTS trigger_location_tracking_refresh ON public.location_tracking;
-
-CREATE TRIGGER trigger_location_tracking_refresh
-  AFTER INSERT OR UPDATE OR DELETE ON public.location_tracking
-  FOR EACH ROW
-  EXECUTE FUNCTION trigger_refresh_active_volunteers();
-
--- Fix 4: Create function to check materialized view freshness
-CREATE OR REPLACE FUNCTION check_materialized_view_freshness()
-RETURNS TABLE(
-  view_name TEXT,
-  last_refresh TIMESTAMP WITH TIME ZONE,
-  is_stale BOOLEAN,
-  staleness_minutes INTEGER
-) AS $$
-BEGIN
-  RETURN QUERY
-  SELECT 
-    'active_volunteers_last_5min'::TEXT as view_name,
-    sl.created_at as last_refresh,
-    (sl.created_at < NOW() - INTERVAL '5 minutes') as is_stale,
-    EXTRACT(EPOCH FROM (NOW() - sl.created_at))/60 as staleness_minutes
-  FROM public.system_logs sl
-  WHERE sl.action = 'refresh_active_volunteers_view'
-  ORDER BY sl.created_at DESC
-  LIMIT 1;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- ===================================================================
--- PART 4: SCHEDULED CLEANUP SYSTEM
--- ===================================================================
-
--- Fix 1: Create comprehensive cleanup function with proper error handling
-CREATE OR REPLACE FUNCTION cleanup_old_location_data(
-  retention_days INTEGER DEFAULT 7,
-  batch_size INTEGER DEFAULT 1000
-)
-RETURNS TABLE(
-  deleted_count INTEGER,
-  cleanup_duration_ms DECIMAL,
-  success BOOLEAN,
-  error_message TEXT
-) AS $$
-DECLARE
-  start_time TIMESTAMP WITH TIME ZONE := NOW();
-  deleted_count INTEGER := 0;
-  temp_count INTEGER;
-  cutoff_date TIMESTAMP WITH TIME ZONE;
-  error_msg TEXT;
-BEGIN
-  -- Calculate cutoff date
-  cutoff_date := NOW() - (retention_days || ' days')::INTERVAL;
-  
-  -- Log cleanup start
-  INSERT INTO public.system_logs (action, details, created_by)
-  VALUES ('cleanup_old_location_data', 'Starting cleanup for data older than ' || cutoff_date, 'system');
-  
-  -- Delete in batches to avoid locking issues
-  LOOP
-    DELETE FROM public.location_tracking
-    WHERE timestamp < cutoff_date
-    AND id IN (
-      SELECT id FROM public.location_tracking
-      WHERE timestamp < cutoff_date
-      LIMIT batch_size
-    );
-    
-    GET DIAGNOSTICS temp_count = ROW_COUNT;
-    deleted_count := deleted_count + temp_count;
-    
-    -- Exit if no more rows to delete
-    EXIT WHEN temp_count = 0;
-    
-    -- Small delay to prevent overwhelming the database
-    PERFORM pg_sleep(0.1);
-  END LOOP;
-  
-  -- Log successful cleanup
-  INSERT INTO public.system_logs (action, details, created_by)
-  VALUES (
-    'cleanup_old_location_data', 
-    'Cleanup completed. Deleted ' || deleted_count || ' records', 
-    'system'
-  );
-  
-  -- Return success
-  RETURN QUERY SELECT 
-    deleted_count,
-    EXTRACT(EPOCH FROM (NOW() - start_time)) * 1000,
-    TRUE,
-    NULL::TEXT;
-    
-EXCEPTION
-  WHEN OTHERS THEN
-    error_msg := SQLERRM;
-    
-    -- Log error
-    INSERT INTO public.system_logs (action, details, created_by, error_message)
-    VALUES (
-      'cleanup_old_location_data', 
-      'Cleanup failed after deleting ' || deleted_count || ' records', 
-      'system', 
-      error_msg
-    );
-    
-    -- Return failure
-    RETURN QUERY SELECT 
-      deleted_count,
-      EXTRACT(EPOCH FROM (NOW() - start_time)) * 1000,
-      FALSE,
-      error_msg;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Fix 2: Create cleanup scheduling table for external schedulers
-CREATE TABLE IF NOT EXISTS public.cleanup_schedule (
-  id SERIAL PRIMARY KEY,
-  cleanup_type VARCHAR(50) NOT NULL,
-  last_run TIMESTAMP WITH TIME ZONE,
-  next_run TIMESTAMP WITH TIME ZONE,
-  interval_hours INTEGER DEFAULT 24,
-  enabled BOOLEAN DEFAULT TRUE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+CREATE TABLE public.geofence_boundaries (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  name text NOT NULL UNIQUE,
+  boundary_type text NOT NULL CHECK (boundary_type = ANY (ARRAY['city'::text, 'barangay'::text, 'zone'::text, 'radius'::text])),
+  geometry jsonb NOT NULL,
+  metadata jsonb DEFAULT '{}'::jsonb,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT geofence_boundaries_pkey PRIMARY KEY (id)
 );
-
--- Insert default schedule
-INSERT INTO public.cleanup_schedule (cleanup_type, interval_hours, next_run)
-VALUES ('location_data', 24, NOW() + INTERVAL '1 hour')
-ON CONFLICT DO NOTHING;
-
--- Add RLS for cleanup_schedule table
-ALTER TABLE public.cleanup_schedule ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "admins_manage_cleanup_schedule"
-ON public.cleanup_schedule FOR ALL
-TO authenticated
-USING (
-  EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin')
-)
-WITH CHECK (
-  EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin')
+CREATE TABLE public.incident_feedback (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  incident_id uuid NOT NULL,
+  user_id uuid,
+  rating integer NOT NULL CHECK (rating >= 1 AND rating <= 5),
+  comment text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT incident_feedback_pkey PRIMARY KEY (id),
+  CONSTRAINT incident_feedback_incident_id_fkey FOREIGN KEY (incident_id) REFERENCES public.incidents(id),
+  CONSTRAINT incident_feedback_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
-
--- ===================================================================
--- PART 5: PERFORMANCE INDEXES
--- ===================================================================
-
--- Add indexes for better performance
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_location_tracking_user_timestamp 
-ON location_tracking(user_id, timestamp DESC);
-
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_location_tracking_recent 
-ON location_tracking(timestamp DESC) 
-WHERE timestamp > NOW() - INTERVAL '1 hour';
-
--- Add composite index for volunteer queries
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_location_tracking_volunteer_recent
-ON location_tracking(user_id, timestamp DESC)
-WHERE timestamp > NOW() - INTERVAL '5 minutes';
-
--- ===================================================================
--- PART 6: MONITORING FUNCTIONS
--- ===================================================================
-
--- Create function to get connection status
-CREATE OR REPLACE FUNCTION get_realtime_connection_status()
-RETURNS TABLE (
-  is_connected BOOLEAN,
-  last_activity TIMESTAMP WITH TIME ZONE,
-  active_volunteers_count INTEGER,
-  materialized_view_fresh BOOLEAN
-) AS $$
-BEGIN
-  RETURN QUERY
-  SELECT 
-    TRUE as is_connected, -- Supabase handles connection status
-    MAX(lt.timestamp) as last_activity,
-    COUNT(DISTINCT lt.user_id)::INTEGER as active_volunteers_count,
-    EXISTS (
-      SELECT 1 FROM system_logs sl
-      WHERE sl.action = 'refresh_active_volunteers_view'
-      AND sl.created_at > NOW() - INTERVAL '5 minutes'
-    ) as materialized_view_fresh
-  FROM location_tracking lt
-  WHERE lt.timestamp > NOW() - INTERVAL '5 minutes';
-END;
-$$ LANGUAGE plpgsql;
-
-GRANT EXECUTE ON FUNCTION get_realtime_connection_status TO authenticated;
-
--- Create function to get cleanup status
-CREATE OR REPLACE FUNCTION get_cleanup_status()
-RETURNS TABLE(
-  last_location_cleanup TIMESTAMP WITH TIME ZONE,
-  location_records_count BIGINT,
-  cleanup_needed BOOLEAN,
-  next_scheduled_cleanup TIMESTAMP WITH TIME ZONE
-) AS $$
-BEGIN
-  RETURN QUERY
-  SELECT 
-    (SELECT MAX(created_at) FROM public.system_logs WHERE action = 'cleanup_old_location_data') as last_location_cleanup,
-    (SELECT COUNT(*) FROM public.location_tracking WHERE timestamp < NOW() - INTERVAL '7 days') as location_records_count,
-    (SELECT COUNT(*) FROM public.location_tracking WHERE timestamp < NOW() - INTERVAL '7 days') > 1000 as cleanup_needed,
-    (SELECT MIN(next_run) FROM public.cleanup_schedule WHERE enabled = TRUE) as next_scheduled_cleanup;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- ===================================================================
--- MIGRATION COMPLETE
--- ===================================================================
-
--- Log successful migration
-INSERT INTO public.system_logs (action, details, created_by)
-VALUES ('database_migration', 'Complete RVOIS database migration applied successfully', 'system');
-
--- Display summary
-SELECT 
-  'Migration Complete' as status,
-  'All database fixes and improvements have been applied' as message,
-  NOW() as completed_at;
+CREATE TABLE public.incident_handoffs (
+  id bigint NOT NULL DEFAULT nextval('incident_handoffs_id_seq'::regclass),
+  incident_id uuid NOT NULL,
+  from_lgu text NOT NULL,
+  to_lgu text NOT NULL,
+  status text NOT NULL DEFAULT 'PENDING'::text,
+  notes text,
+  created_by uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT incident_handoffs_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.incident_reference_ids (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  incident_id uuid NOT NULL UNIQUE,
+  reference_id text NOT NULL UNIQUE,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT incident_reference_ids_pkey PRIMARY KEY (id),
+  CONSTRAINT fk_incident_reference_ids_incident_id FOREIGN KEY (incident_id) REFERENCES public.incidents(id)
+);
+CREATE TABLE public.incident_updates (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  incident_id uuid,
+  updated_by uuid,
+  previous_status USER-DEFINED,
+  new_status USER-DEFINED,
+  notes text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT incident_updates_pkey PRIMARY KEY (id),
+  CONSTRAINT incident_updates_incident_id_fkey FOREIGN KEY (incident_id) REFERENCES public.incidents(id),
+  CONSTRAINT incident_updates_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.incident_views (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  incident_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  viewed_at timestamp with time zone DEFAULT now(),
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT incident_views_pkey PRIMARY KEY (id),
+  CONSTRAINT fk_incident_views_incident_id FOREIGN KEY (incident_id) REFERENCES public.incidents(id),
+  CONSTRAINT fk_incident_views_user_id FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.incidents (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  reporter_id uuid,
+  incident_type text NOT NULL,
+  description text NOT NULL,
+  location_lat double precision NOT NULL,
+  location_lng double precision NOT NULL,
+  address text,
+  barangay text NOT NULL,
+  city text DEFAULT 'TALISAY CITY'::text,
+  province text DEFAULT 'NEGROS OCCIDENTAL'::text,
+  status USER-DEFINED DEFAULT 'PENDING'::incident_status,
+  priority integer DEFAULT 3,
+  photo_url text,
+  assigned_to uuid,
+  assigned_at timestamp with time zone,
+  resolved_at timestamp with time zone,
+  resolution_notes text,
+  user_id uuid,
+  severity USER-DEFINED DEFAULT 'MODERATE'::incident_severity,
+  created_year integer,
+  photo_urls ARRAY DEFAULT '{}'::text[],
+  voice_url text,
+  incident_category text CHECK (incident_category IS NULL OR (incident_category = ANY (ARRAY['MEDICAL_TRAUMA'::text, 'MEDICAL_NON_TRAUMA'::text, 'NON_MEDICAL_SAFETY'::text, 'NON_MEDICAL_SECURITY'::text, 'NON_MEDICAL_ENVIRONMENTAL'::text, 'NON_MEDICAL_BEHAVIORAL'::text, 'OTHER'::text]))),
+  trauma_subcategory text CHECK (trauma_subcategory IS NULL OR (trauma_subcategory = ANY (ARRAY['FALL_RELATED'::text, 'BLUNT_FORCE'::text, 'PENETRATING'::text, 'BURN'::text, 'FRACTURE_DISLOCATION'::text, 'HEAD_INJURY'::text, 'SPINAL_INJURY'::text, 'MULTI_SYSTEM'::text, 'OTHER_TRAUMA'::text]))),
+  severity_level text CHECK (severity_level IS NULL OR (severity_level = ANY (ARRAY['CRITICAL'::text, 'HIGH'::text, 'MODERATE'::text, 'LOW'::text, 'INFORMATIONAL'::text]))),
+  CONSTRAINT incidents_pkey PRIMARY KEY (id),
+  CONSTRAINT incidents_reporter_id_fkey FOREIGN KEY (reporter_id) REFERENCES public.users(id),
+  CONSTRAINT incidents_assigned_to_fkey FOREIGN KEY (assigned_to) REFERENCES public.users(id),
+  CONSTRAINT incidents_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.lgu_contacts (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  agency_name text NOT NULL,
+  contact_person text,
+  contact_number text NOT NULL,
+  notes text,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT lgu_contacts_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.location_preferences (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid UNIQUE,
+  enabled boolean DEFAULT false,
+  accuracy text DEFAULT 'medium'::text,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  share_with_public boolean DEFAULT false,
+  CONSTRAINT location_preferences_pkey PRIMARY KEY (id),
+  CONSTRAINT location_preferences_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.notification_preferences (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid UNIQUE,
+  push boolean DEFAULT true,
+  sound boolean DEFAULT true,
+  vibration boolean DEFAULT true,
+  incident_alerts boolean DEFAULT true,
+  status_updates boolean DEFAULT true,
+  training_reminders boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  push_enabled boolean DEFAULT true,
+  sms_enabled boolean DEFAULT false,
+  email_enabled boolean DEFAULT true,
+  escalation_alerts boolean DEFAULT true,
+  quiet_hours_start text,
+  quiet_hours_end text,
+  CONSTRAINT notification_preferences_pkey PRIMARY KEY (id),
+  CONSTRAINT notification_preferences_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.notifications (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid,
+  title text NOT NULL,
+  body text NOT NULL,
+  type text NOT NULL,
+  data jsonb,
+  read_at timestamp with time zone,
+  sent_at timestamp with time zone DEFAULT now(),
+  created_at timestamp with time zone DEFAULT now(),
+  status text DEFAULT 'UNREAD'::text CHECK (status = ANY (ARRAY['UNREAD'::text, 'READ'::text, 'ARCHIVED'::text])),
+  CONSTRAINT notifications_pkey PRIMARY KEY (id),
+  CONSTRAINT notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.pdf_report_history (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  scheduled_report_id uuid,
+  created_by uuid NOT NULL,
+  report_type text NOT NULL,
+  title text NOT NULL,
+  file_name text NOT NULL,
+  file_url text NOT NULL,
+  file_size bigint,
+  filters jsonb NOT NULL,
+  generated_at timestamp with time zone DEFAULT now(),
+  expires_at timestamp with time zone,
+  download_count integer DEFAULT 0,
+  CONSTRAINT pdf_report_history_pkey PRIMARY KEY (id),
+  CONSTRAINT pdf_report_history_scheduled_report_id_fkey FOREIGN KEY (scheduled_report_id) REFERENCES public.scheduled_pdf_reports(id),
+  CONSTRAINT pdf_report_history_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.push_subscriptions (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid,
+  subscription jsonb NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  subscription_hash text DEFAULT md5((subscription)::text),
+  endpoint text,
+  p256dh text,
+  auth text,
+  CONSTRAINT push_subscriptions_pkey PRIMARY KEY (id),
+  CONSTRAINT push_subscriptions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.reports (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  title text NOT NULL,
+  report_type USER-DEFINED NOT NULL,
+  description text NOT NULL,
+  incident_id uuid,
+  created_by uuid NOT NULL,
+  status USER-DEFINED DEFAULT 'SUBMITTED'::report_status,
+  review_notes text,
+  reviewed_by uuid,
+  reviewed_at timestamp with time zone,
+  user_id uuid,
+  archived boolean DEFAULT false,
+  created_year integer,
+  CONSTRAINT reports_pkey PRIMARY KEY (id),
+  CONSTRAINT reports_incident_id_fkey FOREIGN KEY (incident_id) REFERENCES public.incidents(id),
+  CONSTRAINT reports_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id),
+  CONSTRAINT reports_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES public.users(id),
+  CONSTRAINT reports_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.scheduled_pdf_reports (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  created_by uuid NOT NULL,
+  report_type text NOT NULL,
+  title text NOT NULL,
+  schedule_type text NOT NULL CHECK (schedule_type = ANY (ARRAY['daily'::text, 'weekly'::text, 'monthly'::text, 'custom'::text])),
+  schedule_config jsonb NOT NULL,
+  filters jsonb NOT NULL,
+  recipients ARRAY DEFAULT ARRAY[]::text[],
+  enabled boolean DEFAULT true,
+  last_run_at timestamp with time zone,
+  next_run_at timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT scheduled_pdf_reports_pkey PRIMARY KEY (id),
+  CONSTRAINT scheduled_pdf_reports_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.scheduledactivities (
+  schedule_id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  volunteer_user_id uuid,
+  created_by uuid,
+  title text,
+  description text,
+  date date NOT NULL,
+  time time without time zone,
+  location text,
+  is_accepted boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  response_at timestamp with time zone,
+  CONSTRAINT scheduledactivities_pkey PRIMARY KEY (schedule_id),
+  CONSTRAINT scheduledactivities_volunteer_user_id_fkey FOREIGN KEY (volunteer_user_id) REFERENCES public.volunteer_profiles(volunteer_user_id),
+  CONSTRAINT scheduledactivities_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.schedules (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  volunteer_id uuid,
+  title text NOT NULL,
+  description text,
+  start_time timestamp with time zone NOT NULL,
+  end_time timestamp with time zone NOT NULL,
+  location text,
+  barangay text,
+  created_by uuid,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  status text DEFAULT 'SCHEDULED'::text CHECK (status = ANY (ARRAY['SCHEDULED'::text, 'ONGOING'::text, 'COMPLETED'::text, 'CANCELLED'::text])),
+  is_accepted boolean,
+  response_at timestamp with time zone,
+  completed_at timestamp with time zone,
+  attendance_marked boolean DEFAULT false,
+  attendance_notes text,
+  CONSTRAINT schedules_pkey PRIMARY KEY (id),
+  CONSTRAINT schedules_volunteer_id_fkey FOREIGN KEY (volunteer_id) REFERENCES public.users(id),
+  CONSTRAINT schedules_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.sms_config (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  config_key character varying NOT NULL UNIQUE,
+  config_value text NOT NULL,
+  description text,
+  is_active boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT sms_config_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.sms_deliveries (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  sms_log_id uuid NOT NULL,
+  delivery_attempt integer DEFAULT 1,
+  attempt_timestamp timestamp with time zone DEFAULT now(),
+  api_response jsonb,
+  delivery_status character varying DEFAULT 'PENDING'::character varying CHECK (delivery_status::text = ANY (ARRAY['PENDING'::character varying, 'SENT'::character varying, 'DELIVERED'::character varying, 'FAILED'::character varying, 'EXPIRED'::character varying]::text[])),
+  error_message text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT sms_deliveries_pkey PRIMARY KEY (id),
+  CONSTRAINT sms_deliveries_sms_log_id_fkey FOREIGN KEY (sms_log_id) REFERENCES public.sms_logs(id)
+);
+CREATE TABLE public.sms_logs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  incident_id uuid NOT NULL,
+  reference_id character varying NOT NULL,
+  trigger_source character varying NOT NULL,
+  recipient_user_id uuid NOT NULL,
+  phone_masked character varying NOT NULL,
+  template_code character varying NOT NULL,
+  message_content text NOT NULL,
+  timestamp_sent timestamp with time zone DEFAULT now(),
+  api_response_status character varying DEFAULT 'PENDING'::character varying,
+  delivery_status character varying DEFAULT 'PENDING'::character varying CHECK (delivery_status::text = ANY (ARRAY['PENDING'::character varying, 'SUCCESS'::character varying, 'FAILED'::character varying, 'RETRY'::character varying]::text[])),
+  retry_count integer DEFAULT 0,
+  error_message text,
+  api_response jsonb,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT sms_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT sms_logs_incident_id_fkey FOREIGN KEY (incident_id) REFERENCES public.incidents(id),
+  CONSTRAINT sms_logs_recipient_user_id_fkey FOREIGN KEY (recipient_user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.sms_rate_limits (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  phone_number_hash character varying NOT NULL,
+  minute_count integer DEFAULT 0,
+  hour_count integer DEFAULT 0,
+  last_reset_minute timestamp with time zone DEFAULT now(),
+  last_reset_hour timestamp with time zone DEFAULT now(),
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT sms_rate_limits_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.sms_templates (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  code character varying NOT NULL UNIQUE,
+  name character varying NOT NULL,
+  content text NOT NULL,
+  variables ARRAY DEFAULT '{}'::text[],
+  is_active boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT sms_templates_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.spatial_ref_sys (
+  srid integer NOT NULL CHECK (srid > 0 AND srid <= 998999),
+  auth_name character varying,
+  auth_srid integer,
+  srtext character varying,
+  proj4text character varying,
+  CONSTRAINT spatial_ref_sys_pkey PRIMARY KEY (srid)
+);
+CREATE TABLE public.system_logs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  action text NOT NULL,
+  details text,
+  user_id uuid,
+  error_message text,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT system_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT system_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.training_enrollments (
+  id bigint NOT NULL DEFAULT nextval('training_enrollments_id_seq'::regclass),
+  training_id bigint NOT NULL,
+  user_id uuid NOT NULL,
+  enrolled_at timestamp with time zone NOT NULL DEFAULT now(),
+  attended boolean DEFAULT false,
+  CONSTRAINT training_enrollments_pkey PRIMARY KEY (id),
+  CONSTRAINT training_enrollments_training_id_fkey FOREIGN KEY (training_id) REFERENCES public.trainings(id),
+  CONSTRAINT training_enrollments_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.training_evaluations (
+  id bigint NOT NULL DEFAULT nextval('training_evaluations_id_seq'::regclass),
+  training_id bigint NOT NULL,
+  user_id uuid NOT NULL,
+  rating integer NOT NULL CHECK (rating >= 1 AND rating <= 5),
+  comments text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT training_evaluations_pkey PRIMARY KEY (id),
+  CONSTRAINT training_evaluations_training_id_fkey FOREIGN KEY (training_id) REFERENCES public.trainings(id)
+);
+CREATE TABLE public.training_evaluations_admin (
+  id bigint NOT NULL DEFAULT nextval('training_evaluations_admin_id_seq'::regclass),
+  training_id bigint NOT NULL,
+  user_id uuid NOT NULL,
+  evaluated_by uuid NOT NULL,
+  performance_rating integer NOT NULL CHECK (performance_rating >= 1 AND performance_rating <= 5),
+  skills_assessment jsonb,
+  comments text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT training_evaluations_admin_pkey PRIMARY KEY (id),
+  CONSTRAINT training_evaluations_admin_training_id_fkey FOREIGN KEY (training_id) REFERENCES public.trainings(id),
+  CONSTRAINT training_evaluations_admin_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT training_evaluations_admin_evaluated_by_fkey FOREIGN KEY (evaluated_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.trainings (
+  id bigint NOT NULL DEFAULT nextval('trainings_id_seq'::regclass),
+  title text NOT NULL,
+  description text,
+  start_at timestamp with time zone NOT NULL,
+  end_at timestamp with time zone,
+  location text,
+  created_by uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  capacity integer,
+  status text DEFAULT 'SCHEDULED'::text CHECK (status = ANY (ARRAY['SCHEDULED'::text, 'ONGOING'::text, 'COMPLETED'::text, 'CANCELLED'::text])),
+  CONSTRAINT trainings_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.users (
+  id uuid NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  email text NOT NULL,
+  first_name text NOT NULL,
+  last_name text NOT NULL,
+  role USER-DEFINED NOT NULL,
+  phone_number text,
+  address text,
+  barangay text,
+  city text DEFAULT 'TALISAY CITY'::text,
+  province text DEFAULT 'NEGROS OCCIDENTAL'::text,
+  confirmation_phrase text,
+  last_active timestamp with time zone DEFAULT now(),
+  gender text CHECK (gender = ANY (ARRAY['male'::text, 'female'::text, 'other'::text, 'prefer_not_to_say'::text])),
+  emergency_contact_name text,
+  emergency_contact_phone text,
+  emergency_contact_relationship text,
+  profile_photo_url text,
+  status text DEFAULT 'active'::text CHECK (status = ANY (ARRAY['active'::text, 'inactive'::text])),
+  profile_image text,
+  CONSTRAINT users_pkey PRIMARY KEY (id),
+  CONSTRAINT users_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.volunteer_activity_logs (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  volunteer_id uuid NOT NULL,
+  activity_type text NOT NULL CHECK (activity_type = ANY (ARRAY['profile_updated'::text, 'availability_changed'::text, 'incident_assigned'::text, 'incident_resolved'::text, 'document_uploaded'::text, 'photo_uploaded'::text, 'skills_updated'::text, 'status_changed'::text, 'training_completed'::text, 'other'::text])),
+  title text NOT NULL,
+  description text,
+  metadata jsonb DEFAULT '{}'::jsonb,
+  created_by uuid,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT volunteer_activity_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT volunteer_activity_logs_volunteer_id_fkey FOREIGN KEY (volunteer_id) REFERENCES public.users(id),
+  CONSTRAINT volunteer_activity_logs_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.volunteer_documents (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL,
+  path text NOT NULL,
+  file_name text NOT NULL,
+  mime_type text,
+  size_bytes bigint NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  display_name text,
+  CONSTRAINT volunteer_documents_pkey PRIMARY KEY (id),
+  CONSTRAINT volunteer_documents_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.volunteer_information (
+  user_id uuid NOT NULL,
+  joined_date timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  last_activity timestamp without time zone,
+  is_active boolean DEFAULT false,
+  bio text,
+  skills text,
+  documents text,
+  verified boolean DEFAULT false,
+  CONSTRAINT volunteer_information_pkey PRIMARY KEY (user_id),
+  CONSTRAINT volunteer_information_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.volunteer_locations (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  lat double precision NOT NULL,
+  lng double precision NOT NULL,
+  accuracy double precision,
+  speed double precision,
+  heading double precision,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  is_within_talisay_city boolean,
+  CONSTRAINT volunteer_locations_pkey PRIMARY KEY (id),
+  CONSTRAINT volunteer_locations_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.volunteer_profiles (
+  volunteer_user_id uuid NOT NULL,
+  status USER-DEFINED DEFAULT 'ACTIVE'::volunteer_status,
+  skills ARRAY,
+  availability ARRAY,
+  assigned_barangays ARRAY,
+  total_incidents_resolved integer DEFAULT 0,
+  notes text,
+  admin_user_id uuid,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  last_active_at timestamp with time zone DEFAULT now(),
+  last_status_change timestamp with time zone,
+  last_status_changed_by uuid,
+  is_available boolean DEFAULT false,
+  bio text CHECK (bio IS NULL OR length(bio) <= 1000),
+  CONSTRAINT volunteer_profiles_pkey PRIMARY KEY (volunteer_user_id),
+  CONSTRAINT volunteer_profiles_volunteer_user_id_fkey FOREIGN KEY (volunteer_user_id) REFERENCES public.users(id),
+  CONSTRAINT volunteer_profiles_admin_user_id_fkey FOREIGN KEY (admin_user_id) REFERENCES public.users(id),
+  CONSTRAINT volunteer_profiles_last_status_changed_by_fkey FOREIGN KEY (last_status_changed_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.volunteer_real_time_status (
+  user_id uuid NOT NULL,
+  status text NOT NULL DEFAULT 'offline'::text CHECK (status = ANY (ARRAY['available'::text, 'on_task'::text, 'offline'::text, 'unavailable'::text])),
+  status_message text,
+  last_status_change timestamp with time zone DEFAULT now(),
+  last_activity timestamp with time zone DEFAULT now(),
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT volunteer_real_time_status_pkey PRIMARY KEY (user_id),
+  CONSTRAINT volunteer_real_time_status_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.volunteeractivities (
+  activity_id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  volunteer_user_id uuid,
+  incident_id uuid,
+  participated boolean DEFAULT false,
+  notes text,
+  resolved_at timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now(),
+  status text DEFAULT 
+CASE
+    WHEN (resolved_at IS NOT NULL) THEN 'COMPLETED'::text
+    WHEN (participated IS TRUE) THEN 'IN_PROGRESS'::text
+    ELSE 'PENDING'::text
+END,
+  CONSTRAINT volunteeractivities_pkey PRIMARY KEY (activity_id),
+  CONSTRAINT volunteeractivities_volunteer_user_id_fkey FOREIGN KEY (volunteer_user_id) REFERENCES public.volunteer_profiles(volunteer_user_id),
+  CONSTRAINT volunteeractivities_incident_id_fkey FOREIGN KEY (incident_id) REFERENCES public.incidents(id)
+);

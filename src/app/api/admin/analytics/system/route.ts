@@ -86,6 +86,20 @@ export async function GET(request: Request) {
       incidentsByBarangay[brgy] = (incidentsByBarangay[brgy] || 0) + 1
     })
 
+    // Group by incident category (new categorization)
+    const incidentsByCategory: Record<string, number> = {}
+    incidents?.forEach((incident: any) => {
+      const category = incident.incident_category || 'UNCATEGORIZED'
+      incidentsByCategory[category] = (incidentsByCategory[category] || 0) + 1
+    })
+
+    // Group by severity level (new enhanced severity)
+    const incidentsBySeverityLevel: Record<string, number> = {}
+    incidents?.forEach((incident: any) => {
+      const sevLevel = incident.severity_level || 'UNKNOWN'
+      incidentsBySeverityLevel[sevLevel] = (incidentsBySeverityLevel[sevLevel] || 0) + 1
+    })
+
     // Group by period (daily/weekly/monthly)
     const incidentsByPeriod: Record<string, { count: number; resolved: number }> = {}
     incidents?.forEach((incident: any) => {
@@ -148,6 +162,9 @@ export async function GET(request: Request) {
         by_type: incidentsByType,
         by_barangay: incidentsByBarangay,
         by_period: incidentsByPeriod,
+        // New categorization groupings
+        by_category: incidentsByCategory,
+        by_severity_level: incidentsBySeverityLevel,
         trends: {
           daily: period === 'daily' ? incidentsByPeriod : {},
           weekly: period === 'weekly' ? incidentsByPeriod : {},

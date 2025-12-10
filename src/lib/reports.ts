@@ -97,6 +97,102 @@ export const getIncidentsByStatus = async (startDate?: string, endDate?: string)
   }
 }
 
+// Get incident statistics by category (new categorization)
+export const getIncidentsByCategory = async (startDate?: string, endDate?: string) => {
+  try {
+    let query = supabase.from("incidents").select("incident_category, created_at")
+
+    if (startDate) {
+      query = query.gte("created_at", startDate)
+    }
+
+    if (endDate) {
+      query = query.lte("created_at", endDate)
+    }
+
+    const { data, error } = await query
+
+    if (error) throw error
+
+    const counts: Record<string, number> = {}
+    ;(data as Array<{ incident_category: string | null }> | null || []).forEach((row) => {
+      const key = row.incident_category || "UNCATEGORIZED"
+      counts[key] = (counts[key] || 0) + 1
+    })
+
+    const result = Object.entries(counts).map(([incident_category, count]) => ({ incident_category, count }))
+
+    return { success: true, data: result }
+  } catch (error: any) {
+    return { success: false, message: error.message, data: [] }
+  }
+}
+
+// Get incident statistics by trauma subcategory (for medical trauma)
+export const getIncidentsByTraumaSubcategory = async (startDate?: string, endDate?: string) => {
+  try {
+    let query = supabase
+      .from("incidents")
+      .select("trauma_subcategory, created_at")
+      .eq("incident_category", "MEDICAL_TRAUMA")
+
+    if (startDate) {
+      query = query.gte("created_at", startDate)
+    }
+
+    if (endDate) {
+      query = query.lte("created_at", endDate)
+    }
+
+    const { data, error } = await query
+
+    if (error) throw error
+
+    const counts: Record<string, number> = {}
+    ;(data as Array<{ trauma_subcategory: string | null }> | null || []).forEach((row) => {
+      const key = row.trauma_subcategory || "UNKNOWN"
+      counts[key] = (counts[key] || 0) + 1
+    })
+
+    const result = Object.entries(counts).map(([trauma_subcategory, count]) => ({ trauma_subcategory, count }))
+
+    return { success: true, data: result }
+  } catch (error: any) {
+    return { success: false, message: error.message, data: [] }
+  }
+}
+
+// Get incident statistics by severity level (new enhanced severity)
+export const getIncidentsBySeverityLevel = async (startDate?: string, endDate?: string) => {
+  try {
+    let query = supabase.from("incidents").select("severity_level, created_at")
+
+    if (startDate) {
+      query = query.gte("created_at", startDate)
+    }
+
+    if (endDate) {
+      query = query.lte("created_at", endDate)
+    }
+
+    const { data, error } = await query
+
+    if (error) throw error
+
+    const counts: Record<string, number> = {}
+    ;(data as Array<{ severity_level: string | null }> | null || []).forEach((row) => {
+      const key = row.severity_level || "UNKNOWN"
+      counts[key] = (counts[key] || 0) + 1
+    })
+
+    const result = Object.entries(counts).map(([severity_level, count]) => ({ severity_level, count }))
+
+    return { success: true, data: result }
+  } catch (error: any) {
+    return { success: false, message: error.message, data: [] }
+  }
+}
+
 // Get incident statistics by reporter role (volunteer vs resident)
 export const getIncidentsByReporterRole = async (startDate?: string, endDate?: string) => {
   try {
@@ -383,6 +479,9 @@ export const exportIncidentsToCSV = async (startDate?: string, endDate?: string)
         "Status": incident.status,
         "Priority": incident.priority,
         "Severity": incident.severity || "MODERATE",
+        "Incident Category": incident.incident_category || "N/A",
+        "Trauma Subcategory": incident.trauma_subcategory || "N/A",
+        "Severity Level": incident.severity_level || "N/A",
         "Reporter ID": incident.reporter_id || "N/A",
         "Reporter Name": reporter ? `${reporter.first_name || ""} ${reporter.last_name || ""}`.trim() : "Unknown",
         "Reporter Email": reporter?.email || "N/A",

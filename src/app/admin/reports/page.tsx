@@ -154,6 +154,10 @@ export default function AdminReports() {
   const [incidentsByType, setIncidentsByType] = useState<any[]>([])
   const [incidentsByStatus, setIncidentsByStatus] = useState<any[]>([])
   const [incidentsByReporterRole, setIncidentsByReporterRole] = useState<any[]>([])
+  // New categorization state
+  const [incidentsByCategory, setIncidentsByCategory] = useState<any[]>([])
+  const [incidentsByTraumaSubcategory, setIncidentsByTraumaSubcategory] = useState<any[]>([])
+  const [incidentsBySeverityLevel, setIncidentsBySeverityLevel] = useState<any[]>([])
   
   // Resident analytics state
   const [residentAnalytics, setResidentAnalytics] = useState<any>(null)
@@ -364,7 +368,8 @@ export default function AdminReports() {
         const { startDate, endDate } = getDateRangeParams()
 
         if (reportType === "incidents") {
-          const [incidentsRes, barangayRes, typeRes, statusRes, roleRes, residentRes] = await Promise.all([
+          const { getIncidentsByCategory, getIncidentsByTraumaSubcategory, getIncidentsBySeverityLevel } = await import('@/lib/reports')
+          const [incidentsRes, barangayRes, typeRes, statusRes, roleRes, residentRes, categoryRes, traumaRes, severityLevelRes] = await Promise.all([
             getAllIncidents(),
             getIncidentsByBarangay(startDate, endDate),
             getIncidentsByType(startDate, endDate),
@@ -372,7 +377,10 @@ export default function AdminReports() {
             getIncidentsByReporterRole(startDate, endDate),
             fetch(`/api/analytics/resident-incidents?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`, {
               signal: controller.signal
-            }).then(res => res.json()).catch(() => ({ success: false }))
+            }).then(res => res.json()).catch(() => ({ success: false })),
+            getIncidentsByCategory(startDate, endDate),
+            getIncidentsByTraumaSubcategory(startDate, endDate),
+            getIncidentsBySeverityLevel(startDate, endDate)
           ])
 
           if (!isMounted) return
@@ -384,6 +392,10 @@ export default function AdminReports() {
           if (typeRes.success) setIncidentsByType(typeRes.data || [])
           if (statusRes.success) setIncidentsByStatus(statusRes.data || [])
           if (roleRes.success) setIncidentsByReporterRole(roleRes.data || [])
+          // Set new categorization data
+          if (categoryRes.success) setIncidentsByCategory(categoryRes.data || [])
+          if (traumaRes.success) setIncidentsByTraumaSubcategory(traumaRes.data || [])
+          if (severityLevelRes.success) setIncidentsBySeverityLevel(severityLevelRes.data || [])
           
           // Set resident analytics
           if (residentRes.success && residentRes.data) {
