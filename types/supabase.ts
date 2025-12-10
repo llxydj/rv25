@@ -651,6 +651,7 @@ export type Database = {
           created_year: number | null
           description: string
           id: string
+          incident_category: string | null
           incident_type: string
           location_lat: number
           location_lng: number
@@ -662,7 +663,9 @@ export type Database = {
           resolution_notes: string | null
           resolved_at: string | null
           severity: Database["public"]["Enums"]["incident_severity"] | null
+          severity_level: string | null
           status: Database["public"]["Enums"]["incident_status"] | null
+          trauma_subcategory: string | null
           updated_at: string | null
           user_id: string | null
           voice_url: string | null
@@ -677,6 +680,7 @@ export type Database = {
           created_year?: number | null
           description: string
           id?: string
+          incident_category?: string | null
           incident_type: string
           location_lat: number
           location_lng: number
@@ -688,7 +692,9 @@ export type Database = {
           resolution_notes?: string | null
           resolved_at?: string | null
           severity?: Database["public"]["Enums"]["incident_severity"] | null
+          severity_level?: string | null
           status?: Database["public"]["Enums"]["incident_status"] | null
+          trauma_subcategory?: string | null
           updated_at?: string | null
           user_id?: string | null
           voice_url?: string | null
@@ -703,6 +709,7 @@ export type Database = {
           created_year?: number | null
           description?: string
           id?: string
+          incident_category?: string | null
           incident_type?: string
           location_lat?: number
           location_lng?: number
@@ -714,7 +721,9 @@ export type Database = {
           resolution_notes?: string | null
           resolved_at?: string | null
           severity?: Database["public"]["Enums"]["incident_severity"] | null
+          severity_level?: string | null
           status?: Database["public"]["Enums"]["incident_status"] | null
+          trauma_subcategory?: string | null
           updated_at?: string | null
           user_id?: string | null
           voice_url?: string | null
