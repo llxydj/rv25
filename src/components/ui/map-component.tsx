@@ -52,26 +52,7 @@ function MapErrorFallback({ onRetry }: { onRetry: () => void }) {
 
 // Define the dynamic import with error handling
 const MapWithNoSSR = dynamic(
-  () => import('./map-internal').then((mod) => {
-    // Ensure we get the default export correctly
-    const Component = mod.default || mod
-    if (!Component) {
-      throw new Error('Map component not found in module')
-    }
-    return Component
-  }).catch((err) => {
-    console.error('Failed to load map component:', err)
-    // Return a fallback component that matches the expected interface
-    const FallbackComponent = () => (
-      <div style={{ height: '500px', width: "100%" }} 
-           className="rounded-lg overflow-hidden shadow-md bg-gray-100 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-gray-600">Map unavailable. Please refresh the page.</p>
-        </div>
-      </div>
-    )
-    return { default: FallbackComponent }
-  }), 
+  () => import('./map-internal'),
   { 
     ssr: false,
     loading: () => (

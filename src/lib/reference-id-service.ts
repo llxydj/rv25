@@ -54,11 +54,20 @@ export class ReferenceIdService {
         .from('incident_reference_ids')
         .select('reference_id')
         .eq('incident_id', incidentId)
-        .single()
+        .maybeSingle()
 
       // If table doesn't exist, fail gracefully
       if (checkError && (checkError.code === '42P01' || checkError.message.includes('does not exist'))) {
         console.warn('Reference ID table not available')
+        return { success: false, error: 'Reference ID service unavailable' }
+      }
+
+      // PGRST116 = no rows returned (not an error, just means it doesn't exist yet)
+      if (checkError && checkError.code === 'PGRST116') {
+        // Reference ID doesn't exist yet, continue to create it
+      } else if (checkError) {
+        // Other error
+        console.warn('Error checking for existing reference ID:', checkError)
         return { success: false, error: 'Reference ID service unavailable' }
       }
 
@@ -80,7 +89,7 @@ export class ReferenceIdService {
           .from('incident_reference_ids')
           .select('reference_id')
           .eq('reference_id', referenceId)
-          .single()
+          .maybeSingle()
 
         // If table doesn't exist, fail gracefully
         if (existError && (existError.code === '42P01' || existError.message.includes('does not exist'))) {
@@ -88,7 +97,21 @@ export class ReferenceIdService {
           return { success: false, error: 'Reference ID service unavailable' }
         }
 
-        if (!existingRef) break
+        // PGRST116 = no rows returned (reference ID is available, continue)
+        if (existError && existError.code === 'PGRST116') {
+          break // Reference ID doesn't exist, we can use it
+        }
+
+        // Other error
+        if (existError) {
+          console.warn('Error checking reference ID uniqueness:', existError)
+          continue // Try another reference ID
+        }
+
+        // If existingRef is null, the reference ID is available
+        if (!existingRef) {
+          break
+        }
 
         if (attempts >= maxAttempts) {
           throw new Error('Unable to generate unique reference ID')
@@ -116,14 +139,23 @@ export class ReferenceIdService {
             .from('incident_reference_ids')
             .select('reference_id')
             .eq('incident_id', incidentId)
-            .single()
+            .maybeSingle()
           
-          if (fetchError) {
-            // If we still can't fetch it, something is wrong
-            console.warn('Failed to fetch existing reference ID after duplicate key error:', fetchError)
-            throw fetchError
+          if (fetchError && fetchError.code !== 'PGRST116') {
+            // PGRST116 means not found, but we just got a duplicate key error, so it should exist
+            // If it's a different error, log it
+            if (fetchError.code !== 'PGRST116') {
+              console.warn('Failed to fetch existing reference ID after duplicate key error:', fetchError)
+            }
           }
-          return { success: true, referenceId: (existingData as any).reference_id }
+          
+          if (existingData && (existingData as any).reference_id) {
+            return { success: true, referenceId: (existingData as any).reference_id }
+          }
+          
+          // If we can't fetch it but got duplicate key error, something is wrong
+          console.warn('Duplicate key error but could not fetch reference ID')
+          // Continue to return error
         }
         throw error
       }
@@ -151,26 +183,28 @@ export class ReferenceIdService {
         .from('incident_reference_ids')
         .select('reference_id')
         .eq('incident_id', incidentId)
-        .single()
+        .maybeSingle()
 
-      // If table doesn't exist or other database error, return gracefully
+      // If table doesn't exist, return gracefully
+      if (error && (error.code === '42P01' || error.message.includes('does not exist'))) {
+        console.warn('Reference ID table not available:', error.message)
+        return { success: false, error: 'Reference ID service unavailable' }
+      }
+      
+      // PGRST116 = no rows returned (reference ID doesn't exist yet)
+      if (error && error.code === 'PGRST116') {
+        // Try to create it
+        return await this.createReferenceId(incidentId)
+      }
+      
+      // Other error
       if (error) {
-        // 42P01 = table does not exist, PGRST116 = no rows returned
-        if (error.code === '42P01' || error.message.includes('does not exist')) {
-          console.warn('Reference ID table not available:', error.message)
-          return { success: false, error: 'Reference ID service unavailable' }
-        }
-        // PGRST116 = no rows returned, try to create
-        if (error.code === 'PGRST116') {
-          return await this.createReferenceId(incidentId)
-        }
-        // Other error - fail silently
         console.warn('Reference ID service error:', error.message)
         return { success: false, error: 'Reference ID service unavailable' }
       }
       
       if (!data) {
-        // Create reference ID if it doesn't exist
+        // No data returned, try to create reference ID
         return await this.createReferenceId(incidentId)
       }
 
@@ -198,15 +232,23 @@ export class ReferenceIdService {
         .from('incident_reference_ids')
         .select('incident_id')
         .eq('reference_id', referenceId)
-        .single()
+        .maybeSingle()
 
       // If table doesn't exist, return gracefully
+      if (error && (error.code === '42P01' || error.message.includes('does not exist'))) {
+        console.warn('Reference ID table not available:', error.message)
+        return { success: false, error: 'Reference ID service unavailable' }
+      }
+
+      // PGRST116 = no rows returned (reference ID not found)
+      if (error && error.code === 'PGRST116') {
+        return { success: false, error: 'Reference ID not found' }
+      }
+
+      // Other error
       if (error) {
-        if (error.code === '42P01' || error.message.includes('does not exist')) {
-          console.warn('Reference ID table not available:', error.message)
-          return { success: false, error: 'Reference ID service unavailable' }
-        }
-        throw error
+        console.error('Error getting incident ID:', error)
+        return { success: false, error: error.message }
       }
 
       if (!data) {

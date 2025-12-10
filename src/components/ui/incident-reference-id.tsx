@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react'
 import { AlertCircle } from 'lucide-react'
-import { referenceIdService } from '@/lib/reference-id-service'
 import { cn } from '@/lib/utils'
 
 interface IncidentReferenceIdProps {
@@ -39,7 +38,9 @@ export const IncidentReferenceId: React.FC<IncidentReferenceIdProps> = ({
         setLoading(true)
         setError(null)
         
-        const result = await referenceIdService.getReferenceId(incidentId)
+        // Use API route instead of direct service call (server-side with service role key)
+        const response = await fetch(`/api/reference-ids?incident_id=${encodeURIComponent(incidentId)}`)
+        const result = await response.json()
         
         if (result.success && result.referenceId) {
           setReferenceId(result.referenceId)
@@ -166,7 +167,9 @@ export const useReferenceId = (incidentId: string) => {
         setLoading(true)
         setError(null)
         
-        const result = await referenceIdService.getReferenceId(incidentId)
+        // Use API route instead of direct service call (server-side with service role key)
+        const response = await fetch(`/api/reference-ids?incident_id=${encodeURIComponent(incidentId)}`)
+        const result = await response.json()
         
         if (result.success && result.referenceId) {
           setReferenceId(result.referenceId)
