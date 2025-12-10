@@ -698,7 +698,13 @@ export async function POST(request: Request) {
 
     const dbInsertStart = Date.now()
     console.log(`💾 [SERVER] [${requestId}] Inserting incident into database...`)
-    const { data, error } = await supabase.from('incidents').insert(payload).select().single()
+    // FIX: Select specific columns to avoid ambiguous reference_id error when joining with incident_reference_ids
+    // Note: is_overdue is a computed column that may not exist if migration wasn't applied, so we exclude it
+    const { data, error } = await supabase
+      .from('incidents')
+      .insert(payload)
+      .select('id, reporter_id, incident_type, description, location_lat, location_lng, address, barangay, city, province, status, priority, severity, photo_url, photo_urls, voice_url, incident_category, trauma_subcategory, severity_level, created_at, updated_at, assigned_to, resolved_at, resolution_notes')
+      .single()
     const dbInsertTime = Date.now() - dbInsertStart
     console.log(`⏱️  [SERVER] [${requestId}] Database insert: ${dbInsertTime}ms`)
     
