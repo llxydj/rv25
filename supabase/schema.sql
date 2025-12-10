@@ -278,17 +278,6 @@ CREATE TABLE public.pdf_report_history (
   CONSTRAINT pdf_report_history_scheduled_report_id_fkey FOREIGN KEY (scheduled_report_id) REFERENCES public.scheduled_pdf_reports(id),
   CONSTRAINT pdf_report_history_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
 );
-CREATE TABLE public.pin_attempts (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL UNIQUE,
-  attempt_count integer NOT NULL DEFAULT 1,
-  last_attempt_at timestamp with time zone DEFAULT now(),
-  locked_until timestamp with time zone,
-  created_at timestamp with time zone DEFAULT now(),
-  updated_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT pin_attempts_pkey PRIMARY KEY (id),
-  CONSTRAINT pin_attempts_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
-);
 CREATE TABLE public.push_subscriptions (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   user_id uuid,
@@ -531,10 +520,7 @@ CREATE TABLE public.users (
   emergency_contact_relationship text,
   profile_photo_url text,
   status text DEFAULT 'active'::text CHECK (status = ANY (ARRAY['active'::text, 'inactive'::text])),
-  pin_hash text,
-  pin_enabled boolean DEFAULT true,
   profile_image text,
-  pin_created_at timestamp with time zone,
   CONSTRAINT users_pkey PRIMARY KEY (id),
   CONSTRAINT users_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
 );
