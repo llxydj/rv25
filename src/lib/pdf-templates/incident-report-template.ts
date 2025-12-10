@@ -12,12 +12,17 @@ export interface IncidentReportData {
   severityCounts: Record<string, number>
   typeCounts?: Record<string, number>
   barangayCounts?: Record<string, number>
+  categoryCounts?: Record<string, number>
+  severityLevelCounts?: Record<string, number>
   incidents: Array<{
     id: string
     type: string
     status: string
     severity: number
     priority?: number
+    incident_category?: string
+    trauma_subcategory?: string
+    severity_level?: string
     location: string
     address?: string
     barangay: string
@@ -633,6 +638,28 @@ export function generateIncidentReportHTML(data: IncidentReportData, logoBase64?
           `).join('')}
         </div>
         ` : ''}
+        ${data.categoryCounts && Object.keys(data.categoryCounts).length > 0 ? `
+        <div class="stat-box">
+          <div class="stat-box-title">Incident Category Distribution</div>
+          ${Object.entries(data.categoryCounts).slice(0, 10).map(([category, count]) => `
+            <div class="stat-item">
+              <span class="stat-label">${category.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</span>
+              <span class="stat-value">${count}</span>
+            </div>
+          `).join('')}
+        </div>
+        ` : ''}
+        ${data.severityLevelCounts && Object.keys(data.severityLevelCounts).length > 0 ? `
+        <div class="stat-box">
+          <div class="stat-box-title">Severity Level Distribution</div>
+          ${Object.entries(data.severityLevelCounts).slice(0, 10).map(([level, count]) => `
+            <div class="stat-item">
+              <span class="stat-label">${level.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</span>
+              <span class="stat-value">${count}</span>
+            </div>
+          `).join('')}
+        </div>
+        ` : ''}
       </div>
     </div>
     
@@ -649,13 +676,25 @@ export function generateIncidentReportHTML(data: IncidentReportData, logoBase64?
             <div class="incident-id">Incident #${index + 1} | ID: ${incident.id.slice(0, 8).toUpperCase()}</div>
             <div class="incident-type">${incident.type || 'Unspecified Incident'}</div>
             <div class="incident-category">${emergencyCategory}</div>
+            ${incident.incident_category && incident.incident_category !== 'N/A' ? `
+            <div style="margin: 8px 0; font-size: 13px; color: #4b5563;">
+              <strong>Category:</strong> ${incident.incident_category.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+              ${incident.trauma_subcategory && incident.trauma_subcategory !== 'N/A' ? ` | <strong>Trauma Type:</strong> ${incident.trauma_subcategory.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}` : ''}
+            </div>
+            ` : ''}
             <div class="incident-badges">
               <span class="badge badge-${incident.status.toLowerCase().replace(' ', '-')}">
                 ${incident.status}
               </span>
+              ${incident.severity_level && incident.severity_level !== 'N/A' ? `
+              <span class="severity-badge" style="background: ${severityColor(incident.severity)};">
+                ${incident.severity_level.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+              </span>
+              ` : `
               <span class="severity-badge" style="background: ${severityColor(incident.severity)};">
                 Severity Level ${incident.severity}
               </span>
+              `}
               ${incident.priority ? `<span class="badge" style="background: #e0e7ff; color: #3730a3;">Priority: ${incident.priority}</span>` : ''}
             </div>
           </div>
@@ -698,7 +737,13 @@ export function generateIncidentReportHTML(data: IncidentReportData, logoBase64?
           
           <div class="detail-item">
             <div class="detail-label">Severity Classification</div>
-            <div class="detail-value">${getSeverityLabel(incident.severity)}</div>
+            <div class="detail-value">
+              ${incident.severity_level && incident.severity_level !== 'N/A' 
+                ? incident.severity_level.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+                : getSeverityLabel(incident.severity)}
+              ${incident.incident_category && incident.incident_category !== 'N/A' ? `<br><small style="color: #6b7280;">Category: ${incident.incident_category.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</small>` : ''}
+              ${incident.trauma_subcategory && incident.trauma_subcategory !== 'N/A' ? `<br><small style="color: #6b7280;">Trauma: ${incident.trauma_subcategory.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</small>` : ''}
+            </div>
           </div>
         </div>
         

@@ -598,7 +598,11 @@ export default function AdminReports() {
 
         const result = await exportIncidentsToCSV(startDate, endDate)
 
-        if (result.success && result.data && result.data.length > 0) {
+        if (!result.success) {
+          throw new Error(result.message || 'Failed to export CSV')
+        }
+
+        if (result.data && result.data.length > 0) {
           // Use enhanced CSV if available, otherwise generate it
           let csvContent: string
           
@@ -624,11 +628,15 @@ export default function AdminReports() {
           const BOM = '\uFEFF'
           const csvWithBOM = BOM + csvContent
 
+          // Use filename from result if available, otherwise generate it
+          const { generateCSVFilename } = await import('@/lib/enhanced-csv-export')
+          const filename = result.filename || generateCSVFilename('Complete', startDate, endDate)
+
           const blob = new Blob([csvWithBOM], { type: 'text/csv;charset=utf-8;' })
           const url = URL.createObjectURL(blob)
           const link = document.createElement('a')
           link.href = url
-          link.download = `incidents-report-${new Date().toISOString().split('T')[0]}.csv`
+          link.download = filename
           document.body.appendChild(link)
           link.click()
           document.body.removeChild(link)
@@ -637,9 +645,11 @@ export default function AdminReports() {
           throw new Error('No data to export')
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error generating report:", err)
-      alert("Failed to generate report. Please try again.")
+      // Show detailed error message if validation failed
+      const errorMessage = err.message || 'Failed to generate report. Please try again.'
+      alert(errorMessage)
     } finally {
       setGeneratingReport(false)
     }
@@ -1322,7 +1332,7 @@ export default function AdminReports() {
                         Incident Types
                       </CardTitle>
                     </CardHeader>
-                    <CardContent className="h-64 md:h-80">
+                    <CardContent className="h-[250px] sm:h-64 md:h-80">
                       {Object.keys(yearData?.type_breakdown || {}).length > 0 ? (
                         <div className="w-full h-full overflow-hidden">
                           <ResponsiveContainer width="100%" height="100%">
@@ -1347,7 +1357,13 @@ export default function AdminReports() {
                                   <Cell key={`cell-${index}`} fill={chartTheme.colors[index % chartTheme.colors.length]} />
                                 ))}
                               </Pie>
-                              <Tooltip content={<CustomTooltip darkMode={darkMode} />} />
+                              <Tooltip 
+                                content={<CustomTooltip darkMode={darkMode} />}
+                                wrapperStyle={{ 
+                                  fontSize: window.innerWidth < 640 ? '12px' : '14px',
+                                  padding: window.innerWidth < 640 ? '6px' : '8px'
+                                }}
+                              />
                               <Legend
                                 wrapperStyle={{ fontSize: '11px', color: chartTheme.text }}
                                 iconSize={10}
@@ -1370,7 +1386,7 @@ export default function AdminReports() {
                         Status Distribution
                       </CardTitle>
                     </CardHeader>
-                    <CardContent className="h-64 md:h-80">
+                    <CardContent className="h-[250px] sm:h-64 md:h-80">
                       {Object.keys(yearData?.status_summary || {}).length > 0 ? (
                         <div className="w-full h-full overflow-hidden">
                           <ResponsiveContainer width="100%" height="100%">
@@ -1395,7 +1411,13 @@ export default function AdminReports() {
                                 stroke={chartTheme.axis}
                                 tick={{ fontSize: 11 }}
                               />
-                              <Tooltip content={<CustomTooltip darkMode={darkMode} />} />
+                              <Tooltip 
+                                content={<CustomTooltip darkMode={darkMode} />}
+                                wrapperStyle={{ 
+                                  fontSize: window.innerWidth < 640 ? '12px' : '14px',
+                                  padding: window.innerWidth < 640 ? '6px' : '8px'
+                                }}
+                              />
                               <Bar
                                 dataKey="value"
                                 fill={chartTheme.colors[1]}
@@ -1758,7 +1780,7 @@ export default function AdminReports() {
                         </CardDescription>
                       </CardHeader>
                       <CardContent>
-                        <div className="h-64 md:h-80">
+                        <div className="h-[250px] sm:h-64 md:h-80">
                           <ResponsiveContainer width="100%" height="100%">
                             <BarChart
                               data={reportData.bySkills.map(([skill, count]: any) => ({
@@ -1785,7 +1807,13 @@ export default function AdminReports() {
                                 stroke={chartTheme.axis}
                                 tick={{ fontSize: 11 }}
                               />
-                              <Tooltip content={<CustomTooltip darkMode={darkMode} />} />
+                              <Tooltip 
+                                content={<CustomTooltip darkMode={darkMode} />}
+                                wrapperStyle={{ 
+                                  fontSize: window.innerWidth < 640 ? '12px' : '14px',
+                                  padding: window.innerWidth < 640 ? '6px' : '8px'
+                                }}
+                              />
                               <Bar
                                 dataKey="value"
                                 fill={chartTheme.colors[2]}
@@ -1831,7 +1859,13 @@ export default function AdminReports() {
                                   <Cell key={`cell-${index}`} fill={chartTheme.colors[index % chartTheme.colors.length]} />
                                 ))}
                               </Pie>
-                              <Tooltip content={<CustomTooltip darkMode={darkMode} />} />
+                              <Tooltip 
+                                content={<CustomTooltip darkMode={darkMode} />}
+                                wrapperStyle={{ 
+                                  fontSize: window.innerWidth < 640 ? '12px' : '14px',
+                                  padding: window.innerWidth < 640 ? '6px' : '8px'
+                                }}
+                              />
                               <Legend
                                 wrapperStyle={{ fontSize: '11px', color: chartTheme.text }}
                                 iconSize={10}
@@ -1886,7 +1920,13 @@ export default function AdminReports() {
                                   stroke={chartTheme.axis}
                                   tick={{ fontSize: 11 }}
                                 />
-                                <Tooltip content={<CustomTooltip darkMode={darkMode} />} />
+                                <Tooltip 
+                                content={<CustomTooltip darkMode={darkMode} />}
+                                wrapperStyle={{ 
+                                  fontSize: window.innerWidth < 640 ? '12px' : '14px',
+                                  padding: window.innerWidth < 640 ? '6px' : '8px'
+                                }}
+                              />
                                 <Bar
                                   dataKey="value"
                                   fill={chartTheme.colors[0]}
@@ -1934,7 +1974,13 @@ export default function AdminReports() {
                                     <Cell key={`cell-${index}`} fill={chartTheme.colors[index % chartTheme.colors.length]} />
                                   ))}
                                 </Pie>
-                                <Tooltip content={<CustomTooltip darkMode={darkMode} />} />
+                                <Tooltip 
+                                content={<CustomTooltip darkMode={darkMode} />}
+                                wrapperStyle={{ 
+                                  fontSize: window.innerWidth < 640 ? '12px' : '14px',
+                                  padding: window.innerWidth < 640 ? '6px' : '8px'
+                                }}
+                              />
                                 <Legend
                                   wrapperStyle={{ fontSize: '11px', color: chartTheme.text }}
                                   iconSize={10}
@@ -2342,8 +2388,8 @@ export default function AdminReports() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {/* Bar Chart */}
-                        <div className="h-64 md:h-80">
+                        {/* Bar Chart - Mobile Optimized */}
+                        <div className="h-[250px] sm:h-64 md:h-80">
                           <ResponsiveContainer width="100%" height="100%">
                             <BarChart
                               data={residentAnalytics.byBarangay
@@ -2681,7 +2727,7 @@ export default function AdminReports() {
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      <div className="h-64 md:h-80">
+                      <div className="h-[250px] sm:h-64 md:h-80">
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart
                             data={barangayAnalytics.items}
@@ -2694,7 +2740,7 @@ export default function AdminReports() {
                             <XAxis
                               dataKey="barangay"
                               stroke={chartTheme.axis}
-                              tick={{ fontSize: 10 }}
+                              tick={{ fontSize: window.innerWidth < 640 ? 9 : 10 }}
                               interval={0}
                               angle={-45}
                               textAnchor="end"
@@ -2703,7 +2749,7 @@ export default function AdminReports() {
                             <YAxis
                               allowDecimals={false}
                               stroke={chartTheme.axis}
-                              tick={{ fontSize: 11 }}
+                              tick={{ fontSize: window.innerWidth < 640 ? 10 : 11 }}
                             />
                             <Tooltip content={<CustomTooltip darkMode={darkMode} />} />
                             <Bar
@@ -2746,7 +2792,7 @@ export default function AdminReports() {
                         Status Overview
                       </CardTitle>
                     </CardHeader>
-                    <CardContent className="h-64 md:h-80">
+                    <CardContent className="h-[250px] sm:h-64 md:h-80">
                       <div className="w-full h-full overflow-hidden">
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart

@@ -325,6 +325,9 @@ import { generateEnhancedCSV, formatDateForCSV, createSummaryStats } from './enh
 // Export incidents to CSV - ENHANCED with all fields
 export const exportIncidentsToCSV = async (startDate?: string, endDate?: string) => {
   try {
+    // Import validation
+    const { validateIncidentData } = await import('./data-validation')
+    
     let query = supabase.from("incidents").select(`
         id,
         created_at,
@@ -340,6 +343,9 @@ export const exportIncidentsToCSV = async (startDate?: string, endDate?: string)
         status,
         priority,
         severity,
+        incident_category,
+        trauma_subcategory,
+        severity_level,
         assigned_at,
         resolved_at,
         resolution_notes,
@@ -382,6 +388,39 @@ export const exportIncidentsToCSV = async (startDate?: string, endDate?: string)
     const { data, error } = await query
 
     if (error) throw error
+
+    // Validate data before export (zero tolerance)
+    const validation = validateIncidentData(data || [])
+    if (!validation.canExport) {
+      const { formatValidationIssues } = await import('./data-validation')
+      throw new Error(`Data validation failed. Cannot export:\n${formatValidationIssues(validation.issues)}`)
+    }
+
+    // Fetch reference IDs for all incidents
+    const { ReferenceIdService } = await import('./reference-id-service')
+    const refIdService = ReferenceIdService.getInstance()
+    const referenceIdMap = new Map<string, string>()
+    
+    // Fetch reference IDs in parallel (with timeout)
+    if (data && data.length > 0) {
+      await Promise.all(
+        data.map(async (incident: any) => {
+          try {
+            const result = await Promise.race([
+              refIdService.getReferenceId(incident.id),
+              new Promise<{ success: boolean }>((resolve) => 
+                setTimeout(() => resolve({ success: false }), 2000)
+              )
+            ])
+            if (result.success && result.referenceId) {
+              referenceIdMap.set(incident.id, result.referenceId)
+            }
+          } catch {
+            // Silently fail - reference ID is optional
+          }
+        })
+      )
+    }
 
     // Format data for CSV with complete information
     const csvData = data.map((incident: any) => {
@@ -464,21 +503,43 @@ export const exportIncidentsToCSV = async (startDate?: string, endDate?: string)
         return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
       };
 
+      // Format date consistently: YYYY-MM-DD HH:MM:SS
+      const formatDate = (date: string | Date | null | undefined): string => {
+        if (!date) return "N/A";
+        try {
+          const d = typeof date === 'string' ? new Date(date) : date;
+          if (isNaN(d.getTime())) return "N/A";
+          const year = d.getFullYear();
+          const month = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          const hours = String(d.getHours()).padStart(2, '0');
+          const minutes = String(d.getMinutes()).padStart(2, '0');
+          const seconds = String(d.getSeconds()).padStart(2, '0');
+          return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+        } catch {
+          return "N/A";
+        }
+      };
+
+      // Get reference ID
+      const referenceId = referenceIdMap.get(incident.id) || "N/A";
+
       return {
         "Incident ID": incident.id,
-        "Created At": new Date(incident.created_at).toLocaleString(),
-        "Updated At": incident.updated_at ? new Date(incident.updated_at).toLocaleString() : "N/A",
+        "Reference #": referenceId,
+        "Created At": formatDate(incident.created_at),
+        "Updated At": formatDate(incident.updated_at),
         "Type": incident.incident_type,
-        "Description": (incident.description || "").replace(/\n/g, " ").replace(/\r/g, "").trim(),
+        "Description": (incident.description || "N/A").replace(/\n/g, " ").replace(/\r/g, "").trim() || "N/A",
         "Latitude": incident.location_lat,
         "Longitude": incident.location_lng,
-        "Address": incident.address || "",
-        "Barangay": incident.barangay,
+        "Address": incident.address || "N/A",
+        "Barangay": incident.barangay || "N/A",
         "City": incident.city || "TALISAY CITY",
         "Province": incident.province || "NEGROS OCCIDENTAL",
-        "Status": incident.status,
-        "Priority": incident.priority,
-        "Severity": incident.severity || "MODERATE",
+        "Status": incident.status || "N/A",
+        "Priority": incident.priority ?? "N/A",
+        "Severity": incident.severity || "N/A",
         "Incident Category": incident.incident_category || "N/A",
         "Trauma Subcategory": incident.trauma_subcategory || "N/A",
         "Severity Level": incident.severity_level || "N/A",
@@ -491,20 +552,20 @@ export const exportIncidentsToCSV = async (startDate?: string, endDate?: string)
         "Assigned To Name": assignedTo ? `${assignedTo.first_name || ""} ${assignedTo.last_name || ""}`.trim() : "Unassigned",
         "Assigned To Email": assignedTo?.email || "N/A",
         "Assigned To Phone": assignedTo?.phone_number || "N/A",
-        "Assigned At": incident.assigned_at ? new Date(incident.assigned_at).toLocaleString() : "N/A",
-        "Resolved At": incident.resolved_at ? new Date(incident.resolved_at).toLocaleString() : "N/A",
+        "Assigned At": formatDate(incident.assigned_at),
+        "Resolved At": formatDate(incident.resolved_at),
         "Response Time": formatDuration(responseTimeMinutes),
         "Resolution Time": formatDuration(resolutionTimeMinutes),
         "Assignment to Resolution Time": formatDuration(assignmentToResolutionMinutes),
-        "Resolution Notes": incident.resolution_notes || "",
-        "Photo URL": incident.photo_url || "",
+        "Resolution Notes": incident.resolution_notes || "N/A",
+        "Photo URL": incident.photo_url || "N/A",
         "Photo Count": Array.isArray(incident.photo_urls) ? incident.photo_urls.length : (incident.photo_url ? 1 : 0),
         "Timeline Event Count": timelineEventCount,
         "Status Changes": statusChanges,
         "Photo Additions": photoAdditions,
         "Location Updates": locationUpdates,
         "Severity Changes": severityChanges,
-        "Last Timeline Update": lastTimelineUpdate ? new Date(lastTimelineUpdate.created_at).toLocaleString() : "N/A",
+        "Last Timeline Update": formatDate(lastTimelineUpdate?.created_at),
         "Last Update Type": lastTimelineUpdate?.new_status || "N/A",
       }
     })
@@ -516,6 +577,10 @@ export const exportIncidentsToCSV = async (startDate?: string, endDate?: string)
     const summaryStats = createSummaryStats(csvData, 'Created At', ['Latitude', 'Longitude'])
     
     // Generate enhanced CSV with metadata
+    const { generateCSVFilename } = await import('./enhanced-csv-export')
+    const reportType = startDate && endDate ? 'DateRange' : 'Complete'
+    const filename = generateCSVFilename(reportType, startDate, endDate)
+    
     const enhancedCSV = generateEnhancedCSV(csvData, headers, {
       organizationName: 'RVOIS - Rescue Volunteers Operations Information System',
       reportTitle: 'Incident Report',
@@ -523,11 +588,11 @@ export const exportIncidentsToCSV = async (startDate?: string, endDate?: string)
       includeSummary: true,
       metadata: {
         'Report Period': startDate && endDate 
-          ? `${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}`
+          ? `${new Date(startDate).toISOString().split('T')[0]} to ${new Date(endDate).toISOString().split('T')[0]}`
           : 'All Time',
         'Total Records': csvData.length.toString(),
         ...(summaryStats.dateRange ? {
-          'Date Range': `${new Date(summaryStats.dateRange.start).toLocaleDateString()} - ${new Date(summaryStats.dateRange.end).toLocaleDateString()}`
+          'Date Range': `${new Date(summaryStats.dateRange.start).toISOString().split('T')[0]} - ${new Date(summaryStats.dateRange.end).toISOString().split('T')[0]}`
         } : {})
       }
     })
@@ -535,7 +600,8 @@ export const exportIncidentsToCSV = async (startDate?: string, endDate?: string)
     return { 
       success: true, 
       data: csvData,
-      csv: enhancedCSV // Include enhanced CSV string
+      csv: enhancedCSV, // Include enhanced CSV string
+      filename // Include suggested filename
     }
   } catch (error: any) {
     return { success: false, message: error.message, data: [] }

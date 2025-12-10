@@ -155,19 +155,49 @@ export function downloadCSV(
 }
 
 /**
- * Format date for CSV (Excel-friendly)
+ * Format date for CSV (Excel-friendly) - YYYY-MM-DD HH:MM:SS format
  */
-export function formatDateForCSV(date: string | Date): string {
-  const d = typeof date === 'string' ? new Date(date) : date
-  return d.toLocaleString('en-US', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    timeZone: 'Asia/Manila'
-  })
+export function formatDateForCSV(date: string | Date | null | undefined): string {
+  if (!date) return "N/A"
+  try {
+    const d = typeof date === 'string' ? new Date(date) : date
+    if (isNaN(d.getTime())) return "N/A"
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    const hours = String(d.getHours()).padStart(2, '0')
+    const minutes = String(d.getMinutes()).padStart(2, '0')
+    const seconds = String(d.getSeconds()).padStart(2, '0')
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+  } catch {
+    return "N/A"
+  }
+}
+
+/**
+ * Generate filename for CSV export
+ * Format: IncidentReport_[Type]_[DateRange]_[DateTime].csv
+ */
+export function generateCSVFilename(
+  reportType: string = 'Complete',
+  startDate?: string,
+  endDate?: string
+): string {
+  const now = new Date()
+  const dateStr = now.toISOString().split('T')[0].replace(/-/g, '')
+  const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '')
+  const dateTime = `${dateStr}_${timeStr}`
+  
+  let dateRange = ''
+  if (startDate && endDate) {
+    const start = new Date(startDate).toISOString().split('T')[0]
+    const end = new Date(endDate).toISOString().split('T')[0]
+    dateRange = `${start}_${end}`
+  } else {
+    dateRange = 'AllTime'
+  }
+  
+  return `IncidentReport_${reportType}_${dateRange}_${dateTime}.csv`
 }
 
 /**

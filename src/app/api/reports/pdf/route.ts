@@ -240,6 +240,10 @@ async function generateIncidentReport(filters: ReportFilters): Promise<Buffer> {
         status: incident.status,
         severity: incident.severity || 3,
         priority: incident.priority,
+        // New categorization fields
+        incident_category: incident.incident_category || 'N/A',
+        trauma_subcategory: incident.trauma_subcategory || 'N/A',
+        severity_level: incident.severity_level || 'N/A',
         location: location,
         address: incident.address,
         barangay: incident.barangay || 'N/A',
@@ -272,6 +276,9 @@ async function generateIncidentReport(filters: ReportFilters): Promise<Buffer> {
       severityCounts,
       typeCounts,
       barangayCounts,
+      // New categorization counts
+      categoryCounts,
+      severityLevelCounts,
       incidents: formattedIncidents,
       reportClassification: 'INTERNAL', // Default classification
       generatedBy: 'System Administrator' // Can be enhanced to get from auth
