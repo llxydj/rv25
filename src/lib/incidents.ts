@@ -70,6 +70,30 @@ export interface Incident extends IncidentRow {
 // Get all incidents with offline markers
 export const getAllIncidents = async () => {
   try {
+    // Try to use admin API route first (bypasses RLS with service role key)
+    // This ensures names are fetched correctly for admins
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const accessToken = sessionData?.session?.access_token
+      
+      const res = await fetch('/api/admin/incidents', {
+        method: 'GET',
+        cache: 'no-store',
+        credentials: 'include',
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+      })
+      
+      const json = await res.json()
+      if (res.ok && json?.success) {
+        console.log(`✅ Retrieved ${json.data?.length || 0} incidents via admin API (bypasses RLS)`)
+        return { success: true, data: json.data || [] }
+      }
+      console.warn('Admin incidents API failed; falling back to client query:', json?.message || res.statusText)
+    } catch (e) {
+      console.warn('Admin incidents API not reachable; falling back to client query')
+    }
+
+    // Fallback to direct client query (subject to RLS)
     const { data, error } = await supabase
       .from('incidents')
       .select(`
@@ -142,7 +166,91 @@ export const getIncidentById = async (incidentId: string) => {
       return { success: false, message: "Invalid incident ID format" };
     }
 
-    // First, get the incident with reporter details
+    // Try to use API routes first (bypasses RLS with service role key)
+    // This ensures names are fetched correctly for admins and volunteers
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const accessToken = sessionData?.session?.access_token
+      const { data: userData } = await supabase.auth.getUser()
+      
+      if (userData?.user) {
+        const { data: user } = await supabase
+          .from('users')
+          .select('role')
+          .eq('id', userData.user.id)
+          .single()
+        
+        // Try admin API route first
+        if (user?.role === 'admin') {
+          try {
+            console.log('🔍 [getIncidentById] Attempting admin API route for incident:', idToUse)
+            const res = await fetch(`/api/admin/incidents/${idToUse}`, {
+              method: 'GET',
+              cache: 'no-store',
+              credentials: 'include',
+              headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+            })
+            
+            if (!res.ok) {
+              console.warn('⚠️ Admin API returned non-OK status:', res.status, res.statusText)
+              const errorText = await res.text()
+              console.warn('⚠️ Error response body:', errorText)
+              throw new Error(`API returned ${res.status}: ${res.statusText}`)
+            }
+            
+            const json = await res.json()
+            console.log('🔍 [getIncidentById] Admin API response:', {
+              ok: res.ok,
+              status: res.status,
+              success: json?.success,
+              hasData: !!json?.data,
+              hasReporter: !!json?.data?.reporter,
+              hasAssignee: !!json?.data?.assignee,
+              reporterId: json?.data?.reporter?.id,
+              assigneeId: json?.data?.assignee?.id,
+              error: json?.message
+            })
+            
+            if (json?.success && json?.data) {
+              console.log(`✅ Retrieved incident via admin API (bypasses RLS)`)
+              console.log('🔍 [getIncidentById] Reporter data from API:', json.data?.reporter)
+              console.log('🔍 [getIncidentById] Assignee data from API:', json.data?.assignee)
+              // Return immediately - don't fall through to client query
+              return { success: true, data: json.data }
+            } else {
+              console.warn('⚠️ Admin API response missing success or data:', {
+                success: json?.success,
+                hasData: !!json?.data,
+                message: json?.message
+              })
+            }
+          } catch (apiError: any) {
+            console.error('❌ Error calling admin API route:', apiError)
+            console.warn('⚠️ Falling back to client query due to API error')
+          }
+        }
+        // Try volunteer API route
+        else if (user?.role === 'volunteer') {
+          const res = await fetch(`/api/volunteer/incident/${idToUse}`, {
+            method: 'GET',
+            cache: 'no-store',
+            credentials: 'include',
+            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+          })
+          
+          const json = await res.json()
+          if (res.ok && json?.success) {
+            console.log(`✅ Retrieved incident via volunteer API (bypasses RLS)`)
+            return { success: true, data: json.data }
+          }
+          console.warn('Volunteer incident API failed; falling back to client query:', json?.message || res.statusText)
+        }
+      }
+    } catch (e) {
+      console.warn('API routes not reachable; falling back to client query')
+    }
+
+    // Fallback to direct client query (subject to RLS)
     const { data: incidentData, error: reporterError } = await supabase
       .from('incidents')
       .select(`

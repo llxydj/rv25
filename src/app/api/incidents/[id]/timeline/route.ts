@@ -79,8 +79,8 @@ export async function GET(
       }, { status: 403 })
     }
 
-    // Fetch timeline events
-    const timelineResult = await getIncidentTimeline(params.id)
+    // Fetch timeline events using server-side supabase client
+    const timelineResult = await getIncidentTimeline(params.id, supabase)
 
     if (!timelineResult.success) {
       return NextResponse.json({ 

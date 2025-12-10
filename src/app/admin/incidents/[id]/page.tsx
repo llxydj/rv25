@@ -361,9 +361,9 @@ export default function IncidentDetailPage() {
   }
 
   const handleCallVolunteer = () => {
-    // Handle case where assigned_to might be an array from Supabase join
-    const assigneeData = incident?.assigned_to ? 
-      (Array.isArray(incident.assigned_to) ? incident.assigned_to[0] : incident.assigned_to) 
+    // Handle case where assignee might be an array from Supabase join
+    const assigneeData = incident?.assignee ? 
+      (Array.isArray(incident.assignee) ? incident.assignee[0] : incident.assignee) 
       : null;
     
     if (assigneeData?.phone_number) {
@@ -785,27 +785,44 @@ export default function IncidentDetailPage() {
                   </div>
                 )}
               </div>
-            ) : incident.assigned_to ? (
+            ) : incident.assignee ? (
               <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
                 <h3 className="text-sm font-medium text-gray-500 mb-4">Assigned Volunteer</h3>
-                <div>
-                  <p className="text-lg font-medium text-gray-900">
-                    {incident.assigned_to.first_name} {incident.assigned_to.last_name}
-                  </p>
-                  <p className="text-sm text-gray-600 mt-1">{incident.assigned_to.email}</p>
-                  {incident.assigned_to.phone_number && (
-                    <div className="mt-2">
-                      <p className="text-sm text-gray-600">{incident.assigned_to.phone_number}</p>
-                      <button
-                        onClick={handleCallVolunteer}
-                        className="mt-3 inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-green-600 hover:bg-green-700"
-                      >
-                        <User className="h-4 w-4 mr-1" />
-                        Call Volunteer
-                      </button>
+                {(() => {
+                  // Handle case where assignee might be an array from Supabase join
+                  const assigneeData = Array.isArray(incident.assignee) 
+                    ? incident.assignee[0] 
+                    : incident.assignee;
+                  
+                  if (!assigneeData) {
+                    return <p className="text-sm text-gray-500">Assigned volunteer information not available</p>;
+                  }
+                  
+                  return (
+                    <div>
+                      <p className="text-lg font-medium text-gray-900 dark:text-white">
+                        {assigneeData.first_name && assigneeData.last_name
+                          ? `${assigneeData.first_name} ${assigneeData.last_name}`
+                          : assigneeData.first_name || assigneeData.last_name
+                          ? (assigneeData.first_name || assigneeData.last_name)
+                          : assigneeData.email || "Unknown Volunteer"}
+                      </p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{assigneeData.email || "No email provided"}</p>
+                      {assigneeData.phone_number && (
+                        <div className="mt-2">
+                          <p className="text-sm text-gray-600 dark:text-gray-400">{assigneeData.phone_number}</p>
+                          <button
+                            onClick={handleCallVolunteer}
+                            className="mt-3 inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-green-600 hover:bg-green-700"
+                          >
+                            <User className="h-4 w-4 mr-1" />
+                            Call Volunteer
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
+                  );
+                })()}
               </div>
             ) : null}
 

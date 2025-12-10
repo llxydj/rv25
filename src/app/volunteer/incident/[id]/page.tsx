@@ -19,6 +19,7 @@ import { IncidentFeedbackDisplay } from "@/components/incident-feedback-display"
 import { AudioPlayer } from "@/components/audio-player"
 import { IncidentTimeline } from "@/components/incident-timeline"
 import { INCIDENT_CATEGORIES, TRAUMA_SUBCATEGORIES } from "@/components/incident"
+import IncidentTraumaClassificationUpdater from "@/components/incident-trauma-classification-updater"
 
 export default function VolunteerIncidentDetailPage() {
   const params = useParams()
@@ -762,10 +763,49 @@ export default function VolunteerIncidentDetailPage() {
                   />
                 )}
                 
-                {/* Severity Update - Only when ARRIVED */}
+                {/* Trauma Classification Update - Only when ARRIVED */}
                 {incident.status === "ARRIVED" && (
-                  <div className="mt-4 pt-4 border-t border-gray-200">
-                    <h3 className="text-sm font-medium text-gray-700 mb-3">Assess Severity Level</h3>
+                  <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Assess Incident Classification</h3>
+                    <IncidentTraumaClassificationUpdater
+                      incidentId={incident.id}
+                      incidentStatus={incident.status}
+                      currentCategory={incident.incident_category as any}
+                      currentTraumaSubcategory={incident.trauma_subcategory as any}
+                      currentSeverityLevel={incident.severity_level as any}
+                      onClassificationUpdate={(data) => {
+                        setIncident({
+                          ...incident,
+                          incident_category: data.incident_category,
+                          trauma_subcategory: data.trauma_subcategory,
+                          severity_level: data.severity_level
+                        })
+                        setSuccessMessage('Incident classification updated successfully')
+                        
+                        // Refresh timeline
+                        fetch(`/api/incidents/${incident.id}/timeline`)
+                          .then(res => res.json())
+                          .then(data => {
+                            if (data.success && data.data) {
+                              setTimelineEvents(data.data)
+                            }
+                          })
+                          .catch(err => console.error("Error refreshing timeline:", err))
+                        
+                        getIncidentUpdates(incident.id).then((result) => {
+                          if (result.success) {
+                            setUpdates(result.data || [])
+                          }
+                        })
+                      }}
+                    />
+                  </div>
+                )}
+
+                {/* Severity Update - Only when ARRIVED (Legacy) */}
+                {incident.status === "ARRIVED" && (
+                  <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Assess Severity Level (Legacy)</h3>
                     <IncidentSeverityUpdater
                       currentSeverity={incident.severity}
                       incidentId={incident.id}
@@ -978,6 +1018,50 @@ export default function VolunteerIncidentDetailPage() {
             {incident.status === "RESOLVED" && (
               <div className="mt-6">
                 <IncidentFeedbackDisplay incidentId={incident.id} />
+              </div>
+            )}
+
+            {/* Assigned Volunteer Section - Show who is assigned (usually the current volunteer) */}
+            {incident.assignee && (
+              <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">Assigned Volunteer</h3>
+                {(() => {
+                  // Handle case where assignee might be an array from Supabase join
+                  const assigneeData = Array.isArray(incident.assignee) 
+                    ? incident.assignee[0] 
+                    : incident.assignee;
+                  
+                  if (!assigneeData) {
+                    return <p className="text-sm text-gray-500 dark:text-gray-400">Assigned volunteer information not available</p>;
+                  }
+                  
+                  const isCurrentUser = user && assigneeData.id === user.id;
+                  
+                  return (
+                    <div>
+                      <p className="text-lg font-medium text-gray-900 dark:text-white">
+                        {isCurrentUser ? "You" : (
+                          assigneeData.first_name && assigneeData.last_name
+                            ? `${assigneeData.first_name} ${assigneeData.last_name}`
+                            : assigneeData.first_name || assigneeData.last_name
+                            ? (assigneeData.first_name || assigneeData.last_name)
+                            : assigneeData.email || "Unknown Volunteer"
+                        )}
+                        {isCurrentUser && " (You)"}
+                      </p>
+                      {!isCurrentUser && (
+                        <>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{assigneeData.email || "No email provided"}</p>
+                          {assigneeData.phone_number && (
+                            <div className="mt-2">
+                              <p className="text-sm text-gray-600 dark:text-gray-400">{assigneeData.phone_number}</p>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </div>

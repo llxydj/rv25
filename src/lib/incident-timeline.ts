@@ -2,13 +2,10 @@
 // Centralized incident timeline logging helper
 
 import { supabase } from './supabase'
-import { createClient } from '@supabase/supabase-js'
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { persistSession: false } }
-)
+// Note: Using regular supabase client (with RLS) instead of admin client
+// Admin client requires service role key which is not available on client side
+// Timeline logging will work with proper RLS policies
 
 export interface TimelineEvent {
   incidentId: string
@@ -84,24 +81,53 @@ export async function logIncidentTimelineEvent(event: TimelineEvent): Promise<{ 
     // FIX: Don't append metadata to notes - keep notes clean for display
     // Metadata is stored separately and can be used programmatically if needed
 
-    const { error } = await supabaseAdmin
-      .from('incident_updates')
-      .insert({
-        incident_id: event.incidentId,
-        updated_by: event.updatedBy || null,
-        previous_status: previousStatus,
-        new_status: newStatus,
-        notes: notes,
-        created_at: new Date().toISOString()
+    // Use API route for timeline logging to avoid client-side service role key issues
+    try {
+      const response = await fetch('/api/incidents/timeline', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          incident_id: event.incidentId,
+          updated_by: event.updatedBy || null,
+          previous_status: previousStatus,
+          new_status: newStatus,
+          notes: notes,
+        }),
       })
 
-    if (error) {
-      console.error('❌ Failed to log incident timeline event:', error)
-      // Still return success=false but don't throw - caller can decide
-      return { success: false, error: error.message }
-    }
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Failed to log timeline event' }))
+        throw new Error(errorData.message || 'Failed to log timeline event')
+      }
 
-    return { success: true }
+      return { success: true }
+    } catch (fetchError: any) {
+      // Fallback to direct supabase call if API route fails (with RLS)
+      try {
+        const { error } = await supabase
+          .from('incident_updates')
+          .insert({
+            incident_id: event.incidentId,
+            updated_by: event.updatedBy || null,
+            previous_status: previousStatus,
+            new_status: newStatus,
+            notes: notes,
+            created_at: new Date().toISOString()
+          })
+
+        if (error) {
+          console.error('❌ Failed to log incident timeline event (fallback):', error)
+          return { success: false, error: error.message }
+        }
+
+        return { success: true }
+      } catch (fallbackError: any) {
+        console.error('❌ Error logging incident timeline event (fallback failed):', fallbackError)
+        return { success: false, error: fallbackError.message || 'Failed to log timeline event' }
+      }
+    }
   } catch (error: any) {
     console.error('❌ Error logging incident timeline event:', error)
     return { success: false, error: error.message }
@@ -284,14 +310,22 @@ export async function logResolutionNotes(
 
 /**
  * Fetch timeline events for an incident
+ * @param incidentId - The incident ID to fetch timeline for
+ * @param supabaseClient - Optional Supabase client (for server-side use). If not provided, uses client-side client.
  */
-export async function getIncidentTimeline(incidentId: string): Promise<{
+export async function getIncidentTimeline(
+  incidentId: string,
+  supabaseClient?: any
+): Promise<{
   success: boolean
   events?: any[]
   error?: string
 }> {
   try {
-    const { data: updates, error } = await supabaseAdmin
+    // Use provided client (server-side) or fallback to client-side client
+    const client = supabaseClient || supabase
+    
+    const { data: updates, error } = await client
       .from('incident_updates')
       .select(`
         id,

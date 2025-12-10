@@ -183,10 +183,21 @@ export async function PATCH(
       .single()
     
     if (updateError) {
+      console.error('❌ Severity update error:', updateError)
       return NextResponse.json({ 
         success: false, 
-        message: 'Failed to update incident severity' 
+        message: `Failed to update incident severity: ${updateError.message || 'Unknown error'}`,
+        error: updateError.code || 'UPDATE_ERROR'
       }, { status: 500 })
+    }
+
+    // Check if update actually happened (might be null if status check prevented update)
+    if (!updatedIncident) {
+      return NextResponse.json({ 
+        success: false, 
+        code: 'NO_ROWS_UPDATED',
+        message: 'No rows were updated. The incident status may have changed or the incident was not found.' 
+      }, { status: 409 })
     }
     
     // Record severity change in timeline using centralized helper

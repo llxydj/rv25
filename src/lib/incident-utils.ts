@@ -28,14 +28,28 @@ export const normalizeIncident = (incident: any) => {
   const displayDate = incident.created_at_local || incident.created_at;
   const normalizedBarangay = incident.barangay?.toUpperCase() || incident.barangay || '';
   
-  return {
+  // CRITICAL: Preserve reporter and assignee data from API routes
+  // These are added by the admin/volunteer API routes and must be preserved
+  const normalized = {
     ...incident,
     photoGallery,
     isLegacyData,
     displayDate,
     barangay: normalizedBarangay,
-    dataFormatVersion: isLegacyData ? 'legacy' : 'current'
+    dataFormatVersion: isLegacyData ? 'legacy' : 'current',
+    // Explicitly preserve reporter and assignee if they exist
+    reporter: incident.reporter || null,
+    assignee: incident.assignee || null
   };
+  
+  console.log('🔍 [normalizeIncident] Preserving reporter/assignee:', {
+    hasReporter: !!normalized.reporter,
+    hasAssignee: !!normalized.assignee,
+    reporterId: normalized.reporter?.id,
+    assigneeId: normalized.assignee?.id
+  });
+  
+  return normalized;
 };
 
 /**
