@@ -18,6 +18,7 @@ import IncidentSeverityUpdater from "@/components/incident-severity-updater"
 import { IncidentFeedbackDisplay } from "@/components/incident-feedback-display"
 import { AudioPlayer } from "@/components/audio-player"
 import { IncidentTimeline } from "@/components/incident-timeline"
+import { INCIDENT_CATEGORIES, TRAUMA_SUBCATEGORIES } from "@/components/incident"
 
 export default function VolunteerIncidentDetailPage() {
   const params = useParams()
@@ -435,6 +436,26 @@ export default function VolunteerIncidentDetailPage() {
     return fullName || reporterData.email || "Anonymous Reporter";
   }
 
+  // Helper function to format incident category for display
+  const formatIncidentCategory = (category: string | null | undefined): string | null => {
+    if (!category) return null;
+    const categoryOption = INCIDENT_CATEGORIES.find(cat => cat.value === category);
+    return categoryOption ? categoryOption.label : category.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  }
+
+  // Helper function to format trauma subcategory for display
+  const formatTraumaSubcategory = (subcategory: string | null | undefined): string | null => {
+    if (!subcategory) return null;
+    const subcategoryOption = TRAUMA_SUBCATEGORIES.find(sub => sub.value === subcategory);
+    return subcategoryOption ? subcategoryOption.label : subcategory.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  }
+
+  // Helper function to format severity level for display
+  const formatSeverityLevel = (severity: string | null | undefined): string | null => {
+    if (!severity) return null;
+    return severity.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  }
+
   const handleCallReporter = () => {
     const reporterData = Array.isArray(incident?.reporter) 
       ? incident.reporter[0] 
@@ -549,6 +570,39 @@ export default function VolunteerIncidentDetailPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Incident Classification Section */}
+              {(incident.incident_category || incident.trauma_subcategory || incident.severity_level) && (
+                <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Incident Classification</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {incident.incident_category && (
+                      <div>
+                        <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Category:</span>
+                        <p className="text-sm text-gray-900 dark:text-white font-medium">
+                          {formatIncidentCategory(incident.incident_category)}
+                        </p>
+                      </div>
+                    )}
+                    {incident.trauma_subcategory && (
+                      <div>
+                        <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Trauma Type:</span>
+                        <p className="text-sm text-gray-900 dark:text-white font-medium">
+                          {formatTraumaSubcategory(incident.trauma_subcategory)}
+                        </p>
+                      </div>
+                    )}
+                    {incident.severity_level && (
+                      <div className={incident.incident_category && incident.trauma_subcategory ? 'sm:col-span-2' : ''}>
+                        <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Severity Level:</span>
+                        <p className="text-sm text-gray-900 dark:text-white font-medium">
+                          {formatSeverityLevel(incident.severity_level)}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div className="mt-4">
                 <h3 className="text-sm font-medium text-gray-700">Description</h3>

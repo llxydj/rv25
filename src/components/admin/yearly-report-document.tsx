@@ -80,8 +80,7 @@ const styles = StyleSheet.create({
     width: "100%",
     borderStyle: "solid",
     borderWidth: 1,
-    borderRightWidth: 0,
-    borderBottomWidth: 0,
+    borderColor: "#000",
     marginBottom: 15
   },
   tableRow: {
@@ -94,8 +93,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderLeftWidth: 0,
     borderTopWidth: 0,
+    borderRightWidth: 1,
+    borderBottomWidth: 1,
     backgroundColor: "#f3f4f6",
-    paddingVertical: 6
+    paddingVertical: 6,
+    paddingHorizontal: 4
   },
   tableCol: {
     width: "25%",
@@ -103,7 +105,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderLeftWidth: 0,
     borderTopWidth: 0,
-    paddingVertical: 4
+    borderRightWidth: 1,
+    borderBottomWidth: 1,
+    paddingVertical: 4,
+    paddingHorizontal: 4
   },
   tableCellHeader: {
     margin: "auto",
@@ -114,20 +119,27 @@ const styles = StyleSheet.create({
     margin: "auto",
     fontSize: 9
   },
-  chartPlaceholder: {
-    height: 150,
-    backgroundColor: "#f9fafb",
-    borderStyle: "dashed",
+  barChartContainer: {
+    width: "100%",
+    height: 30,
+    backgroundColor: "#f3f4f6",
+    borderStyle: "solid",
     borderWidth: 1,
     borderColor: "#d1d5db",
-    borderRadius: 4,
-    justifyContent: "center",
-    alignItems: "center",
-    marginVertical: 10
+    position: "relative",
+    overflow: "hidden"
   },
-  chartPlaceholderText: {
-    fontSize: 12,
-    color: "#6b7280"
+  barChartBar: {
+    height: "100%",
+    backgroundColor: "#3b82f6",
+    justifyContent: "center",
+    alignItems: "flex-end",
+    paddingRight: 4
+  },
+  barChartText: {
+    fontSize: 7,
+    color: "#ffffff",
+    fontWeight: "bold"
   },
   footer: {
     position: "absolute",
@@ -196,11 +208,13 @@ export default function YearlyReportDocument({ yearData, year, templateNotes = "
 
   const topIncidentTypes = Object.entries(typeBreakdown)
     .map(([type, count]) => ({ type, count: count as number }))
+    .filter(item => item.type && item.count > 0) // Filter out empty/invalid entries
     .sort((a, b) => b.count - a.count)
     .slice(0, 5)
 
   const statusDistribution = Object.entries(statusSummary)
     .map(([status, count]) => ({ status, count: count as number }))
+    .filter(item => item.status && item.count > 0) // Filter out empty/invalid entries
 
   const busiestQuarter = quarters.length > 0
     ? quarters.reduce((max: any, quarter: any) => 
@@ -218,13 +232,19 @@ export default function YearlyReportDocument({ yearData, year, templateNotes = "
     return String(value);
   };
 
-  // Helper function to format dates safely
+  // Helper function to format dates safely (plain text, no special characters)
   const formatDate = (dateString: string | undefined): string => {
     if (!dateString) return "N/A";
     try {
-      return new Date(dateString).toLocaleDateString("en-US");
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return "N/A";
+      // Format as MM/DD/YYYY to avoid any special character issues
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const year = date.getFullYear();
+      return `${month}/${day}/${year}`;
     } catch {
-      return "Invalid Date";
+      return "N/A";
     }
   };
 
@@ -382,14 +402,16 @@ export default function YearlyReportDocument({ yearData, year, templateNotes = "
                     <View style={styles.tableColHeader}><Text style={styles.tableCellHeader}>End Date</Text></View>
                   </View>
 
-                  {quarters.map((q: any, i: number) => (
-                    <View key={q?.quarter || i} style={styles.tableRow}>
-                      <View style={styles.tableCol}><Text style={styles.tableCell}>{safeText(q?.quarter)}</Text></View>
-                      <View style={styles.tableCol}><Text style={styles.tableCell}>{safeText(q?.incident_count || 0)}</Text></View>
-                      <View style={styles.tableCol}><Text style={styles.tableCell}>{formatDate(q?.start)}</Text></View>
-                      <View style={styles.tableCol}><Text style={styles.tableCell}>{formatDate(q?.end)}</Text></View>
-                    </View>
-                  ))}
+                  {quarters
+                    .filter((q: any) => q && (q.quarter || q.incident_count !== undefined)) // Filter out completely empty quarters
+                    .map((q: any, i: number) => (
+                      <View key={q?.quarter || `quarter-${i}`} style={styles.tableRow}>
+                        <View style={styles.tableCol}><Text style={styles.tableCell}>{safeText(q?.quarter || "N/A")}</Text></View>
+                        <View style={styles.tableCol}><Text style={styles.tableCell}>{safeText(q?.incident_count ?? 0)}</Text></View>
+                        <View style={styles.tableCol}><Text style={styles.tableCell}>{formatDate(q?.start)}</Text></View>
+                        <View style={styles.tableCol}><Text style={styles.tableCell}>{formatDate(q?.end)}</Text></View>
+                      </View>
+                    ))}
                 </View>
               </View>
             )}
@@ -407,18 +429,32 @@ export default function YearlyReportDocument({ yearData, year, templateNotes = "
                     <View style={styles.tableColHeader}><Text style={styles.tableCellHeader}>Visualization</Text></View>
                   </View>
 
-                  {topIncidentTypes.map((item) => (
-                    <View key={item.type} style={styles.tableRow}>
-                      <View style={styles.tableCol}><Text style={styles.tableCell}>{safeText(item.type)}</Text></View>
-                      <View style={styles.tableCol}><Text style={styles.tableCell}>{safeText(item.count)}</Text></View>
-                      <View style={styles.tableCol}><Text style={styles.tableCell}>{totalIncidents > 0 ? `${((item.count / totalIncidents) * 100).toFixed(1)}%` : "0.0%"}</Text></View>
-                      <View style={styles.tableCol}>
-                        <View style={styles.chartPlaceholder}>
-                          <Text style={styles.chartPlaceholderText}>Chart Visualization</Text>
+                  {topIncidentTypes
+                    .filter(item => item && item.type && item.count > 0) // Double-check filter
+                    .map((item, idx) => {
+                      const percentage = totalIncidents > 0 ? (item.count / totalIncidents) * 100 : 0;
+                      const colors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
+                      return (
+                        <View key={item.type || `type-${idx}`} style={styles.tableRow}>
+                          <View style={styles.tableCol}><Text style={styles.tableCell}>{safeText(item.type)}</Text></View>
+                          <View style={styles.tableCol}><Text style={styles.tableCell}>{safeText(item.count)}</Text></View>
+                          <View style={styles.tableCol}><Text style={styles.tableCell}>{percentage > 0 ? `${percentage.toFixed(1)}%` : "0.0%"}</Text></View>
+                          <View style={styles.tableCol}>
+                            <View style={styles.barChartContainer}>
+                              <View style={{
+                                ...styles.barChartBar,
+                                width: `${Math.max(percentage, 2)}%`,
+                                backgroundColor: colors[idx % colors.length]
+                              }}>
+                                {percentage > 10 && (
+                                  <Text style={styles.barChartText}>{percentage.toFixed(0)}%</Text>
+                                )}
+                              </View>
+                            </View>
+                          </View>
                         </View>
-                      </View>
-                    </View>
-                  ))}
+                      );
+                    })}
                 </View>
               </View>
             )}
@@ -436,18 +472,32 @@ export default function YearlyReportDocument({ yearData, year, templateNotes = "
                     <View style={styles.tableColHeader}><Text style={styles.tableCellHeader}>Visualization</Text></View>
                   </View>
 
-                  {statusDistribution.map((item) => (
-                    <View key={item.status} style={styles.tableRow}>
-                      <View style={styles.tableCol}><Text style={styles.tableCell}>{safeText(item.status)}</Text></View>
-                      <View style={styles.tableCol}><Text style={styles.tableCell}>{safeText(item.count)}</Text></View>
-                      <View style={styles.tableCol}><Text style={styles.tableCell}>{totalIncidents > 0 ? `${((item.count / totalIncidents) * 100).toFixed(1)}%` : "0.0%"}</Text></View>
-                      <View style={styles.tableCol}>
-                        <View style={styles.chartPlaceholder}>
-                          <Text style={styles.chartPlaceholderText}>Chart Visualization</Text>
+                  {statusDistribution
+                    .filter(item => item && item.status && item.count > 0) // Double-check filter
+                    .map((item, idx) => {
+                      const percentage = totalIncidents > 0 ? (item.count / totalIncidents) * 100 : 0;
+                      const colors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
+                      return (
+                        <View key={item.status || `status-${idx}`} style={styles.tableRow}>
+                          <View style={styles.tableCol}><Text style={styles.tableCell}>{safeText(item.status)}</Text></View>
+                          <View style={styles.tableCol}><Text style={styles.tableCell}>{safeText(item.count)}</Text></View>
+                          <View style={styles.tableCol}><Text style={styles.tableCell}>{percentage > 0 ? `${percentage.toFixed(1)}%` : "0.0%"}</Text></View>
+                          <View style={styles.tableCol}>
+                            <View style={styles.barChartContainer}>
+                              <View style={{
+                                ...styles.barChartBar,
+                                width: `${Math.max(percentage, 2)}%`,
+                                backgroundColor: colors[idx % colors.length]
+                              }}>
+                                {percentage > 10 && (
+                                  <Text style={styles.barChartText}>{percentage.toFixed(0)}%</Text>
+                                )}
+                              </View>
+                            </View>
+                          </View>
                         </View>
-                      </View>
-                    </View>
-                  ))}
+                      );
+                    })}
                 </View>
               </View>
             )}

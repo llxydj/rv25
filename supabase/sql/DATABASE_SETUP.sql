@@ -13,6 +13,18 @@ CREATE TABLE public.admin_documents (
   CONSTRAINT admin_documents_pkey PRIMARY KEY (id),
   CONSTRAINT admin_documents_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
+CREATE TABLE public.announcement_feedback (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  announcement_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  rating integer NOT NULL CHECK (rating >= 1 AND rating <= 5),
+  comment text,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT announcement_feedback_pkey PRIMARY KEY (id),
+  CONSTRAINT announcement_feedback_announcement_id_fkey FOREIGN KEY (announcement_id) REFERENCES public.announcements(id),
+  CONSTRAINT announcement_feedback_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
 CREATE TABLE public.announcements (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   title text NOT NULL,
@@ -25,6 +37,9 @@ CREATE TABLE public.announcements (
   requirements ARRAY,
   created_by uuid,
   created_at timestamp with time zone DEFAULT now(),
+  facebook_post_url text,
+  facebook_embed_data jsonb,
+  source_type text DEFAULT 'MANUAL'::text CHECK (source_type = ANY (ARRAY['MANUAL'::text, 'FACEBOOK'::text])),
   CONSTRAINT announcements_pkey PRIMARY KEY (id),
   CONSTRAINT announcements_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
 );
@@ -185,6 +200,10 @@ CREATE TABLE public.incidents (
   severity USER-DEFINED DEFAULT 'MODERATE'::incident_severity,
   created_year integer,
   photo_urls ARRAY DEFAULT '{}'::text[],
+  voice_url text,
+  incident_category text CHECK (incident_category IS NULL OR (incident_category = ANY (ARRAY['MEDICAL_TRAUMA'::text, 'MEDICAL_NON_TRAUMA'::text, 'NON_MEDICAL_SAFETY'::text, 'NON_MEDICAL_SECURITY'::text, 'NON_MEDICAL_ENVIRONMENTAL'::text, 'NON_MEDICAL_BEHAVIORAL'::text, 'OTHER'::text]))),
+  trauma_subcategory text CHECK (trauma_subcategory IS NULL OR (trauma_subcategory = ANY (ARRAY['FALL_RELATED'::text, 'BLUNT_FORCE'::text, 'PENETRATING'::text, 'BURN'::text, 'FRACTURE_DISLOCATION'::text, 'HEAD_INJURY'::text, 'SPINAL_INJURY'::text, 'MULTI_SYSTEM'::text, 'OTHER_TRAUMA'::text]))),
+  severity_level text CHECK (severity_level IS NULL OR (severity_level = ANY (ARRAY['CRITICAL'::text, 'HIGH'::text, 'MODERATE'::text, 'LOW'::text, 'INFORMATIONAL'::text]))),
   CONSTRAINT incidents_pkey PRIMARY KEY (id),
   CONSTRAINT incidents_reporter_id_fkey FOREIGN KEY (reporter_id) REFERENCES public.users(id),
   CONSTRAINT incidents_assigned_to_fkey FOREIGN KEY (assigned_to) REFERENCES public.users(id),
@@ -245,6 +264,23 @@ CREATE TABLE public.notifications (
   CONSTRAINT notifications_pkey PRIMARY KEY (id),
   CONSTRAINT notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
+CREATE TABLE public.pdf_report_history (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  scheduled_report_id uuid,
+  created_by uuid NOT NULL,
+  report_type text NOT NULL,
+  title text NOT NULL,
+  file_name text NOT NULL,
+  file_url text NOT NULL,
+  file_size bigint,
+  filters jsonb NOT NULL,
+  generated_at timestamp with time zone DEFAULT now(),
+  expires_at timestamp with time zone,
+  download_count integer DEFAULT 0,
+  CONSTRAINT pdf_report_history_pkey PRIMARY KEY (id),
+  CONSTRAINT pdf_report_history_scheduled_report_id_fkey FOREIGN KEY (scheduled_report_id) REFERENCES public.scheduled_pdf_reports(id),
+  CONSTRAINT pdf_report_history_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
+);
 CREATE TABLE public.push_subscriptions (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   user_id uuid,
@@ -279,6 +315,23 @@ CREATE TABLE public.reports (
   CONSTRAINT reports_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id),
   CONSTRAINT reports_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES public.users(id),
   CONSTRAINT reports_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.scheduled_pdf_reports (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  created_by uuid NOT NULL,
+  report_type text NOT NULL,
+  title text NOT NULL,
+  schedule_type text NOT NULL CHECK (schedule_type = ANY (ARRAY['daily'::text, 'weekly'::text, 'monthly'::text, 'custom'::text])),
+  schedule_config jsonb NOT NULL,
+  filters jsonb NOT NULL,
+  recipients ARRAY DEFAULT ARRAY[]::text[],
+  enabled boolean DEFAULT true,
+  last_run_at timestamp with time zone,
+  next_run_at timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT scheduled_pdf_reports_pkey PRIMARY KEY (id),
+  CONSTRAINT scheduled_pdf_reports_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
 );
 CREATE TABLE public.scheduledactivities (
   schedule_id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -401,6 +454,16 @@ CREATE TABLE public.system_logs (
   CONSTRAINT system_logs_pkey PRIMARY KEY (id),
   CONSTRAINT system_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
+CREATE TABLE public.training_enrollments (
+  id bigint NOT NULL DEFAULT nextval('training_enrollments_id_seq'::regclass),
+  training_id bigint NOT NULL,
+  user_id uuid NOT NULL,
+  enrolled_at timestamp with time zone NOT NULL DEFAULT now(),
+  attended boolean DEFAULT false,
+  CONSTRAINT training_enrollments_pkey PRIMARY KEY (id),
+  CONSTRAINT training_enrollments_training_id_fkey FOREIGN KEY (training_id) REFERENCES public.trainings(id),
+  CONSTRAINT training_enrollments_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
 CREATE TABLE public.training_evaluations (
   id bigint NOT NULL DEFAULT nextval('training_evaluations_id_seq'::regclass),
   training_id bigint NOT NULL,
@@ -411,6 +474,21 @@ CREATE TABLE public.training_evaluations (
   CONSTRAINT training_evaluations_pkey PRIMARY KEY (id),
   CONSTRAINT training_evaluations_training_id_fkey FOREIGN KEY (training_id) REFERENCES public.trainings(id)
 );
+CREATE TABLE public.training_evaluations_admin (
+  id bigint NOT NULL DEFAULT nextval('training_evaluations_admin_id_seq'::regclass),
+  training_id bigint NOT NULL,
+  user_id uuid NOT NULL,
+  evaluated_by uuid NOT NULL,
+  performance_rating integer NOT NULL CHECK (performance_rating >= 1 AND performance_rating <= 5),
+  skills_assessment jsonb,
+  comments text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT training_evaluations_admin_pkey PRIMARY KEY (id),
+  CONSTRAINT training_evaluations_admin_training_id_fkey FOREIGN KEY (training_id) REFERENCES public.trainings(id),
+  CONSTRAINT training_evaluations_admin_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT training_evaluations_admin_evaluated_by_fkey FOREIGN KEY (evaluated_by) REFERENCES public.users(id)
+);
 CREATE TABLE public.trainings (
   id bigint NOT NULL DEFAULT nextval('trainings_id_seq'::regclass),
   title text NOT NULL,
@@ -420,6 +498,8 @@ CREATE TABLE public.trainings (
   location text,
   created_by uuid,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
+  capacity integer,
+  status text DEFAULT 'SCHEDULED'::text CHECK (status = ANY (ARRAY['SCHEDULED'::text, 'ONGOING'::text, 'COMPLETED'::text, 'CANCELLED'::text])),
   CONSTRAINT trainings_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.users (
@@ -443,8 +523,6 @@ CREATE TABLE public.users (
   emergency_contact_relationship text,
   profile_photo_url text,
   status text DEFAULT 'active'::text CHECK (status = ANY (ARRAY['active'::text, 'inactive'::text])),
-  pin_hash text,
-  pin_enabled boolean DEFAULT true,
   profile_image text,
   CONSTRAINT users_pkey PRIMARY KEY (id),
   CONSTRAINT users_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
@@ -470,6 +548,7 @@ CREATE TABLE public.volunteer_documents (
   mime_type text,
   size_bytes bigint NOT NULL,
   created_at timestamp with time zone DEFAULT now(),
+  display_name text,
   CONSTRAINT volunteer_documents_pkey PRIMARY KEY (id),
   CONSTRAINT volunteer_documents_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
@@ -513,6 +592,7 @@ CREATE TABLE public.volunteer_profiles (
   last_status_change timestamp with time zone,
   last_status_changed_by uuid,
   is_available boolean DEFAULT false,
+  bio text CHECK (bio IS NULL OR length(bio) <= 1000),
   CONSTRAINT volunteer_profiles_pkey PRIMARY KEY (volunteer_user_id),
   CONSTRAINT volunteer_profiles_volunteer_user_id_fkey FOREIGN KEY (volunteer_user_id) REFERENCES public.users(id),
   CONSTRAINT volunteer_profiles_admin_user_id_fkey FOREIGN KEY (admin_user_id) REFERENCES public.users(id),

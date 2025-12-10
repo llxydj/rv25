@@ -125,6 +125,16 @@ const CustomTooltip = ({ active, payload, label, darkMode }: any) => {
 
 export default function AdminReports() {
   const { user } = useAuth()
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 640)
+    }
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
 
   // ✅ STATE MANAGEMENT - GROUPED BY CONCERN
   const [loading, setLoading] = useState(false)
@@ -952,7 +962,7 @@ export default function AdminReports() {
 
   return (
     <AdminLayout>
-      <div className="space-y-6 p-4 md:p-6 lg:p-8">
+      <div className="space-y-4 sm:space-y-6 p-3 sm:p-4 md:p-6 lg:p-8">
         {/* HEADER */}
         <div className="flex flex-col gap-2">
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-gray-100">
@@ -964,7 +974,7 @@ export default function AdminReports() {
         </div>
 
         <Tabs defaultValue="yearly" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-3 gap-1 sm:gap-2">
             <TabsTrigger value="yearly">Yearly Reports</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
             <TabsTrigger value="pdf">PDF Reports</TabsTrigger>
@@ -1332,26 +1342,23 @@ export default function AdminReports() {
                         Incident Types
                       </CardTitle>
                     </CardHeader>
-                    <CardContent className="h-[250px] sm:h-64 md:h-80">
+                    <CardContent className="h-[400px] sm:h-64 md:h-80 overflow-hidden">
                       {Object.keys(yearData?.type_breakdown || {}).length > 0 ? (
                         <div className="w-full h-full overflow-hidden">
                           <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
+                            <PieChart margin={isMobile ? { top: 5, right: 5, bottom: 100, left: 5 } : { top: 10, right: 10, bottom: 10, left: 10 }}>
                               <Pie
                                 data={Object.entries(yearData.type_breakdown).map(([type, count]) => ({
                                   name: type,
                                   value: count as number
                                 }))}
                                 cx="50%"
-                                cy="50%"
+                                cy={isMobile ? "40%" : "50%"}
                                 labelLine={false}
-                                outerRadius="70%"
+                                outerRadius={isMobile ? "50%" : "70%"}
                                 fill="#8884d8"
                                 dataKey="value"
-                                label={({ name, percent }) => {
-                                  const pct = (percent * 100).toFixed(0)
-                                  return `${name}: ${pct}%`
-                                }}
+                                label={false}
                               >
                                 {Object.entries(yearData.type_breakdown).map((_, index) => (
                                   <Cell key={`cell-${index}`} fill={chartTheme.colors[index % chartTheme.colors.length]} />
@@ -1360,13 +1367,26 @@ export default function AdminReports() {
                               <Tooltip 
                                 content={<CustomTooltip darkMode={darkMode} />}
                                 wrapperStyle={{ 
-                                  fontSize: '14px',
+                                  fontSize: isMobile ? '12px' : '14px',
                                   padding: '8px'
+                                }}
+                                formatter={(value: any, name: any, props: any) => {
+                                  const total = Object.values(yearData.type_breakdown).reduce((sum: number, count: any) => sum + (count || 0), 0) as number;
+                                  const percent = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
+                                  return [`${value} (${percent}%)`, name];
                                 }}
                               />
                               <Legend
-                                wrapperStyle={{ fontSize: '11px', color: chartTheme.text }}
-                                iconSize={10}
+                                wrapperStyle={{ 
+                                  fontSize: isMobile ? '9px' : '11px', 
+                                  color: chartTheme.text,
+                                  paddingTop: isMobile ? '10px' : '0px',
+                                  lineHeight: isMobile ? '14px' : '16px'
+                                }}
+                                iconSize={isMobile ? 7 : 10}
+                                layout={isMobile ? "vertical" : "horizontal"}
+                                verticalAlign={isMobile ? "bottom" : "top"}
+                                align={isMobile ? "left" : "center"}
                               />
                             </PieChart>
                           </ResponsiveContainer>
@@ -1386,16 +1406,17 @@ export default function AdminReports() {
                         Status Distribution
                       </CardTitle>
                     </CardHeader>
-                    <CardContent className="h-[250px] sm:h-64 md:h-80">
+                    <CardContent className="h-[350px] sm:h-64 md:h-80 overflow-hidden">
                       {Object.keys(yearData?.status_summary || {}).length > 0 ? (
                         <div className="w-full h-full overflow-hidden">
                           <ResponsiveContainer width="100%" height="100%">
                             <BarChart
                               data={Object.entries(yearData.status_summary).map(([status, count]) => ({
-                                name: status,
-                                value: count as number
+                                name: isMobile && status.length > 10 ? status.substring(0, 8) + "..." : status,
+                                value: count as number,
+                                fullName: status
                               }))}
-                              margin={{ top: 5, right: 10, left: -15, bottom: 5 }}
+                              margin={isMobile ? { top: 5, right: 10, left: -10, bottom: 50 } : { top: 5, right: 10, left: -15, bottom: 40 }}
                             >
                               <CartesianGrid
                                 strokeDasharray="3 3"
@@ -1404,18 +1425,26 @@ export default function AdminReports() {
                               <XAxis
                                 dataKey="name"
                                 stroke={chartTheme.axis}
-                                tick={{ fontSize: 11 }}
+                                tick={{ fontSize: isMobile ? 9 : 11 }}
+                                angle={isMobile ? -45 : 0}
+                                textAnchor={isMobile ? "end" : "middle"}
+                                height={isMobile ? 60 : 40}
                               />
                               <YAxis
                                 allowDecimals={false}
                                 stroke={chartTheme.axis}
-                                tick={{ fontSize: 11 }}
+                                tick={{ fontSize: isMobile ? 9 : 11 }}
+                                width={isMobile ? 30 : 40}
                               />
                               <Tooltip 
                                 content={<CustomTooltip darkMode={darkMode} />}
                                 wrapperStyle={{ 
-                                  fontSize: '14px',
+                                  fontSize: isMobile ? '12px' : '14px',
                                   padding: '8px'
+                                }}
+                                formatter={(value: any, name: any, props: any) => {
+                                  const fullName = props.payload?.fullName || name;
+                                  return [value, fullName];
                                 }}
                               />
                               <Bar
@@ -1994,6 +2023,197 @@ export default function AdminReports() {
                   </div>
                 )}
 
+                {/* TRAUMA CLASSIFICATION CHARTS */}
+                {reportType === "incidents" && (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {/* INCIDENT CATEGORY DISTRIBUTION */}
+                    {incidentsByCategory && incidentsByCategory.length > 0 && (
+                      <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-base md:text-lg text-gray-900 dark:text-gray-100">
+                            Incident Category Distribution
+                          </CardTitle>
+                          <CardDescription className="text-sm text-gray-600 dark:text-gray-400">
+                            Breakdown by incident category
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="h-[400px] sm:h-64 md:h-80 overflow-hidden">
+                          <div className="w-full h-full overflow-hidden">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <PieChart margin={isMobile ? { top: 5, right: 5, bottom: 100, left: 5 } : { top: 10, right: 10, bottom: 10, left: 10 }}>
+                                <Pie
+                                  data={incidentsByCategory.map((item: any) => ({
+                                    name: item.incident_category?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Uncategorized',
+                                    value: item.count || 0
+                                  }))}
+                                  cx="50%"
+                                  cy={isMobile ? "40%" : "50%"}
+                                  labelLine={false}
+                                  outerRadius={isMobile ? "50%" : "70%"}
+                                  fill="#8884d8"
+                                  dataKey="value"
+                                  label={false}
+                                >
+                                  {incidentsByCategory.map((_: any, index: number) => (
+                                    <Cell key={`cell-${index}`} fill={chartTheme.colors[index % chartTheme.colors.length]} />
+                                  ))}
+                                </Pie>
+                                <Tooltip 
+                                  content={<CustomTooltip darkMode={darkMode} />}
+                                  wrapperStyle={{ 
+                                    fontSize: isMobile ? '12px' : '14px',
+                                    padding: '8px'
+                                  }}
+                                  formatter={(value: any, name: any, props: any) => {
+                                    const total = incidentsByCategory.reduce((sum: number, item: any) => sum + (item.count || 0), 0);
+                                    const percent = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
+                                    return [`${value} (${percent}%)`, name];
+                                  }}
+                                />
+                                <Legend
+                                  wrapperStyle={{ 
+                                    fontSize: isMobile ? '9px' : '11px', 
+                                    color: chartTheme.text,
+                                    paddingTop: isMobile ? '10px' : '0px',
+                                    lineHeight: isMobile ? '14px' : '16px'
+                                  }}
+                                  iconSize={isMobile ? 7 : 10}
+                                  layout={isMobile ? "vertical" : "horizontal"}
+                                  verticalAlign={isMobile ? "bottom" : "top"}
+                                  align={isMobile ? "left" : "center"}
+                                />
+                              </PieChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* TRAUMA SUBCATEGORY BREAKDOWN */}
+                    {incidentsByTraumaSubcategory && incidentsByTraumaSubcategory.length > 0 && (
+                      <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-base md:text-lg text-gray-900 dark:text-gray-100">
+                            Trauma Subcategory Breakdown
+                          </CardTitle>
+                          <CardDescription className="text-sm text-gray-600 dark:text-gray-400">
+                            Medical trauma incidents by type
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="h-[350px] sm:h-64 md:h-80 overflow-hidden">
+                          <div className="w-full h-full overflow-hidden">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <BarChart
+                                data={incidentsByTraumaSubcategory.map((item: any) => ({
+                                  name: isMobile && (item.trauma_subcategory?.length || 0) > 10 
+                                    ? (item.trauma_subcategory?.replace(/_/g, ' ').substring(0, 8) + "...") 
+                                    : item.trauma_subcategory?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Unknown',
+                                  value: item.count || 0,
+                                  fullName: item.trauma_subcategory?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Unknown'
+                                }))}
+                                margin={isMobile ? { top: 5, right: 10, left: -10, bottom: 50 } : { top: 5, right: 10, left: -15, bottom: 40 }}
+                              >
+                                <CartesianGrid
+                                  strokeDasharray="3 3"
+                                  stroke={chartTheme.grid}
+                                />
+                                <XAxis
+                                  dataKey="name"
+                                  stroke={chartTheme.axis}
+                                  tick={{ fontSize: isMobile ? 9 : 11 }}
+                                  angle={isMobile ? -45 : 0}
+                                  textAnchor={isMobile ? "end" : "middle"}
+                                  height={isMobile ? 60 : 40}
+                                />
+                                <YAxis
+                                  allowDecimals={false}
+                                  stroke={chartTheme.axis}
+                                  tick={{ fontSize: isMobile ? 9 : 11 }}
+                                  width={isMobile ? 30 : 40}
+                                />
+                                <Tooltip 
+                                  content={<CustomTooltip darkMode={darkMode} />}
+                                  wrapperStyle={{ 
+                                    fontSize: isMobile ? '12px' : '14px',
+                                    padding: '8px'
+                                  }}
+                                  formatter={(value: any, name: any, props: any) => {
+                                    const fullName = props.payload?.fullName || name;
+                                    return [value, fullName];
+                                  }}
+                                />
+                                <Bar
+                                  dataKey="value"
+                                  fill={chartTheme.colors[3]}
+                                  radius={[4, 4, 0, 0]}
+                                />
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* SEVERITY LEVEL DISTRIBUTION */}
+                    {incidentsBySeverityLevel && incidentsBySeverityLevel.length > 0 && (
+                      <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 lg:col-span-2">
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-base md:text-lg text-gray-900 dark:text-gray-100">
+                            Severity Level Distribution
+                          </CardTitle>
+                          <CardDescription className="text-sm text-gray-600 dark:text-gray-400">
+                            Enhanced severity assessment breakdown
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="h-[350px] sm:h-64 md:h-80 overflow-hidden">
+                          <div className="w-full h-full overflow-hidden">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <BarChart
+                                data={incidentsBySeverityLevel.map((item: any) => ({
+                                  name: item.severity_level?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Unknown',
+                                  value: item.count || 0
+                                }))}
+                                margin={isMobile ? { top: 5, right: 10, left: -10, bottom: 50 } : { top: 5, right: 10, left: -15, bottom: 40 }}
+                              >
+                                <CartesianGrid
+                                  strokeDasharray="3 3"
+                                  stroke={chartTheme.grid}
+                                />
+                                <XAxis
+                                  dataKey="name"
+                                  stroke={chartTheme.axis}
+                                  tick={{ fontSize: isMobile ? 9 : 11 }}
+                                  angle={isMobile ? -45 : 0}
+                                  textAnchor={isMobile ? "end" : "middle"}
+                                  height={isMobile ? 60 : 40}
+                                />
+                                <YAxis
+                                  allowDecimals={false}
+                                  stroke={chartTheme.axis}
+                                  tick={{ fontSize: isMobile ? 9 : 11 }}
+                                  width={isMobile ? 30 : 40}
+                                />
+                                <Tooltip 
+                                  content={<CustomTooltip darkMode={darkMode} />}
+                                  wrapperStyle={{ 
+                                    fontSize: isMobile ? '12px' : '14px',
+                                    padding: '8px'
+                                  }}
+                                />
+                                <Bar
+                                  dataKey="value"
+                                  fill={chartTheme.colors[4]}
+                                  radius={[4, 4, 0, 0]}
+                                />
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+                )}
+
                 {/* RESIDENT SUMMARY ROW */}
                 {reportType === "incidents" && residentAnalytics?.overall && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -2107,6 +2327,15 @@ export default function AdminReports() {
                               <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                 Priority
                               </th>
+                              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Category
+                              </th>
+                              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Trauma Type
+                              </th>
+                              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Severity Level
+                              </th>
                             </tr>
                           </thead>
                           <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-800">
@@ -2179,6 +2408,39 @@ export default function AdminReports() {
                                         incident.priority === 3 ? 'Medium' :
                                           incident.priority === 4 ? 'Low' : 'Info'}
                                   </span>
+                                </td>
+                                <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
+                                  {incident.incident_category ? (
+                                    <span className="inline-flex px-2 py-1 text-xs rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300">
+                                      {incident.incident_category.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                                    </span>
+                                  ) : (
+                                    <span className="text-gray-400 dark:text-gray-500">—</span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
+                                  {incident.trauma_subcategory ? (
+                                    <span className="inline-flex px-2 py-1 text-xs rounded-full bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300">
+                                      {incident.trauma_subcategory.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                                    </span>
+                                  ) : (
+                                    <span className="text-gray-400 dark:text-gray-500">—</span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  {incident.severity_level ? (
+                                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                      incident.severity_level === 'CRITICAL' ? 'bg-red-100 dark:bg-red-950 text-red-800 dark:text-red-200' :
+                                      incident.severity_level === 'HIGH' ? 'bg-orange-100 dark:bg-orange-950 text-orange-800 dark:text-orange-200' :
+                                      incident.severity_level === 'MODERATE' ? 'bg-yellow-100 dark:bg-yellow-950 text-yellow-800 dark:text-yellow-200' :
+                                      incident.severity_level === 'LOW' ? 'bg-green-100 dark:bg-green-950 text-green-800 dark:text-green-200' :
+                                      'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200'
+                                    }`}>
+                                      {incident.severity_level.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                                    </span>
+                                  ) : (
+                                    <span className="text-gray-400 dark:text-gray-500">—</span>
+                                  )}
                                 </td>
                               </tr>
                             ))}
