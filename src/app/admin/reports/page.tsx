@@ -1360,8 +1360,8 @@ export default function AdminReports() {
                               <Tooltip 
                                 content={<CustomTooltip darkMode={darkMode} />}
                                 wrapperStyle={{ 
-                                  fontSize: window.innerWidth < 640 ? '12px' : '14px',
-                                  padding: window.innerWidth < 640 ? '6px' : '8px'
+                                  fontSize: '14px',
+                                  padding: '8px'
                                 }}
                               />
                               <Legend
@@ -1414,8 +1414,8 @@ export default function AdminReports() {
                               <Tooltip 
                                 content={<CustomTooltip darkMode={darkMode} />}
                                 wrapperStyle={{ 
-                                  fontSize: window.innerWidth < 640 ? '12px' : '14px',
-                                  padding: window.innerWidth < 640 ? '6px' : '8px'
+                                  fontSize: '14px',
+                                  padding: '8px'
                                 }}
                               />
                               <Bar
@@ -1810,8 +1810,8 @@ export default function AdminReports() {
                               <Tooltip 
                                 content={<CustomTooltip darkMode={darkMode} />}
                                 wrapperStyle={{ 
-                                  fontSize: window.innerWidth < 640 ? '12px' : '14px',
-                                  padding: window.innerWidth < 640 ? '6px' : '8px'
+                                  fontSize: '14px',
+                                  padding: '8px'
                                 }}
                               />
                               <Bar
@@ -1862,8 +1862,8 @@ export default function AdminReports() {
                               <Tooltip 
                                 content={<CustomTooltip darkMode={darkMode} />}
                                 wrapperStyle={{ 
-                                  fontSize: window.innerWidth < 640 ? '12px' : '14px',
-                                  padding: window.innerWidth < 640 ? '6px' : '8px'
+                                  fontSize: '14px',
+                                  padding: '8px'
                                 }}
                               />
                               <Legend
@@ -1923,8 +1923,8 @@ export default function AdminReports() {
                                 <Tooltip 
                                 content={<CustomTooltip darkMode={darkMode} />}
                                 wrapperStyle={{ 
-                                  fontSize: window.innerWidth < 640 ? '12px' : '14px',
-                                  padding: window.innerWidth < 640 ? '6px' : '8px'
+                                  fontSize: '14px',
+                                  padding: '8px'
                                 }}
                               />
                                 <Bar
@@ -1977,8 +1977,8 @@ export default function AdminReports() {
                                 <Tooltip 
                                 content={<CustomTooltip darkMode={darkMode} />}
                                 wrapperStyle={{ 
-                                  fontSize: window.innerWidth < 640 ? '12px' : '14px',
-                                  padding: window.innerWidth < 640 ? '6px' : '8px'
+                                  fontSize: '14px',
+                                  padding: '8px'
                                 }}
                               />
                                 <Legend
@@ -2740,7 +2740,7 @@ export default function AdminReports() {
                             <XAxis
                               dataKey="barangay"
                               stroke={chartTheme.axis}
-                              tick={{ fontSize: window.innerWidth < 640 ? 9 : 10 }}
+                              tick={{ fontSize: 10 }}
                               interval={0}
                               angle={-45}
                               textAnchor="end"
@@ -2749,7 +2749,7 @@ export default function AdminReports() {
                             <YAxis
                               allowDecimals={false}
                               stroke={chartTheme.axis}
-                              tick={{ fontSize: window.innerWidth < 640 ? 10 : 11 }}
+                              tick={{ fontSize: 11 }}
                             />
                             <Tooltip content={<CustomTooltip darkMode={darkMode} />} />
                             <Bar

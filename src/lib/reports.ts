@@ -570,16 +570,35 @@ export const exportIncidentsToCSV = async (startDate?: string, endDate?: string)
       }
     })
 
-    // Get headers from first data item
+    // Import CSV utilities
+    const { generateCSVFilename } = await import('./enhanced-csv-export')
+    const reportType = startDate && endDate ? 'DateRange' : 'Complete'
+    const filename = generateCSVFilename(reportType, startDate, endDate)
+    
+    // Get headers from first data item (handle empty array)
+    if (csvData.length === 0) {
+      return { 
+        success: true, 
+        data: [],
+        csv: generateEnhancedCSV([], [], {
+          organizationName: 'RVOIS - Rescue Volunteers Operations Information System',
+          reportTitle: 'Incident Report',
+          includeMetadata: true,
+          includeSummary: false,
+          metadata: {
+            'Report Period': startDate && endDate 
+              ? `${new Date(startDate).toISOString().split('T')[0]} to ${new Date(endDate).toISOString().split('T')[0]}`
+              : 'All Time',
+            'Total Records': '0'
+          }
+        }),
+        filename
+      }
+    }
     const headers = Object.keys(csvData[0] || [])
     
     // Create summary statistics
     const summaryStats = createSummaryStats(csvData, 'Created At', ['Latitude', 'Longitude'])
-    
-    // Generate enhanced CSV with metadata
-    const { generateCSVFilename } = await import('./enhanced-csv-export')
-    const reportType = startDate && endDate ? 'DateRange' : 'Complete'
-    const filename = generateCSVFilename(reportType, startDate, endDate)
     
     const enhancedCSV = generateEnhancedCSV(csvData, headers, {
       organizationName: 'RVOIS - Rescue Volunteers Operations Information System',

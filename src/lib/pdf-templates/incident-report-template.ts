@@ -673,7 +673,7 @@ export function generateIncidentReportHTML(data: IncidentReportData, logoBase64?
       <div class="incident-detail-card">
         <div class="incident-header">
           <div style="flex: 1;">
-            <div class="incident-id">Incident #${index + 1} | ID: ${incident.id.slice(0, 8).toUpperCase()}</div>
+            <div class="incident-id">Incident #${index + 1} | ID: ${incident.id ? String(incident.id).slice(0, 8).toUpperCase() : 'N/A'}</div>
             <div class="incident-type">${incident.type || 'Unspecified Incident'}</div>
             <div class="incident-category">${emergencyCategory}</div>
             ${incident.incident_category && incident.incident_category !== 'N/A' ? `
