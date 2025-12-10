@@ -25,14 +25,15 @@ const nextConfig = {
   },
 
   webpack(config, { isServer }) {
-    // Handle Leaflet on server-side (prevent SSR errors)
+    // Handle Leaflet and DOMPurify on server-side (prevent SSR errors)
     if (isServer) {
       config.externals = [
         ...(Array.isArray(config.externals) ? config.externals : []),
         {
           leaflet: 'commonjs leaflet',
           'react-leaflet': 'commonjs react-leaflet',
-          '@react-leaflet/core': 'commonjs @react-leaflet/core'
+          '@react-leaflet/core': 'commonjs @react-leaflet/core',
+          'isomorphic-dompurify': 'commonjs isomorphic-dompurify'
         }
       ]
     }

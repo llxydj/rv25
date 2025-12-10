@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { AlertTriangle, Calendar, Edit3, MapPin, Plus, Trash2, X, ArrowLeft, Share2 as Facebook, Link as ExternalLink, Star, MessageSquare } from "lucide-react"
 import { supabase } from "@/lib/supabase"
-import DOMPurify from 'isomorphic-dompurify'
+import { useDOMPurify } from "@/hooks/use-dom-purify"
 
 type Announcement = {
   id: string
@@ -59,6 +59,19 @@ export default function AdminAnnouncementsPage() {
   const [loadingFeedback, setLoadingFeedback] = useState<Record<string, boolean>>({})
   const [showFeedbackModal, setShowFeedbackModal] = useState<string | null>(null)
   const [feedbackDetails, setFeedbackDetails] = useState<any[]>([])
+  const [sanitizedHtml, setSanitizedHtml] = useState<string>('')
+  
+  // Use custom hook for DOMPurify sanitization (client-side only)
+  const { sanitize } = useDOMPurify()
+
+  // Sanitize Facebook preview HTML when it changes
+  useEffect(() => {
+    if (facebookPreview?.html) {
+      sanitize(facebookPreview.html).then(setSanitizedHtml)
+    } else {
+      setSanitizedHtml('')
+    }
+  }, [facebookPreview, sanitize])
 
   const fetchList = async () => {
     try {
@@ -587,10 +600,7 @@ export default function AdminAnnouncementsPage() {
                         </div>
                         <div 
                           className="text-sm text-gray-700"
-                          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(facebookPreview.html || '', { 
-                            ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'a', 'ul', 'ol', 'li', 'span', 'div'],
-                            ALLOWED_ATTR: ['href', 'target', 'rel', 'class']
-                          }) }}
+                          dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
                         />
                         {facebookPreview.url && (
                           <a 
