@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { usePathname } from "next/navigation"
-import { AlertTriangle, MapPin, Phone, User, Loader2, CheckCircle, X } from "lucide-react"
+import { AlertTriangle, MapPin, Phone, User, Loader2, CheckCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAuth } from "@/lib/auth"
@@ -22,12 +22,14 @@ export function SOSButton() {
   const { toast } = useToast()
   const pathname = usePathname()
   const [showModal, setShowModal] = useState(false)
-  const [isSending, setIsSending] = useState(false)
+  const [isProcessing, setIsProcessing] = useState(false)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [gettingLocation, setGettingLocation] = useState(false)
   const [locationError, setLocationError] = useState<string | null>(null)
   const [address, setAddress] = useState<string | null>(null)
+  const [sosStatus, setSosStatus] = useState<'sending' | 'success' | 'error'>('sending')
+  const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Fetch user profile data
   useEffect(() => {
@@ -64,66 +66,88 @@ export function SOSButton() {
     }
   }, [user?.id])
 
-  // Get current location
-  const getCurrentLocation = () => {
-    if (!('geolocation' in navigator)) {
-      setLocationError('Location services are not available on this device')
+  // Get current location (returns a promise with location and optional address)
+  const getCurrentLocation = (): Promise<{ lat: number; lng: number; address?: string }> => {
+    return new Promise((resolve, reject) => {
+      if (!('geolocation' in navigator)) {
+        reject(new Error('Location services are not available on this device'))
+        return
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const lat = position.coords.latitude
+          const lng = position.coords.longitude
+          
+          // Try to get address from coordinates (non-blocking, but we'll use it if available)
+          let resolvedAddress: string | undefined = undefined
+          try {
+            const response = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+              {
+                headers: {
+                  'User-Agent': 'RVOIS/1.0'
+                }
+              }
+            )
+            const data = await response.json()
+            if (data.display_name) {
+              resolvedAddress = data.display_name
+              setAddress(resolvedAddress) // Update state for UI display
+            }
+          } catch (err) {
+            console.warn('Failed to get address from coordinates:', err)
+            // Continue without address - not critical
+          }
+          
+          resolve({ lat, lng, address: resolvedAddress })
+        },
+        (error) => {
+          console.error('Geolocation error:', error)
+          reject(new Error('Unable to get your location. Please enable location services.'))
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        }
+      )
+    })
+  }
+
+  // Helper function to reset state
+  const resetSOSState = () => {
+    setShowModal(false)
+    setIsProcessing(false)
+    setLocation(null)
+    setAddress(null)
+    setLocationError(null)
+    setSosStatus('sending')
+    setGettingLocation(false)
+  }
+
+  // One-click SOS handler - immediately sends SOS on button click
+  const handleSOSClick = async () => {
+    // Prevent multiple clicks
+    if (isProcessing) return
+
+    // Clear any existing timer
+    if (autoCloseTimerRef.current) {
+      clearTimeout(autoCloseTimerRef.current)
+      autoCloseTimerRef.current = null
+    }
+
+    // Validate user and profile
+    if (!user?.id) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please log in to use SOS feature."
+      })
       return
     }
 
-    setGettingLocation(true)
-    setLocationError(null)
-
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const lat = position.coords.latitude
-        const lng = position.coords.longitude
-        setLocation({ lat, lng })
-        setGettingLocation(false)
-
-        // Try to get address from coordinates
-        try {
-          const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
-            {
-              headers: {
-                'User-Agent': 'RVOIS/1.0'
-              }
-            }
-          )
-          const data = await response.json()
-          if (data.display_name) {
-            setAddress(data.display_name)
-          }
-        } catch (err) {
-          console.warn('Failed to get address from coordinates:', err)
-        }
-      },
-      (error) => {
-        console.error('Geolocation error:', error)
-        setLocationError('Unable to get your location. Please enable location services.')
-        setGettingLocation(false)
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0
-      }
-    )
-  }
-
-  // Open SOS modal
-  const handleSOSClick = () => {
-    setShowModal(true)
-    // Automatically get location when modal opens
-    if (!location) {
-      getCurrentLocation()
-    }
-  }
-
-  // Send SOS request
-  const handleSendSOS = async () => {
-    if (!user?.id || !userProfile) {
+    if (!userProfile) {
       toast({
         variant: "destructive",
         title: "Error",
@@ -132,19 +156,24 @@ export function SOSButton() {
       return
     }
 
-    if (!location) {
-      toast({
-        variant: "destructive",
-        title: "Location Required",
-        description: "Please wait for location to be captured, or enable location services."
-      })
-      return
-    }
-
-    setIsSending(true)
+    // Show modal immediately
+    setShowModal(true)
+    setIsProcessing(true)
+    setSosStatus('sending')
+    setGettingLocation(true)
+    setLocationError(null)
 
     try {
-      // Create emergency incident
+      // Get location (includes address if available)
+      const locationData = await getCurrentLocation()
+      setLocation({ lat: locationData.lat, lng: locationData.lng })
+      setGettingLocation(false)
+
+      // Use address from location data, fallback to user profile address, or GPS coordinates
+      const currentAddress = locationData.address || userProfile.address || 'Location captured via GPS'
+      const locationDescription = locationData.address || `${locationData.lat.toFixed(6)}, ${locationData.lng.toFixed(6)}`
+
+      // Send SOS request immediately
       const response = await fetch('/api/incidents', {
         method: 'POST',
         headers: {
@@ -153,10 +182,10 @@ export function SOSButton() {
         body: JSON.stringify({
           reporter_id: user.id,
           incident_type: 'EMERGENCY INCIDENT',
-          description: `SOS ALERT: ${userProfile.first_name} ${userProfile.last_name} needs immediate assistance. Contact: ${userProfile.phone_number || 'Not provided'}. Location: ${address || `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`}`,
-          location_lat: location.lat,
-          location_lng: location.lng,
-          address: address || userProfile.address || 'Location captured via GPS',
+          description: `SOS ALERT: ${userProfile.first_name} ${userProfile.last_name} needs immediate assistance. Contact: ${userProfile.phone_number || 'Not provided'}. Location: ${locationDescription}`,
+          location_lat: locationData.lat,
+          location_lng: locationData.lng,
+          address: currentAddress,
           barangay: (userProfile.barangay && userProfile.barangay.trim()) || 'UNKNOWN',
           priority: 1, // Highest priority for SOS - required for EMERGENCY INCIDENT
           photo_url: null,
@@ -169,39 +198,72 @@ export function SOSButton() {
 
       if (!response.ok || !result.success) {
         // Handle specific error codes
+        let errorMessage = 'Failed to send SOS request'
         if (result.code === 'OUT_OF_BOUNDS') {
-          throw new Error('Your location is outside Talisay City. Please ensure you are within the city limits.')
+          errorMessage = 'Your location is outside Talisay City. Please ensure you are within the city limits.'
         } else if (result.code === 'CLASSIFICATION_MISMATCH') {
-          throw new Error('Invalid incident classification. Please try again.')
+          errorMessage = 'Invalid incident classification. Please try again.'
         } else if (result.code === 'RATE_LIMITED') {
-          throw new Error('Too many requests. Please wait a moment before trying again.')
+          errorMessage = 'Too many requests. Please wait a moment before trying again.'
+        } else {
+          errorMessage = result.message || errorMessage
         }
-        throw new Error(result.message || 'Failed to send SOS request')
+        throw new Error(errorMessage)
       }
 
+      // Success
+      setSosStatus('success')
       toast({
         title: "SOS Sent Successfully",
         description: "Your emergency request has been sent. Help is on the way!",
         duration: 5000
       })
 
-      setShowModal(false)
-      
-      // Reset state
-      setLocation(null)
-      setAddress(null)
-      setLocationError(null)
+      // Auto-close modal after 3 seconds
+      autoCloseTimerRef.current = setTimeout(() => {
+        resetSOSState()
+      }, 3000)
+
     } catch (error: any) {
       console.error('SOS send error:', error)
+      setSosStatus('error')
+      setGettingLocation(false)
+      
+      // Set location error if it's a location-related error
+      if (error.message && error.message.includes('location')) {
+        setLocationError(error.message)
+      }
+      
       toast({
         variant: "destructive",
         title: "Failed to Send SOS",
         description: error.message || "Please try again or call emergency services directly."
       })
-    } finally {
-      setIsSending(false)
+
+      // Auto-close modal after 4 seconds on error (give user time to see error)
+      autoCloseTimerRef.current = setTimeout(() => {
+        resetSOSState()
+      }, 4000)
     }
   }
+
+  // Cleanup timer on unmount or when modal closes
+  useEffect(() => {
+    return () => {
+      if (autoCloseTimerRef.current) {
+        clearTimeout(autoCloseTimerRef.current)
+        autoCloseTimerRef.current = null
+      }
+    }
+  }, [])
+
+  // Cleanup timer when modal is manually closed or component unmounts
+  useEffect(() => {
+    if (!showModal && autoCloseTimerRef.current) {
+      clearTimeout(autoCloseTimerRef.current)
+      autoCloseTimerRef.current = null
+    }
+  }, [showModal])
 
   // Don't show if user is not a resident
   if (!user || user.role !== 'resident') {
@@ -219,87 +281,94 @@ export function SOSButton() {
       <div className="fixed right-6 bottom-32 md:bottom-24 z-50">
         <Button
           onClick={handleSOSClick}
-          className="bg-red-600 hover:bg-red-700 text-white rounded-full w-16 h-16 shadow-2xl hover:shadow-red-500/50 transition-all duration-300 hover:scale-110 active:scale-95"
+          disabled={isProcessing}
+          className="bg-red-600 hover:bg-red-700 text-white rounded-full w-16 h-16 shadow-2xl hover:shadow-red-500/50 transition-all duration-300 hover:scale-110 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
           size="lg"
           aria-label="SOS Emergency"
         >
           <div className="flex flex-col items-center justify-center">
-            <AlertTriangle className="h-7 w-7 mb-0.5" />
-            <span className="text-xs font-bold">SOS</span>
+            {isProcessing ? (
+              <Loader2 className="h-7 w-7 mb-0.5 animate-spin" />
+            ) : (
+              <>
+                <AlertTriangle className="h-7 w-7 mb-0.5" />
+                <span className="text-xs font-bold">SOS</span>
+              </>
+            )}
           </div>
         </Button>
       </div>
 
-      {/* SOS Modal */}
+      {/* SOS Modal - Brief display that auto-closes */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
-          <Card className="max-w-lg w-full shadow-2xl border-2 border-red-500">
-            <CardHeader className="bg-red-600 text-white rounded-t-lg">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-white/20 rounded-full">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <Card className="max-w-lg w-full shadow-2xl border-2 border-red-500 animate-in zoom-in-95 duration-200">
+            <CardHeader className={`rounded-t-lg ${
+              sosStatus === 'success' ? 'bg-green-600' : 
+              sosStatus === 'error' ? 'bg-red-700' : 
+              'bg-red-600'
+            } text-white`}>
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-white/20 rounded-full">
+                  {sosStatus === 'success' ? (
+                    <CheckCircle className="h-6 w-6" />
+                  ) : sosStatus === 'error' ? (
                     <AlertTriangle className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-2xl font-bold">SOS Emergency</CardTitle>
-                    <CardDescription className="text-red-100">
-                      Immediate assistance request
-                    </CardDescription>
-                  </div>
+                  ) : (
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  )}
                 </div>
-                <button
-                  onClick={() => setShowModal(false)}
-                  className="text-white hover:text-red-200 transition-colors"
-                  aria-label="Close"
-                  disabled={isSending}
-                >
-                  <X className="h-5 w-5" />
-                </button>
+                <div>
+                  <CardTitle className="text-2xl font-bold">
+                    {sosStatus === 'success' ? 'SOS Sent!' : 
+                     sosStatus === 'error' ? 'SOS Failed' : 
+                     'Sending SOS...'}
+                  </CardTitle>
+                  <CardDescription className={
+                    sosStatus === 'success' ? 'text-green-100' : 
+                    sosStatus === 'error' ? 'text-red-100' : 
+                    'text-red-100'
+                  }>
+                    {sosStatus === 'success' ? 'Your emergency request has been sent' : 
+                     sosStatus === 'error' ? 'Please try again or call emergency services' : 
+                     'Processing your emergency request'}
+                  </CardDescription>
+                </div>
               </div>
             </CardHeader>
 
             <CardContent className="pt-6 space-y-4">
               {/* User Information */}
-              <div className="space-y-3">
-                <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                  <User className="h-5 w-5 text-blue-600" />
-                  Your Information
-                </h3>
-                <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Name:</span>
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">
-                      {userProfile ? `${userProfile.first_name} ${userProfile.last_name}` : 'Loading...'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Phone:</span>
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">
-                      {userProfile?.phone_number || 'Not provided'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Address:</span>
-                    <span className="text-sm font-medium text-gray-900 dark:text-white text-right">
-                      {userProfile?.address || 'Not provided'}
-                    </span>
-                  </div>
-                  {userProfile?.barangay && (
+              {userProfile && (
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <User className="h-5 w-5 text-blue-600" />
+                    Reporter
+                  </h3>
+                  <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 space-y-2">
                     <div className="flex justify-between">
-                      <span className="text-sm text-gray-600 dark:text-gray-400">Barangay:</span>
+                      <span className="text-sm text-gray-600 dark:text-gray-400">Name:</span>
                       <span className="text-sm font-medium text-gray-900 dark:text-white">
-                        {userProfile.barangay}
+                        {userProfile.first_name} {userProfile.last_name}
                       </span>
                     </div>
-                  )}
+                    {userProfile.phone_number && (
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">Phone:</span>
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">
+                          {userProfile.phone_number}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Location Status */}
               <div className="space-y-3">
                 <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                   <MapPin className="h-5 w-5 text-green-600" />
-                  Current Location
+                  Location
                 </h3>
                 {gettingLocation ? (
                   <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 flex items-center gap-3">
@@ -315,73 +384,46 @@ export function SOSButton() {
                       <span className="text-sm font-medium">Location captured</span>
                     </div>
                     {address && (
-                      <p className="text-xs text-gray-600 dark:text-gray-400 pl-7">
+                      <p className="text-xs text-gray-600 dark:text-gray-400 pl-7 line-clamp-2">
                         {address}
                       </p>
                     )}
                     <p className="text-xs text-gray-500 dark:text-gray-500 pl-7">
-                      Coordinates: {location.lat.toFixed(6)}, {location.lng.toFixed(6)}
+                      {location.lat.toFixed(6)}, {location.lng.toFixed(6)}
                     </p>
                   </div>
                 ) : locationError ? (
                   <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4">
                     <p className="text-sm text-red-700 dark:text-red-300">{locationError}</p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={getCurrentLocation}
-                      className="mt-2"
-                    >
-                      Try Again
-                    </Button>
                   </div>
                 ) : (
                   <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4">
                     <p className="text-sm text-yellow-700 dark:text-yellow-300">
-                      Location not captured yet. Please wait...
+                      Capturing location...
                     </p>
                   </div>
                 )}
               </div>
 
-              {/* Warning */}
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                <p className="text-sm text-red-700 dark:text-red-300 font-medium">
-                  ⚠️ This will send an emergency alert to the response team. Only use in genuine emergencies.
-                </p>
-              </div>
+              {/* Status Message */}
+              {sosStatus === 'success' && (
+                <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                  <p className="text-sm text-green-700 dark:text-green-300 font-medium text-center">
+                    ✓ Help is on the way! This window will close automatically.
+                  </p>
+                </div>
+              )}
 
-              {/* Action Buttons */}
-              <div className="flex gap-3 pt-4">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowModal(false)}
-                  className="flex-1"
-                  disabled={isSending}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleSendSOS}
-                  disabled={isSending || !location || !userProfile}
-                  className="flex-1 bg-red-600 hover:bg-red-700 text-white"
-                >
-                  {isSending ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Sending...
-                    </>
-                  ) : (
-                    <>
-                      <AlertTriangle className="h-4 w-4 mr-2" />
-                      Send SOS
-                    </>
-                  )}
-                </Button>
-              </div>
+              {sosStatus === 'error' && (
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                  <p className="text-sm text-red-700 dark:text-red-300 font-medium text-center">
+                    ⚠️ Failed to send SOS. Please try again or call emergency services directly.
+                  </p>
+                </div>
+              )}
 
-              {/* Emergency Call Option */}
-              <div className="pt-4 border-t">
+              {/* Emergency Call Option - Always visible */}
+              <div className="pt-2 border-t">
                 <p className="text-xs text-gray-600 dark:text-gray-400 text-center mb-2">
                   For immediate life-threatening emergencies, call:
                 </p>
