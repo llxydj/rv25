@@ -51,9 +51,10 @@ function MapErrorFallback({ onRetry }: { onRetry: () => void }) {
 }
 
 // Define the dynamic import with error handling
-// Using a simple, reliable pattern
+// The .then() wrapper ensures proper module resolution in dev mode (fixes originalFactory error)
+// When using .then(), we must return { default: Component } format for Next.js dynamic()
 const MapWithNoSSR = dynamic(
-  () => import('./map-internal'),
+  () => import('./map-internal').then((mod) => ({ default: mod.default || mod })),
   { 
     ssr: false,
     loading: () => (

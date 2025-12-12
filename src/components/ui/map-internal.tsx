@@ -839,7 +839,8 @@ const MapInternal: React.FC<MapComponentProps> = ({
   )
 }
 
-const MemoizedMapInternal = memo(MapInternal)
-MemoizedMapInternal.displayName = 'MapInternal'
+// Export the memoized component as default
+const MapInternalComponent = memo(MapInternal)
+MapInternalComponent.displayName = 'MapInternal'
 
-export default MemoizedMapInternal
+export default MapInternalComponent
